@@ -83,7 +83,7 @@ class WaybarManager:
         
         # Update only the editable properties
         editable_keys = [
-            'height', 'position', 
+            'height', 'position', 'layer',
             'margin-top', 'margin-bottom', 'margin-left', 'margin-right',
             'modules-left', 'modules-center', 'modules-right'
         ]
@@ -268,10 +268,11 @@ class WaybarManager:
             return {
                 "height": 10,
                 "position": "top",
+                "layer": "top",
                 "margin-top": 15,
                 "margin-bottom": 0,
                 "margin-left": 0,
-                "margin-right": 0,
+                "margin-right": 0,  # Fixed typo: was "marfin-right"
                 "modules-left": ["clock", "hyprland/workspaces"],
                 "modules-center": ["tray"],
                 "modules-right": [

@@ -173,7 +173,7 @@ class WaybarStyleManager:
         return 'background:transparent' in self.current_style
     
     def create_default_style(self) -> str:
-        """Create default Waybar style.css"""
+        """Create default Waybar style.css matching user's structure"""
         return '''@import 'colors/one-dark.css';
 
 *{
@@ -188,9 +188,7 @@ class WaybarStyleManager:
 }
 
 window#waybar{
-    border-radius:46px;
-    background: alpha(@bg0,.6);
-    box-shadow: 0px 0px 2px rgba(0, 0, 0, .6);
+    background:transparent;
 }
 
 tooltip{

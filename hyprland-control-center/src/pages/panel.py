@@ -173,32 +173,8 @@ def _build_main_panel_content(window) -> Gtk.Box:
     size_box.append(size_buttons)
     appearance_group.append(size_box)
     
-    # Transparent background toggle
-    sm = window.waybar_style_manager
-    is_transparent = sm.is_transparent()
-    
-    w = ToggleRow(
-        "Transparent Background",
-        is_transparent,
-        lambda v: _on_transparent_toggle(window, v, is_dock=False),
-        "Use fully transparent background"
-    )
-    window.widgets['main_transparent'] = w
-    appearance_group.append(w)
-    
-    # Background opacity (only when not transparent)
-    current_opacity = sm.get_current_opacity() or 0.6
-    w = FloatRow(
-        "Background Opacity",
-        current_opacity if not is_transparent else 0.6,
-        0.0,
-        1.0,
-        lambda v: _on_opacity_change(window, v, is_dock=False),
-        "Panel background transparency (0=clear, 1=opaque)"
-    )
-    w.set_sensitive(not is_transparent)  # Disable if transparent
-    window.widgets['main_opacity'] = w
-    appearance_group.append(w)
+    # Note: User's default style uses background:transparent
+    # Opacity controls removed - edit style.css manually if needed
     
     # Margins
     margin_header = Gtk.Label(label="MARGINS")
@@ -285,7 +261,13 @@ def _on_size_changed(window, button, font_size: int):
                 child.set_active(False)
         
         # Update CSS font-size
-        window.waybar_style_manager.set_font_size(font_size)
+        sm = window.waybar_style_manager
+        sm.set_font_size(font_size)
+        sm.save_style()  # Save immediately
+        
+        # Reload waybar to apply
+        window.waybar_manager.reload_waybar()
+        window._show_toast(f"Font size changed to {font_size}px")
 
 
 def _on_transparent_toggle(window, transparent: bool, is_dock: bool):
@@ -316,24 +298,21 @@ def _on_opacity_change(window, opacity: float, is_dock: bool):
 
 
 def _on_extend_toggle(window, extend: bool, is_dock: bool):
-    """Handle extend to edges toggle"""
+    """Handle extend to edges toggle - only affects margins"""
     wm = window.waybar_manager
-    sm = window.waybar_style_manager
     
     if extend:
-        # Extend to edges: no margins, no border-radius
+        # Extend to edges: all margins to 0
         wm.set_margin('left', 0, is_dock=is_dock)
         wm.set_margin('right', 0, is_dock=is_dock)
         wm.set_margin('top', 0, is_dock=is_dock)
         wm.set_margin('bottom', 0, is_dock=is_dock)
-        sm.set_border_radius(0, enabled=False)
-        sm.set_box_shadow(enabled=False)
     else:
-        # Floating panel: margins + border-radius
-        wm.set_margin('left', 12, is_dock=is_dock)
-        wm.set_margin('right', 12, is_dock=is_dock)
-        sm.set_border_radius(46, enabled=True)
-        sm.set_box_shadow(enabled=True)
+        # Floating panel: restore margins
+        # Top margin preserved (user has 15)
+        wm.set_margin('left', 0, is_dock=is_dock)
+        wm.set_margin('right', 0, is_dock=is_dock)
+        # Note: User's CSS handles background styling
 
 
 def _on_add_module(window, position: str, is_dock: bool):
@@ -412,13 +391,26 @@ def _on_add_module(window, position: str, is_dock: bool):
                 module = selected_row.module_name
                 # Add module
                 wm.add_module(position, module, is_dock=is_dock)
-                # Auto-save
+                # Auto-save and reload
                 _on_panel_apply(window, is_dock=is_dock)
                 window._show_toast(f"Added {module} to {position}")
-                # TODO: Refresh page to show new module
+                # Refresh page
+                _refresh_panel_page(window)
     
     dialog.connect('response', on_response)
     dialog.present()
+
+
+def _refresh_panel_page(window):
+    """Refresh the panel page to show updated modules"""
+    # Rebuild the panel page
+    from . import panel
+    new_page = panel.build_panel_page(window)
+    
+    # Replace in stack
+    window.stack.remove(window.stack.get_child_by_name("panel"))
+    window.stack.add_named(new_page, "panel")
+    window.stack.set_visible_child_name("panel")
 
 
 def _get_module_icon(module: str) -> str:
@@ -460,12 +452,13 @@ def _get_module_display_name(module: str) -> str:
 
 
 def _on_remove_module(window, position: str, module: str, is_dock: bool):
-    """Remove a module from position - auto-saves"""
+    """Remove a module from position - auto-saves and refreshes"""
     window.waybar_manager.remove_module(position, module, is_dock=is_dock)
     # Auto-save changes
     _on_panel_apply(window, is_dock=is_dock)
     window._show_toast(f"Removed {module} from {position}")
-    # TODO: Refresh page to update UI
+    # Refresh page to update UI
+    _refresh_panel_page(window)
 
 
 def _on_reorder_modules(window, position: str, data: str, is_dock: bool):
@@ -508,23 +501,20 @@ def _on_panel_reset_response(window, dialog, response, is_dock: bool):
 
 
 def _on_panel_apply(window, is_dock: bool):
-    """Apply panel changes - saves both config and style"""
+    """Apply panel changes - saves config.jsonc only"""
     wm = window.waybar_manager
-    sm = window.waybar_style_manager
     
-    # Save config.json (layout)
+    # Save config.jsonc (layout)
     if is_dock:
         wm.save_config(wm.dock_config, is_dock=True)
     else:
         wm.save_config(wm.main_config, is_dock=False)
     
-    # Save style.css (appearance)
-    sm.save_style()
-    
+    # Note: style.css changes are saved separately by size selector
     # Reload waybar to apply changes
     wm.reload_waybar()
     
-    window._show_toast("Panel configuration saved and applied!")
+    window._show_toast("Panel configuration applied!")
 
 
 # ═══════════════════════════════════════════════════════════════════
