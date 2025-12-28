@@ -296,3 +296,43 @@ tooltip label{
     background-color: @red;
 }
 '''
+    
+    def add_vertical_bar_css(self):
+        """Add CSS for vertical bars (left/right position)"""
+        # Check if already has vertical bar CSS
+        if '.modules-left' in self.current_style or '.modules-right' in self.current_style:
+            return
+        
+        # Add vertical bar styling
+        vertical_css = '''
+/* Vertical bar styling for left/right positions */
+.modules-left {
+    transition-property: background-color;
+    transition-duration: 0.5s;
+    margin: 6px 6px 6px 6px;
+    border-radius: 4px;
+    background: alpha(@bg0, 0.4);
+    color: @fg;
+}
+
+.modules-right {
+    margin: 0px 6px 6px 6px;
+    border-radius: 4px;
+    background: alpha(@bg0, 0.4);
+    color: @fg;
+}
+'''
+        self.current_style += vertical_css
+    
+    def remove_vertical_bar_css(self):
+        """Remove vertical bar CSS (when switching back to top/bottom)"""
+        # Remove .modules-left and .modules-right blocks
+        import re
+        
+        # Remove .modules-left block
+        pattern = r'/\* Vertical bar styling.*?\*/\s*.modules-left\s*\{[^}]+\}\s*'
+        self.current_style = re.sub(pattern, '', self.current_style, flags=re.DOTALL)
+        
+        # Remove .modules-right block
+        pattern = r'.modules-right\s*\{[^}]+\}\s*'
+        self.current_style = re.sub(pattern, '', self.current_style, flags=re.DOTALL)

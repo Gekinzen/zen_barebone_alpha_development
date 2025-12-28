@@ -91,10 +91,10 @@ def _build_main_panel_content(window) -> Gtk.Box:
     position = wm.get_position(is_dock=False)
     w = DropdownRow(
         "Position on Screen",
-        ["top", "bottom"],  # Only horizontal positions
-        position if position in ["top", "bottom"] else "top",
-        lambda v: wm.set_position(v, is_dock=False),
-        "Where the panel appears on screen (horizontal)"
+        ["top", "bottom", "left", "right"],
+        position,
+        lambda v: _on_position_change(window, v, is_dock=False),
+        "Where the panel appears on screen"
     )
     window.widgets['main_position'] = w
     behavior_group.append(w)
@@ -249,6 +249,21 @@ def _on_monitor_change(window, monitor_name: str, is_dock: bool):
         window.waybar_manager.set_output(None, is_dock=is_dock)
     else:
         window.waybar_manager.set_output(monitor_name, is_dock=is_dock)
+
+
+def _on_position_change(window, position: str, is_dock: bool):
+    """Handle position change - updates config and CSS for vertical bars"""
+    wm = window.waybar_manager
+    sm = window.waybar_style_manager
+    
+    # Set position in config
+    wm.set_position(position, is_dock=is_dock)
+    
+    # If vertical bar (left/right), add module zone styling
+    if position in ['left', 'right']:
+        sm.add_vertical_bar_css()
+    else:
+        sm.remove_vertical_bar_css()
 
 
 def _on_size_changed(window, button, font_size: int):
