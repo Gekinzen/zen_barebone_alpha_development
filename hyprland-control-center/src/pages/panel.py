@@ -91,10 +91,10 @@ def _build_main_panel_content(window) -> Gtk.Box:
     position = wm.get_position(is_dock=False)
     w = DropdownRow(
         "Position on Screen",
-        ["top", "bottom", "left", "right"],
-        position,
+        ["top", "bottom"],  # Only horizontal positions
+        position if position in ["top", "bottom"] else "top",
         lambda v: wm.set_position(v, is_dock=False),
-        "Where the panel appears on screen"
+        "Where the panel appears on screen (horizontal)"
     )
     window.widgets['main_position'] = w
     behavior_group.append(w)
@@ -338,16 +338,134 @@ def _on_extend_toggle(window, extend: bool, is_dock: bool):
 
 def _on_add_module(window, position: str, is_dock: bool):
     """Show dialog to add a module"""
-    # TODO: Implement module selection dialog
-    window._show_toast(f"Add module to {position} - Coming soon")
+    wm = window.waybar_manager
+    
+    # Get all modules defined in config
+    all_modules = list(wm.get_available_modules())
+    
+    # Get currently used modules (in all zones)
+    used_modules = []
+    for pos in ['left', 'center', 'right']:
+        used_modules.extend(wm.get_modules(pos, is_dock=is_dock))
+    
+    # Get available modules (not yet used)
+    available_modules = [m for m in all_modules if m not in used_modules]
+    
+    if not available_modules:
+        window._show_toast("All modules are already in use!")
+        return
+    
+    # Create selection dialog
+    dialog = Adw.MessageDialog(
+        transient_for=window,
+        heading=f"Add Module to {position.upper()}",
+        body="Select a module to add:"
+    )
+    
+    # Create list box with available modules
+    from gi.repository import Gtk
+    list_box = Gtk.ListBox()
+    list_box.set_selection_mode(Gtk.SelectionMode.SINGLE)
+    list_box.add_css_class('boxed-list')
+    
+    for module in sorted(available_modules):
+        row = Gtk.ListBoxRow()
+        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        box.set_margin_top(8)
+        box.set_margin_bottom(8)
+        box.set_margin_start(12)
+        box.set_margin_end(12)
+        
+        # Icon
+        icon_name = _get_module_icon(module)
+        icon = Gtk.Image.new_from_icon_name(icon_name)
+        icon.set_pixel_size(24)
+        box.append(icon)
+        
+        # Label
+        label = Gtk.Label(label=_get_module_display_name(module))
+        label.set_halign(Gtk.Align.START)
+        label.set_hexpand(True)
+        box.append(label)
+        
+        row.set_child(box)
+        row.module_name = module  # Store module name
+        list_box.append(row)
+    
+    # Scrolled window for list
+    scrolled = Gtk.ScrolledWindow()
+    scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+    scrolled.set_min_content_height(200)
+    scrolled.set_max_content_height(400)
+    scrolled.set_child(list_box)
+    
+    dialog.set_extra_child(scrolled)
+    dialog.add_response("cancel", "Cancel")
+    dialog.add_response("add", "Add")
+    dialog.set_response_appearance("add", Adw.ResponseAppearance.SUGGESTED)
+    dialog.set_default_response("add")
+    
+    def on_response(dialog, response):
+        if response == "add":
+            selected_row = list_box.get_selected_row()
+            if selected_row:
+                module = selected_row.module_name
+                # Add module
+                wm.add_module(position, module, is_dock=is_dock)
+                # Auto-save
+                _on_panel_apply(window, is_dock=is_dock)
+                window._show_toast(f"Added {module} to {position}")
+                # TODO: Refresh page to show new module
+    
+    dialog.connect('response', on_response)
+    dialog.present()
+
+
+def _get_module_icon(module: str) -> str:
+    """Get icon name for module"""
+    icons = {
+        'clock': 'preferences-system-time-symbolic',
+        'hyprland/workspaces': 'view-grid-symbolic',
+        'tray': 'system-tray-symbolic',
+        'pulseaudio': 'audio-volume-high-symbolic',
+        'network': 'network-wireless-symbolic',
+        'battery': 'battery-symbolic',
+        'custom/notification': 'notification-symbolic',
+        'cpu': 'utilities-system-monitor-symbolic',
+        'memory': 'drive-harddisk-symbolic',
+        'disk': 'drive-harddisk-symbolic',
+        'temperature': 'temperature-symbolic',
+        'backlight': 'display-brightness-symbolic',
+    }
+    return icons.get(module, 'application-x-executable-symbolic')
+
+
+def _get_module_display_name(module: str) -> str:
+    """Get display name for module"""
+    names = {
+        'clock': 'Clock',
+        'hyprland/workspaces': 'Workspaces',
+        'tray': 'System Tray',
+        'pulseaudio': 'Audio',
+        'network': 'Network',
+        'battery': 'Battery',
+        'custom/notification': 'Notifications',
+        'cpu': 'CPU',
+        'memory': 'Memory',
+        'disk': 'Disk',
+        'temperature': 'Temperature',
+        'backlight': 'Brightness',
+    }
+    return names.get(module, module.replace('/', ' ').title())
 
 
 def _on_remove_module(window, position: str, module: str, is_dock: bool):
-    """Remove a module from position"""
+    """Remove a module from position - auto-saves"""
     window.waybar_manager.remove_module(position, module, is_dock=is_dock)
-    window._show_toast(f"Removed {module}")
-    # Refresh the page
-    # TODO: Implement page refresh
+    # Auto-save changes
+    _on_panel_apply(window, is_dock=is_dock)
+    window._show_toast(f"Removed {module} from {position}")
+    # TODO: Refresh page to update UI
 
 
 def _on_reorder_modules(window, position: str, data: str, is_dock: bool):
