@@ -6,13 +6,14 @@ Main Panel only - Dock (Waybar2) coming soon!
 import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
-from gi.repository import Gtk, Adw, Gdk
+from gi.repository import Gtk, Adw
 from typing import Callable
 
 from ..widgets import (
     SettingsGroup, IntegerRow, ToggleRow, DropdownRow, FloatRow
 )
 from ..waybar_manager import WaybarManager
+from ..waybar_style_manager import WaybarStyleManager
 from .panel_helpers import (
     create_module_drop_zone, get_monitor_list, create_size_selector
 )
@@ -32,6 +33,12 @@ def build_panel_page(window) -> Gtk.ScrolledWindow:
         window.waybar_manager.load_config(is_dock=False)
         # Dock (Waybar2) will be loaded when we implement it
         # window.waybar_manager.load_config(is_dock=True)
+    
+    # Initialize style manager
+    if not hasattr(window, 'waybar_style_manager'):
+        from ..constants import WAYBAR_DIR
+        window.waybar_style_manager = WaybarStyleManager(WAYBAR_DIR)
+        window.waybar_style_manager.load_style()
     
     # Header
     page_header = window._create_page_header(
@@ -139,24 +146,57 @@ def _build_main_panel_content(window) -> Gtk.Box:
     size_label.set_hexpand(True)
     size_box.append(size_label)
     
-    current_height = wm.get_height(is_dock=False)
-    size_selector = create_size_selector(
-        current_height,
-        lambda h: wm.set_height(h, is_dock=False)
-    )
-    size_box.append(size_selector)
+    # Get current font size from CSS
+    sm = window.waybar_style_manager
+    current_font_size = sm.get_current_font_size() or 16
     
+    # Size presets: font-size in px
+    sizes = [
+        ('Small', 10),
+        ('Medium', 16),
+        ('Large', 20),
+        ('X-Large', 26)
+    ]
+    
+    # Create size buttons
+    size_buttons = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+    size_buttons.add_css_class('size-selector')
+    
+    for name, font_size in sizes:
+        btn = Gtk.ToggleButton(label=name)
+        btn.add_css_class('size-btn')
+        if font_size == current_font_size:
+            btn.set_active(True)
+        btn.connect('toggled', lambda b, fs=font_size: _on_size_changed(window, b, fs))
+        size_buttons.append(btn)
+    
+    size_box.append(size_buttons)
     appearance_group.append(size_box)
     
-    # Background opacity (placeholder for CSS manipulation)
+    # Transparent background toggle
+    sm = window.waybar_style_manager
+    is_transparent = sm.is_transparent()
+    
+    w = ToggleRow(
+        "Transparent Background",
+        is_transparent,
+        lambda v: _on_transparent_toggle(window, v, is_dock=False),
+        "Use fully transparent background"
+    )
+    window.widgets['main_transparent'] = w
+    appearance_group.append(w)
+    
+    # Background opacity (only when not transparent)
+    current_opacity = sm.get_current_opacity() or 0.6
     w = FloatRow(
         "Background Opacity",
-        1.0,
+        current_opacity if not is_transparent else 0.6,
         0.0,
         1.0,
-        lambda v: print(f"Opacity: {v}"),
-        "Panel background transparency"
+        lambda v: _on_opacity_change(window, v, is_dock=False),
+        "Panel background transparency (0=clear, 1=opaque)"
     )
+    w.set_sensitive(not is_transparent)  # Disable if transparent
     window.widgets['main_opacity'] = w
     appearance_group.append(w)
     
@@ -235,15 +275,65 @@ def _on_monitor_change(window, monitor_name: str, is_dock: bool):
         window.waybar_manager.set_output(monitor_name, is_dock=is_dock)
 
 
+def _on_size_changed(window, button, font_size: int):
+    """Handle size button toggle - changes font-size in CSS"""
+    if button.get_active():
+        # Deactivate other buttons
+        parent = button.get_parent()
+        for child in parent:
+            if isinstance(child, Gtk.ToggleButton) and child != button:
+                child.set_active(False)
+        
+        # Update CSS font-size
+        window.waybar_style_manager.set_font_size(font_size)
+
+
+def _on_transparent_toggle(window, transparent: bool, is_dock: bool):
+    """Handle transparent background toggle"""
+    sm = window.waybar_style_manager
+    
+    if transparent:
+        # Set to transparent
+        sm.set_opacity(1.0, transparent=True)
+        # Disable opacity slider
+        if 'main_opacity' in window.widgets:
+            window.widgets['main_opacity'].set_sensitive(False)
+    else:
+        # Set to current opacity value
+        current_opacity = 0.6  # Default
+        if 'main_opacity' in window.widgets:
+            # Get value from slider if exists
+            window.widgets['main_opacity'].set_sensitive(True)
+        sm.set_opacity(current_opacity, transparent=False)
+
+
+def _on_opacity_change(window, opacity: float, is_dock: bool):
+    """Handle opacity slider change"""
+    sm = window.waybar_style_manager
+    # Only apply if not in transparent mode
+    if not sm.is_transparent():
+        sm.set_opacity(opacity, transparent=False)
+
+
 def _on_extend_toggle(window, extend: bool, is_dock: bool):
     """Handle extend to edges toggle"""
     wm = window.waybar_manager
+    sm = window.waybar_style_manager
+    
     if extend:
+        # Extend to edges: no margins, no border-radius
         wm.set_margin('left', 0, is_dock=is_dock)
         wm.set_margin('right', 0, is_dock=is_dock)
+        wm.set_margin('top', 0, is_dock=is_dock)
+        wm.set_margin('bottom', 0, is_dock=is_dock)
+        sm.set_border_radius(0, enabled=False)
+        sm.set_box_shadow(enabled=False)
     else:
+        # Floating panel: margins + border-radius
         wm.set_margin('left', 12, is_dock=is_dock)
         wm.set_margin('right', 12, is_dock=is_dock)
+        sm.set_border_radius(46, enabled=True)
+        sm.set_box_shadow(enabled=True)
 
 
 def _on_add_module(window, position: str, is_dock: bool):
@@ -300,14 +390,23 @@ def _on_panel_reset_response(window, dialog, response, is_dock: bool):
 
 
 def _on_panel_apply(window, is_dock: bool):
-    """Apply panel changes"""
+    """Apply panel changes - saves both config and style"""
     wm = window.waybar_manager
+    sm = window.waybar_style_manager
+    
+    # Save config.json (layout)
     if is_dock:
         wm.save_config(wm.dock_config, is_dock=True)
-        window._show_toast("Dock configuration saved")
     else:
         wm.save_config(wm.main_config, is_dock=False)
-        window._show_toast("Panel configuration saved")
+    
+    # Save style.css (appearance)
+    sm.save_style()
+    
+    # Reload waybar to apply changes
+    wm.reload_waybar()
+    
+    window._show_toast("Panel configuration saved and applied!")
 
 
 # ═══════════════════════════════════════════════════════════════════
