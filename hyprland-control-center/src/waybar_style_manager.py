@@ -168,6 +168,13 @@ class WaybarStyleManager:
             return int(match.group(1))
         return None
     
+    def get_border_radius(self) -> Optional[int]:
+        """Get current border-radius from window#waybar"""
+        match = re.search(r'window#waybar\s*\{[^}]*?border-radius:\s*(\d+)px', self.current_style, re.DOTALL)
+        if match:
+            return int(match.group(1))
+        return None
+    
     def is_transparent(self) -> bool:
         """Check if background is set to transparent"""
         return 'background:transparent' in self.current_style
@@ -188,7 +195,9 @@ class WaybarStyleManager:
 }
 
 window#waybar{
-    background:transparent;
+    border-radius:46px;
+    background: alpha(@bg0,.6);
+    box-shadow: 0px 0px 2px rgba(0, 0, 0, .6);
 }
 
 tooltip{

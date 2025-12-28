@@ -173,6 +173,48 @@ def _build_main_panel_content(window) -> Gtk.Box:
     size_box.append(size_buttons)
     appearance_group.append(size_box)
     
+    # Transparent background toggle
+    sm = window.waybar_style_manager
+    is_transparent = sm.is_transparent()
+    
+    w = ToggleRow(
+        "Transparent Background",
+        is_transparent,
+        lambda v: _on_transparent_toggle(window, v, is_dock=False),
+        "Use fully transparent background"
+    )
+    window.widgets['main_transparent'] = w
+    appearance_group.append(w)
+    
+    # Background opacity (only when not transparent)
+    current_opacity = sm.get_current_opacity() or 0.6
+    w = FloatRow(
+        "Background Opacity",
+        current_opacity if not is_transparent else 0.6,
+        0.0,
+        1.0,
+        lambda v: _on_opacity_change(window, v, is_dock=False),
+        "Panel background transparency (0=clear, 1=opaque)"
+    )
+    w.set_sensitive(not is_transparent)  # Disable if transparent
+    window.widgets['main_opacity'] = w
+    appearance_group.append(w)
+    
+    # Border radius (only when not extended)
+    extend_to_edges = wm.get_margin('left', is_dock=False) == 0
+    current_radius = sm.get_border_radius() or 46
+    w = IntegerRow(
+        "Border Radius",
+        current_radius,
+        0,
+        50,
+        lambda v: _on_border_radius_change(window, v, is_dock=False),
+        "Corner roundness in pixels"
+    )
+    w.set_sensitive(not extend_to_edges)  # Disable if extended
+    window.widgets['main_border_radius'] = w
+    appearance_group.append(w)
+    
     # Note: User's default style uses background:transparent
     # Opacity controls removed - edit style.css manually if needed
     
@@ -312,22 +354,82 @@ def _on_opacity_change(window, opacity: float, is_dock: bool):
         sm.set_opacity(opacity, transparent=False)
 
 
+def _on_transparent_toggle(window, transparent: bool, is_dock: bool):
+    """Handle transparent background toggle"""
+    sm = window.waybar_style_manager
+    
+    if transparent:
+        # Set to transparent
+        sm.set_opacity(1.0, transparent=True)
+        # Disable opacity slider
+        if 'main_opacity' in window.widgets:
+            window.widgets['main_opacity'].set_sensitive(False)
+    else:
+        # Set to current opacity value
+        current_opacity = 0.6  # Default
+        if 'main_opacity' in window.widgets:
+            window.widgets['main_opacity'].set_sensitive(True)
+        sm.set_opacity(current_opacity, transparent=False)
+    
+    # Save CSS immediately
+    sm.save_style()
+    window.waybar_manager.reload_waybar()
+
+
+def _on_opacity_change(window, opacity: float, is_dock: bool):
+    """Handle opacity slider change"""
+    sm = window.waybar_style_manager
+    # Only apply if not in transparent mode
+    if not sm.is_transparent():
+        sm.set_opacity(opacity, transparent=False)
+        # Save CSS immediately
+        sm.save_style()
+        window.waybar_manager.reload_waybar()
+
+
+def _on_border_radius_change(window, radius: int, is_dock: bool):
+    """Handle border radius change"""
+    sm = window.waybar_style_manager
+    sm.set_border_radius(radius, enabled=True)
+    # Save CSS immediately
+    sm.save_style()
+    window.waybar_manager.reload_waybar()
+
+
 def _on_extend_toggle(window, extend: bool, is_dock: bool):
-    """Handle extend to edges toggle - only affects margins"""
+    """Handle extend to edges toggle - sets all margins and disables border-radius"""
     wm = window.waybar_manager
+    sm = window.waybar_style_manager
     
     if extend:
-        # Extend to edges: all margins to 0
+        # Extend to edges: all margins to 0, border-radius to 0
         wm.set_margin('left', 0, is_dock=is_dock)
         wm.set_margin('right', 0, is_dock=is_dock)
         wm.set_margin('top', 0, is_dock=is_dock)
         wm.set_margin('bottom', 0, is_dock=is_dock)
+        sm.set_border_radius(0, enabled=False)
+        sm.set_box_shadow(enabled=False)
+        
+        # Disable border-radius control
+        if 'main_border_radius' in window.widgets:
+            window.widgets['main_border_radius'].set_sensitive(False)
     else:
-        # Floating panel: restore margins
-        # Top margin preserved (user has 15)
+        # Floating panel: restore margins, enable border-radius
         wm.set_margin('left', 0, is_dock=is_dock)
         wm.set_margin('right', 0, is_dock=is_dock)
-        # Note: User's CSS handles background styling
+        
+        # Restore border-radius to slider value
+        if 'main_border_radius' in window.widgets:
+            window.widgets['main_border_radius'].set_sensitive(True)
+            # Get current value from widget
+            # Will be set by user or default 46
+        
+        sm.set_border_radius(46, enabled=True)
+        sm.set_box_shadow(enabled=True)
+    
+    # Save changes
+    sm.save_style()
+    wm.reload_waybar()
 
 
 def _on_add_module(window, position: str, is_dock: bool):
