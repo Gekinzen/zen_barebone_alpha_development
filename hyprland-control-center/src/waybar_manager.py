@@ -30,11 +30,25 @@ class WaybarManager:
         config_path = self.waybar2_config if is_dock else self.config_file
         
         if not config_path.exists():
-            return False
+            # If config doesn't exist, create from default
+            default = self.create_default_config(is_dock=is_dock)
+            self.save_config(default, is_dock=is_dock)
+            return True
             
         try:
             with open(config_path, 'r') as f:
-                config = json.load(f)
+                # Remove comments before parsing (Waybar allows // comments)
+                content = f.read()
+                # Simple comment removal (not perfect but works for most cases)
+                lines = []
+                for line in content.split('\n'):
+                    # Remove // comments
+                    if '//' in line:
+                        line = line[:line.index('//')]
+                    lines.append(line)
+                clean_content = '\n'.join(lines)
+                
+                config = json.loads(clean_content)
                 if is_dock:
                     self.dock_config = config
                 else:
@@ -45,14 +59,46 @@ class WaybarManager:
             return False
     
     def save_config(self, config: Dict[str, Any], is_dock: bool = False):
-        """Save waybar config.json"""
+        """Save waybar config.json - only saves top-level properties"""
         config_path = self.waybar2_config if is_dock else self.config_file
         config_dir = config_path.parent
         
         config_dir.mkdir(parents=True, exist_ok=True)
         
+        # Read existing config to preserve module definitions
+        existing_config = {}
+        if config_path.exists():
+            try:
+                with open(config_path, 'r') as f:
+                    content = f.read()
+                    # Remove comments for parsing
+                    lines = []
+                    for line in content.split('\n'):
+                        if '//' in line:
+                            line = line[:line.index('//')]
+                        lines.append(line)
+                    existing_config = json.loads('\n'.join(lines))
+            except:
+                pass
+        
+        # Update only the editable properties
+        editable_keys = [
+            'height', 'position', 
+            'margin-top', 'margin-bottom', 'margin-left', 'margin-right',
+            'modules-left', 'modules-center', 'modules-right'
+        ]
+        
+        # Start with existing config to preserve module definitions
+        final_config = existing_config.copy()
+        
+        # Update only the editable keys
+        for key in editable_keys:
+            if key in config:
+                final_config[key] = config[key]
+        
+        # Save with nice formatting
         with open(config_path, 'w') as f:
-            json.dump(config, f, indent=4)
+            json.dump(final_config, f, indent=4)
         
         self.reload_waybar()
     
@@ -184,12 +230,12 @@ class WaybarManager:
             return []
     
     def create_default_config(self, is_dock: bool = False) -> Dict[str, Any]:
-        """Create default waybar configuration"""
+        """Create default waybar configuration matching user's structure"""
         if is_dock:
-            # Dock configuration
+            # Dock configuration (Waybar2) - Coming soon
             return {
-                "position": "bottom",
                 "height": 60,
+                "position": "top",
                 "margin-top": 0,
                 "margin-bottom": 8,
                 "margin-left": 0,
@@ -218,17 +264,22 @@ class WaybarManager:
                 }
             }
         else:
-            # Main panel configuration
+            # Main panel configuration - User's exact structure
             return {
+                "height": 10,
                 "position": "top",
-                "height": 34,
-                "margin-top": 0,
+                "margin-top": 15,
                 "margin-bottom": 0,
                 "margin-left": 0,
                 "margin-right": 0,
                 "modules-left": ["clock", "hyprland/workspaces"],
                 "modules-center": ["tray"],
-                "modules-right": ["pulseaudio", "network", "battery", "custom/notification"],
+                "modules-right": [
+                    "pulseaudio",
+                    "network",
+                    "battery",
+                    "custom/notification"
+                ],
                 "clock": {
                     "interval": 60,
                     "format": "{:%H:%M}",

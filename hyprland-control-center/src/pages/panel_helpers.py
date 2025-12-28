@@ -12,7 +12,8 @@ def create_module_chip(module_name: str, on_remove: Callable = None) -> Gtk.Box:
     """Create a draggable module chip"""
     chip = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
     chip.add_css_class('module-chip')
-    chip.set_data('module_name', module_name)
+    # Store as custom attribute (GTK4 compatible)
+    chip.module_name = module_name
     
     # Icon based on module type
     icon_map = {
@@ -58,7 +59,8 @@ def create_module_drop_zone(position: str, modules: List[str],
     """Create a drop zone for modules"""
     zone = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
     zone.add_css_class('module-drop-zone')
-    zone.set_data('position', position)
+    # Store as custom attribute (GTK4 compatible)
+    zone.position = position
     
     # Header
     header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
@@ -81,24 +83,21 @@ def create_module_drop_zone(position: str, modules: List[str],
     # Modules container
     modules_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
     modules_box.add_css_class('modules-container')
-    modules_box.set_data('position', position)
+    # Store as custom attribute (GTK4 compatible)
+    modules_box.position = position
     
     for module in modules:
         chip = create_module_chip(module, lambda m: on_remove(position, m))
         
-        # Make draggable
-        drag_source = Gtk.DragSource()
-        drag_source.set_actions(Gdk.DragAction.MOVE)
-        drag_source.connect('prepare', lambda s, x, y, m=module, p=position: on_drag_prepare(m, p))
-        drag_source.connect('drag-begin', lambda s, drag: on_drag_begin(drag, chip))
-        chip.add_controller(drag_source)
+        # TODO: Drag & drop will be implemented later
+        # For now, just display the modules
         
         modules_box.append(chip)
     
-    # Drop target
-    drop_target = Gtk.DropTarget.new(GLib.TYPE_STRING, Gdk.DragAction.MOVE)
-    drop_target.connect('drop', lambda t, v, x, y, p=position: on_reorder(p, v))
-    modules_box.add_controller(drop_target)
+    # TODO: Drop target will be implemented with drag & drop
+    # drop_target = Gtk.DropTarget.new(GLib.TYPE_STRING, Gdk.DragAction.MOVE)
+    # drop_target.connect('drop', lambda t, v, x, y, p=position: on_reorder(p, v))
+    # modules_box.add_controller(drop_target)
     
     zone.append(modules_box)
     
