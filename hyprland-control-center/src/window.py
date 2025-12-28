@@ -12,8 +12,9 @@ from typing import Callable
 from .config_manager import HyprlandConfigManager
 from .styles import get_css
 from .pages.appearance import build_appearance_page
+from .pages.panel import build_panel_page
 from .pages.placeholders import (
-    build_panel_page, build_workspaces_page, build_animations_page,
+    build_workspaces_page, build_animations_page,
     build_input_page, build_monitors_page, build_keybinds_page
 )
 
