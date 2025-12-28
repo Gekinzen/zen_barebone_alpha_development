@@ -15,10 +15,10 @@ class WaybarManager:
     
     def __init__(self):
         self.waybar_dir = WAYBAR_DIR
-        self.config_file = self.waybar_dir / "config.json"
+        self.config_file = self.waybar_dir / "config.jsonc"  # JSONC for comments
         self.style_file = self.waybar_dir / "style.css"
         self.waybar2_dir = WAYBAR_DIR / "waybar2"
-        self.waybar2_config = self.waybar2_dir / "config.json"
+        self.waybar2_config = self.waybar2_dir / "config.jsonc"  # JSONC for dock too
         self.waybar2_style = self.waybar2_dir / "style.css"
         
         # Current configs
@@ -26,7 +26,7 @@ class WaybarManager:
         self.dock_config: Dict[str, Any] = {}
         
     def load_config(self, is_dock: bool = False) -> bool:
-        """Load waybar config.json"""
+        """Load waybar config.jsonc (JSON with comments)"""
         config_path = self.waybar2_config if is_dock else self.config_file
         
         if not config_path.exists():
@@ -59,7 +59,7 @@ class WaybarManager:
             return False
     
     def save_config(self, config: Dict[str, Any], is_dock: bool = False):
-        """Save waybar config.json - only saves top-level properties"""
+        """Save waybar config.jsonc - only saves top-level properties"""
         config_path = self.waybar2_config if is_dock else self.config_file
         config_dir = config_path.parent
         
@@ -235,7 +235,7 @@ class WaybarManager:
             # Dock configuration (Waybar2) - Coming soon
             return {
                 "height": 60,
-                "position": "top",
+                "position": "bottom",
                 "margin-top": 0,
                 "margin-bottom": 8,
                 "margin-left": 0,
