@@ -42,40 +42,105 @@ def build_themes_page(window) -> Gtk.Box:
     theme_mgr = ThemeManager()
     window.theme_manager = theme_mgr
     
-    # Current theme section
-    current_group = SettingsGroup("Current Theme")
+    # Theme source section
+    source_group = SettingsGroup("Theme Source")
     
-    # Get available themes
-    available_themes = theme_mgr.get_available_themes()
-    theme_names = [t["name"] for t in available_themes]
-    theme_ids = [t["id"] for t in available_themes]
+    # Get current mode
+    current_mode = theme_mgr.get_theme_source_mode()
     
-    # Get current theme
-    current_theme_id = theme_mgr.get_current_theme()
-    current_theme_idx = theme_ids.index(current_theme_id) if current_theme_id in theme_ids else 0
+    # Mode selector (radio-style toggle)
+    from ..widgets import ToggleRow
     
-    # Theme dropdown
-    theme_row = DropdownRow(
-        "Color Scheme",
-        theme_names,
-        theme_names[current_theme_idx],
-        lambda name: _on_theme_change(window, theme_ids[theme_names.index(name)]),
-        "Select theme to apply globally"
+    use_custom = current_mode == "custom"
+    toggle_row = ToggleRow(
+        "Use Custom Color Scheme",
+        use_custom,
+        lambda v: _on_theme_source_toggle(window, v),
+        "When OFF, follows system GTK theme instead"
     )
-    current_group.append(theme_row)
+    source_group.append(toggle_row)
     
-    page.append(current_group)
+    page.append(source_group)
     
-    # Theme preview section
-    preview_group = SettingsGroup("Theme Preview")
+    # Current theme section (only show if custom mode)
+    if current_mode == "custom":
+        current_group = SettingsGroup("Current Theme")
+        
+        # Get available themes
+        available_themes = theme_mgr.get_available_themes()
+        theme_names = [t["name"] for t in available_themes]
+        theme_ids = [t["id"] for t in available_themes]
+        
+        # Get current theme
+        current_theme_id = theme_mgr.get_current_theme()
+        current_theme_idx = theme_ids.index(current_theme_id) if current_theme_id in theme_ids else 0
+        
+        # Theme dropdown
+        theme_row = DropdownRow(
+            "Color Scheme",
+            theme_names,
+            theme_names[current_theme_idx],
+            lambda name: _on_theme_change(window, theme_ids[theme_names.index(name)]),
+            "Select theme to apply globally"
+        )
+        current_group.append(theme_row)
+        
+        page.append(current_group)
+        
+        # Theme preview section
+        preview_group = SettingsGroup("Theme Preview")
+        
+        # Show current theme colors
+        colors = theme_mgr.get_theme_colors(current_theme_id)
+        if colors:
+            preview_box = _create_color_preview(colors)
+            preview_group.append(preview_box)
+        
+        page.append(preview_group)
+    else:
+        # GTK mode - show info
+        gtk_info_group = SettingsGroup("System GTK Theme")
+        
+        info_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        info_box.set_margin_top(8)
+        info_box.set_margin_bottom(12)
+        
+        info_label = Gtk.Label(
+            label="Currently following your system GTK theme.\nColors will match your desktop environment.",
+            xalign=0,
+            wrap=True
+        )
+        info_label.add_css_class('dim-label')
+        info_box.append(info_label)
+        
+        gtk_info_group.append(info_box)
+        page.append(gtk_info_group)
     
-    # Show current theme colors
-    colors = theme_mgr.get_theme_colors(current_theme_id)
-    if colors:
-        preview_box = _create_color_preview(colors)
-        preview_group.append(preview_box)
+    # Restart app section
+    restart_group = SettingsGroup("Apply Theme Fully")
     
-    page.append(preview_group)
+    restart_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+    restart_box.set_margin_top(8)
+    restart_box.set_margin_bottom(12)
+    
+    info_label = Gtk.Label(
+        label="For full theme effect, restart the application:",
+        xalign=0
+    )
+    info_label.add_css_class('dim-label')
+    restart_box.append(info_label)
+    
+    btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+    btn_box.set_halign(Gtk.Align.START)
+    
+    restart_btn = Gtk.Button(label="Restart App")
+    restart_btn.add_css_class('suggested-action')
+    restart_btn.connect('clicked', lambda b: _restart_app())
+    btn_box.append(restart_btn)
+    
+    restart_box.append(btn_box)
+    restart_group.append(restart_box)
+    page.append(restart_group)
     
     # Applied to section
     applies_group = SettingsGroup("Applies To")
@@ -113,6 +178,24 @@ def build_themes_page(window) -> Gtk.Box:
     return page
 
 
+def _on_theme_source_toggle(window, use_custom: bool):
+    """Handle theme source toggle"""
+    theme_mgr = window.theme_manager
+    
+    # Set mode
+    mode = "custom" if use_custom else "gtk"
+    theme_mgr.set_theme_source_mode(mode)
+    
+    # Show toast
+    if use_custom:
+        window._show_toast("Using custom color schemes")
+    else:
+        window._show_toast("Following system GTK theme")
+    
+    # Refresh page to show/hide theme selector
+    _refresh_themes_page(window)
+
+
 def _on_theme_change(window, theme_id: str):
     """Handle theme selection change"""
     theme_mgr = window.theme_manager
@@ -124,17 +207,42 @@ def _on_theme_change(window, theme_id: str):
         # Show toast
         window._show_toast(f"Theme applied: {theme_mgr.THEMES[theme_id]['name']}")
         
-        # Refresh UI to show new theme
-        # Note: Full app restart recommended for best results
+        # Refresh themes page to show new color preview
+        _refresh_themes_page(window)
+        
+        # Notify about restart for full effect
         import subprocess
         subprocess.Popen([
             'notify-send',
             'Theme Applied',
-            'Restart app to see full theme changes',
+            'App theme updated! Waybar reloaded.',
             '-t', '3000'
         ])
     else:
         window._show_toast("Failed to apply theme")
+
+
+def _refresh_themes_page(window):
+    """Refresh themes page to show updated color preview"""
+    # Rebuild the themes page
+    new_page = build_themes_page(window)
+    
+    # Replace in stack
+    old_page = window.stack.get_child_by_name("themes")
+    if old_page:
+        window.stack.remove(old_page)
+    
+    window.stack.add_named(new_page, "themes")
+    window.stack.set_visible_child_name("themes")
+
+
+def _restart_app():
+    """Restart the application to apply theme fully"""
+    import os
+    import sys
+    
+    # Kill current process and restart
+    os.execv(sys.executable, ['python3'] + sys.argv)
 
 
 def _create_color_preview(colors: dict) -> Gtk.Box:

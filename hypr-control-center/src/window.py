@@ -28,6 +28,23 @@ class ControlCenterWindow(Adw.ApplicationWindow):
         self.set_title("Hyprland Control Center")
         self.set_default_size(1100, 750)
         
+        # Allow window resizing
+        self.set_resizable(True)
+        
+        # Check theme source mode
+        from .theme_manager import ThemeManager
+        theme_mgr = ThemeManager()
+        theme_source = theme_mgr.get_theme_source_mode()
+        
+        # Apply color scheme based on mode
+        style_manager = Adw.StyleManager.get_default()
+        if theme_source == "gtk":
+            # Follow system GTK theme
+            style_manager.set_color_scheme(Adw.ColorScheme.DEFAULT)
+        else:
+            # Force dark for custom themes
+            style_manager.set_color_scheme(Adw.ColorScheme.FORCE_DARK)
+        
         # Config manager
         self.config = HyprlandConfigManager()
         self.config.parse_look_and_feel()
@@ -42,8 +59,22 @@ class ControlCenterWindow(Adw.ApplicationWindow):
         self._build_ui()
         
     def _apply_css(self):
-        """Apply One Dark themed CSS"""
-        css = get_css()
+        """Apply themed CSS - respects theme source mode"""
+        from .theme_manager import ThemeManager
+        
+        # Get theme source mode
+        theme_mgr = ThemeManager()
+        theme_source = theme_mgr.get_theme_source_mode()
+        
+        if theme_source == "gtk":
+            # Use GTK system theme - just load base CSS
+            from .styles import get_css
+            css = get_css()
+        else:
+            # Use custom color scheme
+            current_theme = theme_mgr.get_current_theme()
+            colors = theme_mgr.get_theme_colors(current_theme)
+            css = self._generate_themed_css(colors)
         
         provider = Gtk.CssProvider()
         provider.load_from_data(css.encode())
@@ -52,6 +83,32 @@ class ControlCenterWindow(Adw.ApplicationWindow):
             provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
+    
+    def _generate_themed_css(self, colors: dict) -> str:
+        """Generate CSS with theme colors"""
+        # Import base CSS structure
+        from .styles import get_css
+        base_css = get_css()
+        
+        # Replace color variables with theme colors
+        import re
+        
+        # Build :root section with theme colors
+        root_section = ":root {\n"
+        for key, value in colors.items():
+            root_section += f"    --{key}: {value};\n"
+        root_section += "}\n"
+        
+        # Replace existing :root section or add at top
+        if ":root {" in base_css:
+            # Replace existing
+            pattern = r':root\s*\{[^}]+\}'
+            base_css = re.sub(pattern, root_section.strip(), base_css, flags=re.DOTALL)
+        else:
+            # Add at top
+            base_css = root_section + "\n" + base_css
+        
+        return base_css
     
     def _build_ui(self):
         """Build the main UI"""
