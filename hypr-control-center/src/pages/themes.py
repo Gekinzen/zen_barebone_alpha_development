@@ -62,14 +62,14 @@ def build_themes_page(window) -> Gtk.Box:
     
     page.append(source_group)
     
+    # Get available themes (needed for both modes)
+    available_themes = theme_mgr.get_available_themes()
+    theme_names = [t["name"] for t in available_themes]
+    theme_ids = [t["id"] for t in available_themes]
+    
     # Current theme section (only show if custom mode)
     if current_mode == "custom":
         current_group = SettingsGroup("Current Theme")
-        
-        # Get available themes
-        available_themes = theme_mgr.get_available_themes()
-        theme_names = [t["name"] for t in available_themes]
-        theme_ids = [t["id"] for t in available_themes]
         
         # Get current theme
         current_theme_id = theme_mgr.get_current_theme()

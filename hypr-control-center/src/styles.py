@@ -418,9 +418,9 @@ window {{
     min-height: 650px;
 }}
 
-/* Make content scrollable */
+/* Content area scrolling */
 .content-area {{
-    overflow-y: auto;
+    min-height: 0;
 }}
 
 scrolledwindow {{
