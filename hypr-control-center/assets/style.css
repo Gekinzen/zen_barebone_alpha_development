@@ -403,14 +403,15 @@ box.module-drop-zone > box > label.drop-zone-title,
 }
 
 .size-selector {
-    background-color: var(--bg2);
+    background-color: var(--bg0);  /* Dark background like dropdown */
+    border: 1px solid var(--bg3);  /* Border like dropdown */
     border-radius: 8px;
     padding: 4px;
 }
 
 .size-btn {
     background: transparent;
-    color: #abb2bf !important;  /* White/grey2 - Panel size buttons */
+    color: #ffffff !important;  /* White text like dropdown */
     border: none;
     border-radius: 6px;
     padding: 6px 16px;

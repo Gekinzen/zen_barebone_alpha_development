@@ -1,11 +1,15 @@
 #!/bin/bash
-# Launch Hyprland Control Center without warnings
+# Launch Hyprland Control Center
+# This script properly loads custom CSS without theme overrides
 
 cd ~/.config/hypr-control-center
 
-# Suppress GTK/Vulkan warnings
-export GDK_BACKEND=x11  # Force X11 backend (no Vulkan)
-export GTK_THEME=Adwaita:dark  # Use system theme
+# Don't override GTK theme - let app use its own CSS!
+unset GTK_THEME
+unset GTK2_RC_FILES
 
-# Run with stderr filtered
-python3 main.py 2>&1 | grep -v "Gtk-WARNING\|Gdk-WARNING\|libEGL\|Vulkan"
+# Use Wayland backend
+export GDK_BACKEND=wayland
+
+# Launch app
+python3 main.py
