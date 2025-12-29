@@ -26,7 +26,9 @@ class ControlCenterWindow(Adw.ApplicationWindow):
         super().__init__(application=app)
         
         self.set_title("Hyprland Control Center")
-        self.set_default_size(1100, 750)
+        
+        # Auto-detect monitor size and set appropriate window size
+        self._set_optimal_window_size()
         
         # Allow window resizing
         self.set_resizable(True)
@@ -57,6 +59,44 @@ class ControlCenterWindow(Adw.ApplicationWindow):
         
         # Build UI
         self._build_ui()
+    
+    def _set_optimal_window_size(self):
+        """Set window size based on monitor dimensions"""
+        try:
+            import subprocess
+            import json
+            
+            # Get monitor info from hyprctl
+            result = subprocess.run(
+                ['hyprctl', 'monitors', '-j'],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            
+            if result.returncode == 0:
+                monitors = json.loads(result.stdout)
+                if monitors:
+                    # Get active monitor dimensions
+                    active = monitors[0]
+                    width = active.get('width', 1920)
+                    height = active.get('height', 1080)
+                    
+                    # Set window to 70% of monitor size (responsive)
+                    window_width = int(width * 0.7)
+                    window_height = int(height * 0.7)
+                    
+                    # Clamp to reasonable limits
+                    window_width = max(900, min(window_width, 1400))
+                    window_height = max(650, min(window_height, 900))
+                    
+                    self.set_default_size(window_width, window_height)
+                    return
+        except:
+            pass
+        
+        # Fallback to reasonable default
+        self.set_default_size(1100, 750)
         
     def _apply_css(self):
         """Apply themed CSS - respects theme source mode"""
@@ -124,6 +164,13 @@ class ControlCenterWindow(Adw.ApplicationWindow):
         sidebar = self._build_sidebar()
         main_box.append(sidebar)
         
+        # Scrolled window for content
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scrolled.set_hexpand(True)
+        scrolled.set_vexpand(True)
+        scrolled.add_css_class('content-area')
+        
         # Content stack
         self.stack = Gtk.Stack()
         self.stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
@@ -141,7 +188,8 @@ class ControlCenterWindow(Adw.ApplicationWindow):
         self.stack.add_named(build_monitors_page(self), "monitors")
         self.stack.add_named(build_keybinds_page(self), "keybinds")
         
-        main_box.append(self.stack)
+        scrolled.set_child(self.stack)
+        main_box.append(scrolled)
     
     def _build_sidebar(self) -> Gtk.Box:
         """Build sidebar navigation"""

@@ -248,6 +248,13 @@ switch slider {{
 /* PLACEHOLDER PAGES                                                */
 /* ═══════════════════════════════════════════════════════════════ */
 
+.info-banner {{
+    background-color: {ONE_DARK["bg2"]};
+    border: 1px solid {ONE_DARK["blue"]};
+    border-radius: 8px;
+    padding: 12px 16px;
+}}
+
 .placeholder-page {{
     padding: 48px;
 }}
@@ -296,5 +303,127 @@ scrollbar slider {{
 
 scrollbar slider:hover {{
     background-color: {ONE_DARK["bg4"]};
+}}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* PANEL PAGE - MODULE MANAGEMENT                                   */
+/* ═══════════════════════════════════════════════════════════════ */
+
+.module-chip {{
+    background-color: {ONE_DARK["bg2"]};
+    border: 1px solid {ONE_DARK["bg3"]};
+    border-radius: 8px;
+    padding: 6px 12px;
+}}
+
+.module-chip-label {{
+    font-size: 13px;
+    color: {ONE_DARK["fg"]};
+}}
+
+.module-chip-remove {{
+    background: transparent;
+    color: {ONE_DARK["red"]};
+    border: none;
+    padding: 2px;
+    min-width: 20px;
+    min-height: 20px;
+}}
+
+.module-chip-remove:hover {{
+    background-color: {ONE_DARK["red"]};
+    color: white;
+    border-radius: 4px;
+}}
+
+.module-drop-zone {{
+    background-color: {ONE_DARK["bg0"]};
+    border: 2px dashed {ONE_DARK["bg3"]};
+    border-radius: 12px;
+    padding: 16px;
+    min-height: 200px;
+}}
+
+.drop-zone-title {{
+    font-size: 12px;
+    font-weight: 600;
+    color: {ONE_DARK["blue"]};
+    letter-spacing: 1px;
+}}
+
+.modules-container {{
+    background-color: {ONE_DARK["bg1"]};
+    border-radius: 8px;
+    padding: 8px;
+    min-height: 150px;
+}}
+
+.add-module-btn {{
+    background-color: {ONE_DARK["green"]};
+    color: white;
+    border-radius: 6px;
+    padding: 4px 8px;
+    min-width: 32px;
+    min-height: 32px;
+}}
+
+.add-module-btn:hover {{
+    background-color: #88b369;
+}}
+
+.size-selector {{
+    background-color: {ONE_DARK["bg2"]};
+    border-radius: 8px;
+    padding: 4px;
+}}
+
+.size-btn {{
+    background: transparent;
+    color: {ONE_DARK["fg"]};
+    border: none;
+    border-radius: 6px;
+    padding: 6px 16px;
+    font-size: 12px;
+    font-weight: 600;
+}}
+
+.size-btn:checked {{
+    background-color: {ONE_DARK["blue"]};
+    color: white;
+}}
+
+.size-btn:hover {{
+    background-color: {ONE_DARK["bg3"]};
+}}
+
+tabbar {{
+    background-color: {ONE_DARK["bg0"]};
+}}
+
+tabbar tab {{
+    background-color: transparent;
+    color: {ONE_DARK["grey1"]};
+    border-radius: 8px 8px 0 0;
+    padding: 10px 20px;
+}}
+
+tabbar tab:checked {{
+    background-color: {ONE_DARK["bg1"]};
+    color: {ONE_DARK["blue"]};
+}}
+
+/* Window sizing constraints */
+window {{
+    min-width: 900px;
+    min-height: 650px;
+}}
+
+/* Make content scrollable */
+.content-area {{
+    overflow-y: auto;
+}}
+
+scrolledwindow {{
+    min-height: 0;
 }}
 '''
