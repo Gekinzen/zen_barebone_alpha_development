@@ -248,3 +248,13 @@ class PlaceholderPage(Gtk.Box):
         badge = Gtk.Label(label="Coming Soon")
         badge.add_css_class('coming-soon-badge')
         self.append(badge)
+
+
+class ActionRow(Adw.ActionRow):
+    """Action row for settings - title and subtitle"""
+    
+    def __init__(self, title: str, subtitle: str = ""):
+        super().__init__()
+        self.set_title(title)
+        if subtitle:
+            self.set_subtitle(subtitle)

@@ -13,6 +13,7 @@ from .config_manager import HyprlandConfigManager
 from .styles import get_css
 from .pages.appearance import build_appearance_page
 from .pages.panel import build_panel_page
+from .pages.themes import build_themes_page
 from .pages.placeholders import (
     build_workspaces_page, build_animations_page,
     build_input_page, build_monitors_page, build_keybinds_page
@@ -76,6 +77,7 @@ class ControlCenterWindow(Adw.ApplicationWindow):
         # Add pages
         self.stack.add_named(build_appearance_page(self), "appearance")
         self.stack.add_named(build_panel_page(self), "panel")
+        self.stack.add_named(build_themes_page(self), "themes")
         self.stack.add_named(build_workspaces_page(self), "workspaces")
         self.stack.add_named(build_animations_page(self), "animations")
         self.stack.add_named(build_input_page(self), "input")
@@ -101,6 +103,7 @@ class ControlCenterWindow(Adw.ApplicationWindow):
             ("DESKTOP", [
                 ("Appearance", "appearance", "preferences-desktop-appearance-symbolic"),
                 ("Panel", "panel", "view-paged-symbolic"),
+                ("Theme Switcher", "themes", "applications-graphics-symbolic"),
                 ("Workspaces", "workspaces", "view-grid-symbolic"),
             ]),
             ("SYSTEM", [
