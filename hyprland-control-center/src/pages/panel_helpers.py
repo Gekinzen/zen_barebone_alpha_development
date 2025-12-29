@@ -34,6 +34,7 @@ def create_module_chip(module_name: str, on_remove: Callable = None) -> Gtk.Box:
     
     icon = Gtk.Image.new_from_icon_name(icon_map.get(module_name, 'application-x-executable-symbolic'))
     icon.set_pixel_size(16)
+    icon.add_css_class('module-chip-icon')
     chip.append(icon)
     
     # Display name

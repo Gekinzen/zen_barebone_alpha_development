@@ -91,8 +91,8 @@ def _build_main_panel_content(window) -> Gtk.Box:
     position = wm.get_position(is_dock=False)
     w = DropdownRow(
         "Position on Screen",
-        ["top", "bottom", "left", "right"],
-        position,
+        ["top", "bottom"],  # TODO: left/right needs CSS fixes
+        position if position in ["top", "bottom"] else "top",
         lambda v: _on_position_change(window, v, is_dock=False),
         "Where the panel appears on screen"
     )

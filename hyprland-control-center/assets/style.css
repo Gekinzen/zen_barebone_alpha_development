@@ -263,6 +263,13 @@ switch slider {
 /* PLACEHOLDER PAGES                                                */
 /* ═══════════════════════════════════════════════════════════════ */
 
+.info-banner {
+    background-color: var(--bg2);
+    border: 1px solid var(--blue);
+    border-radius: 8px;
+    padding: 12px 16px;
+}
+
 .placeholder-page {
     padding: 48px;
 }
@@ -311,4 +318,115 @@ scrollbar slider {
 
 scrollbar slider:hover {
     background-color: var(--bg4);
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* PANEL PAGE - MODULE MANAGEMENT                                   */
+/* ═══════════════════════════════════════════════════════════════ */
+
+.module-chip {
+    background-color: var(--bg2);
+    border: 1px solid var(--bg3);
+    border-radius: 8px;
+    padding: 6px 12px;
+}
+
+.module-chip-label {
+    font-size: 13px;
+    color: var(--grey1);  /* Match label colors */
+}
+
+.module-chip-icon {
+    color: var(--grey1);  /* Match label colors */
+}
+
+.module-chip-remove {
+    background: transparent;
+    color: var(--red);
+    border: none;
+    padding: 2px;
+    min-width: 20px;
+    min-height: 20px;
+}
+
+.module-chip-remove:hover {
+    background-color: var(--red);
+    color: white;
+    border-radius: 4px;
+}
+
+.module-drop-zone {
+    background-color: var(--bg0);
+    border: 2px dashed var(--bg3);
+    border-radius: 12px;
+    padding: 16px;
+    min-height: 200px;
+}
+
+.drop-zone-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--grey1);  /* Match "Margin Top" label color */
+    letter-spacing: 1px;
+}
+
+.modules-container {
+    background-color: var(--bg1);
+    border-radius: 8px;
+    padding: 8px;
+    min-height: 150px;
+}
+
+.add-module-btn {
+    background-color: var(--green);
+    color: white;
+    border-radius: 6px;
+    padding: 4px 8px;
+    min-width: 32px;
+    min-height: 32px;
+}
+
+.add-module-btn:hover {
+    background-color: #88b369;
+}
+
+.size-selector {
+    background-color: var(--bg2);
+    border-radius: 8px;
+    padding: 4px;
+}
+
+.size-btn {
+    background: transparent;
+    color: var(--fg);
+    border: none;
+    border-radius: 6px;
+    padding: 6px 16px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.size-btn:checked {
+    background-color: var(--blue);
+    color: white;
+}
+
+.size-btn:hover {
+    background-color: var(--bg3);
+}
+
+tabbar {
+    background-color: var(--bg0);
+}
+
+tabbar tab {
+    background-color: transparent;
+    color: var(--grey1);
+    border-radius: 8px 8px 0 0;
+    padding: 10px 20px;
+}
+
+tabbar tab:checked {
+    background-color: var(--bg1);
+    color: var(--blue);
 }
