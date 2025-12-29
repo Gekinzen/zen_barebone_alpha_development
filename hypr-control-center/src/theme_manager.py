@@ -171,7 +171,8 @@ class ThemeManager:
     def __init__(self):
         self.config_dir = Path.home() / ".config" / "hypr-control-center"
         self.theme_file = self.config_dir / "theme.json"
-        self.waybar_colors_dir = Path.home() / ".config" / "waybar" / "colors"
+        # Use .config/colorscheme instead of waybar/colors
+        self.waybar_colors_dir = Path.home() / ".config" / "colorscheme"
         
     def get_theme_source_mode(self) -> str:
         """Get theme source: 'gtk' or 'custom'"""
@@ -302,14 +303,29 @@ class ThemeManager:
         if waybar_style.exists():
             content = waybar_style.read_text()
             
-            # Replace @import line
+            # Replace @import line (detect both old and new paths)
             import re
-            pattern = r"@import\s+['\"]colors/[^'\"]+\.css['\"];"
-            new_import = f"@import 'colors/{theme_id}.css';"
+            # Patterns to match:
+            # @import 'colors/theme.css';
+            # @import '../colorscheme/theme.css';
+            # @import '/home/user/.config/colorscheme/theme.css';
+            patterns = [
+                r"@import\s+['\"]colors/[^'\"]+\.css['\"];",
+                r"@import\s+['\"]\.\.\/colorscheme\/[^'\"]+\.css['\"];",
+                r"@import\s+['\"][^'\"]*colorscheme\/[^'\"]+\.css['\"];"
+            ]
             
-            if re.search(pattern, content):
-                content = re.sub(pattern, new_import, content)
-            else:
+            # New import path (relative from waybar to colorscheme)
+            new_import = f"@import '../colorscheme/{theme_id}.css';"
+            
+            replaced = False
+            for pattern in patterns:
+                if re.search(pattern, content):
+                    content = re.sub(pattern, new_import, content)
+                    replaced = True
+                    break
+            
+            if not replaced:
                 # Add at top
                 content = new_import + "\n\n" + content
             
