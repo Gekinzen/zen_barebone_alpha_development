@@ -333,11 +333,11 @@ scrollbar slider:hover {
 
 .module-chip-label {
     font-size: 13px;
-    color: var(--grey1);  /* Match label colors */
+    color: var(--grey0);  /* #5c6370 - Module names */
 }
 
 .module-chip-icon {
-    color: var(--grey1);  /* Match label colors */
+    color: var(--grey0);  /* #5c6370 - Module icons */
 }
 
 .module-chip-remove {
@@ -366,7 +366,7 @@ scrollbar slider:hover {
 .drop-zone-title {
     font-size: 12px;
     font-weight: 600;
-    color: var(--grey1);  /* Match "Margin Top" label color */
+    color: var(--grey0);  /* #5c6370 - LEFT, CENTER, RIGHT */
     letter-spacing: 1px;
 }
 
@@ -398,7 +398,7 @@ scrollbar slider:hover {
 
 .size-btn {
     background: transparent;
-    color: var(--fg);
+    color: var(--grey0);  /* #5c6370 */
     border: none;
     border-radius: 6px;
     padding: 6px 16px;

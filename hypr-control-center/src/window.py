@@ -158,8 +158,21 @@ class ControlCenterWindow(Adw.ApplicationWindow):
         # Version info
         version = Gtk.Label(label="v1.0.0")
         version.add_css_class('setting-description')
-        version.set_margin_bottom(16)
+        version.set_margin_bottom(4)
         sidebar.append(version)
+        
+        # Credits
+        credits = Gtk.Label(label="Created by Gekinzen")
+        credits.add_css_class('dim-label')
+        credits.set_margin_bottom(12)
+        sidebar.append(credits)
+        
+        # About button
+        about_btn = Gtk.Button(label="About")
+        about_btn.add_css_class('flat')
+        about_btn.connect('clicked', self._show_about_dialog)
+        about_btn.set_margin_bottom(16)
+        sidebar.append(about_btn)
         
         return sidebar
     
@@ -270,6 +283,58 @@ class ControlCenterWindow(Adw.ApplicationWindow):
         box.append(apply_btn)
         
         return box
+    
+    def _show_about_dialog(self, button):
+        """Show About dialog with system info"""
+        import platform
+        import subprocess
+        
+        # Get system info
+        try:
+            kernel = platform.release()
+        except:
+            kernel = "Unknown"
+        
+        try:
+            hostname = platform.node()
+        except:
+            hostname = "Unknown"
+        
+        try:
+            # Get Hyprland version
+            result = subprocess.run(['hyprctl', 'version'], 
+                                  capture_output=True, text=True, timeout=2)
+            hypr_version = result.stdout.split('\n')[0] if result.returncode == 0 else "Unknown"
+        except:
+            hypr_version = "Unknown"
+        
+        # Create dialog
+        dialog = Adw.AboutWindow(
+            transient_for=self,
+            application_name="Hyprland Control Center",
+            application_icon="preferences-system",
+            developer_name="Gekinzen",
+            version="1.0.0",
+            comments="A GUI settings panel for Hyprland window manager",
+            website="https://github.com/gekinzen/hyprland-control-center",
+            issue_url="https://github.com/gekinzen/hyprland-control-center/issues",
+            license_type=Gtk.License.MIT_X11,
+        )
+        
+        # Add system info
+        system_info = f"""<b>System Information:</b>
+
+<b>Hostname:</b> {hostname}
+<b>Kernel:</b> {kernel}
+<b>Hyprland:</b> {hypr_version}
+<b>Desktop:</b> Wayland
+
+<b>Developer:</b> Gekinzen
+<b>Project:</b> Hyprland Control Center
+<b>License:</b> MIT"""
+        
+        dialog.set_debug_info(system_info)
+        dialog.present()
     
     def _show_toast(self, message: str):
         """Show toast notification"""
