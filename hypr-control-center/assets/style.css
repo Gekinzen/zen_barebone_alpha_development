@@ -331,13 +331,21 @@ scrollbar slider:hover {
     padding: 6px 12px;
 }
 
+/* Module Chip Labels - FORCE WHITE */
+.module-chip .module-chip-label,
+box.module-chip > label.module-chip-label,
 .module-chip-label {
     font-size: 13px;
-    color: #abb2bf !important;  /* White/grey2 - Module names */
+    color: #ffffff !important;  /* FORCE WHITE */
+    -gtk-icon-palette: none;
 }
 
+/* Module Chip Icons - FORCE WHITE */
+.module-chip .module-chip-icon,
+box.module-chip > image.module-chip-icon,
 .module-chip-icon {
-    color: #abb2bf !important;  /* White/grey2 - Module icons */
+    color: #ffffff !important;  /* FORCE WHITE */
+    -gtk-icon-palette: error #ffffff;
 }
 
 .module-chip-remove {
@@ -363,10 +371,14 @@ scrollbar slider:hover {
     min-height: 200px;
 }
 
+/* Module Layout Zone Titles - FORCE WHITE */
+.module-drop-zone .drop-zone-title,
+box.module-drop-zone > box > label.drop-zone-title,
 .drop-zone-title {
     font-size: 12px;
     font-weight: 600;
-    color: #abb2bf !important;  /* White/grey2 - LEFT, CENTER, RIGHT */
+    color: #ffffff !important;  /* FORCE WHITE */
+    -gtk-icon-palette: none;
     letter-spacing: 1px;
 }
 
