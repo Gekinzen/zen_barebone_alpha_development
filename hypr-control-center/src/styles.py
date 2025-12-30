@@ -499,27 +499,40 @@ scrolledwindow {{
     min-height: 0;
 }}
 
-/* Wallpaper thumbnails */
-.wallpaper-thumbnail {{
-    border-radius: 8px;
+/* Wallpaper thumbnails - SQUARE with proper sizing */
+.wallpaper-frame {{
+    border-radius: 12px;
     border: 2px solid {bg3};
+    overflow: hidden;
+    background-color: {bg2};
+}}
+
+.wallpaper-thumbnail {{
+    border-radius: 12px;
 }}
 
 flowboxchild {{
-    border-radius: 12px;
-    padding: 8px;
+    border-radius: 16px;
+    padding: 12px;
+    background: transparent;
+}}
+
+flowboxchild:hover {{
+    background-color: {bg2};
 }}
 
 flowboxchild:selected {{
     background-color: {blue};
 }}
 
-flowboxchild:selected .wallpaper-thumbnail {{
+flowboxchild:selected .wallpaper-frame {{
     border-color: {bg0};
+    border-width: 3px;
 }}
 
 .wallpaper-label {{
-    font-size: 12px;
+    font-size: 11px;
     color: {grey1};
+    margin-top: 4px;
 }}
 '''

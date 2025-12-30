@@ -122,12 +122,12 @@ class WallpaperPage:
         scrolled.set_min_content_height(400)
         scrolled.set_max_content_height(600)
         
-        # FlowBox for grid layout
+        # FlowBox for grid layout - optimized for square thumbnails
         flowbox = Gtk.FlowBox()
-        flowbox.set_max_children_per_line(6)  # Unlimited columns
+        flowbox.set_max_children_per_line(5)  # 5 columns for 180px thumbnails
         flowbox.set_min_children_per_line(2)
-        flowbox.set_row_spacing(12)
-        flowbox.set_column_spacing(12)
+        flowbox.set_row_spacing(16)
+        flowbox.set_column_spacing(16)
         flowbox.set_selection_mode(Gtk.SelectionMode.SINGLE)
         flowbox.set_homogeneous(True)
         flowbox.connect('child-activated', self._on_wallpaper_selected)
@@ -177,31 +177,47 @@ class WallpaperPage:
         return False
     
     def _create_thumbnail(self, image_path: Path) -> Gtk.Box:
-        """Create thumbnail widget"""
+        """Create thumbnail widget with proper square aspect ratio"""
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         box.wallpaper_path = str(image_path)
         
+        # Create fixed size frame for consistent layout
+        frame = Gtk.Frame()
+        frame.set_size_request(180, 180)  # Square frame
+        frame.add_css_class('wallpaper-frame')
+        
         try:
-            # Load and scale image
+            # Load image to get dimensions
+            pixbuf_full = GdkPixbuf.Pixbuf.new_from_file(str(image_path))
+            orig_width = pixbuf_full.get_width()
+            orig_height = pixbuf_full.get_height()
+            
+            # Calculate scaling to fill square while maintaining aspect
+            target_size = 180
+            scale = max(target_size / orig_width, target_size / orig_height)
+            new_width = int(orig_width * scale)
+            new_height = int(orig_height * scale)
+            
+            # Scale image
             pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
                 str(image_path),
-                200,  # Width
-                150,  # Height
-                True  # Preserve aspect
+                new_width,
+                new_height,
+                True
             )
             
             # Create image widget
             image = Gtk.Image.new_from_pixbuf(pixbuf)
-            image.set_size_request(200, 150)
             image.add_css_class('wallpaper-thumbnail')
-            box.append(image)
+            frame.set_child(image)
             
         except Exception as e:
             # Fallback icon
             icon = Gtk.Image.new_from_icon_name('image-x-generic')
             icon.set_pixel_size(64)
-            icon.set_size_request(200, 150)
-            box.append(icon)
+            frame.set_child(icon)
+        
+        box.append(frame)
         
         # Filename label
         label = Gtk.Label(label=image_path.name)
