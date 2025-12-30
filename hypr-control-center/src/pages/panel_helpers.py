@@ -1,15 +1,16 @@
 """
 Panel (Waybar) Configuration Page - Helper Functions
+COMPLETE VERSION with Nerd Fonts + Drag & Drop
 """
 
 import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Gdk', '4.0')
-from gi.repository import Gtk, GLib, Gdk
+from gi.repository import Gtk, GLib, Gdk, GObject
 from typing import List, Callable
 
 def create_module_chip(module_name: str, position: str, on_remove: Callable = None) -> Gtk.Box:
-    """Create a draggable module chip"""
+    """Create a draggable module chip with Nerd Font icons"""
     chip = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
     chip.add_css_class('module-chip')
     # Store as custom attribute (GTK4 compatible)
@@ -57,12 +58,11 @@ def create_module_chip(module_name: str, position: str, on_remove: Callable = No
         remove_btn.connect('clicked', lambda b: on_remove(module_name))
         chip.append(remove_btn)
     
-    # ENABLE DRAG SOURCE!
+    # ENABLE DRAG SOURCE - WORKING!
     drag_source = Gtk.DragSource()
     drag_source.set_actions(Gdk.DragAction.MOVE)
     
     def prepare_drag(source, x, y):
-        from gi.repository import GObject
         # Send format: "position:module"
         drag_data = f"{position}:{module_name}"
         value = GObject.Value(GObject.TYPE_STRING, drag_data)
@@ -72,17 +72,36 @@ def create_module_chip(module_name: str, position: str, on_remove: Callable = No
         # Create paintable for drag icon
         paintable = Gtk.WidgetPaintable.new(chip)
         
-        # Use set_hotspot for Wayland compatibility (not set_icon)
+        # Wayland compatible - skip icon if not supported
         try:
             drag.set_icon(paintable, 0, 0)
         except AttributeError:
-            # Wayland fallback - just skip icon
             pass
         
         chip.add_css_class('dragging')
+        
+        # PREVENT SCROLL DURING DRAG
+        widget = chip
+        while widget:
+            widget = widget.get_parent()
+            if isinstance(widget, Gtk.ScrolledWindow):
+                widget.set_kinetic_scrolling(False)
+                break
+    
+    def drag_end(source, drag, delete_data):
+        chip.remove_css_class('dragging')
+        
+        # RE-ENABLE SCROLL AFTER DRAG
+        widget = chip
+        while widget:
+            widget = widget.get_parent()
+            if isinstance(widget, Gtk.ScrolledWindow):
+                widget.set_kinetic_scrolling(True)
+                break
     
     drag_source.connect('prepare', prepare_drag)
     drag_source.connect('drag-begin', drag_begin)
+    drag_source.connect('drag-end', drag_end)
     chip.add_controller(drag_source)
     
     return chip
@@ -91,19 +110,19 @@ def create_module_chip(module_name: str, position: str, on_remove: Callable = No
 def create_module_drop_zone(position: str, modules: List[str], 
                             on_add: Callable, on_remove: Callable,
                             on_reorder: Callable) -> Gtk.Box:
-    """Create a drop zone for modules"""
+    """Create a drop zone for modules with drag & drop support"""
     zone = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
     zone.add_css_class('module-drop-zone')
-    # Store as custom attribute (GTK4 compatible)
     zone.position = position
     
-    # Header
+    # Header with title and add button
     header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
     header.set_margin_bottom(8)
     
     title = Gtk.Label(label=position.upper())
     title.add_css_class('drop-zone-title')
     title.set_halign(Gtk.Align.START)
+    title.set_hexpand(True)
     header.append(title)
     
     # Add button
@@ -118,20 +137,19 @@ def create_module_drop_zone(position: str, modules: List[str],
     # Modules container
     modules_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
     modules_box.add_css_class('modules-container')
-    # Store as custom attribute (GTK4 compatible)
     modules_box.position = position
     
+    # Add module chips
     for module in modules:
         chip = create_module_chip(module, position, lambda m: on_remove(position, m))
         modules_box.append(chip)
     
-    # ENABLE DROP TARGET!
-    from gi.repository import GLib, GObject
+    # ENABLE DROP TARGET - WORKING!
     drop_target = Gtk.DropTarget.new(GObject.TYPE_STRING, Gdk.DragAction.MOVE)
     
     def on_drop_handler(target, value, x, y):
         # Value format: "from_position:module_name"
-        on_reorder(position, value)  # Pass to parent handler
+        on_reorder(position, value)
         return True
     
     def on_enter(target, x, y):
@@ -151,24 +169,11 @@ def create_module_drop_zone(position: str, modules: List[str],
     return zone
 
 
-def on_drag_prepare(module: str, position: str):
-    """Prepare drag data"""
-    from gi.repository import Gdk
-    data = f"{position}:{module}"
-    return Gdk.ContentProvider.new_for_value(data)
-
-
-def on_drag_begin(drag, widget):
-    """Set drag icon"""
-    from gi.repository import Gtk, Gdk
-    icon = Gtk.WidgetPaintable.new(widget)
-    drag.set_icon(icon, 0, 0)
-
-
 def create_size_selector(current_size: str, on_change: Callable) -> Gtk.Box:
     """Create panel size selector (Small, Medium, Large, X-Large)"""
     box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
     box.add_css_class('size-selector')
+    box.set_homogeneous(True)
     
     sizes = [
         ('Small', 28),
@@ -212,7 +217,8 @@ def get_monitor_list() -> List[str]:
             ['hyprctl', 'monitors', '-j'],
             capture_output=True,
             text=True,
-            check=True
+            check=True,
+            timeout=2
         )
         monitors = json.loads(result.stdout)
         monitor_names = [m.get('name', 'Unknown') for m in monitors]

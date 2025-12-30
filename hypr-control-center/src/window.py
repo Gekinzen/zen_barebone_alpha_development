@@ -238,7 +238,8 @@ class ControlCenterWindow(Adw.ApplicationWindow):
                 
                 icon = Gtk.Image.new_from_icon_name(icon_name)
                 icon.set_pixel_size(18)
-                icon.add_css_class('sidebar-icon')  # Force white styling
+                icon.add_css_class('sidebar-icon')
+                icon.add_css_class('force-white')
                 box.append(icon)
                 
                 lbl = Gtk.Label(label=label)

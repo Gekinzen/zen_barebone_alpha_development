@@ -24,6 +24,10 @@ def build_panel_page(window) -> Gtk.ScrolledWindow:
     scrolled = Gtk.ScrolledWindow()
     scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
     
+    # PREVENT AUTO-SCROLL DURING DRAG
+    scrolled.set_kinetic_scrolling(False)
+    scrolled.set_propagate_natural_height(True)
+    
     content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
     content.add_css_class('content-area')
     
@@ -590,6 +594,9 @@ def _on_reorder_modules(window, position: str, data: str, is_dock: bool):
             
             # Rebuild panel page to show changes
             window._show_toast(f"Moved {module} from {from_pos} to {position}")
+            
+            # AUTO-APPLY! Save changes immediately
+            _on_panel_apply(window, is_dock)
             
             # Refresh the panel page
             _refresh_panel_page(window, is_dock)
