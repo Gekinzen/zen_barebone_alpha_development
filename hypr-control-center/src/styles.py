@@ -68,42 +68,70 @@ window {{
 }}
 
 /* Make all sidebar icons white - minimalist! */
+.sidebar-icon {{
+    color: {fg} !important;
+    -gtk-icon-palette: {fg} !important;
+    -gtk-icon-style: symbolic;
+}}
+
 .sidebar-item image {{
-    color: {fg};
+    color: {fg} !important;
     -gtk-icon-palette: {fg};
 }}
 
 .sidebar-item:selected image,
 .sidebar-item:checked image {{
-    color: {bg0};
+    color: {bg0} !important;
     -gtk-icon-palette: {bg0};
+}}
+
+.sidebar-item:selected .sidebar-icon,
+.sidebar-item:checked .sidebar-icon {{
+    color: {bg0} !important;
+    -gtk-icon-palette: {bg0} !important;
 }}
 
 /* ═══════════════════════════════════════════════════════════════ */
 /* GLOBAL ICON STYLING - ALL WHITE FOR MINIMALIST DESIGN          */
 /* ═══════════════════════════════════════════════════════════════ */
 
-/* Make ALL icons white by default */
+/* Make ALL icons white by default - FORCE IT! */
 image {{
-    color: {fg};
+    color: {fg} !important;
     -gtk-icon-palette: {fg};
+    -gtk-icon-style: symbolic;
 }}
 
 /* Icon buttons */
 button image {{
-    color: {fg};
+    color: {fg} !important;
+    -gtk-icon-palette: {fg};
+}}
+
+/* List box icons */
+list image,
+listbox image,
+listboxrow image,
+row image {{
+    color: {fg} !important;
+    -gtk-icon-palette: {fg};
+}}
+
+/* Box icons */
+box image {{
+    color: {fg} !important;
     -gtk-icon-palette: {fg};
 }}
 
 /* Suggested action buttons keep blue background, but white icon */
 button.suggested-action image {{
-    color: {bg0};
+    color: {bg0} !important;
     -gtk-icon-palette: {bg0};
 }}
 
 /* Destructive action buttons */
 button.destructive-action image {{
-    color: {bg0};
+    color: {bg0} !important;
     -gtk-icon-palette: {bg0};
 }}
 
