@@ -5,23 +5,27 @@ One Dark themed CSS styles for Hyprland Control Center
 from .constants import ONE_DARK
 
 def get_css() -> str:
-    """Returns the complete CSS stylesheet"""
-    return f'''
+    """Returns the complete CSS stylesheet with ONE_DARK theme"""
+    return get_css_template().format(**ONE_DARK)
+
+def get_css_template() -> str:
+    """Returns CSS template string with color placeholders for theming"""
+    return '''
 /* ═══════════════════════════════════════════════════════════════ */
 /* WINDOW & CONTAINERS                                              */
 /* ═══════════════════════════════════════════════════════════════ */
 
 window {{
-    background-color: {ONE_DARK["bg1"]};
+    background-color: {bg1};
 }}
 
 .sidebar {{
-    background-color: {ONE_DARK["bg0"]};
-    border-right: 1px solid {ONE_DARK["bg3"]};
+    background-color: {bg0};
+    border-right: 1px solid {bg3};
 }}
 
 .content-area {{
-    background-color: {ONE_DARK["bg1"]};
+    background-color: {bg1};
     padding: 24px 32px;
 }}
 
@@ -32,14 +36,14 @@ window {{
 .sidebar-title {{
     font-size: 18px;
     font-weight: 700;
-    color: {ONE_DARK["fg"]};
+    color: {fg};
     padding: 16px;
 }}
 
 .sidebar-section {{
     font-size: 11px;
     font-weight: 600;
-    color: {ONE_DARK["grey0"]};
+    color: {grey0};
     letter-spacing: 1.2px;
     text-transform: uppercase;
     padding: 16px 16px 8px 16px;
@@ -49,30 +53,58 @@ window {{
     padding: 10px 16px;
     margin: 2px 8px;
     border-radius: 8px;
-    color: {ONE_DARK["fg"]};
+    color: {fg};
     font-size: 13px;
 }}
 
 .sidebar-item:hover {{
-    background-color: {ONE_DARK["bg2"]};
+    background-color: {bg2};
 }}
 
 .sidebar-item:selected,
 .sidebar-item:checked {{
-    background-color: {ONE_DARK["blue"]};
-    color: {ONE_DARK["bg1"]};
+    background-color: {blue};
+    color: {bg1};
 }}
 
 /* Make all sidebar icons white - minimalist! */
 .sidebar-item image {{
-    color: {ONE_DARK["fg"]};
-    -gtk-icon-palette: {ONE_DARK["fg"]};
+    color: {fg};
+    -gtk-icon-palette: {fg};
 }}
 
 .sidebar-item:selected image,
 .sidebar-item:checked image {{
-    color: {ONE_DARK["bg0"]};
-    -gtk-icon-palette: {ONE_DARK["bg0"]};
+    color: {bg0};
+    -gtk-icon-palette: {bg0};
+}}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* GLOBAL ICON STYLING - ALL WHITE FOR MINIMALIST DESIGN          */
+/* ═══════════════════════════════════════════════════════════════ */
+
+/* Make ALL icons white by default */
+image {{
+    color: {fg};
+    -gtk-icon-palette: {fg};
+}}
+
+/* Icon buttons */
+button image {{
+    color: {fg};
+    -gtk-icon-palette: {fg};
+}}
+
+/* Suggested action buttons keep blue background, but white icon */
+button.suggested-action image {{
+    color: {bg0};
+    -gtk-icon-palette: {bg0};
+}}
+
+/* Destructive action buttons */
+button.destructive-action image {{
+    color: {bg0};
+    -gtk-icon-palette: {bg0};
 }}
 
 /* ═══════════════════════════════════════════════════════════════ */
@@ -82,12 +114,12 @@ window {{
 .page-title {{
     font-size: 28px;
     font-weight: 700;
-    color: {ONE_DARK["fg"]};
+    color: {fg};
 }}
 
 .page-subtitle {{
     font-size: 14px;
-    color: {ONE_DARK["grey1"]};
+    color: {grey1};
     margin-top: 4px;
 }}
 
@@ -96,7 +128,7 @@ window {{
 /* ═══════════════════════════════════════════════════════════════ */
 
 .settings-group {{
-    background-color: {ONE_DARK["bg0"]};
+    background-color: {bg0};
     border-radius: 12px;
     padding: 16px 20px;
     margin-bottom: 16px;
@@ -105,14 +137,14 @@ window {{
 .group-title {{
     font-size: 11px;
     font-weight: 600;
-    color: {ONE_DARK["blue"]};
+    color: {blue};
     letter-spacing: 1px;
 }}
 
 .section-header {{
     font-size: 12px;
     font-weight: 600;
-    color: {ONE_DARK["purple"]};
+    color: {purple};
     letter-spacing: 0.5px;
 }}
 
@@ -122,7 +154,7 @@ window {{
 
 .setting-row {{
     padding: 6px 0;
-    border-bottom: 1px solid {ONE_DARK["bg2"]};
+    border-bottom: 1px solid {bg2};
 }}
 
 .setting-row:last-child {{
@@ -132,19 +164,19 @@ window {{
 .setting-label {{
     font-size: 14px;
     font-weight: 500;
-    color: {ONE_DARK["fg"]};
+    color: {fg};
 }}
 
 .setting-description {{
     font-size: 12px;
-    color: {ONE_DARK["grey0"]};
+    color: {grey0};
 }}
 
 .value-mono {{
     font-family: "JetBrains Mono", "Fira Code", monospace;
     font-size: 12px;
-    color: {ONE_DARK["aqua"]};
-    background-color: {ONE_DARK["bg2"]};
+    color: {aqua};
+    background-color: {bg2};
     padding: 4px 10px;
     border-radius: 6px;
 }}
@@ -157,20 +189,20 @@ window {{
     min-width: 44px;
     min-height: 32px;
     border-radius: 8px;
-    border: 2px solid {ONE_DARK["bg3"]};
+    border: 2px solid {bg3};
 }}
 
 .spin-input {{
-    background-color: {ONE_DARK["bg2"]};
-    color: {ONE_DARK["fg"]};
+    background-color: {bg2};
+    color: {fg};
     border-radius: 8px;
-    border: 1px solid {ONE_DARK["bg3"]};
+    border: 1px solid {bg3};
     padding: 4px 8px;
     min-width: 80px;
 }}
 
 .spin-input:focus {{
-    border-color: {ONE_DARK["blue"]};
+    border-color: {blue};
 }}
 
 .opacity-scale {{
@@ -178,18 +210,18 @@ window {{
 }}
 
 .opacity-scale trough {{
-    background-color: {ONE_DARK["bg3"]};
+    background-color: {bg3};
     border-radius: 4px;
     min-height: 6px;
 }}
 
 .opacity-scale highlight {{
-    background-color: {ONE_DARK["blue"]};
+    background-color: {blue};
     border-radius: 4px;
 }}
 
 .opacity-scale slider {{
-    background-color: {ONE_DARK["fg"]};
+    background-color: {fg};
     border-radius: 50%;
     min-width: 18px;
     min-height: 18px;
@@ -198,18 +230,18 @@ window {{
 }}
 
 switch {{
-    background-color: {ONE_DARK["bg3"]};
+    background-color: {bg3};
     border-radius: 14px;
     min-width: 50px;
     min-height: 26px;
 }}
 
 switch:checked {{
-    background-color: {ONE_DARK["green"]};
+    background-color: {green};
 }}
 
 switch slider {{
-    background-color: {ONE_DARK["fg"]};
+    background-color: {fg};
     border-radius: 13px;
     min-width: 22px;
     min-height: 22px;
@@ -217,11 +249,11 @@ switch slider {{
 }}
 
 .setting-dropdown {{
-    background-color: {ONE_DARK["bg2"]};
-    color: {ONE_DARK["fg"]};
+    background-color: {bg2};
+    color: {fg};
     border-radius: 8px;
     padding: 6px 12px;
-    border: 1px solid {ONE_DARK["bg3"]};
+    border: 1px solid {bg3};
     min-width: 120px;
 }}
 
@@ -239,7 +271,7 @@ switch slider {{
 }}
 
 .reset-button {{
-    background-color: {ONE_DARK["red"]};
+    background-color: {red};
     color: white;
 }}
 
@@ -248,8 +280,8 @@ switch slider {{
 }}
 
 .apply-button {{
-    background-color: {ONE_DARK["green"]};
-    color: {ONE_DARK["bg1"]};
+    background-color: {green};
+    color: {bg1};
 }}
 
 .apply-button:hover {{
@@ -261,8 +293,8 @@ switch slider {{
 /* ═══════════════════════════════════════════════════════════════ */
 
 .info-banner {{
-    background-color: {ONE_DARK["bg2"]};
-    border: 1px solid {ONE_DARK["blue"]};
+    background-color: {bg2};
+    border: 1px solid {blue};
     border-radius: 8px;
     padding: 12px 16px;
 }}
@@ -272,7 +304,7 @@ switch slider {{
 }}
 
 .placeholder-icon {{
-    color: {ONE_DARK["grey0"]};
+    color: {grey0};
     opacity: 0.5;
     margin-bottom: 8px;
 }}
@@ -280,17 +312,17 @@ switch slider {{
 .placeholder-title {{
     font-size: 24px;
     font-weight: 700;
-    color: {ONE_DARK["fg"]};
+    color: {fg};
 }}
 
 .placeholder-description {{
     font-size: 14px;
-    color: {ONE_DARK["grey1"]};
+    color: {grey1};
     margin-top: 8px;
 }}
 
 .coming-soon-badge {{
-    background-color: {ONE_DARK["purple"]};
+    background-color: {purple};
     color: white;
     font-size: 11px;
     font-weight: 600;
@@ -308,13 +340,13 @@ scrollbar {{
 }}
 
 scrollbar slider {{
-    background-color: {ONE_DARK["bg3"]};
+    background-color: {bg3};
     border-radius: 8px;
     min-width: 8px;
 }}
 
 scrollbar slider:hover {{
-    background-color: {ONE_DARK["bg4"]};
+    background-color: {bg4};
 }}
 
 /* ═══════════════════════════════════════════════════════════════ */
@@ -322,20 +354,20 @@ scrollbar slider:hover {{
 /* ═══════════════════════════════════════════════════════════════ */
 
 .module-chip {{
-    background-color: {ONE_DARK["bg2"]};
-    border: 1px solid {ONE_DARK["bg3"]};
+    background-color: {bg2};
+    border: 1px solid {bg3};
     border-radius: 8px;
     padding: 6px 12px;
 }}
 
 .module-chip-label {{
     font-size: 13px;
-    color: {ONE_DARK["fg"]};
+    color: {fg};
 }}
 
 .module-chip-remove {{
     background: transparent;
-    color: {ONE_DARK["red"]};
+    color: {red};
     border: none;
     padding: 2px;
     min-width: 20px;
@@ -343,14 +375,14 @@ scrollbar slider:hover {{
 }}
 
 .module-chip-remove:hover {{
-    background-color: {ONE_DARK["red"]};
+    background-color: {red};
     color: white;
     border-radius: 4px;
 }}
 
 .module-drop-zone {{
-    background-color: {ONE_DARK["bg0"]};
-    border: 2px dashed {ONE_DARK["bg3"]};
+    background-color: {bg0};
+    border: 2px dashed {bg3};
     border-radius: 12px;
     padding: 16px;
     min-height: 200px;
@@ -359,19 +391,19 @@ scrollbar slider:hover {{
 .drop-zone-title {{
     font-size: 12px;
     font-weight: 600;
-    color: {ONE_DARK["blue"]};
+    color: {blue};
     letter-spacing: 1px;
 }}
 
 .modules-container {{
-    background-color: {ONE_DARK["bg1"]};
+    background-color: {bg1};
     border-radius: 8px;
     padding: 8px;
     min-height: 150px;
 }}
 
 .add-module-btn {{
-    background-color: {ONE_DARK["green"]};
+    background-color: {green};
     color: white;
     border-radius: 6px;
     padding: 4px 8px;
@@ -384,14 +416,14 @@ scrollbar slider:hover {{
 }}
 
 .size-selector {{
-    background-color: {ONE_DARK["bg2"]};
+    background-color: {bg2};
     border-radius: 8px;
     padding: 4px;
 }}
 
 .size-btn {{
     background: transparent;
-    color: {ONE_DARK["fg"]};
+    color: {fg};
     border: none;
     border-radius: 6px;
     padding: 6px 16px;
@@ -400,28 +432,28 @@ scrollbar slider:hover {{
 }}
 
 .size-btn:checked {{
-    background-color: {ONE_DARK["blue"]};
+    background-color: {blue};
     color: white;
 }}
 
 .size-btn:hover {{
-    background-color: {ONE_DARK["bg3"]};
+    background-color: {bg3};
 }}
 
 tabbar {{
-    background-color: {ONE_DARK["bg0"]};
+    background-color: {bg0};
 }}
 
 tabbar tab {{
     background-color: transparent;
-    color: {ONE_DARK["grey1"]};
+    color: {grey1};
     border-radius: 8px 8px 0 0;
     padding: 10px 20px;
 }}
 
 tabbar tab:checked {{
-    background-color: {ONE_DARK["bg1"]};
-    color: {ONE_DARK["blue"]};
+    background-color: {bg1};
+    color: {blue};
 }}
 
 /* Window sizing constraints */
@@ -442,7 +474,7 @@ scrolledwindow {{
 /* Wallpaper thumbnails */
 .wallpaper-thumbnail {{
     border-radius: 8px;
-    border: 2px solid {ONE_DARK["bg3"]};
+    border: 2px solid {bg3};
 }}
 
 flowboxchild {{
@@ -451,15 +483,15 @@ flowboxchild {{
 }}
 
 flowboxchild:selected {{
-    background-color: {ONE_DARK["blue"]};
+    background-color: {blue};
 }}
 
 flowboxchild:selected .wallpaper-thumbnail {{
-    border-color: {ONE_DARK["bg0"]};
+    border-color: {bg0};
 }}
 
 .wallpaper-label {{
     font-size: 12px;
-    color: {ONE_DARK["grey1"]};
+    color: {grey1};
 }}
 '''

@@ -61,8 +61,16 @@ def create_module_chip(module_name: str, on_remove: Callable = None) -> Gtk.Box:
         return Gdk.ContentProvider.new_for_value(value)
     
     def drag_begin(source, drag):
+        # Create paintable for drag icon
         paintable = Gtk.WidgetPaintable.new(chip)
-        drag.set_icon(paintable, 0, 0)
+        
+        # Use set_hotspot for Wayland compatibility (not set_icon)
+        try:
+            drag.set_icon(paintable, 0, 0)
+        except AttributeError:
+            # Wayland fallback - just skip icon
+            pass
+        
         chip.add_css_class('dragging')
     
     drag_source.connect('prepare', prepare_drag)

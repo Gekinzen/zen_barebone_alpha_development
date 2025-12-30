@@ -130,29 +130,13 @@ class ControlCenterWindow(Adw.ApplicationWindow):
     
     def _generate_themed_css(self, colors: dict) -> str:
         """Generate CSS with theme colors"""
-        # Import base CSS structure
-        from .styles import get_css
-        base_css = get_css()
+        # Get base CSS template
+        from .styles import get_css_template
         
-        # Replace color variables with theme colors
-        import re
+        # Format template with new theme colors
+        css = get_css_template().format(**colors)
         
-        # Build :root section with theme colors
-        root_section = ":root {\n"
-        for key, value in colors.items():
-            root_section += f"    --{key}: {value};\n"
-        root_section += "}\n"
-        
-        # Replace existing :root section or add at top
-        if ":root {" in base_css:
-            # Replace existing
-            pattern = r':root\s*\{[^}]+\}'
-            base_css = re.sub(pattern, root_section.strip(), base_css, flags=re.DOTALL)
-        else:
-            # Add at top
-            base_css = root_section + "\n" + base_css
-        
-        return base_css
+        return css
     
     def _build_ui(self):
         """Build the main UI"""
