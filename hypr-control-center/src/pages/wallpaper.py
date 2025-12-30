@@ -6,7 +6,8 @@ COMPLETE FIXED VERSION with bigger thumbnails (240x240) and slideshow
 import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
-from gi.repository import Gtk, Adw, GdkPixbuf, GLib, Gio
+gi.require_version('Gdk', '4.0')
+from gi.repository import Gtk, Adw, GdkPixbuf, GLib, Gio, Gdk
 import subprocess
 from pathlib import Path
 from typing import List, Optional
@@ -23,15 +24,22 @@ class WallpaperPage:
         self.prefs = WallpaperPreferences()
         self.wallpapers = []
         self.slideshow_timer = None
-        self.slideshow_enabled = False
+        
+        # Load saved slideshow state
+        wallpaper_data = self.prefs.load()
+        self.slideshow_enabled = wallpaper_data.get('slideshow_enabled', False)
+        
+        # Start slideshow if it was enabled
+        if self.slideshow_enabled:
+            GLib.idle_add(self._start_slideshow)
         
     def build(self) -> Gtk.Box:
         """Build wallpaper page"""
-        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        page.set_margin_top(24)
+        page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=24)  # INCREASED!
+        page.set_margin_top(0)  # Remove top margin
         page.set_margin_bottom(24)
-        page.set_margin_start(32)
-        page.set_margin_end(32)
+        page.set_margin_start(0)  # Remove side margins
+        page.set_margin_end(0)
         
         # Header
         header = self._build_header()
@@ -90,13 +98,13 @@ class WallpaperPage:
         
         group.add(folder_row)
         
-        # Transition row
+        # Transition row - ADD RANDOM!
         transition_row = Adw.ActionRow()
         transition_row.set_title("Transition Effect")
         
-        transitions = ["Fade", "Wipe", "Grow", "Outer", "Wave"]
+        transitions = ["Random", "Fade", "Wipe", "Grow", "Outer", "Wave"]
         current_transition = self.prefs.get_transition_type()
-        current_idx = 0
+        current_idx = 1  # Default to Fade
         
         transition_dropdown = Gtk.DropDown()
         transition_dropdown.set_model(Gtk.StringList.new(transitions))
@@ -180,11 +188,12 @@ class WallpaperPage:
         group = Adw.PreferencesGroup()
         group.set_title("Select Wallpaper")
         
-        # Scrolled window for grid
+        # Scrolled window - MUCH TALLER!
         scrolled = Gtk.ScrolledWindow()
         scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        scrolled.set_min_content_height(400)
-        scrolled.set_max_content_height(600)
+        scrolled.set_min_content_height(600)  # Was 400
+        scrolled.set_max_content_height(1200)  # Was 600
+        scrolled.set_vexpand(True)  # Allow expansion
         
         # FlowBox for grid layout - 4 columns for 240px thumbnails
         flowbox = Gtk.FlowBox()
@@ -241,75 +250,83 @@ class WallpaperPage:
         return False
     
     def _create_thumbnail(self, image_path: Path) -> Gtk.Box:
-        """Create bigger square thumbnail with proper image fill"""
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        """Create thumbnail - image MUST fill 240x240"""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         box.wallpaper_path = str(image_path)
         
-        # Create fixed size frame
+        # AspectFrame to maintain size but fill
+        aspect = Gtk.AspectFrame()
+        aspect.set_ratio(1.0)  # Square
+        aspect.set_obey_child(False)  # Don't let child resize us
+        aspect.set_size_request(240, 240)
+        
+        # Frame for border
         frame = Gtk.Frame()
         frame.set_size_request(240, 240)
         frame.add_css_class('wallpaper-frame')
         
         try:
-            # Load original image
-            pixbuf_full = GdkPixbuf.Pixbuf.new_from_file(str(image_path))
-            orig_width = pixbuf_full.get_width()
-            orig_height = pixbuf_full.get_height()
+            # Load full image first
+            pixbuf_orig = GdkPixbuf.Pixbuf.new_from_file(str(image_path))
+            width = pixbuf_orig.get_width()
+            height = pixbuf_orig.get_height()
             
-            # Calculate scaling to FILL square (will crop if needed)
-            target_size = 240
-            scale = max(target_size / orig_width, target_size / orig_height)
-            new_width = int(orig_width * scale)
-            new_height = int(orig_height * scale)
+            # Scale to cover 240x240 (crop if needed)
+            if width > height:
+                # Landscape - scale by height
+                scale_factor = 240 / height
+                new_height = 240
+                new_width = int(width * scale_factor)
+            else:
+                # Portrait - scale by width  
+                scale_factor = 240 / width
+                new_width = 240
+                new_height = int(height * scale_factor)
             
-            # Scale image to fill
-            pixbuf_scaled = GdkPixbuf.Pixbuf.new_from_file_at_scale(
-                str(image_path),
+            # Scale with high quality
+            pixbuf_scaled = pixbuf_orig.scale_simple(
                 new_width,
                 new_height,
-                True
+                GdkPixbuf.InterpType.BILINEAR
             )
             
-            # Crop to center if needed
-            if new_width > target_size or new_height > target_size:
-                # Calculate crop offsets (center crop)
-                offset_x = max(0, (new_width - target_size) // 2)
-                offset_y = max(0, (new_height - target_size) // 2)
+            # Crop to center 240x240
+            if new_width > 240 or new_height > 240:
+                offset_x = (new_width - 240) // 2 if new_width > 240 else 0
+                offset_y = (new_height - 240) // 2 if new_height > 240 else 0
                 
-                # Crop to exact 240x240
-                pixbuf = GdkPixbuf.Pixbuf.new(
+                pixbuf_final = GdkPixbuf.Pixbuf.new(
                     GdkPixbuf.Colorspace.RGB,
                     pixbuf_scaled.get_has_alpha(),
-                    8,
-                    target_size,
-                    target_size
+                    8, 240, 240
                 )
+                
                 pixbuf_scaled.copy_area(
                     offset_x, offset_y,
-                    target_size, target_size,
-                    pixbuf, 0, 0
+                    240, 240,
+                    pixbuf_final, 0, 0
                 )
             else:
-                pixbuf = pixbuf_scaled
+                pixbuf_final = pixbuf_scaled
             
-            # Create image widget
-            image = Gtk.Image.new_from_pixbuf(pixbuf)
-            image.add_css_class('wallpaper-thumbnail')
+            # Create image
+            image = Gtk.Image.new_from_pixbuf(pixbuf_final)
             image.set_size_request(240, 240)
             frame.set_child(image)
             
         except Exception as e:
-            # Fallback icon
+            print(f"Error: {e}")
             icon = Gtk.Image.new_from_icon_name('image-x-generic')
-            icon.set_pixel_size(64)
+            icon.set_pixel_size(80)
             frame.set_child(icon)
         
-        box.append(frame)
+        aspect.set_child(frame)
+        box.append(aspect)
         
-        # Filename label
+        # Filename
         label = Gtk.Label(label=image_path.name)
         label.set_ellipsize(3)
-        label.set_max_width_chars(25)
+        label.set_max_width_chars(20)
         label.add_css_class('wallpaper-label')
         box.append(label)
         
@@ -344,8 +361,12 @@ class WallpaperPage:
         self.window._show_toast(f"Transition: {transition.capitalize()}")
     
     def _on_slideshow_toggle(self, switch, _):
-        """Handle slideshow toggle"""
+        """Handle slideshow toggle - SAVE STATE"""
         self.slideshow_enabled = switch.get_active()
+        
+        # SAVE slideshow state to persist
+        self.prefs.update({'slideshow_enabled': self.slideshow_enabled})
+        
         if self.slideshow_enabled:
             self._start_slideshow()
             self.window._show_toast("Slideshow started")
@@ -374,11 +395,14 @@ class WallpaperPage:
                 
                 # Get transition - reload data each time
                 wallpaper_data = self.prefs.load()
-                if wallpaper_data.get('random_transition', False):
+                transition_type = self.prefs.get_transition_type()
+                
+                # Check if random mode
+                if transition_type == 'random' or wallpaper_data.get('random_transition', False):
                     transitions = ['fade', 'wipe', 'grow', 'outer', 'wave']
                     transition = random.choice(transitions)
                 else:
-                    transition = self.prefs.get_transition_type()
+                    transition = transition_type if transition_type != 'random' else 'fade'
                 
                 # Apply
                 self._apply_wallpaper(str(wallpaper), transition)

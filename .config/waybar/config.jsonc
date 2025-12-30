@@ -1,41 +1,42 @@
 {
-    "height":10,
-    "position": "top",
-    "layer":"top",
-    "margin-top" : 15,
-    "marfin-right":0,
-    "margin-bottom":0,
-    "margin-left":0,
-
-    "modules-left" : ["clock" ,"hyprland/workspaces"],
-    "modules-center" : ["tray"],
-    "modules-right":[
-        "pulseaudio",
+    "height": 10,
+    "position": "bottom",
+    "layer": "top",
+    "margin-top": 15,
+    "marfin-right": 0,
+    "margin-bottom": 0,
+    "margin-left": 0,
+    "modules-left": [
+        "hyprland/workspaces"
+    ],
+    "modules-center": [
+        "clock"
+    ],
+    "modules-right": [
         "network",
         "battery",
-        "custom/notification"
+        "custom/notification",
+        "pulseaudio"
     ],
-
     "clock": {
         "interval": 60,
         "format": "{:%H:%M}",
         "max-length": 25
     },
-
     "hyprland/workspaces": {
         "format": "{name}",
         "format-icons": {
-            "1": "",
-            "2": "",
-            "3": "",
-            "4": "",
-            "5": "",
-            "active": "",
-            "default": ""
+            "1": "\uf120",
+            "2": "\uf268",
+            "3": "\uf121",
+            "4": "\uf1bc",
+            "5": "\uf075",
+            "active": "\uf192",
+            "default": "\uf111"
         },
         "persistent-workspaces": {
-                "*": 5, // 5 workspaces by default on every monitor
-                "HDMI-A-1": 3 // but only three on HDMI-A-1
+            "*": 5,
+            "HDMI-A-1": 3
         }
     },
     "tray": {
@@ -44,31 +45,36 @@
     },
     "pulseaudio": {
         "format": "{volume}% {icon}",
-        "format-bluetooth": "{volume}% {icon}",
-        "format-muted": "",
+        "format-bluetooth": "{volume}% {icon}\uf294",
+        "format-muted": "\uf026",
         "format-icons": {
-            "headphone": "",
-            "hands-free": "",
-            "headset": "",
-            "phone": "",
-            "phone-muted": "",
-            "portable": "",
-            "car": "",
-            "default": ["", ""]
+            "headphone": "\uf025",
+            "hands-free": "\uf590",
+            "headset": "\uf590",
+            "phone": "\uf095",
+            "phone-muted": "\ued17",
+            "portable": "\uf095",
+            "car": "\uf1b9",
+            "default": [
+                "\uf027",
+                "\uf028"
+            ]
         },
         "scroll-step": 1,
         "on-click": "pavucontrol",
-        "ignored-sinks": ["Easy Effects Sink"]
+        "ignored-sinks": [
+            "Easy Effects Sink"
+        ]
     },
     "network": {
         "interface": "wlp2s0",
         "format": "{ifname}",
-        "format-wifi": "{essid} ({signalStrength}%) ",
-        "format-ethernet": "{ipaddr}/{cidr} 󰊗",
-        "format-disconnected": "", //An empty format will hide the module.
-        "tooltip-format": "{ifname} via {gwaddr} 󰊗",
-        "tooltip-format-wifi": "{essid} ({signalStrength}%) ",
-        "tooltip-format-ethernet": "{ifname} ",
+        "format-wifi": "{essid} ({signalStrength}%) \uf1eb",
+        "format-ethernet": "{ipaddr}/{cidr} \udb80\ude97",
+        "format-disconnected": "",
+        "tooltip-format": "{ifname} via {gwaddr} \udb80\ude97",
+        "tooltip-format-wifi": "{essid} ({signalStrength}%) \uf1eb",
+        "tooltip-format-ethernet": "{ifname} \uf0c1",
         "tooltip-format-disconnected": "Disconnected",
         "max-length": 50
     },
@@ -79,21 +85,27 @@
             "critical": 15
         },
         "format": "{capacity}% {icon}",
-        "format-icons": ["", "", "", "", ""],
+        "format-icons": [
+            "\uf244",
+            "\uf243",
+            "\uf242",
+            "\uf241",
+            "\uf240"
+        ],
         "max-length": 25
     },
     "custom/notification": {
         "tooltip": true,
         "format": "<span size='16pt'>{icon}</span>",
         "format-icons": {
-        "notification": "󱅫",
-        "none": "󰂜",
-        "dnd-notification": "󰂠",
-        "dnd-none": "󰪓",
-        "inhibited-notification": "󰂛",
-        "inhibited-none": "󰪑",
-        "dnd-inhibited-notification": "󰂛",
-        "dnd-inhibited-none": "󰪑"
+            "notification": "\udb84\udd6b",
+            "none": "\udb80\udc9c",
+            "dnd-notification": "\udb80\udca0",
+            "dnd-none": "\udb82\ude93",
+            "inhibited-notification": "\udb80\udc9b",
+            "inhibited-none": "\udb82\ude91",
+            "dnd-inhibited-notification": "\udb80\udc9b",
+            "dnd-inhibited-none": "\udb82\ude91"
         },
         "return-type": "json",
         "exec-if": "which swaync-client",
@@ -103,4 +115,3 @@
         "escape": true
     }
 }
-

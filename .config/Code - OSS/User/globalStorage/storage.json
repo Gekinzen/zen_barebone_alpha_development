@@ -1,0 +1,108 @@
+{
+    "telemetry.sqmId": "",
+    "telemetry.machineId": "74f13546264dd895c9a6cf1b505a3d62c5239237bf92ec89f8418073fa82c3f8",
+    "telemetry.devDeviceId": "c0a02c57-85ef-47a5-a019-15ce43e25340",
+    "backupWorkspaces": {
+        "workspaces": [],
+        "folders": [
+            {
+                "folderUri": "file:///home/zen/.config"
+            },
+            {
+                "folderUri": "file:///home/zen/.config/hypr-control-center"
+            }
+        ],
+        "emptyWindows": []
+    },
+    "windowControlHeight": 35,
+    "profileAssociations": {
+        "workspaces": {
+            "file:///home/zen": "__default__profile__",
+            "file:///home/zen/.config": "__default__profile__",
+            "file:///home/zen/.config/zen/settings": "__default__profile__",
+            "file:///home/zen/.config/hyprland-control-center": "__default__profile__",
+            "file:///home/zen/.config/hypr-control-center": "__default__profile__"
+        },
+        "emptyWindows": {}
+    },
+    "theme": "vs-dark",
+    "themeBackground": "#1f1f1f",
+    "windowSplash": {
+        "zoomLevel": 0,
+        "baseTheme": "vs-dark",
+        "colorInfo": {
+            "foreground": "#cccccc",
+            "background": "#1f1f1f",
+            "editorBackground": "#1f1f1f",
+            "titleBarBackground": "#181818",
+            "titleBarBorder": "#2b2b2b",
+            "activityBarBackground": "#181818",
+            "activityBarBorder": "#2b2b2b",
+            "sideBarBackground": "#181818",
+            "sideBarBorder": "#2b2b2b",
+            "statusBarBackground": "#181818",
+            "statusBarBorder": "#2b2b2b",
+            "statusBarNoFolderBackground": "#1f1f1f"
+        },
+        "layoutInfo": {
+            "sideBarSide": "left",
+            "editorPartMinWidth": 220,
+            "titleBarHeight": 35,
+            "activityBarWidth": 48,
+            "sideBarWidth": 170,
+            "auxiliaryBarWidth": 170,
+            "statusBarHeight": 22,
+            "windowBorder": false
+        }
+    },
+    "windowSplashWorkspaceOverride": {
+        "layoutInfo": {
+            "sideBarWidth": 170,
+            "auxiliaryBarWidth": 170,
+            "workspaces": {
+                "5a7263a5d32dc1a8b42ac9fc0ac044a4": {
+                    "sideBarVisible": true,
+                    "auxiliaryBarVisible": false
+                },
+                "256622e3a692ae122a2ef24bfb783eda": {
+                    "sideBarVisible": true,
+                    "auxiliaryBarVisible": true
+                },
+                "0f8e429a6e615ff488e138376d96a736": {
+                    "sideBarVisible": true,
+                    "auxiliaryBarVisible": true
+                },
+                "a46c4c3d9d7abae718d71e33cc5eb818": {
+                    "sideBarVisible": true,
+                    "auxiliaryBarVisible": true
+                },
+                "7ac4ed63a0d035020e3e3ccacb3a056d": {
+                    "sideBarVisible": true,
+                    "auxiliaryBarVisible": true
+                },
+                "ff5d5aebf96efbdf34b1956510add4d9": {
+                    "sideBarVisible": true,
+                    "auxiliaryBarVisible": true
+                },
+                "1f15779eb389b5e6d1373c0a33f21d4a": {
+                    "sideBarVisible": true,
+                    "auxiliaryBarVisible": true
+                }
+            }
+        }
+    },
+    "windowsState": {
+        "lastActiveWindow": {
+            "folder": "file:///home/zen/.config",
+            "backupPath": "/home/zen/.config/Code - OSS/Backups/b25ddddbd8732f01931bcd381ebe1f2f",
+            "uiState": {
+                "mode": 0,
+                "x": 0,
+                "y": 0,
+                "width": 480,
+                "height": 544
+            }
+        },
+        "openedWindows": []
+    }
+}

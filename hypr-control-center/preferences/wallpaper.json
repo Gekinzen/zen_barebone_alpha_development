@@ -1,5 +1,8 @@
 {
   "folder": "~/wallpapers",
-  "current": null,
-  "transition": "fade"
+  "current": "",
+  "transition": "fade",
+  "slideshow_enabled": false,
+  "slideshow_interval": 10,
+  "random_transition": false
 }

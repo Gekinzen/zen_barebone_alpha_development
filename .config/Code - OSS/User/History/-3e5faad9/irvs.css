@@ -1,0 +1,108 @@
+/* =====================================================
+   ZEN SETTINGS – COSMIC × WINDOWS INSPIRED
+   ===================================================== */
+
+window {
+    background-color: #2b2b2b;
+}
+
+.preferences-page {
+    background-color: #2b2b2b;
+}
+
+/* ---------- SIDEBAR ---------- */
+.navigation-sidebar {
+    background-color: #1f1f1f;
+    border-right: 1px solid rgba(255,255,255,0.06);
+}
+
+.navigation-sidebar row:selected {
+    background-color: rgba(255,255,255,0.08);
+    border-radius: 10px;
+}
+
+.navigation-sidebar row {
+    margin: 4px 6px;
+    padding: 6px;
+    border-radius: 10px;
+}
+
+/* ---------- TITLES ---------- */
+.title-1 {
+    font-size: 22px;
+    font-weight: 600;
+}
+
+.title-2 {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.title-3 {
+    font-size: 14px;
+    font-weight: 600;
+    opacity: 0.85;
+    margin-bottom: 6px;
+}
+
+/* ---------- CARDS ---------- */
+preferencesgroup,
+.preferences-group {
+    background-color: #323232;
+    border-radius: 14px;
+    padding: 12px;
+    margin-bottom: 18px;
+    box-shadow: 0 8px 18px rgba(0,0,0,0.35);
+}
+
+/* ---------- ROWS ---------- */
+actionrow {
+    border-radius: 10px;
+    padding: 8px 10px;
+}
+
+actionrow:hover {
+    background-color: rgba(255,255,255,0.04);
+}
+
+/* ---------- VALUE LABEL ---------- */
+.dim-label {
+    opacity: 0.65;
+    font-size: 12px;
+    min-width: 42px;
+}
+
+/* ---------- SLIDERS ---------- */
+scale {
+    min-height: 26px;
+}
+
+scale trough {
+    min-height: 6px;
+    border-radius: 6px;
+    background-color: rgba(255,255,255,0.12);
+}
+
+scale highlight {
+    background-color: #5aa9ff;
+    border-radius: 6px;
+}
+
+scale slider {
+    min-width: 14px;
+    min-height: 14px;
+    border-radius: 50%;
+    background-color: #e6e6e6;
+}
+
+/* ---------- SWITCH ---------- */
+switch {
+    min-width: 44px;
+    min-height: 22px;
+}
+
+/* ---------- COLOR BUTTON ---------- */
+colorbutton {
+    border-radius: 8px;
+    padding: 2px;
+}

@@ -1,0 +1,8 @@
+file:///home/zen/.config/hypr/modules/monitors.conf {"mtime":1766835470817,"ctime":1766843799536,"size":132,"etag":"3fca75rbj48","orphaned":false,"typeId":""}
+################
+### MONITORS ###
+################
+
+# See https://wiki.hypr.land/Configuring/Monitors/
+monitor=,1920x1080@60,auto,1
+bb

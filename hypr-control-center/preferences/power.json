@@ -1,4 +1,6 @@
 {
   "profile": "neutral",
-  "auto": false
+  "auto": false,
+  "cleanup_enabled": true,
+  "cleanup_interval": 30
 }

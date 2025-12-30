@@ -1,0 +1,77 @@
+/* =====================================================
+   ZEN SETTINGS – GTK SAFE / COMPACT
+   ===================================================== */
+
+window {
+  background-color: #1f1f1f;
+  color: #e6e6e6;
+}
+
+/* ---------- CARDS ---------- */
+preferencesgroup,
+.preferences-group {
+  background-color: #2b2b2b;
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 14px;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+/* ---------- ROWS ---------- */
+actionrow {
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+actionrow:hover {
+  background-color: rgba(255,255,255,0.04);
+}
+
+/* ---------- SLIDERS (SAFE SIZES) ---------- */
+scale {
+  min-height: 24px;
+}
+
+scale trough {
+  min-height: 6px;
+  border-radius: 3px;
+  background-color: rgba(255,255,255,0.14);
+}
+
+scale highlight {
+  background-color: #5b8cff;
+  border-radius: 3px;
+}
+
+scale slider {
+  min-width: 14px;
+  min-height: 14px;
+  border-radius: 7px;
+  background-color: #ffffff;
+}
+
+/* ---------- SWITCH (COMPACT, GTK SAFE) ---------- */
+switch {
+  min-width: 36px;
+  min-height: 20px;
+}
+
+switch slider {
+  min-width: 16px;
+  min-height: 16px;
+  border-radius: 8px;
+}
+
+/* ---------- COLOR BUTTON ---------- */
+colorbutton {
+  min-width: 32px;
+  min-height: 20px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.12);
+}
+
+/* ---------- VALUE LABEL ---------- */
+.dim-label {
+  font-size: 11px;
+  opacity: 0.6;
+}

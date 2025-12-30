@@ -1,0 +1,163 @@
+/* =====================================================
+   ZEN SETTINGS – COSMIC / WINDOWS INSPIRED
+   ===================================================== */
+
+/* ---------- ROOT COLORS ---------- */
+:root {
+  --bg: #1f1f1f;
+  --sidebar: #1b1b1b;
+  --surface: #262626;
+  --card: #2e2e2e;
+
+  --text: #e6e6e6;
+  --text-muted: #a8a8a8;
+
+  --accent: #5b8cff;
+  --accent-soft: rgba(91, 140, 255, 0.25);
+
+  --border: rgba(255, 255, 255, 0.08);
+}
+
+/* ---------- WINDOW ---------- */
+window {
+  background-color: var(--bg);
+  color: var(--text);
+  opacity: 1;
+}
+
+/* ---------- SIDEBAR ---------- */
+.sidebar {
+  background-color: var(--sidebar);
+  padding: 10px;
+}
+
+.sidebar row {
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+
+.sidebar row:selected {
+  background-color: var(--accent-soft);
+}
+
+/* ---------- HEADINGS ---------- */
+.title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.section-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+/* ---------- CARDS ---------- */
+.card {
+  background-color: var(--card);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border);
+}
+
+/* ---------- ROWS ---------- */
+.setting-row {
+  padding: 8px 0;
+}
+
+.setting-row label {
+  font-size: 13px;
+}
+
+/* ---------- SLIDERS ---------- */
+scale {
+  min-height: 22px;
+}
+
+scale trough {
+  min-height: 6px;
+  border-radius: 3px;
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+scale highlight {
+  background-color: var(--accent);
+  border-radius: 3px;
+}
+
+scale slider {
+  min-width: 14px;
+  min-height: 14px;
+  border-radius: 7px;
+  background-color: #ffffff;
+}
+
+/* ---------- TOGGLES (FIXED SIZE) ---------- */
+switch {
+  min-width: 40px;
+  min-height: 22px;
+}
+
+switch slider {
+  min-width: 18px;
+  min-height: 18px;
+  border-radius: 9px;
+  background-color: #ffffff;
+}
+
+switch:checked {
+  background-color: var(--accent);
+}
+
+switch:checked slider {
+  background-color: #ffffff;
+}
+
+/* ---------- COLOR PICKER ---------- */
+colorbutton {
+  min-width: 36px;
+  min-height: 22px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  padding: 0;
+}
+
+/* ---------- SEPARATORS ---------- */
+separator {
+  background-color: var(--border);
+  min-height: 1px;
+  margin: 8px 0;
+}
+
+/* ---------- SCROLL ---------- */
+scrolledwindow {
+  border: none;
+}
+
+scrollbar slider {
+  background-color: rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+}
+
+scrollbar slider:hover {
+  background-color: rgba(255, 255, 255, 0.4);
+}
+
+/* ---------- BUTTONS ---------- */
+button {
+  border-radius: 8px;
+  padding: 6px 12px;
+}
+
+button.suggested-action {
+  background-color: var(--accent);
+  color: #ffffff;
+}
+
+button.destructive-action {
+  background-color: #d9534f;
+  color: #ffffff;
+}

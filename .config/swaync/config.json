@@ -1,25 +1,21 @@
 {
   "$schema": "/etc/xdg/swaync/configSchema.json",
   "positionX": "right",
-  "positionY": "top",
-	"cssPriority": "user",
-
+  "positionY": "bottom",
+  "cssPriority": "user",
   "control-center-width": 380,
-  "control-center-height": 760, 
+  "control-center-height": 760,
   "control-center-margin-top": 2,
   "control-center-margin-bottom": 2,
   "control-center-margin-right": 1,
   "control-center-margin-left": 0,
-
   "notification-window-width": 400,
   "notification-icon-size": 48,
   "notification-body-image-height": 160,
   "notification-body-image-width": 200,
-
   "timeout": 4,
   "timeout-low": 2,
   "timeout-critical": 6,
-  
   "fit-to-screen": false,
   "keyboard-shortcuts": true,
   "image-visibility": "when-available",
@@ -51,7 +47,7 @@
     "title": {
       "text": "Notifications",
       "clear-all-button": true,
-      "button-text": " 󰎟 "
+      "button-text": " \udb80\udf9f "
     },
     "dnd": {
       "text": "Do not disturb"
@@ -65,32 +61,31 @@
       "image-radius": 12
     },
     "volume": {
-      "label": "󰕾",
-        "show-per-app": true
+      "label": "\udb81\udd7e",
+      "show-per-app": true
     },
     "buttons-grid": {
       "actions": [
         {
-          "label": "",
+          "label": "\uf025",
           "command": "amixer set Master toggle"
         },
         {
-          "label": "",
+          "label": "\uf130",
           "command": "amixer set Capture toggle"
         },
         {
-          "label": "",
+          "label": "\uf1eb",
           "command": "nm-connection-editor"
         },
         {
-          "label": "󰂯",
+          "label": "\udb80\udcaf",
           "command": "blueman-manager"
         },
         {
-          "label": "󰏘",
+          "label": "\udb80\udfd8",
           "command": "nwg-look"
         }
-        
       ]
     }
   }
