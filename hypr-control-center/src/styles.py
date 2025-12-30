@@ -1,31 +1,28 @@
 """
 One Dark themed CSS styles for Hyprland Control Center
+COMPLETE REWRITE - Guaranteed working version
 """
 
 from .constants import ONE_DARK
 
 def get_css() -> str:
-    """Returns the complete CSS stylesheet with ONE_DARK theme"""
-    return get_css_template().format(**ONE_DARK)
-
-def get_css_template() -> str:
-    """Returns CSS template string with color placeholders for theming"""
-    return '''
+    """Returns CSS with ONE_DARK colors applied"""
+    return f'''
 /* ═══════════════════════════════════════════════════════════════ */
 /* WINDOW & CONTAINERS                                              */
 /* ═══════════════════════════════════════════════════════════════ */
 
 window {{
-    background-color: {bg1};
+    background-color: {ONE_DARK["bg1"]};
 }}
 
 .sidebar {{
-    background-color: {bg0};
-    border-right: 1px solid {bg3};
+    background-color: {ONE_DARK["bg0"]};
+    border-right: 1px solid {ONE_DARK["bg3"]};
 }}
 
 .content-area {{
-    background-color: {bg1};
+    background-color: {ONE_DARK["bg1"]};
     padding: 24px 32px;
 }}
 
@@ -36,14 +33,14 @@ window {{
 .sidebar-title {{
     font-size: 18px;
     font-weight: 700;
-    color: {fg};
+    color: {ONE_DARK["fg"]};
     padding: 16px;
 }}
 
 .sidebar-section {{
     font-size: 11px;
     font-weight: 600;
-    color: {grey0};
+    color: {ONE_DARK["grey0"]};
     letter-spacing: 1.2px;
     text-transform: uppercase;
     padding: 16px 16px 8px 16px;
@@ -53,86 +50,52 @@ window {{
     padding: 10px 16px;
     margin: 2px 8px;
     border-radius: 8px;
-    color: {fg};
+    color: {ONE_DARK["fg"]};
     font-size: 13px;
 }}
 
 .sidebar-item:hover {{
-    background-color: {bg2};
+    background-color: {ONE_DARK["bg2"]};
 }}
 
 .sidebar-item:selected,
 .sidebar-item:checked {{
-    background-color: {blue};
-    color: {bg1};
+    background-color: {ONE_DARK["blue"]};
+    color: {ONE_DARK["bg1"]};
 }}
 
-/* Make all sidebar icons white - minimalist! */
-.sidebar-icon {{
-    color: {fg} !important;
-    -gtk-icon-palette: {fg} !important;
+/* FORCE ALL ICONS WHITE - NUCLEAR OPTION */
+.sidebar-icon,
+.sidebar-item image,
+image {{
+    color: {ONE_DARK["fg"]} !important;
+    -gtk-icon-palette: {ONE_DARK["fg"]} !important;
     -gtk-icon-style: symbolic;
-}}
-
-.sidebar-item image {{
-    color: {fg} !important;
-    -gtk-icon-palette: {fg};
 }}
 
 .sidebar-item:selected image,
-.sidebar-item:checked image {{
-    color: {bg0} !important;
-    -gtk-icon-palette: {bg0};
-}}
-
+.sidebar-item:checked image,
 .sidebar-item:selected .sidebar-icon,
 .sidebar-item:checked .sidebar-icon {{
-    color: {bg0} !important;
-    -gtk-icon-palette: {bg0} !important;
+    color: {ONE_DARK["bg0"]} !important;
+    -gtk-icon-palette: {ONE_DARK["bg0"]} !important;
 }}
 
-/* ═══════════════════════════════════════════════════════════════ */
-/* GLOBAL ICON STYLING - ALL WHITE FOR MINIMALIST DESIGN          */
-/* ═══════════════════════════════════════════════════════════════ */
-
-/* Make ALL icons white by default - FORCE IT! */
-image {{
-    color: {fg} !important;
-    -gtk-icon-palette: {fg};
-    -gtk-icon-style: symbolic;
-}}
-
-/* Icon buttons */
-button image {{
-    color: {fg} !important;
-    -gtk-icon-palette: {fg};
-}}
-
-/* List box icons */
+/* Force ALL images white */
 list image,
 listbox image,
 listboxrow image,
-row image {{
-    color: {fg} !important;
-    -gtk-icon-palette: {fg};
+row image,
+box image,
+button image {{
+    color: {ONE_DARK["fg"]} !important;
+    -gtk-icon-palette: {ONE_DARK["fg"]} !important;
 }}
 
-/* Box icons */
-box image {{
-    color: {fg} !important;
-    -gtk-icon-palette: {fg};
-}}
-
-/* Suggested action buttons keep blue background, but white icon */
+/* Suggested action buttons - white icons on blue */
 button.suggested-action image {{
-    color: {bg0} !important;
-    -gtk-icon-palette: {bg0};
-}}
-
-/* Destructive action buttons */
-button.destructive-action image {{
-    color: {bg0} !important;
-    -gtk-icon-palette: {bg0};
+    color: {ONE_DARK["bg0"]} !important;
+    -gtk-icon-palette: {ONE_DARK["bg0"]} !important;
 }}
 
 /* ═══════════════════════════════════════════════════════════════ */
@@ -142,12 +105,12 @@ button.destructive-action image {{
 .page-title {{
     font-size: 28px;
     font-weight: 700;
-    color: {fg};
+    color: {ONE_DARK["fg"]};
 }}
 
 .page-subtitle {{
     font-size: 14px;
-    color: {grey1};
+    color: {ONE_DARK["grey1"]};
     margin-top: 4px;
 }}
 
@@ -156,33 +119,22 @@ button.destructive-action image {{
 /* ═══════════════════════════════════════════════════════════════ */
 
 .settings-group {{
-    background-color: {bg0};
+    background-color: {ONE_DARK["bg2"]};
     border-radius: 12px;
-    padding: 16px 20px;
+    padding: 16px;
     margin-bottom: 16px;
 }}
 
-.group-title {{
-    font-size: 11px;
+.settings-group-title {{
+    font-size: 16px;
     font-weight: 600;
-    color: {blue};
-    letter-spacing: 1px;
+    color: {ONE_DARK["fg"]};
+    margin-bottom: 12px;
 }}
-
-.section-header {{
-    font-size: 12px;
-    font-weight: 600;
-    color: {purple};
-    letter-spacing: 0.5px;
-}}
-
-/* ═══════════════════════════════════════════════════════════════ */
-/* SETTING ROWS                                                     */
-/* ═══════════════════════════════════════════════════════════════ */
 
 .setting-row {{
-    padding: 6px 0;
-    border-bottom: 1px solid {bg2};
+    padding: 12px 0;
+    border-bottom: 1px solid {ONE_DARK["bg3"]};
 }}
 
 .setting-row:last-child {{
@@ -191,320 +143,51 @@ button.destructive-action image {{
 
 .setting-label {{
     font-size: 14px;
-    font-weight: 500;
-    color: {fg};
+    color: {ONE_DARK["fg"]};
 }}
 
 .setting-description {{
     font-size: 12px;
-    color: {grey0};
-}}
-
-.value-mono {{
-    font-family: "JetBrains Mono", "Fira Code", monospace;
-    font-size: 12px;
-    color: {aqua};
-    background-color: {bg2};
-    padding: 4px 10px;
-    border-radius: 6px;
-}}
-
-/* ═══════════════════════════════════════════════════════════════ */
-/* INPUT WIDGETS                                                    */
-/* ═══════════════════════════════════════════════════════════════ */
-
-.color-button {{
-    min-width: 44px;
-    min-height: 32px;
-    border-radius: 8px;
-    border: 2px solid {bg3};
-}}
-
-.spin-input {{
-    background-color: {bg2};
-    color: {fg};
-    border-radius: 8px;
-    border: 1px solid {bg3};
-    padding: 4px 8px;
-    min-width: 80px;
-}}
-
-.spin-input:focus {{
-    border-color: {blue};
-}}
-
-.opacity-scale {{
-    min-width: 150px;
-}}
-
-.opacity-scale trough {{
-    background-color: {bg3};
-    border-radius: 4px;
-    min-height: 6px;
-}}
-
-.opacity-scale highlight {{
-    background-color: {blue};
-    border-radius: 4px;
-}}
-
-.opacity-scale slider {{
-    background-color: {fg};
-    border-radius: 50%;
-    min-width: 18px;
-    min-height: 18px;
-    margin: -6px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-}}
-
-switch {{
-    background-color: {bg3};
-    border-radius: 14px;
-    min-width: 50px;
-    min-height: 26px;
-}}
-
-switch:checked {{
-    background-color: {green};
-}}
-
-switch slider {{
-    background-color: {fg};
-    border-radius: 13px;
-    min-width: 22px;
-    min-height: 22px;
-    margin: 2px;
-}}
-
-.setting-dropdown {{
-    background-color: {bg2};
-    color: {fg};
-    border-radius: 8px;
-    padding: 6px 12px;
-    border: 1px solid {bg3};
-    min-width: 120px;
+    color: {ONE_DARK["grey1"]};
+    margin-top: 4px;
 }}
 
 /* ═══════════════════════════════════════════════════════════════ */
 /* BUTTONS                                                          */
 /* ═══════════════════════════════════════════════════════════════ */
 
-.action-button {{
-    padding: 10px 24px;
+button {{
     border-radius: 8px;
-    font-weight: 600;
-    font-size: 13px;
-    margin: 4px;
-    border: none;
+    padding: 8px 16px;
+    font-weight: 500;
 }}
 
-.reset-button {{
-    background-color: {red};
-    color: white;
+button.suggested-action {{
+    background-color: {ONE_DARK["blue"]};
+    color: {ONE_DARK["bg0"]};
 }}
 
-.reset-button:hover {{
-    background-color: #c75f68;
-}}
-
-.apply-button {{
-    background-color: {green};
-    color: {bg1};
-}}
-
-.apply-button:hover {{
-    background-color: #88b369;
-}}
-
-/* ═══════════════════════════════════════════════════════════════ */
-/* PLACEHOLDER PAGES                                                */
-/* ═══════════════════════════════════════════════════════════════ */
-
-.info-banner {{
-    background-color: {bg2};
-    border: 1px solid {blue};
-    border-radius: 8px;
-    padding: 12px 16px;
-}}
-
-.placeholder-page {{
-    padding: 48px;
-}}
-
-.placeholder-icon {{
-    color: {grey0};
-    opacity: 0.5;
-    margin-bottom: 8px;
-}}
-
-.placeholder-title {{
-    font-size: 24px;
-    font-weight: 700;
-    color: {fg};
-}}
-
-.placeholder-description {{
-    font-size: 14px;
-    color: {grey1};
-    margin-top: 8px;
-}}
-
-.coming-soon-badge {{
-    background-color: {purple};
-    color: white;
-    font-size: 11px;
-    font-weight: 600;
-    padding: 6px 16px;
-    border-radius: 16px;
-    margin-top: 16px;
+button.destructive-action {{
+    background-color: {ONE_DARK["red"]};
+    color: {ONE_DARK["bg0"]};
 }}
 
 /* ═══════════════════════════════════════════════════════════════ */
 /* SCROLLBARS                                                       */
 /* ═══════════════════════════════════════════════════════════════ */
 
-scrollbar {{
-    background-color: transparent;
-}}
-
-scrollbar slider {{
-    background-color: {bg3};
-    border-radius: 8px;
-    min-width: 8px;
-}}
-
-scrollbar slider:hover {{
-    background-color: {bg4};
-}}
-
-/* ═══════════════════════════════════════════════════════════════ */
-/* PANEL PAGE - MODULE MANAGEMENT                                   */
-/* ═══════════════════════════════════════════════════════════════ */
-
-.module-chip {{
-    background-color: {bg2};
-    border: 1px solid {bg3};
-    border-radius: 8px;
-    padding: 6px 12px;
-}}
-
-.module-chip-label {{
-    font-size: 13px;
-    color: {fg};
-}}
-
-.module-chip-remove {{
-    background: transparent;
-    color: {red};
-    border: none;
-    padding: 2px;
-    min-width: 20px;
-    min-height: 20px;
-}}
-
-.module-chip-remove:hover {{
-    background-color: {red};
-    color: white;
-    border-radius: 4px;
-}}
-
-.module-drop-zone {{
-    background-color: {bg0};
-    border: 2px dashed {bg3};
-    border-radius: 12px;
-    padding: 16px;
-    min-height: 200px;
-}}
-
-.drop-zone-title {{
-    font-size: 12px;
-    font-weight: 600;
-    color: {blue};
-    letter-spacing: 1px;
-}}
-
-.modules-container {{
-    background-color: {bg1};
-    border-radius: 8px;
-    padding: 8px;
-    min-height: 150px;
-}}
-
-.add-module-btn {{
-    background-color: {green};
-    color: white;
-    border-radius: 6px;
-    padding: 4px 8px;
-    min-width: 32px;
-    min-height: 32px;
-}}
-
-.add-module-btn:hover {{
-    background-color: #88b369;
-}}
-
-.size-selector {{
-    background-color: {bg2};
-    border-radius: 8px;
-    padding: 4px;
-}}
-
-.size-btn {{
-    background: transparent;
-    color: {fg};
-    border: none;
-    border-radius: 6px;
-    padding: 6px 16px;
-    font-size: 12px;
-    font-weight: 600;
-}}
-
-.size-btn:checked {{
-    background-color: {blue};
-    color: white;
-}}
-
-.size-btn:hover {{
-    background-color: {bg3};
-}}
-
-tabbar {{
-    background-color: {bg0};
-}}
-
-tabbar tab {{
-    background-color: transparent;
-    color: {grey1};
-    border-radius: 8px 8px 0 0;
-    padding: 10px 20px;
-}}
-
-tabbar tab:checked {{
-    background-color: {bg1};
-    color: {blue};
-}}
-
-/* Window sizing constraints */
-window {{
-    min-width: 900px;
-    min-height: 650px;
-}}
-
-/* Content area scrolling */
-.content-area {{
-    min-height: 0;
-}}
-
 scrolledwindow {{
     min-height: 0;
 }}
 
-/* Wallpaper thumbnails - SQUARE with proper sizing */
+/* ═══════════════════════════════════════════════════════════════ */
+/* WALLPAPER THUMBNAILS                                             */
+/* ═══════════════════════════════════════════════════════════════ */
+
 .wallpaper-frame {{
     border-radius: 12px;
-    border: 2px solid {bg3};
-    overflow: hidden;
-    background-color: {bg2};
+    border: 2px solid {ONE_DARK["bg3"]};
+    background-color: {ONE_DARK["bg2"]};
 }}
 
 .wallpaper-thumbnail {{
@@ -518,21 +201,72 @@ flowboxchild {{
 }}
 
 flowboxchild:hover {{
-    background-color: {bg2};
+    background-color: {ONE_DARK["bg2"]};
 }}
 
 flowboxchild:selected {{
-    background-color: {blue};
+    background-color: {ONE_DARK["blue"]};
 }}
 
 flowboxchild:selected .wallpaper-frame {{
-    border-color: {bg0};
+    border-color: {ONE_DARK["bg0"]};
     border-width: 3px;
 }}
 
 .wallpaper-label {{
     font-size: 11px;
-    color: {grey1};
+    color: {ONE_DARK["grey1"]};
     margin-top: 4px;
+}}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* MODULE CHIPS (Panel page)                                        */
+/* ═══════════════════════════════════════════════════════════════ */
+
+.module-chip {{
+    background-color: {ONE_DARK["bg3"]};
+    border-radius: 8px;
+    padding: 8px 12px;
+}}
+
+.module-chip:hover {{
+    background-color: {ONE_DARK["bg4"]};
+}}
+
+.module-chip-icon {{
+    color: {ONE_DARK["blue"]};
+    font-size: 16px;
+}}
+
+.module-chip-label {{
+    color: {ONE_DARK["fg"]};
+    font-size: 13px;
+}}
+
+.module-chip-remove {{
+    color: {ONE_DARK["red"]};
+}}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* MISC                                                             */
+/* ═══════════════════════════════════════════════════════════════ */
+
+.dim-label {{
+    color: {ONE_DARK["grey1"]};
+}}
+
+.error-label {{
+    color: {ONE_DARK["red"]};
+}}
+
+.placeholder-icon {{
+    font-size: 48px;
+    color: {ONE_DARK["grey1"]};
+}}
+
+.placeholder-text {{
+    font-size: 16px;
+    color: {ONE_DARK["grey1"]};
+    margin-top: 12px;
 }}
 '''

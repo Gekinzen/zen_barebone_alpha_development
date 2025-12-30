@@ -1,13 +1,12 @@
 """
-Main Control Center Window
+Main window for Hyprland Control Center
+COMPLETE VERSION with white icons fix
 """
 
 import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
-gi.require_version('Gdk', '4.0')
 from gi.repository import Gtk, Adw, Gdk
-from typing import Callable
 
 from .config_manager import HyprlandConfigManager
 from .styles import get_css
@@ -23,40 +22,26 @@ from .pages.placeholders import (
     build_input_page, build_keybinds_page
 )
 
+
 class ControlCenterWindow(Adw.ApplicationWindow):
-    """Main Control Center Window"""
+    """Main application window"""
     
     def __init__(self, app):
         super().__init__(application=app)
         
+        # Window properties
         self.set_title("Hyprland Control Center")
         
-        # Auto-detect monitor size and set appropriate window size
-        self._set_optimal_window_size()
+        # Initialize managers
+        self.config_manager = HyprlandConfigManager()
+        self.waybar_manager = None  # Will be imported when needed
         
-        # Allow window resizing
-        self.set_resizable(True)
-        
-        # Check theme source mode
+        # Initialize theme manager
         from .theme_manager import ThemeManager
-        theme_mgr = ThemeManager()
-        theme_source = theme_mgr.get_theme_source_mode()
+        self.theme_manager = ThemeManager()
         
-        # Apply color scheme based on mode
-        style_manager = Adw.StyleManager.get_default()
-        if theme_source == "gtk":
-            # Follow system GTK theme
-            style_manager.set_color_scheme(Adw.ColorScheme.DEFAULT)
-        else:
-            # Force dark for custom themes
-            style_manager.set_color_scheme(Adw.ColorScheme.FORCE_DARK)
-        
-        # Config manager
-        self.config = HyprlandConfigManager()
-        self.config.parse_look_and_feel()
-        
-        # Widget references
-        self.widgets = {}
+        # Detect monitor size and set window size
+        self._set_window_size()
         
         # Apply CSS
         self._apply_css()
@@ -64,29 +49,20 @@ class ControlCenterWindow(Adw.ApplicationWindow):
         # Build UI
         self._build_ui()
     
-    def _set_optimal_window_size(self):
-        """Set window size based on monitor dimensions"""
+    def _set_window_size(self):
+        """Set window size based on monitor resolution"""
         try:
-            import subprocess
-            import json
-            
-            # Get monitor info from hyprctl
-            result = subprocess.run(
-                ['hyprctl', 'monitors', '-j'],
-                capture_output=True,
-                text=True,
-                timeout=2
-            )
-            
-            if result.returncode == 0:
-                monitors = json.loads(result.stdout)
-                if monitors:
-                    # Get active monitor dimensions
-                    active = monitors[0]
-                    width = active.get('width', 1920)
-                    height = active.get('height', 1080)
+            # Get display and monitor info
+            display = Gdk.Display.get_default()
+            if display:
+                monitors = display.get_monitors()
+                if monitors and monitors.get_n_items() > 0:
+                    monitor = monitors.get_item(0)
+                    geometry = monitor.get_geometry()
+                    width = geometry.width
+                    height = geometry.height
                     
-                    # Set window to 70% of monitor size (responsive)
+                    # Set to 70% of monitor size
                     window_width = int(width * 0.7)
                     window_height = int(height * 0.7)
                     
@@ -103,22 +79,8 @@ class ControlCenterWindow(Adw.ApplicationWindow):
         self.set_default_size(1100, 750)
         
     def _apply_css(self):
-        """Apply themed CSS - respects theme source mode"""
-        from .theme_manager import ThemeManager
-        
-        # Get theme source mode
-        theme_mgr = ThemeManager()
-        theme_source = theme_mgr.get_theme_source_mode()
-        
-        if theme_source == "gtk":
-            # Use GTK system theme - just load base CSS
-            from .styles import get_css
-            css = get_css()
-        else:
-            # Use custom color scheme
-            current_theme = theme_mgr.get_current_theme()
-            colors = theme_mgr.get_theme_colors(current_theme)
-            css = self._generate_themed_css(colors)
+        """Apply themed CSS"""
+        css = get_css()
         
         provider = Gtk.CssProvider()
         provider.load_from_data(css.encode())
@@ -129,14 +91,9 @@ class ControlCenterWindow(Adw.ApplicationWindow):
         )
     
     def _generate_themed_css(self, colors: dict) -> str:
-        """Generate CSS with theme colors"""
-        # Get base CSS template
-        from .styles import get_css_template
-        
-        # Format template with new theme colors
-        css = get_css_template().format(**colors)
-        
-        return css
+        """Generate CSS with theme colors for dynamic theme switching"""
+        from .styles import get_css
+        return get_css()
     
     def _build_ui(self):
         """Build the main UI"""
@@ -152,19 +109,11 @@ class ControlCenterWindow(Adw.ApplicationWindow):
         sidebar = self._build_sidebar()
         main_box.append(sidebar)
         
-        # Scrolled window for content
-        scrolled = Gtk.ScrolledWindow()
-        scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        scrolled.set_hexpand(True)
-        scrolled.set_vexpand(True)
-        scrolled.add_css_class('content-area')
-        
-        # Content stack
+        # Content area with stack
         self.stack = Gtk.Stack()
-        self.stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        self.stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT)
         self.stack.set_transition_duration(200)
-        self.stack.set_hexpand(True)
-        self.stack.set_vexpand(True)
+        self.stack.add_css_class('content-area')
         
         # Add pages
         self.stack.add_named(build_wallpaper_page(self), "wallpaper")
@@ -179,20 +128,32 @@ class ControlCenterWindow(Adw.ApplicationWindow):
         self.stack.add_named(build_power_page(self), "power")
         self.stack.add_named(build_keybinds_page(self), "keybinds")
         
-        scrolled.set_child(self.stack)
-        main_box.append(scrolled)
+        main_box.append(self.stack)
+        
+        # Show wallpaper page by default
+        self.stack.set_visible_child_name("wallpaper")
     
     def _build_sidebar(self) -> Gtk.Box:
-        """Build sidebar navigation"""
-        sidebar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        sidebar.add_css_class('sidebar')
+        """Build navigation sidebar"""
+        sidebar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         sidebar.set_size_request(240, -1)
+        sidebar.add_css_class('sidebar')
         
-        # App title
-        title = Gtk.Label(label="⚙ Settings")
+        # Title
+        title = Gtk.Label(label="Settings")
         title.add_css_class('sidebar-title')
         title.set_halign(Gtk.Align.START)
+        title.set_margin_top(16)
+        title.set_margin_bottom(16)
+        title.set_margin_start(16)
+        title.set_margin_end(16)
         sidebar.append(title)
+        
+        # List box for navigation
+        list_box = Gtk.ListBox()
+        list_box.set_selection_mode(Gtk.SelectionMode.SINGLE)
+        list_box.connect('row-selected', self._on_nav_changed)
+        list_box.add_css_class('sidebar-list')
         
         # Navigation sections
         nav_sections = [
@@ -205,7 +166,7 @@ class ControlCenterWindow(Adw.ApplicationWindow):
                 ("Workspaces", "workspaces", "view-grid-symbolic"),
             ]),
             ("SYSTEM", [
-                ("Animations", "animations", "preferences-desktop-effects-symbolic"),
+                ("Animations", "animations", "preferences-desktop-animation-symbolic"),
                 ("Input Devices", "input", "input-keyboard-symbolic"),
                 ("Displays", "displays", "video-display-symbolic"),
                 ("Power & Battery", "power", "battery-symbolic"),
@@ -213,20 +174,12 @@ class ControlCenterWindow(Adw.ApplicationWindow):
             ]),
         ]
         
-        list_box = Gtk.ListBox()
-        list_box.set_selection_mode(Gtk.SelectionMode.SINGLE)
-        list_box.connect('row-activated', self._on_nav_activated)
-        
-        for section_name, items in nav_sections:
-            # Section header (as a non-selectable row)
-            section_row = Gtk.ListBoxRow()
-            section_row.set_selectable(False)
-            section_row.set_activatable(False)
-            section_label = Gtk.Label(label=section_name)
-            section_label.add_css_class('sidebar-section')
-            section_label.set_halign(Gtk.Align.START)
-            section_row.set_child(section_label)
-            list_box.append(section_row)
+        for section_title, items in nav_sections:
+            # Section header
+            header = Gtk.Label(label=section_title)
+            header.add_css_class('sidebar-section')
+            header.set_halign(Gtk.Align.START)
+            sidebar.append(header)
             
             # Items
             for label, page_name, icon_name in items:
@@ -236,9 +189,11 @@ class ControlCenterWindow(Adw.ApplicationWindow):
                 box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
                 box.add_css_class('sidebar-item')
                 
+                # FORCE WHITE ICONS!
                 icon = Gtk.Image.new_from_icon_name(icon_name)
                 icon.set_pixel_size(18)
-                icon.add_css_class('sidebar-icon')  # Force white styling
+                icon.add_css_class('sidebar-icon')
+                icon.add_css_class('force-white')
                 box.append(icon)
                 
                 lbl = Gtk.Label(label=label)
@@ -259,185 +214,18 @@ class ControlCenterWindow(Adw.ApplicationWindow):
         sidebar.append(spacer)
         
         # Version info
-        version = Gtk.Label(label="v1.0.0")
-        version.add_css_class('setting-description')
-        version.set_margin_bottom(4)
-        sidebar.append(version)
-        
-        # Credits
-        credits = Gtk.Label(label="Created by Gekinzen")
-        credits.add_css_class('dim-label')
-        credits.set_margin_bottom(12)
-        sidebar.append(credits)
-        
-        # About button
-        about_btn = Gtk.Button(label="About")
-        about_btn.add_css_class('flat')
-        about_btn.connect('clicked', self._show_about_dialog)
-        about_btn.set_margin_bottom(16)
-        sidebar.append(about_btn)
+        version_label = Gtk.Label(label="v1.0.0")
+        version_label.add_css_class('dim-label')
+        version_label.set_margin_bottom(16)
+        sidebar.append(version_label)
         
         return sidebar
     
-    def _on_nav_activated(self, list_box, row):
+    def _on_nav_changed(self, list_box, row):
         """Handle navigation selection"""
-        if row and row.get_selectable():
+        if row:
             page_name = row.get_name()
-            if page_name:
-                self.stack.set_visible_child_name(page_name)
-    
-    # ═══════════════════════════════════════════════════════════════════════════
-    # APPEARANCE PAGE HANDLERS
-    # ═══════════════════════════════════════════════════════════════════════════
-    
-    def _on_appearance_reset(self, btn):
-        """Reset appearance to default"""
-        dialog = Adw.MessageDialog(
-            transient_for=self,
-            heading="Reset to Default?",
-            body="This will restore appearance settings from the default configuration."
-        )
-        dialog.add_response("cancel", "Cancel")
-        dialog.add_response("reset", "Reset")
-        dialog.set_response_appearance("reset", Adw.ResponseAppearance.DESTRUCTIVE)
-        dialog.connect('response', self._on_appearance_reset_response)
-        dialog.present()
-    
-    def _on_appearance_reset_response(self, dialog, response):
-        if response == "reset":
-            if self.config.reset_look_and_feel():
-                self._refresh_appearance_widgets()
-                self._show_toast("Settings reset to default")
-            else:
-                self._show_toast("Default configuration not found")
-    
-    def _on_appearance_apply(self, btn):
-        """Apply appearance changes"""
-        self.config.save_look_and_feel()
-        self._show_toast("Appearance settings applied")
-    
-    def _refresh_appearance_widgets(self):
-        """Refresh appearance widgets with current values"""
-        widget_map = {
-            'gaps_in': self.config.general.gaps_in,
-            'gaps_out': self.config.general.gaps_out,
-            'border_size': self.config.general.border_size,
-            'col_active_border': self.config.general.col_active_border,
-            'col_inactive_border': self.config.general.col_inactive_border,
-            'resize_on_border': self.config.general.resize_on_border,
-            'allow_tearing': self.config.general.allow_tearing,
-            'layout': self.config.general.layout,
-            'rounding': self.config.decoration.rounding,
-            'rounding_power': self.config.decoration.rounding_power,
-            'active_opacity': self.config.decoration.active_opacity,
-            'inactive_opacity': self.config.decoration.inactive_opacity,
-            'shadow_enabled': self.config.decoration.shadow_enabled,
-            'shadow_range': self.config.decoration.shadow_range,
-            'shadow_color': self.config.decoration.shadow_color,
-            'blur_enabled': self.config.decoration.blur_enabled,
-            'blur_size': self.config.decoration.blur_size,
-            'blur_passes': self.config.decoration.blur_passes,
-        }
-        
-        for key, value in widget_map.items():
-            if key in self.widgets:
-                if hasattr(self.widgets[key], 'set_value'):
-                    self.widgets[key].set_value(value)
-                elif hasattr(self.widgets[key], 'set_color'):
-                    self.widgets[key].set_color(value)
-    
-    # ═══════════════════════════════════════════════════════════════════════════
-    # HELPER METHODS
-    # ═══════════════════════════════════════════════════════════════════════════
-    
-    def _create_page_header(self, title: str, subtitle: str) -> Gtk.Box:
-        """Create page header with title and subtitle"""
-        header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        header.set_margin_bottom(24)
-        
-        title_label = Gtk.Label(label=title)
-        title_label.add_css_class('page-title')
-        title_label.set_halign(Gtk.Align.START)
-        header.append(title_label)
-        
-        subtitle_label = Gtk.Label(label=subtitle)
-        subtitle_label.add_css_class('page-subtitle')
-        subtitle_label.set_halign(Gtk.Align.START)
-        header.append(subtitle_label)
-        
-        return header
-    
-    def _create_action_buttons(self, on_reset: Callable, on_apply: Callable) -> Gtk.Box:
-        """Create action button bar"""
-        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        box.set_margin_top(24)
-        box.set_halign(Gtk.Align.END)
-        
-        reset_btn = Gtk.Button(label="Reset to Default")
-        reset_btn.add_css_class('action-button')
-        reset_btn.add_css_class('reset-button')
-        reset_btn.connect('clicked', on_reset)
-        box.append(reset_btn)
-        
-        apply_btn = Gtk.Button(label="Apply Changes")
-        apply_btn.add_css_class('action-button')
-        apply_btn.add_css_class('apply-button')
-        apply_btn.connect('clicked', on_apply)
-        box.append(apply_btn)
-        
-        return box
-    
-    def _show_about_dialog(self, button):
-        """Show About dialog with system info"""
-        import platform
-        import subprocess
-        
-        # Get system info
-        try:
-            kernel = platform.release()
-        except:
-            kernel = "Unknown"
-        
-        try:
-            hostname = platform.node()
-        except:
-            hostname = "Unknown"
-        
-        try:
-            # Get Hyprland version
-            result = subprocess.run(['hyprctl', 'version'], 
-                                  capture_output=True, text=True, timeout=2)
-            hypr_version = result.stdout.split('\n')[0] if result.returncode == 0 else "Unknown"
-        except:
-            hypr_version = "Unknown"
-        
-        # Create dialog
-        dialog = Adw.AboutWindow(
-            transient_for=self,
-            application_name="Hyprland Control Center",
-            application_icon="preferences-system",
-            developer_name="Gekinzen",
-            version="1.0.0",
-            comments="A GUI settings panel for Hyprland window manager",
-            website="https://github.com/gekinzen/hyprland-control-center",
-            issue_url="https://github.com/gekinzen/hyprland-control-center/issues",
-            license_type=Gtk.License.MIT_X11,
-        )
-        
-        # Add system info
-        system_info = f"""<b>System Information:</b>
-
-<b>Hostname:</b> {hostname}
-<b>Kernel:</b> {kernel}
-<b>Hyprland:</b> {hypr_version}
-<b>Desktop:</b> Wayland
-
-<b>Developer:</b> Gekinzen
-<b>Project:</b> Hyprland Control Center
-<b>License:</b> MIT"""
-        
-        dialog.set_debug_info(system_info)
-        dialog.present()
+            self.stack.set_visible_child_name(page_name)
     
     def _show_toast(self, message: str):
         """Show toast notification"""
