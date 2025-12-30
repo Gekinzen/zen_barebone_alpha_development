@@ -170,9 +170,13 @@ class ThemeManager:
     
     def __init__(self):
         self.config_dir = Path.home() / ".config" / "hypr-control-center"
-        self.theme_file = self.config_dir / "theme.json"
+        self.preferences_dir = self.config_dir / "preferences"
+        self.theme_file = self.preferences_dir / "theme.json"
         # Use .config/colorscheme instead of waybar/colors
         self.waybar_colors_dir = Path.home() / ".config" / "colorscheme"
+        
+        # Create preferences directory if it doesn't exist
+        self.preferences_dir.mkdir(parents=True, exist_ok=True)
         
     def get_theme_source_mode(self) -> str:
         """Get theme source: 'gtk' or 'custom'"""
