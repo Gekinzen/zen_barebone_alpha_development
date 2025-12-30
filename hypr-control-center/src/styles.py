@@ -68,11 +68,14 @@ window {{
 }}
 
 /* Make all sidebar icons white - minimalist! */
-.sidebar-icon {{
+/* Make all sidebar icons white - minimalist! */
+.sidebar-icon,
+.force-white {{
     color: {fg} !important;
     -gtk-icon-palette: {fg} !important;
     -gtk-icon-style: symbolic;
 }}
+
 
 .sidebar-item image {{
     color: {fg} !important;
