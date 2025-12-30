@@ -4,13 +4,7 @@ Placeholder pages for upcoming features
 
 from ..widgets import PlaceholderPage
 
-def build_panel_page(window):
-    """Build Panel (Waybar) placeholder page"""
-    return PlaceholderPage(
-        "Panel",
-        "view-paged-symbolic",
-        "Configure Waybar position, size, margins, and dock mode for a customized status bar experience."
-    )
+# Panel page is now implemented in panel.py
 
 def build_workspaces_page(window):
     """Build Workspaces placeholder page"""
@@ -37,11 +31,31 @@ def build_input_page(window):
     )
 
 def build_monitors_page(window):
-    """Build Monitors placeholder page"""
+    """Build Monitors placeholder page (legacy name, use build_displays_page)"""
+    return build_displays_page(window)
+
+def build_displays_page(window):
+    """Build Displays placeholder page"""
     return PlaceholderPage(
-        "Monitors",
+        "Displays",
         "video-display-symbolic",
         "Configure monitor resolution, position, scale, and rotation for multi-display setups."
+    )
+
+def build_power_page(window):
+    """Build Power & Battery placeholder page"""
+    return PlaceholderPage(
+        "Power & Battery",
+        "battery-symbolic",
+        "Manage power profiles: Saver, Neutral, Performance, and Developer modes."
+    )
+
+def build_notifications_page(window):
+    """Build Notifications placeholder page"""
+    return PlaceholderPage(
+        "Notifications",
+        "preferences-system-notifications-symbolic",
+        "Configure notification position, display selection, and SwayNC settings."
     )
 
 def build_keybinds_page(window):

@@ -16,7 +16,8 @@ from .pages.panel import build_panel_page
 from .pages.themes import build_themes_page
 from .pages.placeholders import (
     build_workspaces_page, build_animations_page,
-    build_input_page, build_monitors_page, build_keybinds_page
+    build_input_page, build_displays_page, build_power_page,
+    build_keybinds_page, build_notifications_page
 )
 
 class ControlCenterWindow(Adw.ApplicationWindow):
@@ -181,11 +182,13 @@ class ControlCenterWindow(Adw.ApplicationWindow):
         # Add pages
         self.stack.add_named(build_appearance_page(self), "appearance")
         self.stack.add_named(build_panel_page(self), "panel")
+        self.stack.add_named(build_notifications_page(self), "notifications")
         self.stack.add_named(build_themes_page(self), "themes")
         self.stack.add_named(build_workspaces_page(self), "workspaces")
         self.stack.add_named(build_animations_page(self), "animations")
         self.stack.add_named(build_input_page(self), "input")
-        self.stack.add_named(build_monitors_page(self), "monitors")
+        self.stack.add_named(build_displays_page(self), "displays")
+        self.stack.add_named(build_power_page(self), "power")
         self.stack.add_named(build_keybinds_page(self), "keybinds")
         
         scrolled.set_child(self.stack)
@@ -208,13 +211,15 @@ class ControlCenterWindow(Adw.ApplicationWindow):
             ("DESKTOP", [
                 ("Appearance", "appearance", "preferences-desktop-appearance-symbolic"),
                 ("Panel", "panel", "view-paged-symbolic"),
+                ("Notifications", "notifications", "preferences-system-notifications-symbolic"),
                 ("Theme Switcher", "themes", "applications-graphics-symbolic"),
                 ("Workspaces", "workspaces", "view-grid-symbolic"),
             ]),
             ("SYSTEM", [
                 ("Animations", "animations", "preferences-desktop-effects-symbolic"),
                 ("Input Devices", "input", "input-keyboard-symbolic"),
-                ("Monitors", "monitors", "video-display-symbolic"),
+                ("Displays", "displays", "video-display-symbolic"),
+                ("Power & Battery", "power", "battery-symbolic"),
                 ("Keybinds", "keybinds", "preferences-desktop-keyboard-shortcuts-symbolic"),
             ]),
         ]
