@@ -438,4 +438,28 @@ window {{
 scrolledwindow {{
     min-height: 0;
 }}
+
+/* Wallpaper thumbnails */
+.wallpaper-thumbnail {{
+    border-radius: 8px;
+    border: 2px solid {ONE_DARK["bg3"]};
+}}
+
+flowboxchild {{
+    border-radius: 12px;
+    padding: 8px;
+}}
+
+flowboxchild:selected {{
+    background-color: {ONE_DARK["blue"]};
+}}
+
+flowboxchild:selected .wallpaper-thumbnail {{
+    border-color: {ONE_DARK["bg0"]};
+}}
+
+.wallpaper-label {{
+    font-size: 12px;
+    color: {ONE_DARK["grey1"]};
+}}
 '''

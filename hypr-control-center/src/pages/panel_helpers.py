@@ -56,8 +56,8 @@ def create_module_chip(module_name: str, on_remove: Callable = None) -> Gtk.Box:
     drag_source.set_actions(Gdk.DragAction.MOVE)
     
     def prepare_drag(source, x, y):
-        from gi.repository import GLib
-        value = GLib.Value(GLib.TYPE_STRING, module_name)
+        from gi.repository import GObject
+        value = GObject.Value(GObject.TYPE_STRING, module_name)
         return Gdk.ContentProvider.new_for_value(value)
     
     def drag_begin(source, drag):
@@ -110,8 +110,8 @@ def create_module_drop_zone(position: str, modules: List[str],
         modules_box.append(chip)
     
     # ENABLE DROP TARGET!
-    from gi.repository import GLib
-    drop_target = Gtk.DropTarget.new(GLib.TYPE_STRING, Gdk.DragAction.MOVE)
+    from gi.repository import GLib, GObject
+    drop_target = Gtk.DropTarget.new(GObject.TYPE_STRING, Gdk.DragAction.MOVE)
     
     def on_drop_handler(target, value, x, y):
         module_name = value

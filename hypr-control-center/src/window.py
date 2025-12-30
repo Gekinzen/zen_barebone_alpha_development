@@ -17,6 +17,7 @@ from .pages.themes import build_themes_page
 from .pages.displays import build_displays_page
 from .pages.power import build_power_page
 from .pages.notifications import build_notifications_page
+from .pages.wallpaper import build_wallpaper_page
 from .pages.placeholders import (
     build_workspaces_page, build_animations_page,
     build_input_page, build_keybinds_page
@@ -182,6 +183,7 @@ class ControlCenterWindow(Adw.ApplicationWindow):
         self.stack.set_vexpand(True)
         
         # Add pages
+        self.stack.add_named(build_wallpaper_page(self), "wallpaper")
         self.stack.add_named(build_appearance_page(self), "appearance")
         self.stack.add_named(build_panel_page(self), "panel")
         self.stack.add_named(build_notifications_page(self), "notifications")
@@ -211,6 +213,7 @@ class ControlCenterWindow(Adw.ApplicationWindow):
         # Navigation sections
         nav_sections = [
             ("DESKTOP", [
+                ("Wallpaper", "wallpaper", "preferences-desktop-wallpaper-symbolic"),
                 ("Appearance", "appearance", "preferences-desktop-appearance-symbolic"),
                 ("Panel", "panel", "view-paged-symbolic"),
                 ("Notifications", "notifications", "preferences-system-notifications-symbolic"),
@@ -429,7 +432,7 @@ class ControlCenterWindow(Adw.ApplicationWindow):
             application_name="Hyprland Control Center",
             application_icon="preferences-system",
             developer_name="Gekinzen",
-            version="1.0.19",
+            version="1.0.0",
             comments="A GUI settings panel for Hyprland window manager",
             website="https://github.com/gekinzen/hyprland-control-center",
             issue_url="https://github.com/gekinzen/hyprland-control-center/issues",
