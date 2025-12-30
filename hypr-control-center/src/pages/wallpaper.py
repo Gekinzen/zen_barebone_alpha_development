@@ -217,10 +217,12 @@ class WallpaperPage:
         dialog = Gtk.FileDialog()
         dialog.set_title("Select Wallpaper Folder")
         
-        # Set initial folder
+        # Set initial folder using Gio.File
+        from gi.repository import Gio
         current = Path(self.prefs.get_wallpaper_folder()).expanduser()
         if current.exists():
-            dialog.set_initial_folder(Gtk.FileInfo.new_for_file(current))
+            gfile = Gio.File.new_for_path(str(current))
+            dialog.set_initial_folder(gfile)
         
         def on_response(dialog, result):
             try:
