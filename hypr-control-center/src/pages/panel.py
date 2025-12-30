@@ -580,13 +580,44 @@ def _on_remove_module(window, position: str, module: str, is_dock: bool):
 
 def _on_reorder_modules(window, position: str, data: str, is_dock: bool):
     """Handle module reordering via drag and drop"""
-    # Parse drag data: "position:module"
+    # Parse drag data: "from_position:module"
     parts = data.split(':')
     if len(parts) == 2:
         from_pos, module = parts
         if from_pos != position:
+            # Move module from one zone to another
             window.waybar_manager.move_module(from_pos, position, module, is_dock=is_dock)
-        # TODO: Implement reordering within same position
+            
+            # Rebuild panel page to show changes
+            window._show_toast(f"Moved {module} from {from_pos} to {position}")
+            
+            # Refresh the panel page
+            _refresh_panel_page(window, is_dock)
+
+
+def _refresh_panel_page(window, is_dock: bool):
+    """Refresh panel page to show updated module layout"""
+    # Get current page
+    if is_dock:
+        content = _build_dock_content(window)
+    else:
+        content = _build_main_panel_content(window)
+    
+    # Replace stack page
+    page_name = "panel" if not is_dock else "dock"
+    
+    # Create new scrolled window
+    scrolled = Gtk.ScrolledWindow()
+    scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+    scrolled.set_child(content)
+    
+    # Remove old page and add new one
+    old_page = window.stack.get_child_by_name(page_name)
+    if old_page:
+        window.stack.remove(old_page)
+    
+    window.stack.add_named(scrolled, page_name)
+    window.stack.set_visible_child_name(page_name)
 
 
 def _on_panel_reset(window, is_dock: bool):

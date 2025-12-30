@@ -8,34 +8,40 @@ gi.require_version('Gdk', '4.0')
 from gi.repository import Gtk, GLib, Gdk
 from typing import List, Callable
 
-def create_module_chip(module_name: str, on_remove: Callable = None) -> Gtk.Box:
+def create_module_chip(module_name: str, position: str, on_remove: Callable = None) -> Gtk.Box:
     """Create a draggable module chip"""
     chip = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
     chip.add_css_class('module-chip')
     # Store as custom attribute (GTK4 compatible)
     chip.module_name = module_name
+    chip.position = position  # Store position for drag data
     
-    # Icon based on module type
+    # Icon based on module type - NERD FONT ICONS!
     icon_map = {
-        'clock': 'x-office-calendar-symbolic',
-        'hyprland/workspaces': 'view-grid-symbolic',
-        'tray': 'applications-system-symbolic',
-        'pulseaudio': 'audio-volume-high-symbolic',
-        'network': 'network-wireless-symbolic',
-        'battery': 'battery-good-symbolic',
-        'cpu': 'utilities-system-monitor-symbolic',
-        'memory': 'drive-harddisk-symbolic',
-        'disk': 'drive-harddisk-symbolic',
-        'temperature': 'weather-clear-symbolic',
-        'backlight': 'display-brightness-symbolic',
-        'bluetooth': 'bluetooth-symbolic',
-        'custom/notification': 'preferences-system-notifications-symbolic',
+        'clock': '󰥔',                    # nf-md-clock
+        'hyprland/workspaces': '󰕰',    # nf-md-view_grid
+        'tray': '󰍉',                     # nf-md-apps
+        'pulseaudio': '󰕾',              # nf-md-volume_high
+        'network': '󰖩',                  # nf-md-wifi
+        'battery': '󰁹',                  # nf-md-battery
+        'cpu': '󰻠',                      # nf-md-cpu
+        'memory': '󰍛',                   # nf-md-memory
+        'disk': '󰋊',                     # nf-md-harddisk
+        'temperature': '󰔏',             # nf-md-thermometer
+        'backlight': '󰃟',               # nf-md-brightness
+        'bluetooth': '󰂯',               # nf-md-bluetooth
+        'idle_inhibitor': '󰒳',         # nf-md-coffee
+        'mpris': '󰝚',                    # nf-md-music
+        'custom/launcher': '󰀻',        # nf-md-apps
+        'hyprland/window': '󰖯',        # nf-md-window
+        'custom/notification': '󰂚',   # nf-md-bell
     }
     
-    icon = Gtk.Image.new_from_icon_name(icon_map.get(module_name, 'application-x-executable-symbolic'))
-    icon.set_pixel_size(16)
-    icon.add_css_class('module-chip-icon')
-    chip.append(icon)
+    # Use label instead of image for Nerd Font icons
+    icon_text = icon_map.get(module_name, '󰘳')  # Default: nf-md-application
+    icon_label = Gtk.Label(label=icon_text)
+    icon_label.add_css_class('module-chip-icon')
+    chip.append(icon_label)
     
     # Display name
     display_name = module_name.replace('/', ' - ').replace('_', ' ').title()
@@ -57,7 +63,9 @@ def create_module_chip(module_name: str, on_remove: Callable = None) -> Gtk.Box:
     
     def prepare_drag(source, x, y):
         from gi.repository import GObject
-        value = GObject.Value(GObject.TYPE_STRING, module_name)
+        # Send format: "position:module"
+        drag_data = f"{position}:{module_name}"
+        value = GObject.Value(GObject.TYPE_STRING, drag_data)
         return Gdk.ContentProvider.new_for_value(value)
     
     def drag_begin(source, drag):
@@ -114,7 +122,7 @@ def create_module_drop_zone(position: str, modules: List[str],
     modules_box.position = position
     
     for module in modules:
-        chip = create_module_chip(module, lambda m: on_remove(position, m))
+        chip = create_module_chip(module, position, lambda m: on_remove(position, m))
         modules_box.append(chip)
     
     # ENABLE DROP TARGET!
@@ -122,8 +130,8 @@ def create_module_drop_zone(position: str, modules: List[str],
     drop_target = Gtk.DropTarget.new(GObject.TYPE_STRING, Gdk.DragAction.MOVE)
     
     def on_drop_handler(target, value, x, y):
-        module_name = value
-        on_reorder(position, module_name)
+        # Value format: "from_position:module_name"
+        on_reorder(position, value)  # Pass to parent handler
         return True
     
     def on_enter(target, x, y):
