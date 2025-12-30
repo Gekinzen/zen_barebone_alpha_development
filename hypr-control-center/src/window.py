@@ -429,7 +429,7 @@ class ControlCenterWindow(Adw.ApplicationWindow):
             application_name="Hyprland Control Center",
             application_icon="preferences-system",
             developer_name="Gekinzen",
-            version="1.0.0",
+            version="1.0.19",
             comments="A GUI settings panel for Hyprland window manager",
             website="https://github.com/gekinzen/hyprland-control-center",
             issue_url="https://github.com/gekinzen/hyprland-control-center/issues",
@@ -456,3 +456,24 @@ class ControlCenterWindow(Adw.ApplicationWindow):
         toast = Adw.Toast(title=message)
         toast.set_timeout(3)
         self.toast_overlay.add_toast(toast)
+    
+    def _apply_theme_to_ui(self, theme_id: str):
+        """Apply theme colors to Control Center UI immediately"""
+        from .theme_manager import ThemeManager
+        
+        theme_mgr = ThemeManager()
+        colors = theme_mgr.get_theme_colors(theme_id)
+        
+        if colors:
+            # Regenerate CSS with new theme
+            css = self._generate_themed_css(colors)
+            
+            # Re-apply CSS
+            css_provider = Gtk.CssProvider()
+            css_provider.load_from_string(css)
+            
+            Gtk.StyleContext.add_provider_for_display(
+                Gdk.Display.get_default(),
+                css_provider,
+                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            )

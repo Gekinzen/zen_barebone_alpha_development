@@ -51,6 +51,24 @@ def create_module_chip(module_name: str, on_remove: Callable = None) -> Gtk.Box:
         remove_btn.connect('clicked', lambda b: on_remove(module_name))
         chip.append(remove_btn)
     
+    # ENABLE DRAG SOURCE!
+    drag_source = Gtk.DragSource()
+    drag_source.set_actions(Gdk.DragAction.MOVE)
+    
+    def prepare_drag(source, x, y):
+        from gi.repository import GLib
+        value = GLib.Value(GLib.TYPE_STRING, module_name)
+        return Gdk.ContentProvider.new_for_value(value)
+    
+    def drag_begin(source, drag):
+        paintable = Gtk.WidgetPaintable.new(chip)
+        drag.set_icon(paintable, 0, 0)
+        chip.add_css_class('dragging')
+    
+    drag_source.connect('prepare', prepare_drag)
+    drag_source.connect('drag-begin', drag_begin)
+    chip.add_controller(drag_source)
+    
     return chip
 
 
@@ -89,16 +107,28 @@ def create_module_drop_zone(position: str, modules: List[str],
     
     for module in modules:
         chip = create_module_chip(module, lambda m: on_remove(position, m))
-        
-        # TODO: Drag & drop will be implemented later
-        # For now, just display the modules
-        
         modules_box.append(chip)
     
-    # TODO: Drop target will be implemented with drag & drop
-    # drop_target = Gtk.DropTarget.new(GLib.TYPE_STRING, Gdk.DragAction.MOVE)
-    # drop_target.connect('drop', lambda t, v, x, y, p=position: on_reorder(p, v))
-    # modules_box.add_controller(drop_target)
+    # ENABLE DROP TARGET!
+    from gi.repository import GLib
+    drop_target = Gtk.DropTarget.new(GLib.TYPE_STRING, Gdk.DragAction.MOVE)
+    
+    def on_drop_handler(target, value, x, y):
+        module_name = value
+        on_reorder(position, module_name)
+        return True
+    
+    def on_enter(target, x, y):
+        modules_box.add_css_class('drop-target-hover')
+        return Gdk.DragAction.MOVE
+    
+    def on_leave(target):
+        modules_box.remove_css_class('drop-target-hover')
+    
+    drop_target.connect('drop', on_drop_handler)
+    drop_target.connect('enter', on_enter)
+    drop_target.connect('leave', on_leave)
+    modules_box.add_controller(drop_target)
     
     zone.append(modules_box)
     

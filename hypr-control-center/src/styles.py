@@ -63,6 +63,18 @@ window {{
     color: {ONE_DARK["bg1"]};
 }}
 
+/* Make all sidebar icons white - minimalist! */
+.sidebar-item image {{
+    color: {ONE_DARK["fg"]};
+    -gtk-icon-palette: {ONE_DARK["fg"]};
+}}
+
+.sidebar-item:selected image,
+.sidebar-item:checked image {{
+    color: {ONE_DARK["bg0"]};
+    -gtk-icon-palette: {ONE_DARK["bg0"]};
+}}
+
 /* ═══════════════════════════════════════════════════════════════ */
 /* PAGE HEADERS                                                     */
 /* ═══════════════════════════════════════════════════════════════ */

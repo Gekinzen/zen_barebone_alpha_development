@@ -205,7 +205,12 @@ def _on_theme_change(window, theme_id: str):
     
     if success:
         # Show toast
-        window._show_toast(f"Theme applied: {theme_mgr.THEMES[theme_id]['name']}")
+        window._show_toast(f"Theme applied: {theme_mgr.THEMES[theme_id]['name']} - Restart app to see changes")
+        
+        # Apply to Control Center immediately if custom mode
+        theme_source = theme_mgr.get_theme_source_mode()
+        if theme_source == "custom":
+            window._apply_theme_to_ui(theme_id)
         
         # Refresh themes page to show new color preview
         _refresh_themes_page(window)
