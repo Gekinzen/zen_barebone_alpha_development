@@ -1,6 +1,6 @@
 """
 Wallpaper Page - SWWW integration with folder selection
-COMPLETE VERSION with bigger thumbnails (240x240) and slideshow
+COMPLETE FIXED VERSION with bigger thumbnails (240x240) and slideshow
 """
 
 import gi
@@ -151,7 +151,8 @@ class WallpaperPage:
         
         def on_interval_selected(dropdown, _):
             interval = interval_values[dropdown.get_selected()]
-            self.prefs.set('slideshow_interval', interval)
+            # Save to preferences using update method
+            self.prefs.update({'slideshow_interval': interval})
             if self.slideshow_enabled:
                 self._restart_slideshow()
         
@@ -332,12 +333,15 @@ class WallpaperPage:
     def _on_random_toggle(self, switch, _):
         """Handle random transition toggle"""
         enabled = switch.get_active()
-        self.prefs.set('random_transition', enabled)
+        # Save to preferences using update method
+        self.prefs.update({'random_transition': enabled})
         self.window._show_toast("Random transitions: " + ("On" if enabled else "Off"))
     
     def _start_slideshow(self):
         """Start automatic wallpaper changes"""
-        interval = self.prefs.get('slideshow_interval', 60)
+        # Load preferences data
+        wallpaper_data = self.prefs.load()
+        interval = wallpaper_data.get('slideshow_interval', 60)
         interval_ms = interval * 1000
         
         def change_wallpaper():
@@ -345,8 +349,9 @@ class WallpaperPage:
                 # Pick random wallpaper
                 wallpaper = random.choice(self.wallpapers)
                 
-                # Get transition
-                if self.prefs.get('random_transition', False):
+                # Get transition - reload data each time
+                wallpaper_data = self.prefs.load()
+                if wallpaper_data.get('random_transition', False):
                     transitions = ['fade', 'wipe', 'grow', 'outer', 'wave']
                     transition = random.choice(transitions)
                 else:
