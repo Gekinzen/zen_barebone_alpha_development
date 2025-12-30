@@ -15,10 +15,10 @@ from .pages.appearance import build_appearance_page
 from .pages.panel import build_panel_page
 from .pages.themes import build_themes_page
 from .pages.displays import build_displays_page
+from .pages.power import build_power_page
 from .pages.placeholders import (
     build_workspaces_page, build_animations_page,
-    build_input_page, build_power_page,
-    build_keybinds_page, build_notifications_page
+    build_input_page, build_keybinds_page, build_notifications_page
 )
 
 class ControlCenterWindow(Adw.ApplicationWindow):

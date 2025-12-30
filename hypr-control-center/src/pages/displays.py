@@ -99,7 +99,7 @@ class DisplaysPage:
     
     def _detect_monitors(self) -> List[Dict]:
         """
-        Detect monitors using hyprctl
+        Detect monitors using hyprctl with available modes
         Returns list of monitor info dicts
         """
         try:
@@ -112,9 +112,13 @@ class DisplaysPage:
             
             if result.returncode == 0:
                 monitors_data = json.loads(result.stdout)
-                # Optimize: only keep essential data
-                return [
-                    {
+                monitors = []
+                
+                for m in monitors_data:
+                    # Get available modes
+                    modes = self._get_available_modes(m.get('name'))
+                    
+                    monitor_info = {
                         'name': m.get('name', 'Unknown'),
                         'description': m.get('description', 'Monitor'),
                         'width': m.get('width', 1920),
@@ -126,13 +130,75 @@ class DisplaysPage:
                         'transform': m.get('transform', 0),
                         'focused': m.get('focused', False),
                         'activeWorkspace': m.get('activeWorkspace', {}),
+                        'availableModes': modes,  # Available resolutions and refresh rates
                     }
-                    for m in monitors_data
-                ]
+                    monitors.append(monitor_info)
+                
+                return monitors
         except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError):
             pass
         
         return []
+    
+    def _get_available_modes(self, monitor_name: str) -> List[Dict]:
+        """Get available display modes for a monitor"""
+        try:
+            # Use wlr-randr to get available modes
+            result = subprocess.run(
+                ['wlr-randr'],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            
+            if result.returncode == 0:
+                modes = []
+                in_monitor = False
+                
+                for line in result.stdout.split('\n'):
+                    # Check if this is our monitor
+                    if monitor_name in line:
+                        in_monitor = True
+                        continue
+                    
+                    # Stop at next monitor
+                    if in_monitor and line and not line.startswith(' '):
+                        break
+                    
+                    # Parse mode line (e.g., "  1920x1080 px, 60.000000 Hz")
+                    if in_monitor and 'px' in line and 'Hz' in line:
+                        try:
+                            # Extract resolution and refresh rate
+                            parts = line.strip().split(',')
+                            res_part = parts[0].strip().replace(' px', '')
+                            rate_part = parts[1].strip().replace(' Hz', '')
+                            
+                            width, height = map(int, res_part.split('x'))
+                            rate = float(rate_part)
+                            
+                            modes.append({
+                                'width': width,
+                                'height': height,
+                                'refreshRate': rate
+                            })
+                        except (ValueError, IndexError):
+                            continue
+                
+                return modes if modes else self._get_default_modes()
+        except:
+            pass
+        
+        return self._get_default_modes()
+    
+    def _get_default_modes(self) -> List[Dict]:
+        """Fallback default modes"""
+        return [
+            {'width': 3840, 'height': 2160, 'refreshRate': 60.0},  # 4K
+            {'width': 2560, 'height': 1440, 'refreshRate': 144.0}, # 1440p 144Hz
+            {'width': 2560, 'height': 1440, 'refreshRate': 60.0},  # 1440p
+            {'width': 1920, 'height': 1080, 'refreshRate': 144.0}, # 1080p 144Hz
+            {'width': 1920, 'height': 1080, 'refreshRate': 60.0},  # 1080p
+        ]
     
     def _build_monitor_section(self, monitor: Dict) -> Adw.PreferencesGroup:
         """Build configuration section for a monitor"""
@@ -255,6 +321,20 @@ class DisplaysPage:
         """Handle monitor enable/disable"""
         config = self.prefs.get_monitor_config(monitor_name) or {}
         config['enabled'] = enabled
+        self.prefs.set_monitor_config(monitor_name, config)
+    
+    def _on_resolution_change(self, monitor_name: str, resolution: str):
+        """Handle resolution change"""
+        width, height = map(int, resolution.split('x'))
+        config = self.prefs.get_monitor_config(monitor_name) or {}
+        config['width'] = width
+        config['height'] = height
+        self.prefs.set_monitor_config(monitor_name, config)
+    
+    def _on_refresh_change(self, monitor_name: str, refresh_rate: float):
+        """Handle refresh rate change"""
+        config = self.prefs.get_monitor_config(monitor_name) or {}
+        config['refreshRate'] = refresh_rate
         self.prefs.set_monitor_config(monitor_name, config)
     
     def _on_scale_change(self, monitor_name: str, scale: float):
