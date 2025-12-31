@@ -23,6 +23,21 @@ from .pages.placeholders import (
     build_input_page, build_keybinds_page
 )
 
+
+ICON_MAP = {
+    "wallpaper": "",
+    "appearance": "",
+    "panel": "",
+    "notifications": "",
+    "themes": "",
+    "workspaces": "󰙀",
+    "animations": "󰔎",
+    "input": "",
+    "displays": "󰍹",
+    "power": "󰐥",
+    "keybinds": "󰌌",
+}
+
 class ControlCenterWindow(Adw.ApplicationWindow):
     """Main Control Center Window"""
     
@@ -111,14 +126,12 @@ class ControlCenterWindow(Adw.ApplicationWindow):
 .sidebar image,
 .sidebar listboxrow image,
 .sidebar-item image {
-    color: white !important;
-    filter: brightness(10) !important;
+    -gtk-icon-palette: error #ffffff;
 }
 
 .sidebar listboxrow:selected image,
 .sidebar-item:selected image {
-    color: black !important;
-    filter: brightness(0.1) !important;
+    -gtk-icon-palette: error #000000;
 }
 """
         
@@ -224,12 +237,12 @@ class ControlCenterWindow(Adw.ApplicationWindow):
                 box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
                 box.add_css_class('sidebar-item')
                 
-                icon = Gtk.Image.new_from_icon_name(icon_name)
-                icon.set_pixel_size(18)
-                icon.add_css_class('sidebar-icon')
-                icon.add_css_class('force-white')
-                box.append(icon)
-                
+                icon_label = Gtk.Label(label=ICON_MAP.get(page_name, "•"))
+                icon_label.add_css_class("sidebar-icon")
+                icon_label.set_xalign(0.5)
+                icon_label.set_yalign(0.5)
+                box.append(icon_label)
+                                
                 lbl = Gtk.Label(label=label)
                 lbl.set_halign(Gtk.Align.START)
                 box.append(lbl)

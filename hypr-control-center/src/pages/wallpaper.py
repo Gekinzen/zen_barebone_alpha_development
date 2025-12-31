@@ -138,11 +138,20 @@ class WallpaperPage:
         enable_row.set_title("Auto Change Wallpaper")
         enable_row.set_subtitle("Randomly select wallpapers")
         
+        #enable_switch = Gtk.Switch()
+        #enable_switch.set_valign(Gtk.Align.CENTER)
+        #enable_switch.connect('notify::active', self._on_slideshow_toggle)
+        #enable_row.add_suffix(enable_switch)
+        wallpaper_data = self.prefs.load()
+
         enable_switch = Gtk.Switch()
         enable_switch.set_valign(Gtk.Align.CENTER)
+        enable_switch.set_active(wallpaper_data.get('slideshow_enabled', False))
         enable_switch.connect('notify::active', self._on_slideshow_toggle)
         enable_row.add_suffix(enable_switch)
-        
+
+
+
         group.add(enable_row)
         
         # Interval selection
@@ -154,7 +163,26 @@ class WallpaperPage:
         
         interval_dropdown = Gtk.DropDown()
         interval_dropdown.set_model(Gtk.StringList.new(intervals))
-        interval_dropdown.set_selected(1)  # Default 1 minute
+        #interval_dropdown.set_selected(1)  # Default 1 minute
+        
+        wallpaper_data = self.prefs.load()
+        current_interval = wallpaper_data.get('slideshow_interval', 60)
+
+        intervals = ["10 seconds", "1 minute", "30 minutes", "1 hour"]
+        interval_values = [10, 60, 1800, 3600]
+
+        interval_dropdown = Gtk.DropDown()
+        interval_dropdown.set_model(Gtk.StringList.new(intervals))
+
+        # Find matching index
+        selected_idx = 1
+        for i, val in enumerate(interval_values):
+            if val == current_interval:
+                selected_idx = i
+                break
+
+        interval_dropdown.set_selected(selected_idx)
+
         interval_dropdown.set_valign(Gtk.Align.CENTER)
         
         def on_interval_selected(dropdown, _):
@@ -174,10 +202,18 @@ class WallpaperPage:
         random_row.set_title("Random Transition")
         random_row.set_subtitle("Use different effect each time")
         
+        #random_switch = Gtk.Switch()
+        #random_switch.set_valign(Gtk.Align.CENTER)
+        #random_switch.connect('notify::active', self._on_random_toggle)
+        #random_row.add_suffix(random_switch)
+        wallpaper_data = self.prefs.load()
+
         random_switch = Gtk.Switch()
         random_switch.set_valign(Gtk.Align.CENTER)
+        random_switch.set_active(wallpaper_data.get('random_transition', False))
         random_switch.connect('notify::active', self._on_random_toggle)
         random_row.add_suffix(random_switch)
+
         
         group.add(random_row)
         
@@ -253,83 +289,42 @@ class WallpaperPage:
         """Create thumbnail - image MUST fill 240x240"""
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         box.wallpaper_path = str(image_path)
-        
-        # AspectFrame to maintain size but fill
+        box.set_size_request(240, 260)
+        box.set_hexpand(False)
+        box.set_vexpand(False)
+
         aspect = Gtk.AspectFrame()
-        aspect.set_ratio(1.0)  # Square
-        aspect.set_obey_child(False)  # Don't let child resize us
+        aspect.set_ratio(1.0)
+        aspect.set_obey_child(True)
         aspect.set_size_request(240, 240)
-        
-        # Frame for border
+        aspect.set_hexpand(False)
+        aspect.set_vexpand(False)
+
         frame = Gtk.Frame()
         frame.set_size_request(240, 240)
+        frame.set_hexpand(False)
+        frame.set_vexpand(False)
         frame.add_css_class('wallpaper-frame')
-        
+
         try:
-            # Load full image first
-            pixbuf_orig = GdkPixbuf.Pixbuf.new_from_file(str(image_path))
-            width = pixbuf_orig.get_width()
-            height = pixbuf_orig.get_height()
-            
-            # Scale to cover 240x240 (crop if needed)
-            if width > height:
-                # Landscape - scale by height
-                scale_factor = 240 / height
-                new_height = 240
-                new_width = int(width * scale_factor)
-            else:
-                # Portrait - scale by width  
-                scale_factor = 240 / width
-                new_width = 240
-                new_height = int(height * scale_factor)
-            
-            # Scale with high quality
-            pixbuf_scaled = pixbuf_orig.scale_simple(
-                new_width,
-                new_height,
-                GdkPixbuf.InterpType.BILINEAR
-            )
-            
-            # Crop to center 240x240
-            if new_width > 240 or new_height > 240:
-                offset_x = (new_width - 240) // 2 if new_width > 240 else 0
-                offset_y = (new_height - 240) // 2 if new_height > 240 else 0
-                
-                pixbuf_final = GdkPixbuf.Pixbuf.new(
-                    GdkPixbuf.Colorspace.RGB,
-                    pixbuf_scaled.get_has_alpha(),
-                    8, 240, 240
-                )
-                
-                pixbuf_scaled.copy_area(
-                    offset_x, offset_y,
-                    240, 240,
-                    pixbuf_final, 0, 0
-                )
-            else:
-                pixbuf_final = pixbuf_scaled
-            
-            # Create image
-            image = Gtk.Image.new_from_pixbuf(pixbuf_final)
-            image.set_size_request(240, 240)
-            frame.set_child(image)
-            
+            picture = Gtk.Picture.new_for_filename(str(image_path))
+            picture.set_content_fit(Gtk.ContentFit.COVER)
+            picture.set_can_shrink(True)
+            frame.set_child(picture)
         except Exception as e:
-            print(f"Error: {e}")
             icon = Gtk.Image.new_from_icon_name('image-x-generic')
             icon.set_pixel_size(80)
             frame.set_child(icon)
-        
+
         aspect.set_child(frame)
         box.append(aspect)
-        
-        # Filename
+
         label = Gtk.Label(label=image_path.name)
         label.set_ellipsize(3)
         label.set_max_width_chars(20)
         label.add_css_class('wallpaper-label')
         box.append(label)
-        
+
         return box
     
     def _on_browse_folder(self):

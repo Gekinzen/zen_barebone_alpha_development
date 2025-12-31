@@ -1,8 +1,8 @@
 {
   "folder": "~/wallpapers",
-  "current": "",
-  "transition": "fade",
-  "slideshow_enabled": false,
+  "current": "/home/zen/wallpapers/wallhaven-7jgyre.jpg",
+  "transition": "random",
+  "slideshow_enabled": true,
   "slideshow_interval": 10,
   "random_transition": false
 }

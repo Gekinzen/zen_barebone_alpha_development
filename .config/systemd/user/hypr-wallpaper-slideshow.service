@@ -1,0 +1,12 @@
+[Unit]
+Description=Hyprland Wallpaper Slideshow (swww)
+After=graphical-session.target
+
+[Service]
+ExecStart=%h/.config/hypr/scripts/wallpaper-slideshow.sh
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target
+

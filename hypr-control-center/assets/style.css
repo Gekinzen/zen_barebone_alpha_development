@@ -463,3 +463,15 @@ tabbar tab:checked {
     background-color: var(--bg1);
     color: var(--blue);
 }
+
+.sidebar-icon {
+    font-family: "JetBrainsMono Nerd Font", "Symbols Nerd Font";
+    font-size: 16px;
+    color: #ffffff;
+    min-width: 22px;
+    text-align: center;
+}
+
+.sidebar listboxrow:selected .sidebar-icon {
+    color: #000000;
+}
