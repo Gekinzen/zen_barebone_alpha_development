@@ -516,22 +516,45 @@ def _on_add_module(window, position: str, is_dock: bool):
                 _on_panel_apply(window, is_dock=is_dock)
                 window._show_toast(f"Added {module} to {position}")
                 # Refresh page
-                _refresh_panel_page(window)
+                #_refresh_panel_page(window)
+                _refresh_panel_page(window, is_dock=is_dock)
+
     
     dialog.connect('response', on_response)
     dialog.present()
 
 
-def _refresh_panel_page(window):
-    """Refresh the panel page to show updated modules"""
+#def _refresh_panel_page(window):
+#    """Refresh the panel page to show updated modules"""
     # Rebuild the panel page
-    from . import panel
-    new_page = panel.build_panel_page(window)
+#    from . import panel
+#    new_page = panel.build_panel_page(window)
     
     # Replace in stack
-    window.stack.remove(window.stack.get_child_by_name("panel"))
-    window.stack.add_named(new_page, "panel")
-    window.stack.set_visible_child_name("panel")
+#    window.stack.remove(window.stack.get_child_by_name("panel"))
+#    window.stack.add_named(new_page, "panel")
+#    window.stack.set_visible_child_name("panel")
+
+def _refresh_panel_page(window, is_dock: bool = False):
+    """Refresh panel page to show updated module layout"""
+    if is_dock:
+        content = _build_dock_content(window)
+    else:
+        content = _build_main_panel_content(window)
+    
+    page_name = "panel" if not is_dock else "dock"
+    
+    scrolled = Gtk.ScrolledWindow()
+    scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+    scrolled.set_child(content)
+    
+    old_page = window.stack.get_child_by_name(page_name)
+    if old_page:
+        window.stack.remove(old_page)
+    
+    window.stack.add_named(scrolled, page_name)
+    window.stack.set_visible_child_name(page_name)
+
 
 
 def _get_module_icon(module: str) -> str:
