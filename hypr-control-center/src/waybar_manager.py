@@ -368,14 +368,16 @@ class WaybarManager:
                 },
                 "wlr/taskbar": {
                     "format": "{icon}",
-                    "icon-size": 20,
-                    "tooltip": True,
-
+                    "icon-size": 18,
+                    "tooltip-format": "{app_id}\n{title}",
                     "on-click": "~/.config/hypr/scripts/taskbar-toggle.sh {app_id}",
                     "on-click-middle": "close",
-
-                    "ignore-list": ["waybar"]
+                    "on-click-right": "~/.config/hypr/scripts/taskbar-menu.sh {app_id}",
+                    "persistent-workspaces": True,
+                    "group-by-app-id": True,
+                    "sort-by-app-id": True
                 },
+
                 "hyprland/window": {
                     "format": "{title}",
                     "max-length": 50,

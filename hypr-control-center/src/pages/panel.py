@@ -646,28 +646,37 @@ def _on_reorder_modules(window, position: str, data: str, is_dock: bool):
 
 #def _refresh_panel_page(window, is_dock: bool):
 def _refresh_panel_page(window, is_dock: bool = False):
-    """Refresh panel page to show updated module layout"""
-    # Get current page
-    if is_dock:
-        content = _build_dock_content(window)
-    else:
-        content = _build_main_panel_content(window)
-    
-    # Replace stack page
     page_name = "panel" if not is_dock else "dock"
-    
-    # Create new scrolled window
+
+    old_page = window.stack.get_child_by_name(page_name)
+
+    # 🟢 SAVE SCROLL POSITION
+    vadj_value = 0
+    if isinstance(old_page, Gtk.ScrolledWindow):
+        vadj = old_page.get_vadjustment()
+        vadj_value = vadj.get_value()
+
+    # rebuild content
+    content = _build_main_panel_content(window)
+
     scrolled = Gtk.ScrolledWindow()
     scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
     scrolled.set_child(content)
-    
-    # Remove old page and add new one
-    old_page = window.stack.get_child_by_name(page_name)
+
     if old_page:
         window.stack.remove(old_page)
-    
+
     window.stack.add_named(scrolled, page_name)
     window.stack.set_visible_child_name(page_name)
+
+    # 🟢 RESTORE SCROLL POSITION (idle = safe)
+    def restore_scroll():
+        vadj = scrolled.get_vadjustment()
+        vadj.set_value(vadj_value)
+        return False
+
+    GLib.idle_add(restore_scroll)
+
 
 
 def _on_panel_reset(window, is_dock: bool):
