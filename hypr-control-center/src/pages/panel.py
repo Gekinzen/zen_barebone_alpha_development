@@ -608,15 +608,21 @@ def _get_module_display_name(module: str) -> str:
     return names.get(module, module.replace('/', ' ').title())
 
 
-def _on_remove_module(window, position: str, module: str, is_dock: bool):
-    """Remove a module from position - auto-saves and refreshes"""
-    window.waybar_manager.remove_module(position, module, is_dock=is_dock)
+#def _on_remove_module(window, position: str, module: str, is_dock: bool):
+ #   """Remove a module from position - auto-saves and refreshes"""
+ #   window.waybar_manager.remove_module(position, module, is_dock=is_dock)
     # Auto-save changes
+#    _on_panel_apply(window, is_dock=is_dock)
+#    window._show_toast(f"Removed {module} from {position}")
+    # Refresh page to update UI
+#    _refresh_panel_page(window)
+
+
+def _on_remove_module(window, position: str, module: str, is_dock: bool):
+    window.waybar_manager.remove_module(position, module, is_dock=is_dock)
     _on_panel_apply(window, is_dock=is_dock)
     window._show_toast(f"Removed {module} from {position}")
-    # Refresh page to update UI
-    _refresh_panel_page(window)
-
+    _refresh_panel_page(window, is_dock=is_dock)
 
 def _on_reorder_modules(window, position: str, data: str, is_dock: bool):
     """Handle module reordering via drag and drop"""
@@ -638,7 +644,8 @@ def _on_reorder_modules(window, position: str, data: str, is_dock: bool):
             _refresh_panel_page(window, is_dock)
 
 
-def _refresh_panel_page(window, is_dock: bool):
+#def _refresh_panel_page(window, is_dock: bool):
+def _refresh_panel_page(window, is_dock: bool = False):
     """Refresh panel page to show updated module layout"""
     # Get current page
     if is_dock:
