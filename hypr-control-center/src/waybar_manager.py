@@ -365,6 +365,16 @@ class WaybarManager:
                     "on-click": "swaync-client -t -sw",
                     "on-click-right": "swaync-client -d -sw",
                     "escape": True
+                },
+                "wlr/taskbar": {
+                    "format": "{icon}",
+                    "icon-size": 20,
+                    "tooltip": true,
+
+                    "on-click": "~/.config/hypr/scripts/taskbar-toggle.sh {app_id}",
+                    "on-click-middle": "close",
+
+                    "ignore-list": ["waybar"]
                 }
             }
     
@@ -386,5 +396,6 @@ class WaybarManager:
             "custom/notification",
             "idle_inhibitor",
             "mpd",
-            "custom/weather"
+            "custom/weather",
+            "wlr/taskbar"
         ]
