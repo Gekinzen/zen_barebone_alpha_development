@@ -26,7 +26,6 @@ def create_module_chip(module_name: str, position: str, on_remove: Callable = No
 
         # Panels / Bars
         'tray': '󰍉',                      # nf-md-apps
-        'wlr/taskbar': '󰏔',               # nf-md-view_list (taskbar)
 
         # System
         'pulseaudio': '󰕾',               # nf-md-volume_high

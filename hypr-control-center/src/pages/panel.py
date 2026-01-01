@@ -6,7 +6,7 @@ Main Panel only - Dock (Waybar2) coming soon!
 import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
-from gi.repository import Gtk, Adw
+from gi.repository import Gtk, Adw, GLib
 from typing import Callable
 
 from ..widgets import (
@@ -26,7 +26,7 @@ def build_panel_page(window) -> Gtk.ScrolledWindow:
     
     # PREVENT AUTO-SCROLL DURING DRAG
     scrolled.set_kinetic_scrolling(False)
-    scrolled.set_propagate_natural_height(True)
+    #scrolled.set_propagate_natural_height(True)
     
     content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
     content.add_css_class('content-area')
@@ -564,7 +564,8 @@ def _get_module_icon(module: str) -> str:
         'hyprland/workspaces': 'view-grid-symbolic',
         'hyprland/window': 'window-symbolic',
 
-        'wlr/taskbar': 'view-list-symbolic',
+    
+        'custom/taskbar': 'view-list-symbolic',
 
         'tray': 'system-tray-symbolic',
         'pulseaudio': 'audio-volume-high-symbolic',
@@ -590,13 +591,14 @@ def _get_module_display_name(module: str) -> str:
         'hyprland/workspaces': 'Workspaces',
         'hyprland/window': 'Active Window Title',
 
-        'wlr/taskbar': 'Taskbar (Running Apps)',
+     
 
         'tray': 'System Tray',
         'pulseaudio': 'Audio',
         'network': 'Network',
         'battery': 'Battery',
         'custom/notification': 'Notifications',
+        'custom/taskbar': 'Taskbar',
 
         'cpu': 'CPU Usage',
         'memory': 'Memory Usage',
@@ -696,15 +698,26 @@ def _on_panel_reset(window, is_dock: bool):
 
 
 def _on_panel_reset_response(window, dialog, response, is_dock: bool):
-    """Handle reset confirmation"""
     if response == "reset":
-        default_config = window.waybar_manager.create_default_config(is_dock=is_dock)
+        wm = window.waybar_manager
+
+        default_config = wm.create_default_config(is_dock=is_dock)
+
         if is_dock:
-            window.waybar_manager.dock_config = default_config
+            wm.dock_config = default_config
         else:
-            window.waybar_manager.main_config = default_config
+            wm.main_config = default_config
+
+        # ✅ SAVE CONFIG
+        wm.save_config(default_config, is_dock=is_dock)
+
+        # ✅ RELOAD WAYBAR
+        wm.reload_waybar()
+
+        # ✅ FORCE UI REFRESH
+        _refresh_panel_page(window, is_dock=is_dock)
+
         window._show_toast("Panel reset to default")
-        # TODO: Refresh page
 
 
 def _on_panel_apply(window, is_dock: bool):

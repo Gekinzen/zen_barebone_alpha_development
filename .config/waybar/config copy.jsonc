@@ -7,18 +7,17 @@
     "margin-bottom": 0,
     "margin-left": 0,
     "modules-left": [
-        "custom/taskbar"
+        "clock",
+        "hyprland/workspaces"
     ],
     "modules-center": [
-        "hyprland/workspaces",
-        "hyprland/window"
+        "wlr/taskbar"
     ],
     "modules-right": [
         "pulseaudio",
         "network",
         "battery",
-        "custom/notification",
-        "clock"
+        "custom/notification"
     ],
     "clock": {
         "interval": 60,
@@ -115,39 +114,6 @@
         "on-click": "swaync-client -t -sw",
         "on-click-right": "swaync-client -d -sw",
         "escape": true
-    },
-    "margin-right": 0,
-    "hyprland/window": {
-        "format": "{title}",
-        "max-length": 50,
-        "separate-outputs": true,
-        "offscreen-css": true,
-        "offscreen-css-text": "\udb80\udf74 inactive",
-        "rewrite": {
-            "(.*) \u2014 Mozilla Firefox": "\uf269  $1",
-            "(.*) - Mozilla Firefox": "\uf269  $1",
-            "(.*) - Google Chrome": "\uf268  $1",
-            "(.*) - Brave": "\udb81\udd9f  $1",
-            "(.*) - Visual Studio Code": "\udb82\ude1e  $1",
-            "(.*) - Code": "\udb82\ude1e  $1",
-            "(.*) - kitty": "\uf120  $1",
-            "(.*) - zsh": "\uf120  $1",
-            "(.*) - fish": "\uf120  $1",
-            "(.*) - Neovim": "\ue7c5  $1",
-            "(.*) - Vim": "\ue7c5  $1",
-            "(.*) - Thunar": "\udb81\udf70  $1",
-            "(.*) - Nautilus": "\udb81\udf70  $1",
-            "(.*) - Spotify": "\uf1bc  $1",
-            "(.*)": "\udb82\udcc6  $1"
-        }
-    },
-    "custom/taskbar": {
-        "return-type": "json",
-        "exec": "/home/zen/.config/hypr/scripts/waybar/taskbar-render.sh",
-        "interval": 1,
-        "format": "{}",
-        "escape": false,
-        "on-click": "/home/zen/.config/hypr/scripts/waybar/taskbar-click.sh",
-        "on-click-right": "/home/zen/.config/hypr/scripts/waybar/taskbar-menu-global.sh"
     }
+
 }

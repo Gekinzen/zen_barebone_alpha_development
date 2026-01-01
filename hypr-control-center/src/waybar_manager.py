@@ -92,10 +92,20 @@ class WaybarManager:
         final_config = existing_config.copy()
         
         # Update only the editable keys
+        #for key in editable_keys:
+        #    if key in config:
+        #        final_config[key] = config[key]
+        
+        # 1) Update layout keys (position, margins, modules-*)
         for key in editable_keys:
             if key in config:
                 final_config[key] = config[key]
-        
+
+        # 2) Merge ALL missing module definitions (THIS FIXES IT)
+        for key, value in config.items():
+            if key not in final_config:
+                final_config[key] = value
+                       
         # Save with nice formatting
         with open(config_path, 'w') as f:
             json.dump(final_config, f, indent=4)
@@ -366,16 +376,14 @@ class WaybarManager:
                     "on-click-right": "swaync-client -d -sw",
                     "escape": True
                 },
-                "wlr/taskbar": {
-                    "format": "{icon}",
-                    "icon-size": 18,
-                    "tooltip-format": "{app_id}\n{title}",
-                    "on-click": "~/.config/hypr/scripts/taskbar-toggle.sh {app_id}",
-                    "on-click-middle": "close",
-                    "on-click-right": "~/.config/hypr/scripts/taskbar-menu.sh {app_id}",
-                    "persistent-workspaces": True,
-                    "group-by-app-id": True,
-                    "sort-by-app-id": True
+                "custom/taskbar": {
+                "return-type": "json",
+                "exec": "/home/zen/.config/hypr/scripts/waybar/taskbar-render.sh",
+                "interval": 1,
+                "format": "{}",       
+                "escape": False,    
+                "on-click": "/home/zen/.config/hypr/scripts/waybar/taskbar-click.sh",
+                "on-click-right": "/home/zen/.config/hypr/scripts/waybar/taskbar-menu-global.sh"
                 },
 
                 "hyprland/window": {

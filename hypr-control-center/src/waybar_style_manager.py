@@ -304,6 +304,70 @@ tooltip label{
     -gtk-icon-effect: highlight;
     background-color: @red;
 }
+#taskbar {
+    background-color: @bg0;
+    padding: 5px 6px;
+    margin: 0 0 0 12px;
+    border-radius: 18px;
+    border: 1px solid @bg1;
+}
+
+#taskbar button {
+    min-height: 1.8em;
+    min-width: 1.8em;
+    padding: 0.4em 0.8em;
+    margin: 0 4px;
+    border-radius: 14px;
+    background-color: @bg1;
+    color: @fg;
+    transition: all 0.25s ease-in-out;
+}
+
+#taskbar button.running {
+    background-color: @bg2;
+    color: @fg;
+}
+
+#taskbar button.active {
+    background-color: @blue;
+    color: @bg0;
+    min-width: 42px;
+}
+
+#taskbar button:hover {
+    background-color: @bg3;
+    color: @fg;
+    min-width: 42px;
+}
+
+#taskbar button.urgent {
+    background-color: @red;
+    color: @bg0;
+}
+
+#taskbar button.pinned {
+    background-color: transparent;
+    border: 1px dashed @bg3;
+    color: @grey1;
+}
+
+#taskbar image {
+    font-size: 18px;
+}
+
+
+#window:hover {
+    background-color: @bg1;
+}
+
+#window image {
+    font-size: 18px;
+}
+
+#taskbar button image,
+#taskbar button label {
+    font-size: 1em;
+}
 '''
     
     def add_vertical_bar_css(self):

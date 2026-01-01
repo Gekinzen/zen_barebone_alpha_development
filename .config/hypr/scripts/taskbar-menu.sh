@@ -1,19 +1,36 @@
 #!/usr/bin/env bash
 
-APP="$1"
-PIN_FILE="$HOME/.config/waybar/pinned-apps.json"
+APP_ID="$1"
+PIN_FILE="$HOME/.config/hypr-control-center/preferences/taskbar.json"
 
+# Safety check
+[ -z "$APP_ID" ] && exit 0
+
+# Ensure json exists
 mkdir -p "$(dirname "$PIN_FILE")"
-[ ! -f "$PIN_FILE" ] && echo '{"pinned":[]}' > "$PIN_FILE"
+[ ! -f "$PIN_FILE" ] && echo '{ "pinned": [] }' > "$PIN_FILE"
 
-if jq -e ".pinned[] | select(. == \"$APP\")" "$PIN_FILE" >/dev/null; then
-    CHOICE=$(printf "Unpin\nCancel" | rofi -dmenu -p "$APP")
-    [ "$CHOICE" = "Unpin" ] && \
-      jq ".pinned -= [\"$APP\"]" "$PIN_FILE" > "$PIN_FILE.tmp" && mv "$PIN_FILE.tmp" "$PIN_FILE"
+# Check pin state
+IS_PINNED=$(jq -r --arg app "$APP_ID" '.pinned | index($app)' "$PIN_FILE")
+
+if [ "$IS_PINNED" = "null" ]; then
+    ACTION="Pin $APP_ID"
 else
-    CHOICE=$(printf "Pin\nCancel" | rofi -dmenu -p "$APP")
-    [ "$CHOICE" = "Pin" ] && \
-      jq ".pinned += [\"$APP\"]" "$PIN_FILE" > "$PIN_FILE.tmp" && mv "$PIN_FILE.tmp" "$PIN_FILE"
+    ACTION="Unpin $APP_ID"
 fi
 
-pkill -SIGUSR2 waybar
+CHOICE=$(printf "%s\nClose\n" "$ACTION" | rofi -dmenu -i -p "Taskbar")
+
+case "$CHOICE" in
+    Pin*)
+        jq --arg app "$APP_ID" '.pinned += [$app] | .pinned |= unique' \
+            "$PIN_FILE" > "$PIN_FILE.tmp" && mv "$PIN_FILE.tmp" "$PIN_FILE"
+        ;;
+    Unpin*)
+        jq --arg app "$APP_ID" '.pinned -= [$app]' \
+            "$PIN_FILE" > "$PIN_FILE.tmp" && mv "$PIN_FILE.tmp" "$PIN_FILE"
+        ;;
+    Close)
+        hyprctl dispatch closewindow class:"$APP_ID"
+        ;;
+esac

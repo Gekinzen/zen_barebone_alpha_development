@@ -1,21 +1,21 @@
-/* Theme: One Dark */
+/* Theme: Everforest Dark */
 :root {
-    --bg0: #282c34;
-    --bg1: #21252b;
-    --bg2: #2c313a;
-    --bg3: #3e4451;
-    --bg4: #4b5263;
-    --red: #e06c75;
-    --orange: #d19a66;
-    --yellow: #e5c07b;
-    --green: #98c379;
-    --aqua: #56b6c2;
-    --blue: #61afef;
-    --purple: #c678dd;
-    --fg: #abb2bf;
-    --grey0: #5c6370;
-    --grey1: #828997;
-    --grey2: #abb2bf;
+    --bg0: #2b3339;
+    --bg1: #232a2e;
+    --bg2: #323c41;
+    --bg3: #3a464c;
+    --bg4: #4f5b58;
+    --red: #e67e80;
+    --orange: #e69875;
+    --yellow: #dbbc7f;
+    --green: #a7c080;
+    --aqua: #83c092;
+    --blue: #7fbbb3;
+    --purple: #d699b6;
+    --fg: #d3c6aa;
+    --grey0: #7a8478;
+    --grey1: #9da9a0;
+    --grey2: #c1c7be;
 }
 
 /* ═══════════════════════════════════════════════════════════════ */
