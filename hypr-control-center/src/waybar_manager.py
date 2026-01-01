@@ -388,6 +388,9 @@ class WaybarManager:
                         "(.*) — Mozilla Firefox": "  $1",
                         "(.*) - Mozilla Firefox": "  $1",
 
+                        "(.*) - Google Chrome": "  $1",
+                        "(.*) - Brave": "󰖟  $1",
+
                         "(.*) - Visual Studio Code": "󰨞  $1",
                         "(.*) - Code": "󰨞  $1",
 
@@ -398,8 +401,10 @@ class WaybarManager:
                         "(.*) - Neovim": "  $1",
                         "(.*) - Vim": "  $1",
 
-                        "(.*) - Google Chrome": "  $1",
-                        "(.*) - Brave": "󰖟  $1",
+                        "(.*) - Thunar": "󰝰  $1",
+                        "(.*) - Nautilus": "󰝰  $1",
+
+                        "(.*) - Spotify": "  $1",
 
                         "(.*)": "󰣆  $1"
                     }

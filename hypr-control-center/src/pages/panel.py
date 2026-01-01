@@ -539,17 +539,24 @@ def _get_module_icon(module: str) -> str:
     icons = {
         'clock': 'preferences-system-time-symbolic',
         'hyprland/workspaces': 'view-grid-symbolic',
+        'hyprland/window': 'window-symbolic',
+
+        'wlr/taskbar': 'view-list-symbolic',
+
         'tray': 'system-tray-symbolic',
         'pulseaudio': 'audio-volume-high-symbolic',
         'network': 'network-wireless-symbolic',
         'battery': 'battery-symbolic',
+
         'custom/notification': 'notification-symbolic',
+
         'cpu': 'utilities-system-monitor-symbolic',
         'memory': 'drive-harddisk-symbolic',
         'disk': 'drive-harddisk-symbolic',
         'temperature': 'temperature-symbolic',
         'backlight': 'display-brightness-symbolic',
     }
+
     return icons.get(module, 'application-x-executable-symbolic')
 
 
@@ -558,17 +565,23 @@ def _get_module_display_name(module: str) -> str:
     names = {
         'clock': 'Clock',
         'hyprland/workspaces': 'Workspaces',
+        'hyprland/window': 'Active Window Title',
+
+        'wlr/taskbar': 'Taskbar (Running Apps)',
+
         'tray': 'System Tray',
         'pulseaudio': 'Audio',
         'network': 'Network',
         'battery': 'Battery',
         'custom/notification': 'Notifications',
-        'cpu': 'CPU',
-        'memory': 'Memory',
-        'disk': 'Disk',
+
+        'cpu': 'CPU Usage',
+        'memory': 'Memory Usage',
+        'disk': 'Disk Usage',
         'temperature': 'Temperature',
         'backlight': 'Brightness',
     }
+
     return names.get(module, module.replace('/', ' ').title())
 
 
