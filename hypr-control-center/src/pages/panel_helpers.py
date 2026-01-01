@@ -19,24 +19,39 @@ def create_module_chip(module_name: str, position: str, on_remove: Callable = No
     
     # Icon based on module type - NERD FONT ICONS!
     icon_map = {
-        'clock': '󰥔',                    # nf-md-clock
-        'hyprland/workspaces': '󰕰',    # nf-md-view_grid
-        'tray': '󰍉',                     # nf-md-apps
-        'pulseaudio': '󰕾',              # nf-md-volume_high
-        'network': '󰖩',                  # nf-md-wifi
-        'battery': '󰁹',                  # nf-md-battery
-        'cpu': '󰻠',                      # nf-md-cpu
-        'memory': '󰍛',                   # nf-md-memory
-        'disk': '󰋊',                     # nf-md-harddisk
-        'temperature': '󰔏',             # nf-md-thermometer
-        'backlight': '󰃟',               # nf-md-brightness
-        'bluetooth': '󰂯',               # nf-md-bluetooth
-        'idle_inhibitor': '󰒳',         # nf-md-coffee
-        'mpris': '󰝚',                    # nf-md-music
-        'custom/launcher': '󰀻',        # nf-md-apps
-        'hyprland/window': '󰖯',        # nf-md-window
-        'custom/notification': '󰂚',   # nf-md-bell
+        # Core
+        'clock': '󰥔',                     # nf-md-clock
+        'hyprland/workspaces': '󰕰',      # nf-md-view_grid
+        'hyprland/window': '󰖯',          # nf-md-window
+
+        # Panels / Bars
+        'tray': '󰍉',                      # nf-md-apps
+        'wlr/taskbar': '󰏔',               # nf-md-view_list (taskbar)
+
+        # System
+        'pulseaudio': '󰕾',               # nf-md-volume_high
+        'network': '󰖩',                   # nf-md-wifi
+        'battery': '󰁹',                   # nf-md-battery
+        'bluetooth': '󰂯',                # nf-md-bluetooth
+        'backlight': '󰃟',                # nf-md-brightness
+
+        # Performance
+        'cpu': '󰻠',                       # nf-md-cpu
+        'memory': '󰍛',                    # nf-md-memory
+        'disk': '󰋊',                      # nf-md-harddisk
+        'temperature': '󰔏',              # nf-md-thermometer
+
+        # Media / UX
+        'mpris': '󰝚',                     # nf-md-music
+        'idle_inhibitor': '󰒳',           # nf-md-coffee
+        'custom/notification': '󰂚',     # nf-md-bell
+        'custom/launcher': '󰀻',          # nf-md-apps
+
+        # Future / Dock-ready
+        'custom/taskbar': '󰏔',           # alias for taskbar
+        'custom/pinned': '󰐃',            # nf-md-pin (pinned apps)
     }
+
     
     # Use label instead of image for Nerd Font icons
     icon_text = icon_map.get(module_name, '󰘳')  # Default: nf-md-application

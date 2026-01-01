@@ -369,7 +369,7 @@ class WaybarManager:
                 "wlr/taskbar": {
                     "format": "{icon}",
                     "icon-size": 20,
-                    "tooltip": true,
+                    "tooltip": True,
 
                     "on-click": "~/.config/hypr/scripts/taskbar-toggle.sh {app_id}",
                     "on-click-middle": "close",
@@ -379,9 +379,9 @@ class WaybarManager:
                 "hyprland/window": {
                     "format": "{title}",
                     "max-length": 50,
-                    "separate-outputs": true,
+                    "separate-outputs": True,
 
-                    "offscreen-css": true,
+                    "offscreen-css": True,
                     "offscreen-css-text": "󰍴 inactive",
 
                     "rewrite": {
