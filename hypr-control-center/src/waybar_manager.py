@@ -375,6 +375,34 @@ class WaybarManager:
                     "on-click-middle": "close",
 
                     "ignore-list": ["waybar"]
+                },
+                "hyprland/window": {
+                    "format": "{title}",
+                    "max-length": 50,
+                    "separate-outputs": true,
+
+                    "offscreen-css": true,
+                    "offscreen-css-text": "󰍴 inactive",
+
+                    "rewrite": {
+                        "(.*) — Mozilla Firefox": "  $1",
+                        "(.*) - Mozilla Firefox": "  $1",
+
+                        "(.*) - Visual Studio Code": "󰨞  $1",
+                        "(.*) - Code": "󰨞  $1",
+
+                        "(.*) - kitty": "  $1",
+                        "(.*) - zsh": "  $1",
+                        "(.*) - fish": "  $1",
+
+                        "(.*) - Neovim": "  $1",
+                        "(.*) - Vim": "  $1",
+
+                        "(.*) - Google Chrome": "  $1",
+                        "(.*) - Brave": "󰖟  $1",
+
+                        "(.*)": "󰣆  $1"
+                    }
                 }
             }
     
@@ -397,5 +425,6 @@ class WaybarManager:
             "idle_inhibitor",
             "mpd",
             "custom/weather",
-            "wlr/taskbar"
+            "wlr/taskbar",
+            "hyprland/window"
         ]
