@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # Monitor Scale Fixer for Hyprland
-# Handles bitdepth, transform, and other parameters
+# Handles bitdepth, transform, and other parameters zenv1 alpha prototype
 
-MONITORS_CONF="$HOME/.config/hypr/monitors.conf"
-BACKUP_CONF="$HOME/.config/hypr/monitors.conf.backup"
+MONITORS_CONF="$HOME/.config/hypr/modules/monitors.conf"
+BACKUP_CONF="$HOME/.config/hypr/modules/monitors.conf.backup"
 
 # Function to round scale to nearest valid value
 round_scale() {

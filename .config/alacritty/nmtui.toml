@@ -1,0 +1,40 @@
+# Colors (Catppuccin Mocha, no blue)
+
+[colors.primary]
+background = "#1e1e2e"  # Mocha dark background
+foreground = "#cdd6f4"  # Mocha foreground
+
+[colors.normal]
+black   = "#45475a"
+red     = "#f38ba8"
+green   = "#a6e3a1"
+yellow  = "#f9e2af"
+blue    = "#1e1e2e"      # replaced with background
+magenta = "#f5c2e7"
+cyan    = "#94e2d5"
+white   = "#bac2de"
+
+[colors.bright]
+black   = "#585b70"
+red     = "#f38ba8"
+green   = "#a6e3a1"
+yellow  = "#f9e2af"
+blue    = "#1e1e2e"      # replaced with background
+magenta = "#f5c2e7"
+cyan    = "#94e2d5"
+white   = "#a6adc8"
+
+# Window dimensions
+[window.dimensions]
+columns = 70
+lines = 17
+
+# Window padding
+[window.padding]
+x = 30
+y = 30
+
+# Font
+[font]
+size = 10.0
+

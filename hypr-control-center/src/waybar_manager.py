@@ -244,7 +244,7 @@ class WaybarManager:
             config['hyprland/workspaces'] = {
                 "disable-scroll": True,
                 "sort-by-name": True,
-                "format": " {icon} ",  # Just icon, no {name}
+                "format": " {icon} ",
                 "persistent-workspaces": {
                     "*": 4
                 },
@@ -269,7 +269,7 @@ class WaybarManager:
             # Modern clock with auto timezone detection
             try:
                 result = subprocess.run(['timedatectl', 'show', '--property=Timezone', '--value'],
-                                      capture_output=True, text=True, timeout=1)
+                                    capture_output=True, text=True, timeout=1)
                 timezone = result.stdout.strip() or "UTC"
             except:
                 timezone = "UTC"
@@ -304,6 +304,7 @@ class WaybarManager:
             }
             
             # Modern pulseaudio
+            home_dir = Path.home()
             config['pulseaudio'] = {
                 "scroll-step": 10,
                 "format": "  {icon}",
@@ -312,7 +313,7 @@ class WaybarManager:
                     "default": ["▁", "▂", "▃", "▄", "▅", "▆", "▇"]
                 },
                 "tooltip-format": "{volume}%",
-                "on-click": "~/.config/alacritty/audiotop.sh"
+                "on-click": f"{home_dir}/.config/alacritty/audiotop.sh"
             }
             
             # Modern CPU
@@ -320,7 +321,7 @@ class WaybarManager:
                 "interval": 1,
                 "format": "{icon} ",
                 "format-icons": ["▁","▂","▃","▄","▅","▆","▇","█"],
-                "on-click": "~/.config/alacritty/btmrun.sh"
+                "on-click": f"{home_dir}/.config/alacritty/btmrun.sh"
             }
             
             # Modern memory
@@ -330,7 +331,7 @@ class WaybarManager:
                 "format-icons": ["▁","▂","▃","▄","▅","▆","▇","█"],
                 "tooltip": True,
                 "tooltip-format": "{}%",
-                "on-click": "~/.config/alacritty/btmrun.sh"
+                "on-click": f"{home_dir}/.config/alacritty/btmrun.sh"
             }
             
             # Modern network
@@ -342,7 +343,7 @@ class WaybarManager:
                 "format-linked": "{ifname} (No IP) ",
                 "format-disconnected": "Disconnected ⚠",
                 "format-icons": ["󰤯","󰤟","󰤢","󰤥","󰤨"],
-                "on-click": "~/.config/alacritty/wifirun.sh"
+                "on-click": f"{home_dir}/.config/alacritty/wifirun.sh"
             }
             
             # Modern bluetooth
@@ -350,10 +351,10 @@ class WaybarManager:
                 "format": "  ",
                 "format-disabled": "  ",
                 "format-connected": " {num_connections} connected",
-                "on-click": "~/.config/alacritty/bluetoothrun.sh"
+                "on-click": f"{home_dir}/.config/alacritty/bluetoothrun.sh"
             }
             
-            # Modern custom modules (music, power, etc)
+            # Modern custom modules
             config['custom/music'] = {
                 "format": "{}",
                 "escape": True,
@@ -365,32 +366,45 @@ class WaybarManager:
             
             config['custom/power'] = {
                 "tooltip": False,
-                "on-click": "~/.config/rofi/power.sh",
+                "on-click": f"{home_dir}/.config/rofi/power.sh",
                 "format": ""
             }
             
             config['custom/menuApp'] = {
                 "tooltip": False,
-                "on-click": "~/.config/rofi/launcher.sh",
+                "on-click": f"{home_dir}/.config/rofi/launcher.sh",
                 "format": "  "
             }
             
             config['custom/switcher'] = {
                 "tooltip": False,
-                "on-click": "~/.config/rofi/switcher.sh",
+                "on-click": f"{home_dir}/.config/rofi/switcher.sh",
                 "format": " 󰸱  "
             }
             
-            # KEEP custom/taskbar for pin functionality!
-            config['custom/taskbar'] = {
-                "return-type": "json",
-                "exec": "/home/zen/.config/hypr/scripts/waybar/taskbar-render.sh",
-                "interval": 1,
-                "format": "{}",
-                "escape": False,
-                "on-click": "/home/zen/.config/hypr/scripts/waybar/taskbar-click.sh",
-                "on-click-right": "/home/zen/.config/hypr/scripts/waybar/taskbar-menu-global.sh"
+            # ═══════════════════════════════════════════════════════════════
+            # MODERN TASKBAR: Use wlr/taskbar (system icons with colors!)
+            # ═══════════════════════════════════════════════════════════════
+            config['wlr/taskbar'] = {
+                "format": "{icon}",
+                "icon-size": 18,
+                "icon-theme": "Papirus",  # Auto-detects from GTK settings
+                "tooltip-format": "{title}",
+                "on-click": "activate",
+                "on-click-middle": "close",
+                "on-click-right": f"{home_dir}/.config/hypr/scripts/waybar/taskbar-menu-wlr.sh"
             }
+            
+            # Replace custom/taskbar with wlr/taskbar in modules
+            for pos in ['left', 'center', 'right']:
+                modules = config.get(f'modules-{pos}', [])
+                if 'custom/taskbar' in modules:
+                    idx = modules.index('custom/taskbar')
+                    modules[idx] = 'wlr/taskbar'
+                    config[f'modules-{pos}'] = modules
+            
+            # Remove custom/taskbar definition
+            config.pop('custom/taskbar', None)
             
         else:  # minimal
             # Minimal workspaces config
@@ -464,18 +478,32 @@ class WaybarManager:
                 "max-length": 50
             }
             
-            # KEEP custom/taskbar for pin functionality!
+            # ═══════════════════════════════════════════════════════════════
+            # MINIMAL TASKBAR: Use custom/taskbar (nerd fonts + pin support!)
+            # ═══════════════════════════════════════════════════════════════
+            home_dir = Path.home()
             config['custom/taskbar'] = {
                 "return-type": "json",
-                "exec": "/home/zen/.config/hypr/scripts/waybar/taskbar-render.sh",
+                "exec": f"{home_dir}/.config/hypr/scripts/waybar/taskbar-render.sh",
                 "interval": 1,
                 "format": "{}",
                 "escape": False,
-                "on-click": "/home/zen/.config/hypr/scripts/waybar/taskbar-click.sh",
-                "on-click-right": "/home/zen/.config/hypr/scripts/waybar/taskbar-menu-global.sh"
+                "on-click": f"{home_dir}/.config/hypr/scripts/waybar/taskbar-click.sh",
+                "on-click-right": f"{home_dir}/.config/hypr/scripts/waybar/taskbar-menu-global.sh"
             }
             
-            # Remove modern-only modules in minimal
+            # Replace wlr/taskbar with custom/taskbar in modules
+            for pos in ['left', 'center', 'right']:
+                modules = config.get(f'modules-{pos}', [])
+                if 'wlr/taskbar' in modules:
+                    idx = modules.index('wlr/taskbar')
+                    modules[idx] = 'custom/taskbar'
+                    config[f'modules-{pos}'] = modules
+            
+            # Remove wlr/taskbar definition
+            config.pop('wlr/taskbar', None)
+            
+            # Remove modern-only modules
             config.pop('temperature', None)
             config.pop('cpu', None)
             config.pop('memory', None)

@@ -283,6 +283,7 @@ tooltip label {
 #custom-switcher,
 #custom-notification,
 #custom-taskbar,
+#taskbar,
 #tray,
 #workspaces {
     background-color: rgba(49,50,68,0);
@@ -408,34 +409,6 @@ tooltip label {
     padding-right: 17px;
 }
 
-#custom-taskbar {
-    background-color: rgba(49,50,68,0);
-    padding: 8px;
-    margin: 0px;
-    margin-top: 3px;
-    border-radius: 0.5rem;
-    color: #cdd6f4;
-    font-family: "JetBrainsMono Nerd Font Propo", sans-serif;
-}
-
-#custom-taskbar button {
-    background-color: rgba(41,42,58,0.55);
-    margin-left: 0.1px;
-    border-radius: 0.5rem;
-    transition: all 0.4s ease;
-    padding: 8px;
-}
-
-#custom-taskbar button.active {
-    background-color: rgba(224,227,230,0.55);
-    border-radius: 0.5rem;
-}
-
-#custom-taskbar button:hover {
-    border-radius: 1rem;
-    background-color: rgba(224,227,230,0.55);
-}
-
 #tray {
     background-color: rgba(49,50,68,0);
     padding: 9px 10px;
@@ -485,7 +458,47 @@ tooltip label {
 #workspaces button:hover {
     background-color: rgba(255,255,255,0.7);
 }
+
+/* Modern WLR Taskbar (system icons with colors!) */
+#taskbar {
+    background-color: rgba(49,50,68,0);
+    padding: 8px;
+    margin: 0px;
+    margin-top: 3px;
+    border-radius: 0.5rem;
+}
+
+#taskbar button {
+    background-color: rgba(41,42,58,0.55);
+    margin-left: 0.1px;
+    margin-right: 3px;
+    border-radius: 0.5rem;
+    transition: all 0.4s ease;
+    padding: 8px;
+}
+
+#taskbar button.active {
+    background-color: rgba(224,227,230,0.55);
+    border-radius: 0.5rem;
+}
+
+#taskbar button:hover {
+    border-radius: 1rem;
+    background-color: rgba(224,227,230,0.55);
+}
+
+/* Custom taskbar (nerd fonts) */
+#custom-taskbar {
+    background-color: rgba(49,50,68,0);
+    padding: 8px;
+    margin: 0px;
+    margin-top: 3px;
+    border-radius: 0.5rem;
+    color: #cdd6f4;
+    font-family: "JetBrainsMono Nerd Font Propo", sans-serif;
+}
 '''
+
     
     def create_default_style(self) -> str:
         """Create default Waybar style.css matching user's structure"""
