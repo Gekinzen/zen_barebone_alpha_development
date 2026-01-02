@@ -4,6 +4,7 @@ Handles style.css modifications for opacity, size, and border-radius
 """
 
 import re
+import json
 from pathlib import Path
 from typing import Optional
 
@@ -44,13 +45,13 @@ class WaybarStyleManager:
         else:
             new_bg = f"background: alpha(@bg0,{opacity:.1f});"
         
-        # Find window#waybar block and replace background
-        pattern = r'(window#waybar\s*\{[^}]*?)background:[^;]+;'
+        # Find window#waybar or #waybar block and replace background
+        pattern = r'((?:window)?#waybar\s*\{[^}]*?)background[^;]+;'
         
         if re.search(pattern, self.current_style):
             self.current_style = re.sub(pattern, f'\\1{new_bg}', self.current_style)
         else:
-            # If window#waybar doesn't exist, add it
+            # If waybar block doesn't exist, add it
             waybar_block = f'''window#waybar{{
     {new_bg}
 }}
@@ -78,14 +79,14 @@ class WaybarStyleManager:
         
         new_radius = f"border-radius:{radius}px;"
         
-        # Find window#waybar block and update/add border-radius
-        pattern = r'(window#waybar\s*\{[^}]*?)border-radius:[^;]+;'
+        # Find window#waybar or #waybar block and update/add border-radius
+        pattern = r'((?:window)?#waybar\s*\{[^}]*?)border-radius:[^;]+;'
         
         if re.search(pattern, self.current_style):
             self.current_style = re.sub(pattern, f'\\1{new_radius}', self.current_style)
         else:
-            # Add border-radius to window#waybar
-            pattern = r'(window#waybar\s*\{)'
+            # Add border-radius to waybar
+            pattern = r'((?:window)?#waybar\s*\{)'
             self.current_style = re.sub(pattern, f'\\1\n    {new_radius}', self.current_style)
     
     def set_box_shadow(self, enabled: bool = True):
@@ -105,7 +106,7 @@ class WaybarStyleManager:
         
         # Add new one if enabled
         if enabled:
-            pattern = r'(window#waybar\s*\{)'
+            pattern = r'((?:window)?#waybar\s*\{)'
             self.current_style = re.sub(pattern, f'\\1\n    {new_shadow}', self.current_style)
     
     def set_font_size(self, size: int):
@@ -156,7 +157,7 @@ class WaybarStyleManager:
             return float(match.group(1))
         
         # Check if transparent
-        if 'background:transparent' in self.current_style:
+        if 'background:transparent' in self.current_style or 'background-color: rgba' in self.current_style:
             return 1.0
         
         return None
@@ -169,22 +170,31 @@ class WaybarStyleManager:
         return None
     
     def get_border_radius(self) -> Optional[int]:
-        """Get current border-radius from window#waybar"""
-        match = re.search(r'window#waybar\s*\{[^}]*?border-radius:\s*(\d+)px', self.current_style, re.DOTALL)
+        """Get current border-radius from waybar"""
+        match = re.search(r'(?:window)?#waybar\s*\{[^}]*?border-radius:\s*(\d+(?:\.\d+)?)(px|rem)', self.current_style, re.DOTALL)
         if match:
-            return int(match.group(1))
+            value = float(match.group(1))
+            unit = match.group(2)
+            # Convert rem to px (assuming 1rem = 16px)
+            if unit == 'rem':
+                return int(value * 16)
+            return int(value)
         return None
     
     def is_transparent(self) -> bool:
         """Check if background is set to transparent"""
-        return 'background:transparent' in self.current_style
+        return 'background:transparent' in self.current_style or 'background-color: rgba(49,50,68,0)' in self.current_style
     
     def get_current_style_mode(self) -> str:
         """Detect current style mode: 'minimal' or 'modern'"""
-        # Check for modern style indicators
+        # First check saved state
+        saved_mode = self.load_style_state()
+        
+        # Verify it matches CSS
         if 'rgba(49,50,68' in self.current_style:
             return 'modern'
-        return 'minimal'
+        
+        return saved_mode
 
     def apply_style_mode(self, mode: str):
         """Apply style mode: 'minimal' or 'modern'"""
@@ -194,6 +204,37 @@ class WaybarStyleManager:
             self.current_style = self.create_default_style()
         
         self.save_style()
+        self.save_style_state(mode)
+
+    def save_style_state(self, mode: str):
+        """Save current style mode to preferences"""
+        prefs_dir = Path.home() / ".config/hypr-control-center/preferences"
+        prefs_dir.mkdir(parents=True, exist_ok=True)
+        
+        state_file = prefs_dir / "waybar-menu.json"
+        
+        import datetime
+        state = {
+            "style_mode": mode,
+            "last_updated": datetime.datetime.now().isoformat()
+        }
+        
+        with open(state_file, 'w') as f:
+            json.dump(state, f, indent=2)
+
+    def load_style_state(self) -> str:
+        """Load saved style mode from preferences"""
+        state_file = Path.home() / ".config/hypr-control-center/preferences/waybar-menu.json"
+        
+        if not state_file.exists():
+            return 'minimal'  # Default
+        
+        try:
+            with open(state_file, 'r') as f:
+                state = json.load(f)
+                return state.get('style_mode', 'minimal')
+        except:
+            return 'minimal'
 
     def create_modern_style(self) -> str:
         """Create modern Waybar style (rounded, semi-transparent)"""
@@ -215,6 +256,17 @@ class WaybarStyleManager:
     color: #cdd6f4;
     margin: 5px 5px;
     border-radius: 2rem;
+}
+
+tooltip {
+    background: @bg0;
+    border: 1px solid @bg3;
+    border-radius: 12px;
+}
+
+tooltip label {
+    color: @fg;
+    padding: 6px;
 }
 
 #bluetooth,
@@ -358,12 +410,30 @@ class WaybarStyleManager:
 
 #custom-taskbar {
     background-color: rgba(49,50,68,0);
-    padding: 9px 15px;
+    padding: 8px;
     margin: 0px;
     margin-top: 3px;
     border-radius: 0.5rem;
     color: #cdd6f4;
     font-family: "JetBrainsMono Nerd Font Propo", sans-serif;
+}
+
+#custom-taskbar button {
+    background-color: rgba(41,42,58,0.55);
+    margin-left: 0.1px;
+    border-radius: 0.5rem;
+    transition: all 0.4s ease;
+    padding: 8px;
+}
+
+#custom-taskbar button.active {
+    background-color: rgba(224,227,230,0.55);
+    border-radius: 0.5rem;
+}
+
+#custom-taskbar button:hover {
+    border-radius: 1rem;
+    background-color: rgba(224,227,230,0.55);
 }
 
 #tray {
@@ -658,8 +728,6 @@ tooltip label {
     
     def remove_vertical_bar_css(self):
         """Remove vertical bar CSS (when switching back to top/bottom)"""
-        import re
-        
         # Remove .modules-left block
         pattern = r'/\* Vertical bar styling.*?\*/\s*.modules-left\s*\{[^}]+\}\s*'
         self.current_style = re.sub(pattern, '', self.current_style, flags=re.DOTALL)

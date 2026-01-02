@@ -10,15 +10,16 @@ from typing import Dict, List, Any, Optional
 
 from .constants import WAYBAR_DIR
 
+
 class WaybarManager:
     """Manages Waybar configuration files"""
     
     def __init__(self):
         self.waybar_dir = WAYBAR_DIR
-        self.config_file = self.waybar_dir / "config.jsonc"  # JSONC for comments
+        self.config_file = self.waybar_dir / "config.jsonc"
         self.style_file = self.waybar_dir / "style.css"
         self.waybar2_dir = WAYBAR_DIR / "waybar2"
-        self.waybar2_config = self.waybar2_dir / "config.jsonc"  # JSONC for dock too
+        self.waybar2_config = self.waybar2_dir / "config.jsonc"
         self.waybar2_style = self.waybar2_dir / "style.css"
         
         # Current configs
@@ -91,17 +92,12 @@ class WaybarManager:
         # Start with existing config to preserve module definitions
         final_config = existing_config.copy()
         
-        # Update only the editable keys
-        #for key in editable_keys:
-        #    if key in config:
-        #        final_config[key] = config[key]
-        
-        # 1) Update layout keys (position, margins, modules-*)
+        # Update layout keys (position, margins, modules-*)
         for key in editable_keys:
             if key in config:
                 final_config[key] = config[key]
 
-        # 2) Merge ALL missing module definitions (THIS FIXES IT)
+        # Merge ALL missing module definitions
         for key, value in config.items():
             if key not in final_config:
                 final_config[key] = value
@@ -127,7 +123,7 @@ class WaybarManager:
     def get_height(self, is_dock: bool = False) -> int:
         """Get waybar height"""
         config = self.dock_config if is_dock else self.main_config
-        return config.get('height', 34)
+        return config.get('height', 20)
     
     def set_height(self, height: int, is_dock: bool = False):
         """Set waybar height"""
@@ -239,6 +235,264 @@ class WaybarManager:
             print(f"Error getting monitors: {e}")
             return []
     
+    def apply_style_config(self, style_mode: str, is_dock: bool = False):
+        """Apply config changes based on style mode"""
+        config = self.dock_config if is_dock else self.main_config
+        
+        if style_mode == 'modern':
+            # Modern workspaces config - NO NUMBERS, just icons
+            config['hyprland/workspaces'] = {
+                "disable-scroll": True,
+                "sort-by-name": True,
+                "format": " {icon} ",  # Just icon, no {name}
+                "persistent-workspaces": {
+                    "*": 4
+                },
+                "format-icons": {
+                    "1": "",
+                    "2": "",
+                    "3": "",
+                    "4": "",
+                    "5": "",
+                    "6": "",
+                    "7": "",
+                    "urgent": "",
+                    "focused": "",
+                    "inactive": "",
+                    "empty": ""
+                },
+                "on-scroll-up": "hyprctl dispatch workspace e+1",
+                "on-scroll-down": "hyprctl dispatch workspace e-1",
+                "on-click": "activate"
+            }
+            
+            # Modern clock with auto timezone detection
+            try:
+                result = subprocess.run(['timedatectl', 'show', '--property=Timezone', '--value'],
+                                      capture_output=True, text=True, timeout=1)
+                timezone = result.stdout.strip() or "UTC"
+            except:
+                timezone = "UTC"
+            
+            config['clock'] = {
+                "timezone": timezone,
+                "format": "{:%I:%M %p}",
+                "tooltip": True,
+                "tooltip-format": "{:%a %d %b}",
+                "on-click": "swaync-client -t"
+            }
+            
+            # Modern battery
+            config['battery'] = {
+                "states": {
+                    "warning": 30,
+                    "critical": 15
+                },
+                "format": "   {icon} ",
+                "format-charging": "  {icon} ",
+                "format-plugged": "  {icon} ",
+                "tooltip-format": "{capacity}%",
+                "format-icons": ["", "", "", "", ""]
+            }
+            
+            # Modern temperature
+            config['temperature'] = {
+                "tooltip": True,
+                "format": "{icon} ",
+                "format-icons": ["▁","▂","▃","▄","▅","▆","▇","█"],
+                "tooltip-format": "{temperatureC}°C"
+            }
+            
+            # Modern pulseaudio
+            config['pulseaudio'] = {
+                "scroll-step": 10,
+                "format": "  {icon}",
+                "format-muted": "",
+                "format-icons": {
+                    "default": ["▁", "▂", "▃", "▄", "▅", "▆", "▇"]
+                },
+                "tooltip-format": "{volume}%",
+                "on-click": "~/.config/alacritty/audiotop.sh"
+            }
+            
+            # Modern CPU
+            config['cpu'] = {
+                "interval": 1,
+                "format": "{icon} ",
+                "format-icons": ["▁","▂","▃","▄","▅","▆","▇","█"],
+                "on-click": "~/.config/alacritty/btmrun.sh"
+            }
+            
+            # Modern memory
+            config['memory'] = {
+                "interval": 1,
+                "format": "{icon} ",
+                "format-icons": ["▁","▂","▃","▄","▅","▆","▇","█"],
+                "tooltip": True,
+                "tooltip-format": "{}%",
+                "on-click": "~/.config/alacritty/btmrun.sh"
+            }
+            
+            # Modern network
+            config['network'] = {
+                "format-wifi": " {icon} ",
+                "interval": 1,
+                "format-ethernet": "Ethernet",
+                "tooltip-format": "{essid} {signalStrength}%",
+                "format-linked": "{ifname} (No IP) ",
+                "format-disconnected": "Disconnected ⚠",
+                "format-icons": ["󰤯","󰤟","󰤢","󰤥","󰤨"],
+                "on-click": "~/.config/alacritty/wifirun.sh"
+            }
+            
+            # Modern bluetooth
+            config['bluetooth'] = {
+                "format": "  ",
+                "format-disabled": "  ",
+                "format-connected": " {num_connections} connected",
+                "on-click": "~/.config/alacritty/bluetoothrun.sh"
+            }
+            
+            # Modern custom modules (music, power, etc)
+            config['custom/music'] = {
+                "format": "{}",
+                "escape": True,
+                "interval": 1,
+                "tooltip": False,
+                "exec": "playerctl status | grep -q Playing && echo ' ⏸ ' || echo ' ▶ '",
+                "on-click": "playerctl play-pause"
+            }
+            
+            config['custom/power'] = {
+                "tooltip": False,
+                "on-click": "~/.config/rofi/power.sh",
+                "format": ""
+            }
+            
+            config['custom/menuApp'] = {
+                "tooltip": False,
+                "on-click": "~/.config/rofi/launcher.sh",
+                "format": "  "
+            }
+            
+            config['custom/switcher'] = {
+                "tooltip": False,
+                "on-click": "~/.config/rofi/switcher.sh",
+                "format": " 󰸱  "
+            }
+            
+            # KEEP custom/taskbar for pin functionality!
+            config['custom/taskbar'] = {
+                "return-type": "json",
+                "exec": "/home/zen/.config/hypr/scripts/waybar/taskbar-render.sh",
+                "interval": 1,
+                "format": "{}",
+                "escape": False,
+                "on-click": "/home/zen/.config/hypr/scripts/waybar/taskbar-click.sh",
+                "on-click-right": "/home/zen/.config/hypr/scripts/waybar/taskbar-menu-global.sh"
+            }
+            
+        else:  # minimal
+            # Minimal workspaces config
+            config['hyprland/workspaces'] = {
+                "format": "{name}",
+                "format-icons": {
+                    "1": "",
+                    "2": "",
+                    "3": "",
+                    "4": "",
+                    "5": "",
+                    "active": "",
+                    "default": ""
+                },
+                "persistent-workspaces": {
+                    "*": 5,
+                    "HDMI-A-1": 3
+                }
+            }
+            
+            # Minimal clock
+            config['clock'] = {
+                "interval": 60,
+                "format": "{:%H:%M}",
+                "max-length": 25
+            }
+            
+            # Minimal battery
+            config['battery'] = {
+                "interval": 60,
+                "states": {
+                    "warning": 30,
+                    "critical": 15
+                },
+                "format": "{capacity}% {icon}",
+                "format-icons": ["", "", "", "", ""],
+                "max-length": 25
+            }
+            
+            # Minimal pulseaudio
+            config['pulseaudio'] = {
+                "format": "{volume}% {icon}",
+                "format-bluetooth": "{volume}% {icon}",
+                "format-muted": "",
+                "format-icons": {
+                    "headphone": "",
+                    "hands-free": "",
+                    "headset": "",
+                    "phone": "",
+                    "phone-muted": "",
+                    "portable": "",
+                    "car": "",
+                    "default": ["", ""]
+                },
+                "scroll-step": 1,
+                "on-click": "pavucontrol",
+                "ignored-sinks": ["Easy Effects Sink"]
+            }
+            
+            # Minimal network
+            config['network'] = {
+                "interface": "wlp2s0",
+                "format": "{ifname}",
+                "format-wifi": "{essid} ({signalStrength}%) ",
+                "format-ethernet": "{ipaddr}/{cidr} 󰊗",
+                "format-disconnected": "",
+                "tooltip-format": "{ifname} via {gwaddr} 󰊗",
+                "tooltip-format-wifi": "{essid} ({signalStrength}%) ",
+                "tooltip-format-ethernet": "{ifname} ",
+                "tooltip-format-disconnected": "Disconnected",
+                "max-length": 50
+            }
+            
+            # KEEP custom/taskbar for pin functionality!
+            config['custom/taskbar'] = {
+                "return-type": "json",
+                "exec": "/home/zen/.config/hypr/scripts/waybar/taskbar-render.sh",
+                "interval": 1,
+                "format": "{}",
+                "escape": False,
+                "on-click": "/home/zen/.config/hypr/scripts/waybar/taskbar-click.sh",
+                "on-click-right": "/home/zen/.config/hypr/scripts/waybar/taskbar-menu-global.sh"
+            }
+            
+            # Remove modern-only modules in minimal
+            config.pop('temperature', None)
+            config.pop('cpu', None)
+            config.pop('memory', None)
+            config.pop('bluetooth', None)
+            config.pop('custom/music', None)
+            config.pop('custom/power', None)
+            config.pop('custom/menuApp', None)
+            config.pop('custom/switcher', None)
+        
+        # Save the updated config
+        if is_dock:
+            self.dock_config = config
+        else:
+            self.main_config = config
+        
+        self.save_config(config, is_dock=is_dock)
+    
     def create_default_config(self, is_dock: bool = False) -> Dict[str, Any]:
         """Create default waybar configuration matching user's structure"""
         if is_dock:
@@ -274,7 +528,7 @@ class WaybarManager:
                 }
             }
         else:
-            # Main panel configuration - User's exact structure
+            # Main panel configuration
             return {
                 "height": 10,
                 "position": "top",
@@ -282,14 +536,15 @@ class WaybarManager:
                 "margin-top": 15,
                 "margin-bottom": 0,
                 "margin-left": 0,
-                "margin-right": 0,  # Fixed typo: was "marfin-right"
-                "modules-left": ["clock", "hyprland/workspaces"],
-                "modules-center": ["tray"],
+                "margin-right": 0,
+                "modules-left": ["custom/taskbar"],
+                "modules-center": ["hyprland/workspaces"],
                 "modules-right": [
                     "pulseaudio",
                     "network",
                     "battery",
-                    "custom/notification"
+                    "custom/notification",
+                    "clock"
                 ],
                 "clock": {
                     "interval": 60,
@@ -377,45 +632,35 @@ class WaybarManager:
                     "escape": True
                 },
                 "custom/taskbar": {
-                "return-type": "json",
-                "exec": "/home/zen/.config/hypr/scripts/waybar/taskbar-render.sh",
-                "interval": 1,
-                "format": "{}",       
-                "escape": False,    
-                "on-click": "/home/zen/.config/hypr/scripts/waybar/taskbar-click.sh",
-                "on-click-right": "/home/zen/.config/hypr/scripts/waybar/taskbar-menu-global.sh"
+                    "return-type": "json",
+                    "exec": "/home/zen/.config/hypr/scripts/waybar/taskbar-render.sh",
+                    "interval": 1,
+                    "format": "{}",
+                    "escape": False,
+                    "on-click": "/home/zen/.config/hypr/scripts/waybar/taskbar-click.sh",
+                    "on-click-right": "/home/zen/.config/hypr/scripts/waybar/taskbar-menu-global.sh"
                 },
-
                 "hyprland/window": {
                     "format": "{title}",
                     "max-length": 50,
                     "separate-outputs": True,
-
                     "offscreen-css": True,
                     "offscreen-css-text": "󰍴 inactive",
-
                     "rewrite": {
-                        "(.*) — Mozilla Firefox": "  $1",
-                        "(.*) - Mozilla Firefox": "  $1",
-
-                        "(.*) - Google Chrome": "  $1",
+                        "(.*) — Mozilla Firefox": "  $1",
+                        "(.*) - Mozilla Firefox": "  $1",
+                        "(.*) - Google Chrome": "  $1",
                         "(.*) - Brave": "󰖟  $1",
-
                         "(.*) - Visual Studio Code": "󰨞  $1",
                         "(.*) - Code": "󰨞  $1",
-
-                        "(.*) - kitty": "  $1",
-                        "(.*) - zsh": "  $1",
-                        "(.*) - fish": "  $1",
-
-                        "(.*) - Neovim": "  $1",
-                        "(.*) - Vim": "  $1",
-
+                        "(.*) - kitty": "  $1",
+                        "(.*) - zsh": "  $1",
+                        "(.*) - fish": "  $1",
+                        "(.*) - Neovim": "  $1",
+                        "(.*) - Vim": "  $1",
                         "(.*) - Thunar": "󰝰  $1",
                         "(.*) - Nautilus": "󰝰  $1",
-
-                        "(.*) - Spotify": "  $1",
-
+                        "(.*) - Spotify": "  $1",
                         "(.*)": "󰣆  $1"
                     }
                 }
@@ -437,9 +682,13 @@ class WaybarManager:
             "backlight",
             "bluetooth",
             "custom/notification",
+            "custom/taskbar",
+            "custom/music",
+            "custom/power",
+            "custom/menuApp",
+            "custom/switcher",
             "idle_inhibitor",
             "mpd",
             "custom/weather",
-            "wlr/taskbar",
             "hyprland/window"
         ]

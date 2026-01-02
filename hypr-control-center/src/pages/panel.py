@@ -81,6 +81,7 @@ def _build_main_panel_content(window) -> Gtk.Box:
     content.set_margin_bottom(16)
     
     wm = window.waybar_manager
+    sm = window.waybar_style_manager
     
     # ═══════════════════════════════════════════════════════════════
     # PANEL BEHAVIOR
@@ -135,8 +136,6 @@ def _build_main_panel_content(window) -> Gtk.Box:
     # ═══════════════════════════════════════════════════════════════
     
     appearance_group = SettingsGroup("Panel Appearance")
-    
-    sm = window.waybar_style_manager
     
     # Style Mode Selector (Minimal vs Modern)
     style_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
@@ -411,10 +410,16 @@ def _on_style_mode_changed(window, dropdown):
     mode = 'minimal' if selected == 0 else 'modern'
     
     sm = window.waybar_style_manager
+    wm = window.waybar_manager
+    
+    # Apply CSS style
     sm.apply_style_mode(mode)
     
+    # Apply config changes (modules)
+    wm.apply_style_config(mode, is_dock=False)
+    
     # Reload waybar
-    window.waybar_manager.reload_waybar()
+    wm.reload_waybar()
     
     window._show_toast(f"Applied {mode.capitalize()} style")
 

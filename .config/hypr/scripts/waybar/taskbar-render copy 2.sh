@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 PIN_FILE="$HOME/.config/hypr-control-center/preferences/taskbar.json"
-STYLE_FILE="$HOME/.config/waybar/style.css"
 mkdir -p "$(dirname "$PIN_FILE")"
 [ ! -f "$PIN_FILE" ] && echo '{ "pinned": [] }' > "$PIN_FILE"
 
@@ -14,75 +13,8 @@ ACTIVE_CLASS="$(hyprctl activewindow -j 2>/dev/null | jq -r '.class // ""')"
 # Get pinned apps
 PINNED_JSON=$(cat "$PIN_FILE")
 
-# ═══════════════════════════════════════════════════════════════
-# DETECT PANEL STYLE (minimal = nerd fonts, modern = system icons)
-# ═══════════════════════════════════════════════════════════════
-PANEL_STYLE="minimal"
-if [ -f "$STYLE_FILE" ]; then
-    if grep -q "rgba(49,50,68" "$STYLE_FILE"; then
-        PANEL_STYLE="modern"
-    fi
-fi
-
-# ═══════════════════════════════════════════════════════════════
-# GET SYSTEM ICON FUNCTION (for modern style)
-# ═══════════════════════════════════════════════════════════════
-get_system_icon() {
-    local app_id="$1"
-    local app_lower="$(echo "$app_id" | tr '[:upper:]' '[:lower:]')"
-    
-    # Try multiple icon sources in order
-    local icon_path=""
-    
-    # 1. Try GTK icon theme (from nwg-look settings)
-    if command -v gtk-launch &>/dev/null; then
-        # Get icon theme from GTK settings
-        local icon_theme=$(gsettings get org.gnome.desktop.interface icon-theme 2>/dev/null | tr -d "'")
-        [ -z "$icon_theme" ] && icon_theme="Papirus"
-        
-        # Search for icon in theme directories
-        for size in 48 32 24; do
-            for dir in "$HOME/.icons/$icon_theme" "/usr/share/icons/$icon_theme" "$HOME/.local/share/icons/$icon_theme"; do
-                if [ -d "$dir" ]; then
-                    # Try app_id variations
-                    for name in "$app_id" "$app_lower" "${app_lower}-*"; do
-                        icon_path=$(find "$dir" -type f \( -name "${name}.png" -o -name "${name}.svg" \) -path "*/${size}x${size}/*" 2>/dev/null | head -1)
-                        [ -n "$icon_path" ] && break 2
-                    done
-                fi
-            done
-        done
-    fi
-    
-    # 2. Fallback: check .local/share/applications
-    if [ -z "$icon_path" ]; then
-        local desktop_file=$(find ~/.local/share/applications /usr/share/applications -name "*${app_lower}*.desktop" 2>/dev/null | head -1)
-        if [ -n "$desktop_file" ]; then
-            local icon_name=$(grep "^Icon=" "$desktop_file" | head -1 | cut -d'=' -f2)
-            if [ -n "$icon_name" ]; then
-                # If full path, use it
-                if [ -f "$icon_name" ]; then
-                    icon_path="$icon_name"
-                else
-                    # Search in icon directories
-                    icon_path=$(find ~/.icons /usr/share/icons ~/.local/share/icons -name "${icon_name}.*" 2>/dev/null | head -1)
-                fi
-            fi
-        fi
-    fi
-    
-    # 3. Return icon path or fallback
-    if [ -n "$icon_path" ]; then
-        echo "$icon_path"
-    else
-        echo ""  # Will trigger nerd font fallback
-    fi
-}
-
-# ═══════════════════════════════════════════════════════════════
-# GENERATE TASKBAR JSON
-# ═══════════════════════════════════════════════════════════════
-hyprctl clients -j 2>/dev/null | jq -rc --arg active "$ACTIVE_CLASS" --argjson pinned "$PINNED_JSON" --arg style "$PANEL_STYLE" '
+# Generate taskbar with pinned + running apps
+hyprctl clients -j 2>/dev/null | jq -rc --arg active "$ACTIVE_CLASS" --argjson pinned "$PINNED_JSON" '
   # Get running apps grouped
   group_by(.class)
   | map({
@@ -106,12 +38,12 @@ hyprctl clients -j 2>/dev/null | jq -rc --arg active "$ACTIVE_CLASS" --argjson p
     })
   | $running + .
   
-  # Map to icons based on style
+  # Map to icons (YOUR EXACT ICON LOGIC - UNTOUCHED)
   | map(
       . as $item |
       ($item.app_id | ascii_downcase) as $lower |
       (
-        # NERD FONT ICONS (for minimal style)
+        # Browsers
         if ($lower | test("firefox|mozilla")) then "󰈹"
         elif ($lower | test("chromium")) then "󰊯"
         elif ($lower | test("chrome|google-chrome")) then "󰊯"
@@ -206,49 +138,27 @@ hyprctl clients -j 2>/dev/null | jq -rc --arg active "$ACTIVE_CLASS" --argjson p
         # Fallback
         else "󰣆"
         end
-      ) as $nerd_icon |
+      ) as $icon |
       {
-        icon: $nerd_icon,
-        app_id: $item.app_id,
+        icon: $icon,
         count: $item.count,
+        app_id: $item.app_id,
         titles: $item.titles,
         running: $item.running
       }
     )
-' | {
-    # Now process icons based on style
-    if [ "$PANEL_STYLE" = "modern" ]; then
-        # Modern style: try to get system icons
-        while IFS= read -r line; do
-            app_id=$(echo "$line" | jq -r '.app_id')
-            nerd_icon=$(echo "$line" | jq -r '.icon')
-            
-            # Try to get system icon
-            system_icon=$(get_system_icon "$app_id")
-            
-            if [ -n "$system_icon" ]; then
-                # Use system icon with img tag
-                echo "$line" | jq --arg icon "<img src='$system_icon' width='16' height='16' />" '.icon = $icon'
-            else
-                # Fallback to nerd font
-                echo "$line"
-            fi
-        done
-    else
-        # Minimal style: use nerd fonts as-is
-        cat
-    fi
-} | jq -s '{
-    text: (map(.icon + (if .count > 1 then "(" + (.count | tostring) + ")" else "" end)) | join(" ")),
-    tooltip: (map(
+  | {
+      text: (map(.icon + (if .count > 1 then "(" + (.count | tostring) + ")" else "" end)) | join(" ")),
+      tooltip: (map(
         .app_id + 
         (if .running then " (" + (.count | tostring) + " window" + (if .count > 1 then "s" else "" end) + ")"
          else " (pinned - click to launch)" 
          end) +
         (if (.titles | length) > 0 then "\n• " + (.titles | join("\n• ")) else "" end)
-    ) | join("\n\n")),
-    class: "taskbar"
-}'
+      ) | join("\n\n")),
+      class: "taskbar"
+    }
+'
 
 # Save all apps to cache
 hyprctl clients -j 2>/dev/null | jq -r --argjson pinned "$PINNED_JSON" '
