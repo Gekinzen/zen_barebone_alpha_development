@@ -19,9 +19,9 @@ from .pages.power import build_power_page
 from .pages.notifications import build_notifications_page
 from .pages.wallpaper import build_wallpaper_page
 from .pages.placeholders import (
-    build_workspaces_page, build_animations_page,
-    build_input_page, build_keybinds_page
+    build_workspaces_page, build_input_page, build_keybinds_page
 )
+from .pages.animations import build_animations_page 
 
 
 ICON_MAP = {

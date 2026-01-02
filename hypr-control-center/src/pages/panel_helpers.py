@@ -221,6 +221,35 @@ def on_size_changed(button, height, name, callback):
         callback(height)
 
 
+def _get_available_profiles(self) -> list:
+    """Get list of available power profiles"""
+    try:
+        result = subprocess.run(
+            ['powerprofilesctl', 'list'],
+            capture_output=True,
+            text=True,
+            timeout=2
+        )
+        
+        # Parse output for available profiles
+        profiles = []
+        for line in result.stdout.split('\n'):
+            line = line.strip()
+            if line.startswith('* ') or line.startswith('  '):
+                # Extract profile name (e.g., "* power-saver:" -> "power-saver")
+                profile_name = line.lstrip('* ').split(':')[0].strip()
+                if profile_name:
+                    profiles.append(profile_name)
+        
+        return profiles if profiles else ['power-saver', 'balanced']
+        
+    except:
+        # Default fallback
+        return ['power-saver', 'balanced']
+
+
+
+
 def get_monitor_list() -> List[str]:
     """Get list of monitors from hyprctl"""
     import subprocess

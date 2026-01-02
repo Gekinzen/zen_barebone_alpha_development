@@ -3,7 +3,7 @@ Placeholder pages for upcoming features
 """
 
 from ..widgets import PlaceholderPage
-
+from .animations import build_animations_page  # Import from animations.py
 # Panel page is now implemented in panel.py
 
 def build_workspaces_page(window):
@@ -14,13 +14,13 @@ def build_workspaces_page(window):
         "Configure workspace rules, monitor assignments, and persistent workspace behavior."
     )
 
-def build_animations_page(window):
-    """Build Animations placeholder page"""
-    return PlaceholderPage(
-        "Animations",
-        "preferences-desktop-effects-symbolic",
-        "Configure window animations, bezier curves, and transition effects for a smooth desktop experience."
-    )
+#def build_animations_page(window):
+ #   """Build Animations placeholder page"""
+ #   return PlaceholderPage(
+ #       "Animations",
+ #       "preferences-desktop-effects-symbolic",
+ #       "Configure window animations, bezier curves, and transition effects for a smooth desktop experience."
+ #   )
 
 def build_input_page(window):
     """Build Input Devices placeholder page"""

@@ -75,13 +75,20 @@ class PowerPage:
         # Get current profile
         current_profile = self.prefs.get_current_profile()
         
+        # Check available system profiles
+        available_profiles = self._get_available_profiles()
+        has_performance = 'performance' in available_profiles
+        
         # Profile options
         profiles = [
             ("saver", "Power Saver", "Lower CPU frequency, reduce animations"),
             ("neutral", "Balanced", "Normal performance (Recommended)"),
-            ("performance", "Performance", "Maximum CPU frequency, full animations"),
-            ("developer", "Developer", "Always-on mode, prevent sleep"),
         ]
+        
+        # Only add Performance if available
+        if has_performance:
+            profiles.append(("performance", "Performance", "Maximum CPU frequency, full animations"))
+            profiles.append(("developer", "Developer", "Always-on mode, prevent sleep"))
         
         for profile_id, name, desc in profiles:
             row = Adw.ActionRow()
@@ -183,6 +190,32 @@ class PowerPage:
         
         return group
     
+    def _get_available_profiles(self) -> list:
+        """Get list of available power profiles"""
+        try:
+            result = subprocess.run(
+                ['powerprofilesctl', 'list'],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            
+            # Parse output for available profiles
+            profiles = []
+            for line in result.stdout.split('\n'):
+                line = line.strip()
+                if line.startswith('* ') or line.startswith('  '):
+                    # Extract profile name (e.g., "* power-saver:" -> "power-saver")
+                    profile_name = line.lstrip('* ').split(':')[0].strip()
+                    if profile_name:
+                        profiles.append(profile_name)
+            
+            return profiles if profiles else ['power-saver', 'balanced']
+            
+        except:
+            # Default fallback
+            return ['power-saver', 'balanced']
+    
     def _on_profile_change(self, profile: str):
         """Handle power profile change"""
         self.prefs.set_current_profile(profile)
@@ -192,22 +225,33 @@ class PowerPage:
     def _apply_power_profile(self, profile: str):
         """Apply power profile using powerprofilesctl"""
         try:
+            # First, check available profiles
+            available_profiles = self._get_available_profiles()
+            
             # Map profiles to system profiles
             profile_map = {
                 'saver': 'power-saver',
                 'neutral': 'balanced',
                 'performance': 'performance',
-                'developer': 'performance',  # Same as performance but prevent sleep
+                'developer': 'performance',
             }
             
             system_profile = profile_map.get(profile, 'balanced')
             
-            # Apply profile
-            subprocess.run(
-                ['powerprofilesctl', 'set', system_profile],
-                timeout=2,
-                check=False
-            )
+            # Fallback if performance not available
+            if system_profile == 'performance' and 'performance' not in available_profiles:
+                system_profile = 'balanced'
+                if profile == 'performance':
+                    self.window._show_toast("Performance mode not available on this system")
+            
+            # Apply profile only if available
+            if system_profile in available_profiles:
+                subprocess.run(
+                    ['powerprofilesctl', 'set', system_profile],
+                    timeout=2,
+                    check=True,
+                    stderr=subprocess.DEVNULL
+                )
             
             # Developer mode: prevent sleep
             if profile == 'developer':
@@ -215,8 +259,11 @@ class PowerPage:
             else:
                 self._prevent_sleep(False)
                 
-        except:
+        except subprocess.CalledProcessError:
+            # Silently ignore if powerprofilesctl fails
             pass
+        except Exception as e:
+            print(f"Power profile error: {e}")
     
     def _prevent_sleep(self, prevent: bool):
         """Prevent system sleep (developer mode)"""
