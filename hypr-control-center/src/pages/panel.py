@@ -26,7 +26,6 @@ def build_panel_page(window) -> Gtk.ScrolledWindow:
     
     # PREVENT AUTO-SCROLL DURING DRAG
     scrolled.set_kinetic_scrolling(False)
-    #scrolled.set_propagate_natural_height(True)
     
     content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
     content.add_css_class('content-area')
@@ -35,8 +34,6 @@ def build_panel_page(window) -> Gtk.ScrolledWindow:
     if not hasattr(window, 'waybar_manager'):
         window.waybar_manager = WaybarManager()
         window.waybar_manager.load_config(is_dock=False)
-        # Dock (Waybar2) will be loaded when we implement it
-        # window.waybar_manager.load_config(is_dock=True)
     
     # Initialize style manager
     if not hasattr(window, 'waybar_style_manager'):
@@ -95,7 +92,7 @@ def _build_main_panel_content(window) -> Gtk.Box:
     position = wm.get_position(is_dock=False)
     w = DropdownRow(
         "Position on Screen",
-        ["top", "bottom"],  # TODO: left/right needs CSS fixes
+        ["top", "bottom"],
         position if position in ["top", "bottom"] else "top",
         lambda v: _on_position_change(window, v, is_dock=False),
         "Where the panel appears on screen"
@@ -139,46 +136,107 @@ def _build_main_panel_content(window) -> Gtk.Box:
     
     appearance_group = SettingsGroup("Panel Appearance")
     
-    # Size selector
-    size_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-    size_box.set_margin_top(8)
-    size_box.set_margin_bottom(8)
+    sm = window.waybar_style_manager
     
-    size_label = Gtk.Label(label="Panel Size")
-    size_label.add_css_class('setting-label')
-    size_label.set_halign(Gtk.Align.START)
-    size_label.set_hexpand(True)
-    size_box.append(size_label)
+    # Style Mode Selector (Minimal vs Modern)
+    style_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+    style_box.set_margin_top(8)
+    style_box.set_margin_bottom(8)
+    
+    style_label = Gtk.Label(label="Panel Style")
+    style_label.add_css_class('setting-label')
+    style_label.set_halign(Gtk.Align.START)
+    style_label.set_hexpand(True)
+    style_box.append(style_label)
+    
+    # Get current style mode
+    current_mode = sm.get_current_style_mode()
+    
+    # Style dropdown
+    style_dropdown = Gtk.DropDown()
+    style_dropdown.set_model(Gtk.StringList.new(["Minimal", "Modern"]))
+    style_dropdown.set_selected(0 if current_mode == 'minimal' else 1)
+    style_dropdown.set_valign(Gtk.Align.CENTER)
+    style_dropdown.connect('notify::selected', lambda d, _: _on_style_mode_changed(window, d))
+    style_box.append(style_dropdown)
+    
+    appearance_group.append(style_box)
+    
+    # Font Size selector
+    font_size_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+    font_size_box.set_margin_top(8)
+    font_size_box.set_margin_bottom(8)
+    
+    font_size_label = Gtk.Label(label="Panel Font Size")
+    font_size_label.add_css_class('setting-label')
+    font_size_label.set_halign(Gtk.Align.START)
+    font_size_label.set_hexpand(True)
+    font_size_box.append(font_size_label)
     
     # Get current font size from CSS
-    sm = window.waybar_style_manager
     current_font_size = sm.get_current_font_size() or 16
     
-    # Size presets: font-size in px
-    sizes = [
+    # Font size presets: font-size in px
+    font_sizes = [
         ('Small', 10),
         ('Medium', 16),
         ('Large', 20),
         ('X-Large', 26)
     ]
     
-    # Create size buttons
-    size_buttons = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-    size_buttons.add_css_class('size-selector')
+    # Create font size buttons
+    font_size_buttons = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+    font_size_buttons.add_css_class('size-selector')
     
-    for name, font_size in sizes:
+    for name, font_size in font_sizes:
         btn = Gtk.ToggleButton(label=name)
         btn.add_css_class('size-btn')
         if font_size == current_font_size:
             btn.set_active(True)
-        btn.connect('toggled', lambda b, fs=font_size: _on_size_changed(window, b, fs))
-        size_buttons.append(btn)
+        btn.connect('toggled', lambda b, fs=font_size: _on_font_size_changed(window, b, fs))
+        font_size_buttons.append(btn)
     
-    size_box.append(size_buttons)
-    appearance_group.append(size_box)
+    font_size_box.append(font_size_buttons)
+    appearance_group.append(font_size_box)
+    
+    # Panel Height selector
+    height_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+    height_box.set_margin_top(8)
+    height_box.set_margin_bottom(8)
+    
+    height_label = Gtk.Label(label="Panel Height")
+    height_label.add_css_class('setting-label')
+    height_label.set_halign(Gtk.Align.START)
+    height_label.set_hexpand(True)
+    height_box.append(height_label)
+    
+    # Get current height from config
+    current_height = wm.get_height(is_dock=False)
+    
+    # Height presets in pixels
+    heights = [
+        ('Small', 10),
+        ('Medium', 20),
+        ('Large', 30),
+        ('X-Large', 40)
+    ]
+    
+    # Create height buttons
+    height_buttons = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+    height_buttons.add_css_class('size-selector')
+    
+    for name, height in heights:
+        btn = Gtk.ToggleButton(label=name)
+        btn.add_css_class('size-btn')
+        if height == current_height:
+            btn.set_active(True)
+        btn.connect('toggled', lambda b, h=height: _on_height_changed(window, b, h))
+        height_buttons.append(btn)
+    
+    height_box.append(height_buttons)
+    appearance_group.append(height_box)
     
     # Transparent background toggle
-    sm = window.waybar_style_manager
     is_transparent = sm.is_transparent()
     
     w = ToggleRow(
@@ -200,7 +258,7 @@ def _build_main_panel_content(window) -> Gtk.Box:
         lambda v: _on_opacity_change(window, v, is_dock=False),
         "Panel background transparency (0=clear, 1=opaque)"
     )
-    w.set_sensitive(not is_transparent)  # Disable if transparent
+    w.set_sensitive(not is_transparent)
     window.widgets['main_opacity'] = w
     appearance_group.append(w)
     
@@ -215,12 +273,9 @@ def _build_main_panel_content(window) -> Gtk.Box:
         lambda v: _on_border_radius_change(window, v, is_dock=False),
         "Corner roundness in pixels"
     )
-    w.set_sensitive(not extend_to_edges)  # Disable if extended
+    w.set_sensitive(not extend_to_edges)
     window.widgets['main_border_radius'] = w
     appearance_group.append(w)
-    
-    # Note: User's default style uses background:transparent
-    # Opacity controls removed - edit style.css manually if needed
     
     # Margins
     margin_header = Gtk.Label(label="MARGINS")
@@ -312,8 +367,8 @@ def _on_position_change(window, position: str, is_dock: bool):
         sm.remove_vertical_bar_css()
 
 
-def _on_size_changed(window, button, font_size: int):
-    """Handle size button toggle - changes font-size in CSS"""
+def _on_font_size_changed(window, button, font_size: int):
+    """Handle font size button toggle - changes font-size in CSS"""
     if button.get_active():
         # Deactivate other buttons
         parent = button.get_parent()
@@ -324,11 +379,44 @@ def _on_size_changed(window, button, font_size: int):
         # Update CSS font-size
         sm = window.waybar_style_manager
         sm.set_font_size(font_size)
-        sm.save_style()  # Save immediately
+        sm.save_style()
         
         # Reload waybar to apply
         window.waybar_manager.reload_waybar()
-        window._show_toast(f"Font size changed to {font_size}px")
+        window._show_toast(f"Font size: {font_size}px")
+
+
+def _on_height_changed(window, button, height: int):
+    """Handle height button toggle - changes panel height in config"""
+    if button.get_active():
+        # Deactivate other buttons
+        parent = button.get_parent()
+        for child in parent:
+            if isinstance(child, Gtk.ToggleButton) and child != button:
+                child.set_active(False)
+        
+        # Update height in config
+        wm = window.waybar_manager
+        wm.set_height(height, is_dock=False)
+        
+        # Auto-save and reload
+        _on_panel_apply(window, is_dock=False)
+        
+        window._show_toast(f"Panel height: {height}px")
+
+
+def _on_style_mode_changed(window, dropdown):
+    """Handle style mode change"""
+    selected = dropdown.get_selected()
+    mode = 'minimal' if selected == 0 else 'modern'
+    
+    sm = window.waybar_style_manager
+    sm.apply_style_mode(mode)
+    
+    # Reload waybar
+    window.waybar_manager.reload_waybar()
+    
+    window._show_toast(f"Applied {mode.capitalize()} style")
 
 
 def _on_transparent_toggle(window, transparent: bool, is_dock: bool):
@@ -343,34 +431,7 @@ def _on_transparent_toggle(window, transparent: bool, is_dock: bool):
             window.widgets['main_opacity'].set_sensitive(False)
     else:
         # Set to current opacity value
-        current_opacity = 0.6  # Default
-        if 'main_opacity' in window.widgets:
-            # Get value from slider if exists
-            window.widgets['main_opacity'].set_sensitive(True)
-        sm.set_opacity(current_opacity, transparent=False)
-
-
-def _on_opacity_change(window, opacity: float, is_dock: bool):
-    """Handle opacity slider change"""
-    sm = window.waybar_style_manager
-    # Only apply if not in transparent mode
-    if not sm.is_transparent():
-        sm.set_opacity(opacity, transparent=False)
-
-
-def _on_transparent_toggle(window, transparent: bool, is_dock: bool):
-    """Handle transparent background toggle"""
-    sm = window.waybar_style_manager
-    
-    if transparent:
-        # Set to transparent
-        sm.set_opacity(1.0, transparent=True)
-        # Disable opacity slider
-        if 'main_opacity' in window.widgets:
-            window.widgets['main_opacity'].set_sensitive(False)
-    else:
-        # Set to current opacity value
-        current_opacity = 0.6  # Default
+        current_opacity = 0.6
         if 'main_opacity' in window.widgets:
             window.widgets['main_opacity'].set_sensitive(True)
         sm.set_opacity(current_opacity, transparent=False)
@@ -425,8 +486,6 @@ def _on_extend_toggle(window, extend: bool, is_dock: bool):
         # Restore border-radius to slider value
         if 'main_border_radius' in window.widgets:
             window.widgets['main_border_radius'].set_sensitive(True)
-            # Get current value from widget
-            # Will be set by user or default 46
         
         sm.set_border_radius(46, enabled=True)
         sm.set_box_shadow(enabled=True)
@@ -463,7 +522,6 @@ def _on_add_module(window, position: str, is_dock: bool):
     )
     
     # Create list box with available modules
-    from gi.repository import Gtk
     list_box = Gtk.ListBox()
     list_box.set_selection_mode(Gtk.SelectionMode.SINGLE)
     list_box.add_css_class('boxed-list')
@@ -489,7 +547,7 @@ def _on_add_module(window, position: str, is_dock: bool):
         box.append(label)
         
         row.set_child(box)
-        row.module_name = module  # Store module name
+        row.module_name = module
         list_box.append(row)
     
     # Scrolled window for list
@@ -516,149 +574,25 @@ def _on_add_module(window, position: str, is_dock: bool):
                 _on_panel_apply(window, is_dock=is_dock)
                 window._show_toast(f"Added {module} to {position}")
                 # Refresh page
-                #_refresh_panel_page(window)
                 _refresh_panel_page(window, is_dock=is_dock)
-
     
     dialog.connect('response', on_response)
     dialog.present()
 
 
-#def _refresh_panel_page(window):
-#    """Refresh the panel page to show updated modules"""
-    # Rebuild the panel page
-#    from . import panel
-#    new_page = panel.build_panel_page(window)
-    
-    # Replace in stack
-#    window.stack.remove(window.stack.get_child_by_name("panel"))
-#    window.stack.add_named(new_page, "panel")
-#    window.stack.set_visible_child_name("panel")
-
 def _refresh_panel_page(window, is_dock: bool = False):
     """Refresh panel page to show updated module layout"""
-    if is_dock:
-        content = _build_dock_content(window)
-    else:
-        content = _build_main_panel_content(window)
-    
-    page_name = "panel" if not is_dock else "dock"
-    
-    scrolled = Gtk.ScrolledWindow()
-    scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-    scrolled.set_child(content)
-    
-    old_page = window.stack.get_child_by_name(page_name)
-    if old_page:
-        window.stack.remove(old_page)
-    
-    window.stack.add_named(scrolled, page_name)
-    window.stack.set_visible_child_name(page_name)
-
-
-
-def _get_module_icon(module: str) -> str:
-    """Get icon name for module"""
-    icons = {
-        'clock': 'preferences-system-time-symbolic',
-        'hyprland/workspaces': 'view-grid-symbolic',
-        'hyprland/window': 'window-symbolic',
-
-    
-        'custom/taskbar': 'view-list-symbolic',
-
-        'tray': 'system-tray-symbolic',
-        'pulseaudio': 'audio-volume-high-symbolic',
-        'network': 'network-wireless-symbolic',
-        'battery': 'battery-symbolic',
-
-        'custom/notification': 'notification-symbolic',
-
-        'cpu': 'utilities-system-monitor-symbolic',
-        'memory': 'drive-harddisk-symbolic',
-        'disk': 'drive-harddisk-symbolic',
-        'temperature': 'temperature-symbolic',
-        'backlight': 'display-brightness-symbolic',
-    }
-
-    return icons.get(module, 'application-x-executable-symbolic')
-
-
-def _get_module_display_name(module: str) -> str:
-    """Get display name for module"""
-    names = {
-        'clock': 'Clock',
-        'hyprland/workspaces': 'Workspaces',
-        'hyprland/window': 'Active Window Title',
-
-     
-
-        'tray': 'System Tray',
-        'pulseaudio': 'Audio',
-        'network': 'Network',
-        'battery': 'Battery',
-        'custom/notification': 'Notifications',
-        'custom/taskbar': 'Taskbar',
-
-        'cpu': 'CPU Usage',
-        'memory': 'Memory Usage',
-        'disk': 'Disk Usage',
-        'temperature': 'Temperature',
-        'backlight': 'Brightness',
-    }
-
-    return names.get(module, module.replace('/', ' ').title())
-
-
-#def _on_remove_module(window, position: str, module: str, is_dock: bool):
- #   """Remove a module from position - auto-saves and refreshes"""
- #   window.waybar_manager.remove_module(position, module, is_dock=is_dock)
-    # Auto-save changes
-#    _on_panel_apply(window, is_dock=is_dock)
-#    window._show_toast(f"Removed {module} from {position}")
-    # Refresh page to update UI
-#    _refresh_panel_page(window)
-
-
-def _on_remove_module(window, position: str, module: str, is_dock: bool):
-    window.waybar_manager.remove_module(position, module, is_dock=is_dock)
-    _on_panel_apply(window, is_dock=is_dock)
-    window._show_toast(f"Removed {module} from {position}")
-    _refresh_panel_page(window, is_dock=is_dock)
-
-def _on_reorder_modules(window, position: str, data: str, is_dock: bool):
-    """Handle module reordering via drag and drop"""
-    # Parse drag data: "from_position:module"
-    parts = data.split(':')
-    if len(parts) == 2:
-        from_pos, module = parts
-        if from_pos != position:
-            # Move module from one zone to another
-            window.waybar_manager.move_module(from_pos, position, module, is_dock=is_dock)
-            
-            # Rebuild panel page to show changes
-            window._show_toast(f"Moved {module} from {from_pos} to {position}")
-            
-            # AUTO-APPLY! Save changes immediately
-            _on_panel_apply(window, is_dock)
-            
-            # Refresh the panel page
-            _refresh_panel_page(window, is_dock)
-
-
-#def _refresh_panel_page(window, is_dock: bool):
-def _refresh_panel_page(window, is_dock: bool = False):
     page_name = "panel" if not is_dock else "dock"
 
     old_page = window.stack.get_child_by_name(page_name)
 
-    # 🟢 SAVE SCROLL POSITION
+    # Save scroll position
     vadj_value = 0
     if isinstance(old_page, Gtk.ScrolledWindow):
         vadj = old_page.get_vadjustment()
         vadj_value = vadj.get_value()
 
-    # rebuild content
+    # Rebuild content
     content = _build_main_panel_content(window)
 
     scrolled = Gtk.ScrolledWindow()
@@ -671,7 +605,7 @@ def _refresh_panel_page(window, is_dock: bool = False):
     window.stack.add_named(scrolled, page_name)
     window.stack.set_visible_child_name(page_name)
 
-    # 🟢 RESTORE SCROLL POSITION (idle = safe)
+    # Restore scroll position
     def restore_scroll():
         vadj = scrolled.get_vadjustment()
         vadj.set_value(vadj_value)
@@ -679,6 +613,73 @@ def _refresh_panel_page(window, is_dock: bool = False):
 
     GLib.idle_add(restore_scroll)
 
+
+def _get_module_icon(module: str) -> str:
+    """Get icon name for module"""
+    icons = {
+        'clock': 'preferences-system-time-symbolic',
+        'hyprland/workspaces': 'view-grid-symbolic',
+        'hyprland/window': 'window-symbolic',
+        'custom/taskbar': 'view-list-symbolic',
+        'tray': 'system-tray-symbolic',
+        'pulseaudio': 'audio-volume-high-symbolic',
+        'network': 'network-wireless-symbolic',
+        'battery': 'battery-symbolic',
+        'custom/notification': 'notification-symbolic',
+        'cpu': 'utilities-system-monitor-symbolic',
+        'memory': 'drive-harddisk-symbolic',
+        'disk': 'drive-harddisk-symbolic',
+        'temperature': 'temperature-symbolic',
+        'backlight': 'display-brightness-symbolic',
+    }
+    return icons.get(module, 'application-x-executable-symbolic')
+
+
+def _get_module_display_name(module: str) -> str:
+    """Get display name for module"""
+    names = {
+        'clock': 'Clock',
+        'hyprland/workspaces': 'Workspaces',
+        'hyprland/window': 'Active Window Title',
+        'tray': 'System Tray',
+        'pulseaudio': 'Audio',
+        'network': 'Network',
+        'battery': 'Battery',
+        'custom/notification': 'Notifications',
+        'custom/taskbar': 'Taskbar',
+        'cpu': 'CPU Usage',
+        'memory': 'Memory Usage',
+        'disk': 'Disk Usage',
+        'temperature': 'Temperature',
+        'backlight': 'Brightness',
+    }
+    return names.get(module, module.replace('/', ' ').title())
+
+
+def _on_remove_module(window, position: str, module: str, is_dock: bool):
+    """Remove a module from position"""
+    window.waybar_manager.remove_module(position, module, is_dock=is_dock)
+    _on_panel_apply(window, is_dock=is_dock)
+    window._show_toast(f"Removed {module} from {position}")
+    _refresh_panel_page(window, is_dock=is_dock)
+
+
+def _on_reorder_modules(window, position: str, data: str, is_dock: bool):
+    """Handle module reordering via drag and drop"""
+    parts = data.split(':')
+    if len(parts) == 2:
+        from_pos, module = parts
+        if from_pos != position:
+            # Move module from one zone to another
+            window.waybar_manager.move_module(from_pos, position, module, is_dock=is_dock)
+            
+            window._show_toast(f"Moved {module} from {from_pos} to {position}")
+            
+            # AUTO-APPLY! Save changes immediately
+            _on_panel_apply(window, is_dock)
+            
+            # Refresh the panel page
+            _refresh_panel_page(window, is_dock)
 
 
 def _on_panel_reset(window, is_dock: bool):
@@ -698,9 +699,9 @@ def _on_panel_reset(window, is_dock: bool):
 
 
 def _on_panel_reset_response(window, dialog, response, is_dock: bool):
+    """Handle panel reset confirmation"""
     if response == "reset":
         wm = window.waybar_manager
-
         default_config = wm.create_default_config(is_dock=is_dock)
 
         if is_dock:
@@ -708,15 +709,9 @@ def _on_panel_reset_response(window, dialog, response, is_dock: bool):
         else:
             wm.main_config = default_config
 
-        # ✅ SAVE CONFIG
         wm.save_config(default_config, is_dock=is_dock)
-
-        # ✅ RELOAD WAYBAR
         wm.reload_waybar()
-
-        # ✅ FORCE UI REFRESH
         _refresh_panel_page(window, is_dock=is_dock)
-
         window._show_toast("Panel reset to default")
 
 
@@ -730,33 +725,7 @@ def _on_panel_apply(window, is_dock: bool):
     else:
         wm.save_config(wm.main_config, is_dock=False)
     
-    # Note: style.css changes are saved separately by size selector
     # Reload waybar to apply changes
     wm.reload_waybar()
     
     window._show_toast("Panel configuration applied!")
-
-
-# ═══════════════════════════════════════════════════════════════════
-# FUTURE: DOCK (WAYBAR2) IMPLEMENTATION
-# ═══════════════════════════════════════════════════════════════════
-# 
-# When ready to implement Dock:
-# 1. Uncomment _build_dock_panel_content() below
-# 2. In build_panel_page(), replace single content with TabView
-# 3. Add tab for Main Panel and Dock
-# 4. Enable: window.waybar_manager.load_config(is_dock=True)
-#
-# The structure is ready - just needs to be activated!
-# ═══════════════════════════════════════════════════════════════════
-
-"""
-def _build_dock_panel_content(window) -> Gtk.Box:
-    # Build dock panel configuration content
-    # Same structure as main panel but with is_dock=True
-    # Size presets: 48, 60, 72, 84
-    # Default modules: workspaces + tray
-    # Position: bottom
-    # All same features as main panel
-    pass
-"""
