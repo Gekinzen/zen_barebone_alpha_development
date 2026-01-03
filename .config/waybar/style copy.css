@@ -1,4 +1,4 @@
-@import '../colorscheme/mac-os-dark-blue.css';
+@import '../colorscheme/everforest-dark.css';
 
 * {
     border: none;
@@ -12,7 +12,8 @@
 }
 
 #waybar {
-    background: alpha(@bg0,0.6);
+    background-color: rgba(49,50,68,0.4);
+    color: #cdd6f4;
     margin: 5px 5px;
     border-radius: 2rem;
 }
@@ -246,21 +247,49 @@ tooltip label {
     background-color: rgba(224,227,230,0.55);
 }
 
+#custom-taskbar:hover,
+#custom-taskbar:hover * {
+    color: unset;
+    -gtk-icon-effect: none;
+}
+
 /* Custom taskbar (nerd fonts) */
 #custom-taskbar {
     background-color: rgba(49,50,68,0);
-    padding: 8px;
+    padding: 8px 15px;
     margin: 0px;
     margin-top: 3px;
     border-radius: 0.5rem;
     font-family: "JetBrainsMono Nerd Font Propo", sans-serif;
 }
 #custom-taskbar image {
-   -gtk-icon-effect: none;
+    -gtk-icon-effect: none;
     opacity: 1;
 }
 
 #custom-taskbar * {
     -gtk-icon-effect: none;
     color: unset;
+}
+
+
+
+
+#custom-taskbar button {
+    background-color: rgba(41,42,58,0.55);
+    margin-left: 0.1px;
+    margin-right: 3px;
+    border-radius: 0.5rem;
+    transition: all 0.4s ease;
+    padding: 8px;
+}
+
+#custom-taskbar button.active {
+    background-color: rgba(224,227,230,0.55);
+    border-radius: 0.5rem;
+}
+
+#custom-taskbar button:hover {
+    border-radius: 1rem;
+    background-color: rgba(224,227,230,0.55);
 }

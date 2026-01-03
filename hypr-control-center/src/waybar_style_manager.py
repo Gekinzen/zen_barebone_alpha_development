@@ -253,7 +253,6 @@ class WaybarStyleManager:
 
 #waybar {
     background-color: rgba(49,50,68,0.4);
-    color: #cdd6f4;
     margin: 5px 5px;
     border-radius: 2rem;
 }
@@ -494,8 +493,16 @@ tooltip label {
     margin: 0px;
     margin-top: 3px;
     border-radius: 0.5rem;
-    color: #cdd6f4;
     font-family: "JetBrainsMono Nerd Font Propo", sans-serif;
+}
+#custom-taskbar image {
+   -gtk-icon-effect: none;
+    opacity: 1;
+}
+
+#custom-taskbar * {
+    -gtk-icon-effect: none;
+    color: unset;
 }
 '''
 

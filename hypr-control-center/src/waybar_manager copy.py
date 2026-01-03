@@ -382,17 +382,29 @@ class WaybarManager:
                 "format": " 󰸱  "
             }
             
-            home_dir = Path.home()
-
-            config['custom/taskbar'] = {
-                "return-type": "json",
-                "exec": f"{home_dir}/.config/hypr/scripts/waybar/taskbar-render-modern.sh",
-                "interval": 1,
-                "format": "{}",
-                "escape": False,
-                "on-click": f"{home_dir}/.config/hypr/scripts/waybar/taskbar-click.sh",
-                "on-click-right": f"{home_dir}/.config/hypr/scripts/waybar/taskbar-menu-global.sh"
+            # ═══════════════════════════════════════════════════════════════
+            # MODERN TASKBAR: Use wlr/taskbar (system icons with colors!)
+            # ═══════════════════════════════════════════════════════════════
+            config['wlr/taskbar'] = {
+                "format": "{icon}",
+                "icon-size": 18,
+                "icon-theme": "Papirus",  # Auto-detects from GTK settings
+                "tooltip-format": "{title}",
+                "on-click": "activate",
+                "on-click-middle": "close",
+                "on-click-right": f"{home_dir}/.config/hypr/scripts/waybar/taskbar-menu-wlr.sh"
             }
+            
+            # Replace custom/taskbar with wlr/taskbar in modules
+            for pos in ['left', 'center', 'right']:
+                modules = config.get(f'modules-{pos}', [])
+                if 'custom/taskbar' in modules:
+                    idx = modules.index('custom/taskbar')
+                    modules[idx] = 'wlr/taskbar'
+                    config[f'modules-{pos}'] = modules
+            
+            # Remove custom/taskbar definition
+            config.pop('custom/taskbar', None)
             
         else:  # minimal
             # Minimal workspaces config
@@ -472,7 +484,7 @@ class WaybarManager:
             home_dir = Path.home()
             config['custom/taskbar'] = {
                 "return-type": "json",
-                "exec": f"{home_dir}/.config/hypr/scripts/waybar/taskbar-render-modern.sh",
+                "exec": f"{home_dir}/.config/hypr/scripts/waybar/taskbar-render.sh",
                 "interval": 1,
                 "format": "{}",
                 "escape": False,

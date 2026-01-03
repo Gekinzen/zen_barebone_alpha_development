@@ -1,5 +1,5 @@
 {
-    "height": 10,
+    "height": 20,
     "position": "top",
     "layer": "top",
     "margin-top": 15,
@@ -7,11 +7,11 @@
     "margin-bottom": 0,
     "margin-left": 0,
     "modules-left": [
-        "custom/taskbar"
-    ],
-    "modules-center": [
         "hyprland/workspaces",
         "hyprland/window"
+    ],
+    "modules-center": [
+        "custom/taskbar"
     ],
     "modules-right": [
         "pulseaudio",
@@ -149,5 +149,90 @@
         "escape": false,
         "on-click": "/home/zen/.config/hypr/scripts/waybar/taskbar-click.sh",
         "on-click-right": "/home/zen/.config/hypr/scripts/waybar/taskbar-menu-global.sh"
+    },
+    "temperature": {
+        "tooltip": true,
+        "format": "{icon} ",
+        "format-icons": [
+            "\u2581",
+            "\u2582",
+            "\u2583",
+            "\u2584",
+            "\u2585",
+            "\u2586",
+            "\u2587",
+            "\u2588"
+        ],
+        "tooltip-format": "{temperatureC}\u00b0C"
+    },
+    "cpu": {
+        "interval": 1,
+        "format": "{icon} ",
+        "format-icons": [
+            "\u2581",
+            "\u2582",
+            "\u2583",
+            "\u2584",
+            "\u2585",
+            "\u2586",
+            "\u2587",
+            "\u2588"
+        ],
+        "on-click": "/home/zen/.config/alacritty/btmrun.sh"
+    },
+    "memory": {
+        "interval": 1,
+        "format": "{icon} ",
+        "format-icons": [
+            "\u2581",
+            "\u2582",
+            "\u2583",
+            "\u2584",
+            "\u2585",
+            "\u2586",
+            "\u2587",
+            "\u2588"
+        ],
+        "tooltip": true,
+        "tooltip-format": "{}%",
+        "on-click": "/home/zen/.config/alacritty/btmrun.sh"
+    },
+    "bluetooth": {
+        "format": "  ",
+        "format-disabled": "  ",
+        "format-connected": " {num_connections} connected",
+        "on-click": "/home/zen/.config/alacritty/bluetoothrun.sh"
+    },
+    "custom/music": {
+        "format": "{}",
+        "escape": true,
+        "interval": 1,
+        "tooltip": false,
+        "exec": "playerctl status | grep -q Playing && echo ' \u23f8 ' || echo ' \u25b6 '",
+        "on-click": "playerctl play-pause"
+    },
+    "custom/power": {
+        "tooltip": false,
+        "on-click": "/home/zen/.config/rofi/power.sh",
+        "format": ""
+    },
+    "custom/menuApp": {
+        "tooltip": false,
+        "on-click": "/home/zen/.config/rofi/launcher.sh",
+        "format": "  "
+    },
+    "custom/switcher": {
+        "tooltip": false,
+        "on-click": "/home/zen/.config/rofi/switcher.sh",
+        "format": " \udb83\ude31  "
+    },
+    "wlr/taskbar": {
+        "format": "{icon}",
+        "icon-size": 18,
+        "icon-theme": "Papirus",
+        "tooltip-format": "{title}",
+        "on-click": "activate",
+        "on-click-middle": "close",
+        "on-click-right": "/home/zen/.config/hypr/scripts/waybar/taskbar-menu-wlr.sh"
     }
 }

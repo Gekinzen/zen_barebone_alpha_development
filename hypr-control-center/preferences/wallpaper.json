@@ -2,7 +2,7 @@
   "folder": "~/wallpapers",
   "current": "/home/zen/wallpapers/wallhaven-d85ewm.png",
   "transition": "fade",
-  "slideshow_enabled": true,
+  "slideshow_enabled": false,
   "slideshow_interval": 10,
   "random_transition": false
 }

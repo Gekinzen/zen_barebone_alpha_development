@@ -1,21 +1,21 @@
-/* Theme: Catppuccin Mocha */
+/* Theme: macOS Dark Blue */
 :root {
-    --bg0: #1e1e2e;
-    --bg1: #181825;
-    --bg2: #313244;
-    --bg3: #45475a;
-    --bg4: #585b70;
-    --red: #f38ba8;
-    --orange: #fab387;
-    --yellow: #f9e2af;
-    --green: #a6e3a1;
-    --aqua: #94e2d5;
-    --blue: #89b4fa;
-    --purple: #cba6f7;
-    --fg: #cdd6f4;
-    --grey0: #6c7086;
-    --grey1: #9399b2;
-    --grey2: #bac2de;
+    --bg0: #021C37;
+    --bg1: #021C37;
+    --bg2: #1C5587;
+    --bg3: #196595;
+    --bg4: #26628E;
+    --red: #4E646F;
+    --orange: #2C6991;
+    --yellow: #196595;
+    --green: #1C5587;
+    --aqua: #467497;
+    --blue: #26628E;
+    --purple: #2C6991;
+    --fg: #9fbfba;
+    --grey0: #6f8582;
+    --grey1: #4E646F;
+    --grey2: #9fbfba;
 }
 
 /* ═══════════════════════════════════════════════════════════════ */
