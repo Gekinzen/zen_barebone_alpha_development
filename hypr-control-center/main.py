@@ -12,6 +12,7 @@ from gi.repository import Gio
 from src.app import ControlCenterApp
 
 def main():
+    """Main entry point"""
     app = ControlCenterApp()
     return app.run(None)
 

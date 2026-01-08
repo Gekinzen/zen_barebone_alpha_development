@@ -1,0 +1,287 @@
+{
+    "height": 40,
+    "position": "bottom",
+    "layer": "top",
+    "margin-top": 4,
+    "marfin-right": 0,
+    "margin-bottom": 3,
+    "margin-left": 0,
+    "modules-left": [
+        "custom/taskbar",
+        "custom/pinned",
+        "custom/music"
+    ],
+    "modules-center": [
+        "hyprland/workspaces",
+        "hyprland/window"
+    ],
+    "modules-right": [
+        "group/expand",
+        "custom/notification",
+        "clock"
+    ],
+  /*  "clock": {
+        "format": "\uf017 {:%I:%M:%S %p} ",
+        "interval": 1,
+        "tooltip-format": "<tt>{calendar}</tt>",
+        "calendar": {
+            "format": {
+                "today": "<span color='#fAfBfC'><b>{}</b></span>"
+            }
+        },
+        "actions": {
+            "on-click-right": "shift_down",
+            "on-click": "shift_up"
+        }
+    },*/
+    "hyprland/workspaces": {
+        "disable-scroll": true,
+        "sort-by-name": true,
+        "format": " {icon} ",
+        "persistent-workspaces": {
+            "*": 5
+        },
+         "format-icons": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5",
+            "active": "",
+            "default": ""
+        },
+        "on-scroll-up": "hyprctl dispatch workspace e+1",
+        "on-scroll-down": "hyprctl dispatch workspace e-1",
+        "on-click": "activate"
+    },
+    "tray": {
+        "icon-size": 21,
+        "spacing": 10
+    },
+    "custom/notification": {
+        "tooltip": true,
+        "format": "<span size='16pt'>{icon}</span>",
+        "format-icons": {
+            "notification": "\udb84\udd6b",
+            "none": "\udb80\udc9c",
+            "dnd-notification": "\udb80\udca0",
+            "dnd-none": "\udb82\ude93",
+            "inhibited-notification": "\udb80\udc9b",
+            "inhibited-none": "\udb82\ude91",
+            "dnd-inhibited-notification": "\udb80\udc9b",
+            "dnd-inhibited-none": "\udb82\ude91"
+        },
+        "return-type": "json",
+        "exec-if": "which swaync-client",
+        "exec": "swaync-client -swb",
+        "on-click": "swaync-client -t -sw",
+        "on-click-right": "swaync-client -d -sw",
+        "escape": true
+    },
+    "margin-right": 5,
+    "custom/taskbar": {
+        "return-type": "json",
+        "exec": "~/.config/hypr/scripts/waybar/taskbar-render.sh",
+        "interval": 1,
+        "format": "{}",
+        "escape": false,
+        "on-click": "~/.config/hypr/scripts/waybar/taskbar-click.sh",
+        "on-click-middle": "~/.config/hypr/scripts/waybar/taskbar-smart-click.sh",
+        "on-click-right": "~/.config/hypr/scripts/waybar/taskbar-menu-global.sh"
+    },
+
+    "custom/pinned": {
+        "return-type": "json",
+        "exec": "~/.config/hypr/scripts/waybar/pinned-apps-render.sh",
+        "interval": 2,
+        "format": "{}",
+        "escape": false,
+        "on-click": "~/.config/hypr/scripts/waybar/pinned-apps-click.sh"
+    },
+    "wlr/taskbar": {
+        "format": "{icon} {count}",
+        "all-outputs": true,
+        "on-click": "activate",
+        "on-click-middle": "exec ~/.config/hypr/scripts/waybar/taskbar-smart-click.sh",
+        "on-click-right": "exec ~/.config/hypr/scripts/waybar/taskbar-wlr-menu.sh"
+    },
+    "hyprland/window": {
+        "format": "{title}",
+        "max-length": 50,
+        "separate-outputs": true,
+        "rewrite": {
+            "(.*) \u2014 Mozilla Firefox": "  $1",
+            "(.*) - Mozilla Firefox": "  $1",
+            "(.*) - Visual Studio Code": "  $1",
+            "(.*) - Code": "  $1",
+            "(.*) - kitty": "  $1",
+            "(.*)": "  $1"
+        }
+    },
+
+    /*On going development 20260107 memory,cpu,bluetooth,battery,temparature,pulseaudio,network*/
+
+
+
+
+    "bluetooth": {
+	// "controller": "controller1", // specify the alias of the controller if there are more than 1 on the system
+	"format": "  ",
+	"format-disabled": "  ", // an empty format will hide the module
+	"format-connected": " {num_connections} connected",
+	
+    "on-click": "~/.config/alacritty/bluetoothrun.sh"
+    },
+
+    "battery": {
+        "states": {
+            "warning": 30,
+            "critical": 15
+        },
+        "format": "   {icon} ",
+        "format-charging": "  {icon} ",
+        "format-plugged":  "  {icon} ",
+         "tooltip-format": "{capacity}%",
+          "format-icons": [
+        
+        "", "", "", "", ""
+    ]
+    },
+    "temperature": {
+        "tooltip": true,
+        "format": "{icon} ",
+        "format-icons": ["▁","▂","▃","▄","▅","▆","▇","█"],
+        "tooltip-format": "{temperatureC}°C"
+    },
+   
+    "pulseaudio": {
+         "scroll-step": 10, // %, can be a float
+        "format": "  {icon}",
+        "format-muted": "",
+        "format-icons": {
+            "default": [
+        "▁",  // 0-16%
+        "▂",  // 17-32%
+        "▃",  // 33-48%
+        "▄",  // 49-64%
+        "▅",  // 65-80%
+        "▆",  // 81-96%
+        "▇"   // 97-100%
+    ]
+        },
+                "tooltip-format": "{volume}%",
+
+        "on-click": "~/.config/kitty/modules/audiotop.sh"
+    },
+
+    "cpu": {
+         "interval": 1,
+         "format": "{icon} ",  // overall icon, not per-core
+         "format-icons": ["▁","▂","▃","▄","▅","▆","▇","█"],
+         
+         "on-click": "~/.config/kitty/modules/btmrun.sh"
+       
+    },
+   "memory": {
+    "interval": 1,
+    "format": "{icon} ",
+    "format-icons": ["▁","▂","▃","▄","▅","▆","▇","█"],
+    "tooltip": true,
+    "tooltip-format": "{}%",
+    "on-click": "~/.config/alacritty/btmrun.sh"
+    },
+"network": {
+  "interval": 1,
+
+  "format-wifi": " {icon} ",
+  "format-ethernet": " {icon} ",
+  "format-disconnected": "󰤮",
+
+  "tooltip-format": "{ifname}",
+
+  "format-icons": {
+    "wifi": ["󰤯","󰤟","󰤢","󰤥","󰤨"],
+    "ethernet": "󰈀"
+  },
+
+  
+  "on-click": "~/.config/hypr-control-center/scripts/wifi_selector.py"
+},
+
+
+
+
+
+    /*From my old v1 alpha*/
+    "custom/pacman": {
+        "format": "\udb80\udd62 {}",
+        "interval": 30,
+        "exec": "checkupdates | wc -l",
+        "exec-if": "exit 0",
+        "on-click": "kitty sh -c 'yay -Syu; echo Done - Press enter to exit; read'; pkill -SIGRTMIN+8 waybar",
+        "signal": 8,
+        "tooltip": false
+    },
+    "group/expand": {
+        "orientation": "horizontal",
+        "drawer": {
+            "transition-duration": 600,
+            "transition-to-left": true,
+            "click-to-reveal": true
+        },
+        "modules": [
+            "custom/expand",
+            "pulseaudio",
+            "cpu",
+            "memory",
+            "temperature",
+            "network",
+            "bluetooth",
+            "custom/pacman",
+            "custom/endpoint"
+        ]
+    },
+    "custom/expand": {
+        "format": "\uf104",
+        "tooltip": false
+    },
+    "custom/endpoint": {
+        "format": "|",
+        "tooltip": false
+    },
+    
+
+
+   "clock": {
+       "format": "\uf017 {:%Y-%m-%d \n %I:%M:%S %p}",
+        "interval": 1,
+        "tooltip-format": "<tt>{calendar}</tt>",
+        "calendar": {
+            "format": {
+                "today": "<span color='#fAfBfC'><b>{}</b></span>"
+            }
+        },
+        "actions": {
+            "on-click-right": "shift_down",
+            "on-click": "shift_up"
+        }
+    },
+
+  "custom/music": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "~/.config/hypr-control-center/scripts/music.sh",
+    "interval": 2,
+    "max-length": 40,
+    "on-click": "playerctl play-pause",
+    "on-click-right": "playerctl next",
+    "on-click-middle": "playerctl previous",
+    "on-scroll-up": "playerctl position 5+",
+    "on-scroll-down": "playerctl position 5-",
+    "escape": true,
+    "tooltip": true
+  },
+
+
+
+}

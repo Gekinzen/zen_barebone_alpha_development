@@ -273,15 +273,24 @@ class WaybarManager:
                 timezone = result.stdout.strip() or "UTC"
             except:
                 timezone = "UTC"
-            
             config['clock'] = {
-                "timezone": timezone,
+
+                        "timezone": timezone,
                 "format": "{:%I:%M %p}",
+                "interval": 60,
                 "tooltip": True,
-                "tooltip-format": "{:%a %d %b}",
-                "on-click": "swaync-client -t"
+                "tooltip-format": "<tt>{calendar}</tt>",
+                "calendar": {
+                    "format": {
+                        "today": "<span color='#fAfBfC'><b>{}</b></span>"
+                    }
+                },
+                "actions": {
+                    "on-click": "shift_up",
+                    "on-click-right": "shift_down"
+                }
             }
-            
+
             # Modern battery
             config['battery'] = {
                 "states": {

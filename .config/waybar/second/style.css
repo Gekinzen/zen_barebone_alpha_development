@@ -1,0 +1,38 @@
+* {
+    font-family: JetBrainsMono Nerd Font;
+    font-size: 15px;
+    min-height: 0;
+}
+
+#waybar {
+    background: transparent;
+    color: #ebdbb2;
+    margin: 5px 5px;
+}
+
+#taskbar {
+    background-color: rgba(0,0,0,0.0);  /* transparent */
+    margin-bottom: 5px;
+    border-radius: 0.5rem;
+    padding: 0px;
+    transition: all 0.4s ease; /* adjust time as you like */
+}
+
+#taskbar button {
+    background-color: rgba(41,42,58,0.55);  /* #292a3a with semi-transparency */
+    margin-left: 0.1px;
+    border-radius: 0.5rem;
+    transition: all 0.4s ease; /* adjust time as you like */
+    padding: 8px;
+}
+
+#taskbar button.active {
+    background-color: rgba(224,227,230,0.55);  /* #e0e3e6 semi-transparent */
+    border-radius: 0.5rem;
+}
+
+#taskbar button:hover {
+    border-radius: 1rem;
+    background-color: rgba(224,227,230,0.55);  /* #e0e3e6 semi-transparent */
+}
+

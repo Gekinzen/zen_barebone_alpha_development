@@ -285,7 +285,7 @@ tooltip label {
 #taskbar,
 #tray,
 #workspaces {
-    background-color: rgba(49,50,68,0);
+background-color: rgba(255, 255, 255, 0);
     padding: 9px;
     margin: 0px;
     margin-top: 3px;
@@ -397,7 +397,11 @@ tooltip label {
 #cpu { color: #a6e3a1; }
 #memory { color: #8bd5ca; }
 #temperature { color: #f38ba8; }
-#clock { color: #89b4fa; }
+#clock { 
+    color: #89b4fa; 
+    transition: all .3s ease;
+}
+
 
 #custom-notification {
     color: #f9e2af;
@@ -432,8 +436,9 @@ tooltip label {
     border-radius: 1rem;
 }
 
+################workspaces##############
 #workspaces {
-    background-color: rgba(49,50,68,0);
+    background-color: rgba(49,50,68,0); /* semi-transparent */
     border-radius: 2rem;
     padding: 10px;
     margin-left: 5px;
@@ -441,7 +446,7 @@ tooltip label {
 }
 
 #workspaces button {
-    background-color: rgba(255,255,255,0.5);
+    background-color: rgba(255,255,255,0.5); /* semi-transparent */
     border-radius: 2rem;
     padding: 0px;
     margin-right: 5px;
@@ -451,12 +456,13 @@ tooltip label {
 
 #workspaces button.active {
     min-width: 50px;
-    background-color: rgba(255,255,255,0.7);
+    background-color: rgba(255,255,255,0.7); /* semi-transparent */
 }
 
 #workspaces button:hover {
-    background-color: rgba(255,255,255,0.7);
+    background-color: rgba(255,255,255,0.7); /* semi-transparent */
 }
+
 
 /* Modern WLR Taskbar (system icons with colors!) */
 #taskbar {

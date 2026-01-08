@@ -8,6 +8,9 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, GLib
 from typing import Callable
+import json
+import os
+from datetime import datetime
 
 from ..widgets import (
     SettingsGroup, IntegerRow, ToggleRow, DropdownRow, FloatRow
@@ -417,6 +420,20 @@ def _on_style_mode_changed(window, dropdown):
     
     # Apply config changes (modules)
     wm.apply_style_config(mode, is_dock=False)
+    
+    # ═══════════════════════════════════════════════════════════════
+    # SAVE TO waybar-menu.json (SINGLE SOURCE OF TRUTH for taskbar)
+    # ═══════════════════════════════════════════════════════════════
+    prefs_file = os.path.expanduser("~/.config/hypr-control-center/preferences/waybar-menu.json")
+    os.makedirs(os.path.dirname(prefs_file), exist_ok=True)
+    
+    prefs_data = {
+        "style_mode": mode,
+        "last_updated": datetime.now().isoformat()
+    }
+    
+    with open(prefs_file, 'w') as f:
+        json.dump(prefs_data, f, indent=2)
     
     # Reload waybar
     wm.reload_waybar()
