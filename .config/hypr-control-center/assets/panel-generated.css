@@ -1,0 +1,172 @@
+/* Auto-generated from Waybar theme - ATTACHED STYLE */
+/* Location: ~/.config/hypr-control-center/assets/panel-generated.css */
+
+/* Theme Colors */
+@define-color panel_bg #1a1b26;
+@define-color panel_bg1 #16161e;
+@define-color panel_bg2 #24283b;
+@define-color panel_bg3 #414868;
+@define-color panel_fg #c0caf5;
+@define-color panel_blue #7aa2f7;
+@define-color panel_red #f7768e;
+@define-color panel_green #9ece6a;
+@define-color panel_yellow #e0af68;
+@define-color panel_purple #bb9af7;
+@define-color panel_aqua #7dcfff;
+@define-color panel_orange #ff9e64;
+@define-color panel_grey #565f89;
+
+/* Main Window - Transparent to blend with Waybar */
+window {
+    background: transparent;
+}
+
+/* Panel Container - Matches Waybar module style EXACTLY */
+.panel-container {
+    background: alpha(@panel_bg, 0.9);
+    border-radius: 45px;
+    border: 1px solid @panel_bg1;
+    padding: 5px 14px;
+    margin: 0px;
+    min-height: 32px;
+}
+
+/* Taskbar Items - Fit inside Waybar height */
+.taskbar-item {
+    background: transparent;
+    border: none;
+    border-radius: 15px;
+    padding: 2px 6px;
+    margin: 1px;
+    min-width: 32px;
+    min-height: 32px;
+    transition: all 150ms ease;
+}
+
+.taskbar-item:hover {
+    background: alpha(@panel_fg, 0.1);
+}
+
+.taskbar-item.focused {
+    background: @panel_blue;
+}
+
+.taskbar-item.not-running {
+    opacity: 0.5;
+}
+
+.taskbar-item.not-running:hover {
+    opacity: 0.9;
+}
+
+/* Icons - Sized for Waybar */
+.taskbar-item-icon {
+    color: @panel_fg;
+}
+
+.taskbar-item.focused .taskbar-item-icon {
+    color: @panel_bg;
+}
+
+.nerd-icon {
+    font-family: "JetBrainsMono Nerd Font Propo", "JetBrainsMono NFM", "Symbols Nerd Font", monospace;
+    font-size: 18px;
+    color: @panel_fg;
+}
+
+.taskbar-item.focused .nerd-icon {
+    color: @panel_bg;
+}
+
+/* Running Indicator - Small dot */
+.running-indicator {
+    background: @panel_blue;
+    border-radius: 50%;
+    min-width: 4px;
+    min-height: 4px;
+    margin-top: 1px;
+}
+
+.running-indicator.hidden {
+    opacity: 0;
+}
+
+.taskbar-item.focused .running-indicator {
+    background: @panel_aqua;
+}
+
+/* Separator - Subtle */
+.separator {
+    background: alpha(@panel_fg, 0.15);
+    min-width: 1px;
+    margin: 6px 4px;
+}
+
+/* Window List Popover */
+.window-list-popover {
+    background: @panel_bg;
+    border: 1px solid @panel_bg3;
+    border-radius: 12px;
+}
+
+.window-list-popover contents {
+    background: transparent;
+}
+
+.window-list-item {
+    background: transparent;
+    padding: 8px 12px;
+    border-radius: 8px;
+}
+
+.window-list-item:hover {
+    background: alpha(@panel_fg, 0.1);
+}
+
+.window-list-item label {
+    color: @panel_fg;
+}
+
+.window-close-btn {
+    opacity: 0.5;
+}
+
+.window-close-btn:hover {
+    opacity: 1;
+    color: @panel_red;
+}
+
+/* Context Menu */
+.context-menu {
+    background: @panel_bg;
+    border: 1px solid @panel_bg3;
+    border-radius: 12px;
+}
+
+.context-menu contents {
+    background: transparent;
+}
+
+.context-menu button {
+    background: transparent;
+    color: @panel_fg;
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: none;
+}
+
+.context-menu button:hover {
+    background: alpha(@panel_fg, 0.1);
+}
+
+/* Tooltip */
+tooltip {
+    background: @panel_bg;
+    border: 1px solid @panel_bg3;
+    border-radius: 12px;
+}
+
+tooltip label {
+    color: @panel_fg;
+    padding: 6px;
+}

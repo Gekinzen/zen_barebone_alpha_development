@@ -1,0 +1,79 @@
+/* ═══════════════════════════════════════════════════════════════ */
+/* Zephyr-Style Multi-Line Waveform Visualizer                     */
+/* ═══════════════════════════════════════════════════════════════ */
+
+/* Main visualizer widget */
+.waveform-visualizer {
+    margin: 0 16px;
+    min-width: 280px;
+    min-height: 56px;
+    background: transparent;
+}
+
+/* Container with subtle dark background (optional) */
+.waveform-container {
+    background: rgba(30, 33, 39, 0.4);
+    border-radius: 12px;
+    padding: 8px 14px;
+    margin: 4px 8px;
+}
+
+/* Container with blur effect (if supported) */
+.waveform-container-blur {
+    background: rgba(30, 33, 39, 0.3);
+    border-radius: 12px;
+    padding: 8px 14px;
+    margin: 4px 8px;
+    /* Note: actual blur requires compositor support */
+}
+
+/* Idle state - subtle pulsing (CSS animation as backup) */
+.waveform-visualizer.idle {
+    opacity: 0.7;
+}
+
+/* Active playing state */
+.waveform-visualizer.playing {
+    opacity: 1.0;
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* Alternative Styles                                              */
+/* ═══════════════════════════════════════════════════════════════ */
+
+/* Compact version for smaller bars */
+.waveform-visualizer.compact {
+    min-width: 200px;
+    min-height: 40px;
+    margin: 0 10px;
+}
+
+/* Wide version for larger displays */
+.waveform-visualizer.wide {
+    min-width: 350px;
+    min-height: 64px;
+    margin: 0 20px;
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* One Dark Theme Colors (alternative to Zephyr blue)              */
+/* ═══════════════════════════════════════════════════════════════ */
+
+/*
+To change colors, modify these values in waveform_visualizer.py:
+
+Zephyr Blue (current):
+    base_rgb = (0.494, 0.784, 0.890)  # #7ec8e3
+
+One Dark Blue:
+    base_rgb = (0.380, 0.686, 0.937)  # #61afef
+
+One Dark Purple:
+    base_rgb = (0.776, 0.471, 0.855)  # #c678dd
+
+One Dark Cyan:
+    base_rgb = (0.337, 0.737, 0.812)  # #56b6c2
+
+One Dark Green:
+    base_rgb = (0.596, 0.765, 0.478)  # #98c379
+*/

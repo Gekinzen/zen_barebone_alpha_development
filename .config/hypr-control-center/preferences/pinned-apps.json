@@ -1,0 +1,36 @@
+{
+  "pinned": [
+    {
+      "app_id": "firefox",
+      "name": "Firefox",
+      "icon": "firefox",
+      "exec_cmd": "/usr/lib/firefox/firefox",
+      "desktop_file": "/usr/share/applications/firefox.desktop",
+      "wm_class": "firefox"
+    },
+    {
+      "app_id": "thunar",
+      "name": "Thunar File Manager",
+      "icon": "org.xfce.thunar",
+      "exec_cmd": "thunar",
+      "desktop_file": "/usr/share/applications/thunar.desktop",
+      "wm_class": null
+    },
+    {
+      "app_id": "kitty",
+      "name": "kitty",
+      "icon": "kitty",
+      "exec_cmd": "kitty",
+      "desktop_file": "/usr/share/applications/kitty.desktop",
+      "wm_class": null
+    },
+    {
+      "app_id": "code-oss",
+      "name": "Code - OSS",
+      "icon": "com.visualstudio.code.oss",
+      "exec_cmd": "code-oss",
+      "desktop_file": "/usr/share/applications/code-oss.desktop",
+      "wm_class": "code-oss"
+    }
+  ]
+}

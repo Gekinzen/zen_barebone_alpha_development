@@ -1,0 +1,314 @@
+/* ═══════════════════════════════════════════════════════════════ */
+/* HYPRLAND PANEL - Taskbar Styles                                  */
+/* Synced with Control Center theme (One Dark)                      */
+/* Location: ~/.config/hypr-control-center/assets/panel.css         */
+/* ═══════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* PANEL CONTAINER                                                  */
+/* ═══════════════════════════════════════════════════════════════ */
+
+.panel-container {
+    background: alpha(var(--bg1), 0.9);
+    border-radius: 14px;
+    padding: 4px 14px;
+    margin: 4px;
+    border: 1px solid var(--bg3);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* TASKBAR ITEMS                                                    */
+/* ═══════════════════════════════════════════════════════════════ */
+
+.taskbar-item {
+    background: transparent;
+    border: none;
+    border-radius: 10px;
+    padding: 6px 10px;
+    margin: 2px;
+    min-width: 46px;
+    min-height: 46px;
+    transition: all 150ms ease;
+}
+
+.taskbar-item:hover {
+    background: alpha(var(--fg), 0.12);
+}
+
+.taskbar-item.focused {
+    background: alpha(var(--blue), 0.25);
+}
+
+.taskbar-item.focused:hover {
+    background: alpha(var(--blue), 0.35);
+}
+
+/* Pinned but not running - dimmed */
+.taskbar-item.not-running {
+    opacity: 0.5;
+}
+
+.taskbar-item.not-running:hover {
+    opacity: 0.9;
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* TASKBAR ICONS                                                    */
+/* ═══════════════════════════════════════════════════════════════ */
+
+.taskbar-item-icon {
+    color: var(--fg);
+}
+
+.taskbar-item.focused .taskbar-item-icon {
+    color: white;
+}
+
+/* Nerd Font Icons */
+.nerd-icon {
+    font-family: "JetBrainsMono Nerd Font", "Symbols Nerd Font", monospace;
+    font-size: 24px;
+    color: var(--fg);
+}
+
+.taskbar-item.focused .nerd-icon {
+    color: white;
+}
+
+.taskbar-item.not-running .nerd-icon {
+    color: var(--grey0);
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* RUNNING INDICATOR DOT                                            */
+/* ═══════════════════════════════════════════════════════════════ */
+
+.running-indicator {
+    background: var(--blue);
+    border-radius: 50%;
+    min-width: 6px;
+    min-height: 6px;
+    margin-top: 3px;
+    transition: all 150ms ease;
+}
+
+.running-indicator.hidden {
+    opacity: 0;
+    min-height: 6px;
+}
+
+.running-indicator.visible {
+    opacity: 1;
+}
+
+/* Focused app - brighter indicator */
+.taskbar-item.focused .running-indicator {
+    background: var(--aqua);
+    box-shadow: 0 0 6px var(--aqua);
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* SEPARATOR                                                        */
+/* ═══════════════════════════════════════════════════════════════ */
+
+.separator {
+    background: alpha(var(--fg), 0.15);
+    min-width: 1px;
+    margin: 10px 8px;
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* WINDOW LIST POPOVER                                              */
+/* ═══════════════════════════════════════════════════════════════ */
+
+.window-list-popover {
+    background: var(--bg0);
+    border: 1px solid var(--bg3);
+    border-radius: 12px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+}
+
+.window-list-popover contents {
+    background: transparent;
+    padding: 6px;
+}
+
+.window-list-item {
+    background: transparent;
+    padding: 10px 14px;
+    border-radius: 8px;
+    min-width: 220px;
+    transition: all 150ms ease;
+}
+
+.window-list-item:hover {
+    background: alpha(var(--fg), 0.1);
+}
+
+.window-list-item label {
+    color: var(--fg);
+    font-size: 13px;
+}
+
+/* Close button in window list */
+.window-close-btn {
+    opacity: 0.4;
+    min-width: 26px;
+    min-height: 26px;
+    border-radius: 6px;
+    transition: all 150ms ease;
+}
+
+.window-close-btn:hover {
+    opacity: 1;
+    background: alpha(var(--red), 0.2);
+    color: var(--red);
+}
+
+/* Focus indicator arrow */
+.focus-indicator {
+    color: var(--blue);
+    font-weight: bold;
+    font-size: 14px;
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* CONTEXT MENU                                                     */
+/* ═══════════════════════════════════════════════════════════════ */
+
+.context-menu {
+    background: var(--bg0);
+    border: 1px solid var(--bg3);
+    border-radius: 12px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+}
+
+.context-menu contents {
+    background: transparent;
+    padding: 4px;
+}
+
+.context-menu button {
+    background: transparent;
+    color: var(--fg);
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    transition: all 150ms ease;
+    border: none;
+}
+
+.context-menu button:hover {
+    background: alpha(var(--fg), 0.1);
+}
+
+/* Pin/Unpin specific styling */
+.context-menu button.pin-action {
+    color: var(--yellow);
+}
+
+.context-menu button.close-action {
+    color: var(--red);
+}
+
+.context-menu button.close-action:hover {
+    background: alpha(var(--red), 0.15);
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* WINDOW COUNT BADGE (if needed)                                   */
+/* ═══════════════════════════════════════════════════════════════ */
+
+.window-count-badge {
+    background: var(--red);
+    color: white;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 5px;
+    border-radius: 8px;
+    min-width: 14px;
+    min-height: 14px;
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* TOOLTIP STYLING                                                  */
+/* ═══════════════════════════════════════════════════════════════ */
+
+tooltip {
+    background: var(--bg0);
+    border: 1px solid var(--bg3);
+    border-radius: 8px;
+    padding: 6px 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+tooltip label {
+    color: var(--fg);
+    font-size: 12px;
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* ANIMATIONS (Optional - uncomment if wanted)                      */
+/* ═══════════════════════════════════════════════════════════════ */
+
+/*
+@keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 4px var(--blue); }
+    50% { box-shadow: 0 0 12px var(--blue); }
+}
+
+.taskbar-item.focused .running-indicator {
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+*/
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* DRAG & DROP (Future - for reordering)                            */
+/* ═══════════════════════════════════════════════════════════════ */
+
+.taskbar-item.dragging {
+    opacity: 0.5;
+    transform: scale(1.1);
+}
+
+.taskbar-item.drop-target {
+    border: 2px dashed var(--blue);
+    background: alpha(var(--blue), 0.1);
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* RESPONSIVE / SIZE VARIANTS                                       */
+/* ═══════════════════════════════════════════════════════════════ */
+
+/* Small variant */
+.panel-container.small .taskbar-item {
+    min-width: 38px;
+    min-height: 38px;
+    padding: 4px 8px;
+}
+
+.panel-container.small .nerd-icon {
+    font-size: 20px;
+}
+
+.panel-container.small .running-indicator {
+    min-width: 4px;
+    min-height: 4px;
+}
+
+/* Large variant */
+.panel-container.large .taskbar-item {
+    min-width: 54px;
+    min-height: 54px;
+    padding: 8px 12px;
+}
+
+.panel-container.large .nerd-icon {
+    font-size: 28px;
+}
+
+.panel-container.large .running-indicator {
+    min-width: 8px;
+    min-height: 8px;
+}

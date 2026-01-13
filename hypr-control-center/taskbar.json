@@ -1,0 +1,60 @@
+{
+  "pinned": [
+    {
+      "app_id": "firefox",
+      "name": "Firefox",
+      "icon": "firefox",
+      "exec_cmd": "/usr/lib/firefox/firefox",
+      "desktop_file": "/usr/share/applications/firefox.desktop",
+      "wm_class": "firefox"
+    },
+    {
+      "app_id": "thunar",
+      "name": "Thunar File Manager",
+      "icon": "org.xfce.thunar",
+      "exec_cmd": "thunar",
+      "desktop_file": "/usr/share/applications/thunar.desktop",
+      "wm_class": null
+    },
+    {
+      "app_id": "kitty",
+      "name": "kitty",
+      "icon": "kitty",
+      "exec_cmd": "kitty",
+      "desktop_file": "/usr/share/applications/kitty.desktop",
+      "wm_class": null
+    },
+    {
+      "app_id": "code-oss",
+      "name": "Code - OSS",
+      "icon": "com.visualstudio.code.oss",
+      "exec_cmd": "code-oss",
+      "desktop_file": "/usr/share/applications/code-oss.desktop",
+      "wm_class": "code-oss"
+    },
+    {
+      "app_id": "steam",
+      "name": "Steam",
+      "icon": "steam",
+      "exec_cmd": "/usr/bin/steam",
+      "desktop_file": "/usr/share/applications/steam.desktop",
+      "wm_class": null
+    },
+    {
+      "app_id": "openrgb",
+      "name": "OpenRGB",
+      "icon": "org.openrgb.OpenRGB",
+      "exec_cmd": "openrgb",
+      "desktop_file": "/usr/share/applications/org.openrgb.OpenRGB.desktop",
+      "wm_class": "openrgb"
+    },
+    {
+      "app_id": "standard notes",
+      "name": "Standard notes",
+      "icon": "standard notes",
+      "exec_cmd": "standard notes",
+      "desktop_file": null,
+      "wm_class": "standard notes"
+    }
+  ]
+}

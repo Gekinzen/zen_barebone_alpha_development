@@ -1,0 +1,145 @@
+// Waybar Config - wlr/taskbar (colored icons) + custom pinned apps
+{
+    "height": 20,
+    "position": "bottom",
+    "layer": "top",
+    "margin-top": 0,
+    "margin-right": 0,
+    "margin-bottom": 0,
+    "margin-left": 0,
+    
+    "modules-left": [
+        "custom/pinned",      // ← Pinned apps that are NOT running (Nerd Fonts)
+        "wlr/taskbar",        // ← Running apps (colored PNG icons)
+        "hyprland/window"
+    ],
+    
+    "modules-center": [
+        "hyprland/workspaces"
+    ],
+    
+    "modules-right": [
+        "pulseaudio",
+        "network",
+        "battery",
+        "custom/notification",
+        "clock"
+    ],
+    
+    // ═══════════════════════════════════════════════════════════
+    // PINNED APPS (not running) - Nerd Font icons
+    // ═══════════════════════════════════════════════════════════
+    "custom/pinned": {
+        "return-type": "json",
+        "exec": "~/.config/hypr/scripts/waybar/pinned-apps-render.sh",
+        "interval": 2,
+        "format": "{}",
+        "escape": false,
+        "on-click": "~/.config/hypr/scripts/waybar/pinned-apps-click.sh"
+    },
+    
+    // ═══════════════════════════════════════════════════════════
+    // RUNNING APPS - Native taskbar with colored icons + pin support
+    // ═══════════════════════════════════════════════════════════
+    "wlr/taskbar": {
+        "format": "{icon}",
+        "icon-size": 20,
+        "icon-theme": "Papirus-Dark",
+        "tooltip-format": "{title}",
+        "on-click": "activate",
+        "on-click-middle": "close",
+        "on-click-right": "~/.config/hypr/scripts/waybar/taskbar-wlr-menu.sh"
+    },
+    
+    // ═══════════════════════════════════════════════════════════
+    // OTHER MODULES (unchanged)
+    // ═══════════════════════════════════════════════════════════
+    
+    "clock": {
+        "format": "  {:%I:%M:%S %p} ",
+        "interval": 1,
+        "tooltip-format": "<tt>{calendar}</tt>",
+        "calendar": {
+            "format": {
+                "today": "<span color='#fAfBfC'><b>{}</b></span>"
+            }
+        }
+    },
+    
+    "hyprland/workspaces": {
+        "disable-scroll": true,
+        "sort-by-name": true,
+        "format": " {icon} ",
+        "persistent-workspaces": {
+            "*": 4
+        },
+        "format-icons": {
+            "1": "",
+            "2": "",
+            "3": "",
+            "4": "",
+            "5": "",
+            "urgent": "",
+            "focused": "",
+            "inactive": "",
+            "empty": ""
+        }
+    },
+    
+    "pulseaudio": {
+        "format": "{volume}% {icon}",
+        "format-bluetooth": "{volume}% {icon}",
+        "format-muted": "",
+        "format-icons": {
+            "headphone": "",
+            "default": ["", ""]
+        },
+        "on-click": "pavucontrol"
+    },
+    
+    "network": {
+        "format-wifi": "{essid} ({signalStrength}%) ",
+        "format-ethernet": "{ipaddr}/{cidr} ",
+        "format-disconnected": "",
+        "tooltip-format": "{ifname} via {gwaddr} "
+    },
+    
+    "battery": {
+        "interval": 60,
+        "states": {
+            "warning": 30,
+            "critical": 15
+        },
+        "format": "{capacity}% {icon}",
+        "format-icons": ["", "", "", "", ""]
+    },
+    
+    "custom/notification": {
+        "tooltip": true,
+        "format": "<span size='16pt'>{icon}</span>",
+        "format-icons": {
+            "notification": "",
+            "none": ""
+        },
+        "return-type": "json",
+        "exec-if": "which swaync-client",
+        "exec": "swaync-client -swb",
+        "on-click": "swaync-client -t -sw",
+        "on-click-right": "swaync-client -d -sw",
+        "escape": true
+    },
+    
+    "hyprland/window": {
+        "format": "{title}",
+        "max-length": 50,
+        "separate-outputs": true,
+        "rewrite": {
+            "(.*) — Mozilla Firefox": "  $1",
+            "(.*) - Mozilla Firefox": "  $1",
+            "(.*) - Visual Studio Code": "  $1",
+            "(.*) - Code": "  $1",
+            "(.*) - kitty": "  $1",
+            "(.*)": "  $1"
+        }
+    }
+}
