@@ -2,6 +2,11 @@
 Waybar Configuration Manager
 Handles Waybar config.json and style.css files
 INCLUDES: Hexdump utility for Nerd Font icon extraction and preservation
+
+CRITICAL FIX: 
+- save_config() NEVER overwrites existing module definitions (preserves icons!)
+- Uses LITERAL Font Awesome characters (same as user's working config)
+- Font: JetBrainsMono Nerd Font Propo (for proper spacing)
 """
 
 import json
@@ -187,11 +192,21 @@ class WaybarManager:
                 # Simple comment removal (not perfect but works for most cases)
                 lines = []
                 for line in content.split('\n'):
-                    # Remove // comments
-                    if '//' in line:
-                        line = line[:line.index('//')]
+                    # Remove // comments (but be careful with URLs)
+                    if '//' in line and not '://' in line:
+                        # Find // that's not inside a string
+                        in_string = False
+                        for i, char in enumerate(line):
+                            if char == '"' and (i == 0 or line[i-1] != '\\'):
+                                in_string = not in_string
+                            if not in_string and line[i:i+2] == '//':
+                                line = line[:i]
+                                break
                     lines.append(line)
                 clean_content = '\n'.join(lines)
+                
+                # Remove trailing commas (common in JSONC)
+                clean_content = re.sub(r',(\s*[}\]])', r'\1', clean_content)
                 
                 config = json.loads(clean_content)
                 if is_dock:
@@ -204,7 +219,13 @@ class WaybarManager:
             return False
     
     def save_config(self, config: Dict[str, Any], is_dock: bool = False):
-        """Save waybar config.jsonc - preserves all module definitions INCLUDING Nerd Font icons"""
+        """
+        Save waybar config.jsonc
+        
+        CRITICAL: This method PRESERVES existing module definitions!
+        It ONLY updates layout keys (modules-left, modules-right, etc.)
+        This ensures icons in format strings are NEVER corrupted!
+        """
         config_path = self.waybar2_config if is_dock else self.config_file
         config_dir = config_path.parent
         
@@ -219,29 +240,42 @@ class WaybarManager:
                     # Remove comments for parsing
                     lines = []
                     for line in content.split('\n'):
-                        if '//' in line:
-                            line = line[:line.index('//')]
+                        if '//' in line and not '://' in line:
+                            in_string = False
+                            for i, char in enumerate(line):
+                                if char == '"' and (i == 0 or line[i-1] != '\\'):
+                                    in_string = not in_string
+                                if not in_string and line[i:i+2] == '//':
+                                    line = line[:i]
+                                    break
                         lines.append(line)
-                    existing_config = json.loads('\n'.join(lines))
-            except:
+                    clean = '\n'.join(lines)
+                    clean = re.sub(r',(\s*[}\]])', r'\1', clean)
+                    existing_config = json.loads(clean)
+            except Exception as e:
+                print(f"Error reading existing config: {e}")
                 pass
         
-        # Update only the editable properties
-        editable_keys = [
+        # ═══════════════════════════════════════════════════════════════════
+        # CRITICAL: Only update LAYOUT keys - NEVER touch module definitions!
+        # This preserves all icons in format strings!
+        # ═══════════════════════════════════════════════════════════════════
+        layout_keys = [
             'height', 'position', 'layer',
             'margin-top', 'margin-bottom', 'margin-left', 'margin-right',
             'modules-left', 'modules-center', 'modules-right'
         ]
         
-        # Start with existing config to preserve module definitions
+        # Start with existing config to preserve ALL module definitions
         final_config = existing_config.copy()
         
-        # Update layout keys (position, margins, modules-*)
-        for key in editable_keys:
+        # Update ONLY layout keys from the new config
+        for key in layout_keys:
             if key in config:
                 final_config[key] = config[key]
 
-        # Merge ALL missing module definitions from new config
+        # Add NEW module definitions that don't exist yet
+        # (but NEVER overwrite existing ones!)
         for key, value in config.items():
             if key not in final_config:
                 final_config[key] = value
@@ -249,7 +283,8 @@ class WaybarManager:
         # Convert surrogate pairs to actual characters before saving
         final_config = self._fix_surrogate_pairs(final_config)
                 
-        # Save with UTF-8 encoding
+        # CRITICAL: Save with UTF-8 encoding AND ensure_ascii=False!
+        # This preserves all Unicode characters including Nerd Font icons!
         with open(config_path, 'w', encoding='utf-8') as f:
             json.dump(final_config, f, indent=4, ensure_ascii=False)
         
@@ -415,10 +450,18 @@ class WaybarManager:
                 # Remove comments
                 lines = []
                 for line in content.split('\n'):
-                    if '//' in line:
-                        line = line[:line.index('//')]
+                    if '//' in line and not '://' in line:
+                        in_string = False
+                        for i, char in enumerate(line):
+                            if char == '"' and (i == 0 or line[i-1] != '\\'):
+                                in_string = not in_string
+                            if not in_string and line[i:i+2] == '//':
+                                line = line[:i]
+                                break
                     lines.append(line)
-                config = json.loads('\n'.join(lines))
+                clean = '\n'.join(lines)
+                clean = re.sub(r',(\s*[}\]])', r'\1', clean)
+                config = json.loads(clean)
                 return config
         except Exception as e:
             print(f"Error loading default config from file: {e}")
@@ -426,7 +469,25 @@ class WaybarManager:
             return self._get_hardcoded_default(is_dock)
 
     def _get_hardcoded_default(self, is_dock: bool = False) -> Dict[str, Any]:
-        """Hardcoded fallback default config"""
+        """
+        Hardcoded fallback default config
+        
+        IMPORTANT: Uses LITERAL Font Awesome icon characters!
+        These are COPY-PASTED from the user's working config.
+        Font: JetBrainsMono Nerd Font Propo (for proper spacing)
+        
+        Font Awesome icons (U+F000 - U+F8FF range):
+        -  (U+F2DB) = microchip (CPU)
+        -  (U+F538) = memory
+        -  (U+F2C9) = thermometer-half
+        -  (U+F028) = volume-up
+        -  (U+F017) = clock
+        -  (U+F293) = bluetooth-b
+        -  (U+F0E7) = bolt (battery)
+        -  (U+F1E6) = plug (charging)
+        - ,,,,  = battery levels
+        -  (U+F104) = chevron-left (expand)
+        """
         if is_dock:
             return {
                 "height": 60,
@@ -510,14 +571,14 @@ class WaybarManager:
                     "tooltip": True,
                     "format": "<span size='16pt'>{icon}</span>",
                     "format-icons": {
-                        "notification": "\udb84\udd6b",
-                        "none": "\udb80\udc9c",
-                        "dnd-notification": "\udb80\udca0",
-                        "dnd-none": "\udb82\ude93",
-                        "inhibited-notification": "\udb80\udc9b",
-                        "inhibited-none": "\udb82\ude91",
-                        "dnd-inhibited-notification": "\udb80\udc9b",
-                        "dnd-inhibited-none": "\udb82\ude91"
+                        "notification": "󱅫",
+                        "none": "󰂜",
+                        "dnd-notification": "󰂠",
+                        "dnd-none": "󰪓",
+                        "inhibited-notification": "󰂛",
+                        "inhibited-none": "󰪑",
+                        "dnd-inhibited-notification": "󰂛",
+                        "dnd-inhibited-none": "󰪑"
                     },
                     "return-type": "json",
                     "exec-if": "which swaync-client",
@@ -527,14 +588,11 @@ class WaybarManager:
                     "escape": True
                 },
                 "custom/taskbar": {
+                    "exec": f"{home_dir}/.config/hypr-control-center/src/waybar-taskbar-v2/waybar-taskbar",
                     "return-type": "json",
-                    "exec": f"{home_dir}/.config/hypr/scripts/waybar/taskbar-render.sh",
                     "interval": 1,
-                    "format": "{}",
-                    "escape": False,
-                    "on-click": f"{home_dir}/.config/hypr/scripts/waybar/taskbar-click.sh",
-                    "on-click-middle": f"{home_dir}/.config/hypr/scripts/waybar/taskbar-smart-click.sh",
-                    "on-click-right": f"{home_dir}/.config/hypr/scripts/waybar/taskbar-menu-global.sh"
+                    "on-click": f"{home_dir}/.config/hypr-control-center/scripts/taskbar-toggle.sh",
+                    "escape": False
                 },
                 "custom/pinned": {
                     "return-type": "json",
@@ -564,9 +622,13 @@ class WaybarManager:
                         "(.*)": "  $1"
                     }
                 },
+                # ═══════════════════════════════════════════════════════════════
+                # LITERAL Font Awesome icons - COPY-PASTED from working config!
+                # These work with JetBrainsMono Nerd Font Propo
+                # ═══════════════════════════════════════════════════════════════
                 "cpu": {
                     "interval": 1,
-                    "format": "\uf2db {icon}",
+                    "format": " {icon}",
                     "format-icons": ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"],
                     "tooltip": True,
                     "tooltip-format": "CPU Status:\n{usage}% Used\n{avg_frequency}GHz",
@@ -574,20 +636,20 @@ class WaybarManager:
                 },
                 "memory": {
                     "interval": 1,
-                    "format": "\uf538 {icon}",
+                    "format": " {icon}",
                     "format-icons": ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"],
                     "tooltip": True,
                     "tooltip-format": "Memory:\n{used:0.1f}G / {total:0.1f}G\n{percentage}% Used\n\nSwap:\n{swapUsed:0.1f}G / {swapTotal:0.1f}G",
                     "on-click": f"{home_dir}/.config/alacritty/btmrun.sh"
                 },
                 "temperature": {
-                    "format": "\uf2c9 {icon}",
+                    "format": " {icon}",
                     "format-icons": ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"],
                     "tooltip-format": "Temperature:  {temperatureC}°C"
                 },
                 "pulseaudio": {
                     "scroll-step": 10,
-                    "format": "\uf028 {icon}",
+                    "format": " {icon}",
                     "format-muted": "",
                     "format-icons": {
                         "default": ["▁", "▂", "▃", "▄", "▅", "▆", "▇"]
@@ -613,10 +675,10 @@ class WaybarManager:
                     "on-click": f"{home_dir}/.config/hypr-control-center/scripts/wifi_selector.py"
                 },
                 "bluetooth": {
-                    "format": "\uf293 ",
-                    "format-disabled": "\uf293 ",
-                    "format-connected": "\uf293 {num_connections} ",
-                    "format-connected-battery": "\uf293 {num_connections} {device_battery_percentage}% ",
+                    "format": " ",
+                    "format-disabled": " ",
+                    "format-connected": " {num_connections} ",
+                    "format-connected-battery": " {num_connections} {device_battery_percentage}% ",
                     "tooltip": True,
                     "tooltip-format": "Bluetooth: {status}\n{num_connections} device(s) connected",
                     "tooltip-format-connected": "Bluetooth Connected:\n{device_enumerate}",
@@ -631,23 +693,17 @@ class WaybarManager:
                         "warning": 30,
                         "critical": 15
                     },
-                    "format": "\uf0e7 {icon} ",
-                    "format-charging": "\uf1e6 {icon} ",
-                    "format-plugged": "\uf1e6 {icon} ",
-                    "format-icons": [
-                        "\uf244",
-                        "\uf243",
-                        "\uf242",
-                        "\uf241",
-                        "\uf240"
-                    ],
+                    "format": " {icon} ",
+                    "format-charging": " {icon} ",
+                    "format-plugged": " {icon} ",
+                    "format-icons": ["", "", "", "", ""],
                     "tooltip": True,
                     "tooltip-format": "Battery:\n{capacity}% {timeTo}\nPower: {power}W\n\nStatus: {status}",
                     "tooltip-format-charging": "Battery Charging:\n{capacity}% - {timeTo}\nPower: {power}W",
                     "tooltip-format-full": "Battery Full:\n100% Charged"
                 },
                 "custom/pacman": {
-                    "format": "\U000f003c {}",
+                    "format": "󰀼 {}",
                     "interval": 3600,
                     "exec": "checkupdates 2>/dev/null | wc -l || echo 0",
                     "exec-if": "exit 0",
@@ -676,7 +732,7 @@ class WaybarManager:
                     ]
                 },
                 "custom/expand": {
-                    "format": "\uf104",
+                    "format": "",
                     "tooltip": False
                 },
                 "custom/endpoint": {
@@ -684,7 +740,7 @@ class WaybarManager:
                     "tooltip": False
                 },
                 "clock": {
-                    "format": "\uf017 {:%Y-%m-%d \n %I:%M:%S %p}",
+                    "format": " {:%Y-%m-%d \n %I:%M:%S %p}",
                     "interval": 1,
                     "tooltip-format": "<tt>{calendar}</tt>",
                     "calendar": {
@@ -750,6 +806,7 @@ class WaybarManager:
             "custom/pacman",
             "custom/expand",
             "custom/endpoint",
+            "group/expand",
             "idle_inhibitor",
             "mpd",
             "custom/weather",
@@ -762,6 +819,59 @@ class WaybarManager:
         # This method can be extended to change modules based on style
         # For now, it just reloads to apply CSS changes
         pass
+    
+    # ====================================================================
+    # FONT MANAGEMENT - Always keep JetBrainsMono Nerd Font Propo as fallback!
+    # ====================================================================
+    
+    def get_font_family_string(self, primary_font: str) -> str:
+        """
+        Generate font-family string with JetBrainsMono Nerd Font Propo as fallback.
+        This ensures Nerd Font icons ALWAYS render correctly!
+        
+        Pattern: "[Primary Font]", "JetBrainsMono Nerd Font Propo", sans-serif
+        
+        Example:
+        - Input: "GeistMono Nerd Font Mono"
+        - Output: "GeistMono Nerd Font Mono", "JetBrainsMono Nerd Font Propo", sans-serif
+        """
+        # Always keep JetBrainsMono Nerd Font Propo as fallback for icons!
+        NERD_FONT_FALLBACK = "JetBrainsMono Nerd Font Propo"
+        
+        # Don't duplicate if primary is already JetBrainsMono
+        if "JetBrainsMono" in primary_font:
+            return f'"{primary_font}", sans-serif'
+        
+        return f'"{primary_font}", "{NERD_FONT_FALLBACK}", sans-serif'
+    
+    def update_style_font(self, style_content: str, primary_font: str) -> str:
+        """
+        Update font-family in style.css content while preserving JetBrainsMono fallback.
+        
+        Args:
+            style_content: Current style.css content
+            primary_font: The user's chosen primary font
+            
+        Returns:
+            Updated style.css content with proper font-family
+        """
+        import re
+        
+        new_font_family = self.get_font_family_string(primary_font)
+        
+        # Pattern to match font-family in * block
+        pattern = r'(\*\s*\{[^}]*?)font-family:[^;]+;'
+        
+        if re.search(pattern, style_content, re.DOTALL):
+            # Replace existing font-family
+            style_content = re.sub(
+                pattern,
+                f'\\1font-family: {new_font_family};',
+                style_content,
+                flags=re.DOTALL
+            )
+        
+        return style_content
 
 
 # Utility to run icon analysis from command line

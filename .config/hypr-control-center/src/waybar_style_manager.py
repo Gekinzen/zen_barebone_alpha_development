@@ -2,6 +2,7 @@
 Waybar CSS Manager
 Handles style.css modifications for opacity, size, and border-radius
 INCLUDES: Hexdump utility for preserving Nerd Font icons
+FIXED: Always keeps JetBrainsMono Nerd Font Propo as fallback for icons!
 """
 
 import re
@@ -14,11 +15,82 @@ from typing import Optional
 class WaybarStyleManager:
     """Manages Waybar style.css file"""
     
+    # ═══════════════════════════════════════════════════════════════════
+    # CRITICAL: Always use this as fallback for Nerd Font icons!
+    # ═══════════════════════════════════════════════════════════════════
+    NERD_FONT_FALLBACK = "JetBrainsMono Nerd Font Propo"
+    
     def __init__(self, waybar_dir: Path):
         self.waybar_dir = waybar_dir
         self.style_file = self.waybar_dir / "style.css"
         self.config_file = self.waybar_dir / "config.jsonc"
         self.current_style = ""
+    
+    # ====================================================================
+    # FONT MANAGEMENT - Always keep Nerd Font Propo as fallback!
+    # ====================================================================
+    
+    def get_font_family_string(self, primary_font: str) -> str:
+        """
+        Generate font-family string with JetBrainsMono Nerd Font Propo as fallback.
+        This ensures Nerd Font icons ALWAYS render correctly!
+        
+        Pattern: "[Primary Font]", "JetBrainsMono Nerd Font Propo", sans-serif
+        
+        Examples:
+        - Input: "GeistMono Nerd Font Mono"
+          Output: "GeistMono Nerd Font Mono", "JetBrainsMono Nerd Font Propo", sans-serif
+          
+        - Input: "Adwaita Sans"
+          Output: "Adwaita Sans", "JetBrainsMono Nerd Font Propo", sans-serif
+          
+        - Input: "JetBrainsMono Nerd Font Propo"
+          Output: "JetBrainsMono Nerd Font Propo", sans-serif (no duplicate)
+        """
+        # Don't duplicate if primary is already JetBrainsMono Propo
+        if "JetBrainsMono Nerd Font Propo" in primary_font:
+            return f'"{primary_font}", sans-serif'
+        
+        # Don't duplicate if it's any JetBrainsMono variant
+        if "JetBrainsMono" in primary_font and "Nerd Font" in primary_font:
+            return f'"{primary_font}", "{self.NERD_FONT_FALLBACK}", sans-serif'
+        
+        return f'"{primary_font}", "{self.NERD_FONT_FALLBACK}", sans-serif'
+    
+    def set_font_family(self, primary_font: str):
+        """
+        Set the primary font while keeping JetBrainsMono Nerd Font Propo as fallback.
+        
+        Args:
+            primary_font: The user's chosen primary font (e.g., "GeistMono Nerd Font Mono")
+        """
+        new_font_family = self.get_font_family_string(primary_font)
+        
+        # Pattern to match font-family in * block
+        pattern = r'(\*\s*\{[^}]*?)font-family:[^;]+;'
+        
+        if re.search(pattern, self.current_style, re.DOTALL):
+            self.current_style = re.sub(
+                pattern,
+                f'\\1font-family: {new_font_family};',
+                self.current_style,
+                flags=re.DOTALL
+            )
+        else:
+            # If * block doesn't have font-family, add it
+            pattern = r'(\*\s*\{)'
+            self.current_style = re.sub(
+                pattern,
+                f'\\1\n    font-family: {new_font_family};',
+                self.current_style
+            )
+    
+    def get_current_font(self) -> Optional[str]:
+        """Get the current primary font from style.css"""
+        match = re.search(r'\*\s*\{[^}]*?font-family:\s*"([^"]+)"', self.current_style, re.DOTALL)
+        if match:
+            return match.group(1)
+        return None
         
     def load_style(self) -> bool:
         """Load current style.css"""
@@ -256,11 +328,11 @@ class WaybarStyleManager:
         if re.search(pattern, self.current_style):
             self.current_style = re.sub(pattern, f'\\1{new_size}', self.current_style)
         else:
-            # If * block doesn't exist, create it
+            # If * block doesn't exist, create it with proper font-family
             global_block = f'''*{{
     border:none;
     border-radius:0px;
-    font-family: "Adwaita Sans", "JetBrainsMono Nerd Font Propo", sans-serif;
+    font-family: "Adwaita Sans", "{self.NERD_FONT_FALLBACK}", sans-serif;
     {new_size}
     font-weight:bold;
     min-height: 0;
@@ -366,37 +438,39 @@ class WaybarStyleManager:
         except:
             return 'minimal'
 
-    def create_modern_style(self) -> str:
+    def create_modern_style(self, primary_font: str = "JetBrainsMono Nerd Font Propo") -> str:
         """Create modern Waybar style (rounded, semi-transparent)"""
-        return '''@import '../colorscheme/everforest-dark.css';
+        font_family = self.get_font_family_string(primary_font)
+        
+        return f'''@import '../colorscheme/everforest-dark.css';
 
-* {
+* {{
     border: none;
     border-radius: 0px;
-    font-family: "JetBrainsMono Nerd Font Propo", sans-serif;
+    font-family: {font_family};
     font-size: 15px;
     font-weight: bold;
     min-height: 0;
     padding: 0;
     margin: 0;
-}
+}}
 
-#waybar {
+#waybar {{
     background-color: rgba(49,50,68,0.4);
     margin: 5px 5px;
     border-radius: 2rem;
-}
+}}
 
-tooltip {
+tooltip {{
     background: @bg0;
     border: 1px solid @bg3;
     border-radius: 12px;
-}
+}}
 
-tooltip label {
+tooltip label {{
     color: @fg;
     padding: 6px;
-}
+}}
 
 #bluetooth,
 #temperature,
@@ -414,42 +488,42 @@ tooltip label {
 #custom-taskbar,
 #taskbar,
 #tray,
-#workspaces {
+#workspaces {{
 background-color: rgba(255, 255, 255, 0);
     padding: 9px;
     margin: 0px;
     margin-top: 3px;
     transition: all 0.4s ease;
-}
+}}
 
-#bluetooth {
+#bluetooth {{
     margin-left: 0.1px;
     margin-right: 0px;
     border-radius: 0.5rem;
     color: #f38ba8;
     padding-left: 17px;
     padding-right: 17px;
-}
+}}
 
-#bluetooth.off { color: #8bd5ca; }
-#bluetooth.on { color: #a6e3a1; }
-#bluetooth.disabled { color: #8bd5ca; }
+#bluetooth.off {{ color: #8bd5ca; }}
+#bluetooth.on {{ color: #a6e3a1; }}
+#bluetooth.disabled {{ color: #8bd5ca; }}
 
-#battery {
+#battery {{
     margin-left: 0.1px;
     margin-right: 0px;
     border-radius: 0.5rem;
     color: #f9e2af;
     padding-left: 0px;
     padding-right: 15px;
-}
+}}
 
-#battery.charging { color: #a6e3a1; }
-#battery.warning:not(.charging) { color: #f38ba8; }
+#battery.charging {{ color: #a6e3a1; }}
+#battery.warning:not(.charging) {{ color: #f38ba8; }}
 
-#backlight { color: #f9e2af; }
+#backlight {{ color: #f9e2af; }}
 
-#custom-music {
+#custom-music {{
     margin-left: 0.1px;
     margin-right: 5px;
     border-radius: 0.5rem 2rem 2rem 0.5rem;
@@ -457,224 +531,226 @@ background-color: rgba(255, 255, 255, 0);
     padding-left: 17px;
     padding-right: 17px;
     font-size: 14px;
-}
+}}
 
-#custom-music:hover {
+#custom-music:hover {{
     border-radius: 1rem;
     background-color: rgba(69,71,90,0.55);
-}
+}}
 
-#custom-menuApp {
+#custom-menuApp {{
     margin-left: 5px;
     margin-right: 0px;
     border-radius: 2rem 0.5rem 0.5rem 2rem;
     color: #f38ba8;
     transition: all 0.4s ease;
     padding-right: 14px;
-}
+}}
 
-#custom-menuApp:hover {
+#custom-menuApp:hover {{
     border-radius: 1rem;
     background-color: rgba(69,71,90,0.55);
-}
+}}
 
-#custom-switcher {
+#custom-switcher {{
     margin-left: 0.1px;
     margin-right: 0px;
     border-radius: 0.5rem;
     color: #d65d0e;
     padding-left: 10px;
     padding-right: 7px;
-}
+}}
 
-#custom-switcher:hover {
+#custom-switcher:hover {{
     border-radius: 1rem;
     background-color: rgba(69,71,90,0.55);
-}
+}}
 
-#custom-power {
+#custom-power {{
     margin-left: 0.1px;
     margin-right: 0px;
     border-radius: 0.5rem 2rem 2rem 0.5rem;
     color: #f38ba8;
     padding-left: 20px;
     padding-right: 23px;
-}
+}}
 
-#custom-power:hover {
+#custom-power:hover {{
     border-radius: 1rem;
     background-color: rgba(69,71,90,0.55);
-}
+}}
 
-#pulseaudio {
+#pulseaudio {{
     margin-left: 0.1px;
     margin-right: 0px;
     border-radius: 2rem 0.5rem 0.5rem 2rem;
     color: #f9e2af;
     padding-left: 10px;
     padding-right: 17px;
-}
+}}
 
-#network, #cpu, #memory, #temperature, #clock {
+#network, #cpu, #memory, #temperature, #clock {{
     margin-left: 0.1px;
     margin-right: 0px;
     border-radius: 0.5rem;
     padding-left: 17px;
     padding-right: 17px;
-}
+}}
 
-#network { color: #f9e2af; }
-#cpu { color: #a6e3a1; }
-#memory { color: #8bd5ca; }
-#temperature { color: #f38ba8; }
-#clock { 
+#network {{ color: #f9e2af; }}
+#cpu {{ color: #a6e3a1; }}
+#memory {{ color: #8bd5ca; }}
+#temperature {{ color: #f38ba8; }}
+#clock {{ 
     color: #89b4fa; 
     transition: all .3s ease;
-}
+}}
 
 
-#custom-notification {
+#custom-notification {{
     color: #f9e2af;
     margin-left: 0.1px;
     margin-right: 0px;
     border-radius: 0.5rem;
     padding-left: 17px;
     padding-right: 17px;
-}
+}}
 
-#tray {
+#tray {{
     background-color: rgba(49,50,68,0);
     padding: 9px 10px;
     margin: 0px;
     margin-top: 3px;
     border-radius: 0.5rem;
-}
+}}
 
-#tray > .passive {
+#tray > .passive {{
     -gtk-icon-effect: dim;
-}
+}}
 
-#tray > .needs-attention {
+#tray > .needs-attention {{
     -gtk-icon-effect: highlight;
     background-color: #f38ba8;
-}
+}}
 
 #memory:hover, #network:hover, #cpu:hover, #bluetooth:hover,
 #pulseaudio:hover, #clock:hover, #temperature:hover, #battery:hover,
-#custom-notification:hover, #tray:hover {
+#custom-notification:hover, #tray:hover {{
     color: #f38ba8;
     border-radius: 1rem;
-}
+}}
 
 ################workspaces##############
-#workspaces {
+#workspaces {{
     background-color: rgba(49,50,68,0); /* semi-transparent */
     border-radius: 2rem;
     padding: 10px;
     margin-left: 5px;
     transition: all 0.5s ease-in-out;
-}
+}}
 
-#workspaces button {
+#workspaces button {{
     background-color: rgba(255,255,255,0.5); /* semi-transparent */
     border-radius: 2rem;
     padding: 0px;
     margin-right: 5px;
     transition: all 0.5s ease-out;
     min-width: 22px;
-}
+}}
 
-#workspaces button.active {
+#workspaces button.active {{
     min-width: 50px;
     background-color: rgba(255,255,255,0.7); /* semi-transparent */
-}
+}}
 
-#workspaces button:hover {
+#workspaces button:hover {{
     background-color: rgba(255,255,255,0.7); /* semi-transparent */
-}
+}}
 
 
 /* Modern WLR Taskbar (system icons with colors!) */
-#taskbar {
+#taskbar {{
     background-color: rgba(49,50,68,0);
     padding: 8px;
     margin: 0px;
     margin-top: 3px;
     border-radius: 0.5rem;
-}
+}}
 
-#taskbar button {
+#taskbar button {{
     background-color: rgba(41,42,58,0.55);
     margin-left: 0.1px;
     margin-right: 3px;
     border-radius: 0.5rem;
     transition: all 0.4s ease;
     padding: 8px;
-}
+}}
 
-#taskbar button.active {
+#taskbar button.active {{
     background-color: rgba(224,227,230,0.55);
     border-radius: 0.5rem;
-}
+}}
 
-#taskbar button:hover {
+#taskbar button:hover {{
     border-radius: 1rem;
     background-color: rgba(224,227,230,0.55);
-}
+}}
 
 /* Custom taskbar (nerd fonts) */
-#custom-taskbar {
+#custom-taskbar {{
     background-color: rgba(49,50,68,0);
     padding: 8px;
     margin: 0px;
     margin-top: 3px;
     border-radius: 0.5rem;
-    font-family: "JetBrainsMono Nerd Font Propo", sans-serif;
-}
-#custom-taskbar image {
+    font-family: {font_family};
+}}
+#custom-taskbar image {{
    -gtk-icon-effect: none;
     opacity: 1;
-}
+}}
 
-#custom-taskbar * {
+#custom-taskbar * {{
     -gtk-icon-effect: none;
     color: unset;
-}
+}}
 '''
 
     
-    def create_default_style(self) -> str:
+    def create_default_style(self, primary_font: str = "Adwaita Sans") -> str:
         """Create default Waybar style.css - YOUR ACTUAL DEFAULT"""
-        return '''@import '../colorscheme/tokyo-night-storm.css';
+        font_family = self.get_font_family_string(primary_font)
+        
+        return f'''@import '../colorscheme/tokyo-night-storm.css';
 
-* {
+* {{
     border: none;
     border-radius: 0px;
-    font-family: "Adwaita Sans", "JetBrainsMono Nerd Font Propo", sans-serif;
+    font-family: {font_family};
     font-size: 20px;
     font-weight: bold;
     min-height: 0;
     padding: 0;
     margin: 0;
-}
-window#waybar {
+}}
+window#waybar {{
     border-radius:0px;
     background: alpha(@bg0,0.57);
-    }
+    }}
 
 
-tooltip {
+tooltip {{
     background: @bg0;
     border: 1px solid @bg3;
     border-radius: 12px;
-}
+}}
 
-tooltip label {
+tooltip label {{
     color: @fg;
     padding: 6px;
-}
+}}
 
-#workspaces {
+#workspaces {{
     background-color: alpha(@bg0,0.21);
     /*padding: 18px 20px;*/
     padding: 5px 3px 5px 3px;
@@ -683,42 +759,42 @@ tooltip label {
     border-radius: 26px;
     border: 1px solid @bg1;
     color: @fg;
-}
+}}
 
-#workspaces button {
+#workspaces button {{
     padding: 0px 6px;
     margin: 0px 3px;
     color: transparent;
     border-radius: 16px;
     background-color: @bg1;
     transition: all 0.3s ease-in-out;
-}
+}}
 
-#workspaces button.active {
+#workspaces button.active {{
     background-color: @blue;
     color: @bg0;
     min-width: 50px;
     border-radius: 16px;
     transition: all 0.3s ease-in-out;
     font-size: 13px;
-}
+}}
 
-#workspaces button:hover {
+#workspaces button:hover {{
     background-color: @purple;
     color: @bg0;
     border-radius: 16px;
     min-width: 50px;
     background-size: 400% 400%;
-}
+}}
 
-#workspaces button.urgent {
+#workspaces button.urgent {{
     background-color: @red;
     color: @bg0;
     border-radius: 16px;
     min-width: 50px;
     background-size: 400% 400%;
     transition: all 0.3s ease-in-out;
-}
+}}
 
 /* ================================================
    SYSTEM MODULES - Base Styling + Hover Effects
@@ -732,325 +808,325 @@ tooltip label {
 #network,
 #bluetooth,
 #clock,
-#custom-notification {
+#custom-notification {{
     background-color: alpha(@bg0, 0.9);
     padding: 0 15px 0 15px;
     margin: 0 0 0 12px;
     border-radius: 45px;
     border: 1px solid @bg1;
     transition: all 0.25s ease-in-out;
-}
+}}
 
 /* CPU Module */
-#cpu {
+#cpu {{
     color: @blue;
-}
+}}
 
-#cpu:hover {
+#cpu:hover {{
     background: alpha(@blue, 0.12);
     color: @blue;
     text-shadow: 0px 0px 2px alpha(@blue, 0.6);
-}
+}}
 
 /* Memory Module */
-#memory {
+#memory {{
     color: @green;
-}
+}}
 
-#memory:hover {
+#memory:hover {{
     background: alpha(@green, 0.12);
     color: @green;
     text-shadow: 0px 0px 2px alpha(@green, 0.6);
-}
+}}
 
 /* Temperature Module */
-#temperature {
+#temperature {{
     color: @orange;
-}
+}}
 
-#temperature:hover {
+#temperature:hover {{
     background: alpha(@orange, 0.12);
     color: @orange;
     text-shadow: 0px 0px 2px alpha(@orange, 0.6);
-}
+}}
 
 /* PulseAudio Module */
-#pulseaudio {
+#pulseaudio {{
     color: @yellow;
-}
+}}
 
-#pulseaudio:hover {
+#pulseaudio:hover {{
     background: alpha(@yellow, 0.12);
     text-shadow: 0px 0px 2px alpha(@yellow, 0.6);
-}
+}}
 
-#pulseaudio.muted {
+#pulseaudio.muted {{
     color: @red;
     opacity: 0.6;
-}
+}}
 
 /* Battery Module - No Blinking */
-#battery {
+#battery {{
     color: @green;
-}
+}}
 
-#battery:hover {
+#battery:hover {{
     background: alpha(@green, 0.12);
     text-shadow: 0px 0px 2px alpha(@green, 0.6);
-}
+}}
 
-#battery.warning {
+#battery.warning {{
     color: @orange;
-}
+}}
 
-#battery.critical {
+#battery.critical {{
     color: @red;
-}
+}}
 
 /* Bluetooth Module */
-#bluetooth {
+#bluetooth {{
     color: @blue;
-}
+}}
 
-#bluetooth:hover {
+#bluetooth:hover {{
     background: alpha(@blue, 0.12);
     color: @blue;
     text-shadow: 0px 0px 2px alpha(@blue, 0.6);
-}
+}}
 
-#bluetooth.connected {
+#bluetooth.connected {{
     color: @green;
-}
+}}
 
-#bluetooth.disconnected {
+#bluetooth.disconnected {{
     color: @red;
     opacity: 0.6;
-}
+}}
 
 /* Clock Module */
-#clock {
+#clock {{
     color: @blue;
-}
+}}
 
-#clock:hover {
+#clock:hover {{
     background: alpha(@blue, 0.12);
     text-shadow: 0px 0px 2px alpha(@blue, 0.6);
-}
+}}
 
-#custom-notification {
+#custom-notification {{
     color: @fg;
     margin: 0 12px 0 12px;
-}
+}}
 
 /* Network Module - Enhanced */
-#network {
+#network {{
     color: @purple;
     text-shadow: 0px 0px 1.5px @fg;
-}
+}}
 
-#network.wifi:hover {
+#network.wifi:hover {{
     background: alpha(@blue, 0.12);
     color: @blue;
     text-shadow: 0px 0px 2px alpha(@blue, 0.6);
-}
+}}
 
-#network.ethernet {
+#network.ethernet {{
     color: @green;
-}
+}}
 
-#network.ethernet:hover {
+#network.ethernet:hover {{
     background: alpha(@green, 0.12);
     color: @green;
     text-shadow: 0px 0px 2px alpha(@green, 0.6);
-}
+}}
 
-#network.disconnected {
+#network.disconnected {{
     color: @red;
     text-shadow: 0px 0px 2px alpha(@red, 0.6);
-}
+}}
 
-#network.disconnected:hover {
+#network.disconnected:hover {{
     background: alpha(@red, 0.12);
-}
+}}
 
-#network:active {
-    }
+#network:active {{
+    }}
 
 /* Tray */
-#tray {
+#tray {{
     background-color: @bg0;
     padding: 0 10px;
     margin: 0 0 0 12px;
     border-radius: 45px;
     border: 1px solid @bg1;
-}
+}}
 
-#tray > .passive {
+#tray > .passive {{
     -gtk-icon-effect: dim;
-}
+}}
 
-#tray > .needs-attention {
+#tray > .needs-attention {{
     -gtk-icon-effect: highlight;
     background-color: @red;
-}
+}}
 
-#tray {
+#tray {{
     padding: 0px 5px;
     transition: all .3s ease; 
-}
+}}
 
-#tray menu * {
+#tray menu * {{
     padding: 0px 5px;
     transition: all .3s ease; 
-}
+}}
 
-#tray menu separator {
+#tray menu separator {{
     padding: 0px 5px;
     transition: all .3s ease; 
-}
+}}
 
 /* Taskbar */
-#custom-taskbar {
+#custom-taskbar {{
     background-color: @bg0;
     padding: 0 15px;
     margin: 0 0 0 12px;
     border-radius: 45px;
     border: 1px solid @bg1;
-    font-family: "JetBrainsMono Nerd Font Propo", "JetBrainsMono NFM";
+    font-family: {font_family};
     font-size: 16px;
     font-weight: bold;
     color: @fg;
     min-height: 0;
-}
+}}
 
-#taskbar {
+#taskbar {{
     background-color: @bg0;
     padding: 5px 6px;
     margin: 0 0 0 12px;
     border-radius: 18px;
     border: 1px solid @bg1;
-}
+}}
 
-#taskbar button {
+#taskbar button {{
     padding: 0.4em 0.8em;
     margin: 0 4px;
     border-radius: 14px;
     background-color: @bg1;
     color: @fg;
     transition: all 0.25s ease-in-out;
-}
+}}
 
-#taskbar button.running {
+#taskbar button.running {{
     background-color: @bg2;
     color: @fg;
     border-bottom: 2px solid @blue;
-}
+}}
 
-#taskbar button.active {
+#taskbar button.active {{
     background-color: @blue;
     color: @bg0;
-    }
+    }}
 
-#taskbar button:hover {
+#taskbar button:hover {{
     background-color: @bg3;
     color: @fg;
-    }
+    }}
 
-#taskbar button.urgent {
+#taskbar button.urgent {{
     background-color: @red;
     color: @bg0;
     -gtk-icon-effect: highlight;
-}
+}}
 
-#taskbar button.pinned {
+#taskbar button.pinned {{
     /*background-color: transparent;*/
     background: alpha(@bg0, 0.6);
     border: 1px dashed @bg3;
     color: @grey1;
     opacity: 0.6;
-}
+}}
 
-#taskbar button.pinned.running {
+#taskbar button.pinned.running {{
     background-color: @bg2;
     border: 1px solid @bg3;
     color: @fg;
     opacity: 1;
-}
+}}
 
-#taskbar button.pinned.active {
+#taskbar button.pinned.active {{
     background-color: @blue;
     border: 1px solid @blue;
     color: @bg0;
     opacity: 1;
-    }
+    }}
 
-#window:hover {
+#window:hover {{
     background-color: @bg1;
-}
+}}
 
 #taskbar button image,
-#taskbar button label {
+#taskbar button label {{
     transition: opacity 0.2s ease-in-out;
-}
+}}
 
 /*
 #custom-taskbar,
-#custom-pinned {
+#custom-pinned {{
     font-size: 20px;
     padding: 5px 14px;
-}
+}}
 */
 
 
 /* Taskbar Module */
-#custom-taskbar {
-    font-family: "JetBrainsMono Nerd Font";
+#custom-taskbar {{
+    font-family: {font_family};
     font-size: 16px;
     padding: 0 10px;
-}
+}}
 
-#custom-taskbar .focused {
+#custom-taskbar .focused {{
     color: #7aa2f7;
-}
+}}
 
-#custom-taskbar .running {
+#custom-taskbar .running {{
     color: #c0caf5;
-}
+}}
 
-#custom-taskbar .pinned-only {
+#custom-taskbar .pinned-only {{
     color: #565f89;
-}
+}}
 
 
 
-#custom-endpoint {
+#custom-endpoint {{
     color: transparent;
     text-shadow: 0px 0px 1.5px @fg;
-}
+}}
 
-#group-expand {
+#group-expand {{
     background: alpha(@bg0, 0.6);
     padding: 0px 5px;
     transition: all .3s ease; 
-}
+}}
 
-#custom-expand {
+#custom-expand {{
     padding: 0px 5px;
     color: @fg;
     text-shadow: 0px 0px 2px rgba(0, 0, 0, .7);
     transition: all .3s ease; 
-}
+}}
 
-#custom-expand:hover {
+#custom-expand:hover {{
     color: rgba(255,255,255,.2);
     text-shadow: 0px 0px 2px rgba(255, 255, 255, .5);
-}
+}}
 
 /* ================================================
    MUSIC PLAYER MODULE - Waybar Compatible
    ================================================ */
 
-#custom-music {
+#custom-music {{
     color: #f5c2e7;
     padding: 0px 15px;
     margin: 0px 0px 0px 12px;
@@ -1058,32 +1134,32 @@ tooltip label {
     background-color: alpha(@bg0, 0.9);
     border: 1px solid @bg1;
     transition: all 0.25s ease-in-out;
-}
+}}
 
-#custom-music:hover {
+#custom-music:hover {{
     border-radius: 1rem;
     background-color: rgba(69, 71, 90, 0.55);
-}
+}}
 
-#custom-music.playing {
+#custom-music.playing {{
     color: #98c379;
-}
+}}
 
-#custom-music.paused {
+#custom-music.paused {{
     color: #e5c07b;
     opacity: 0.8;
-}
+}}
 
-#custom-music.idle {
+#custom-music.idle {{
     color: #5c6370;
     opacity: 0.6;
-}
+}}
 
 
 
 /* PACMAN UPDATE MODULE */
 
-#custom-pacman {
+#custom-pacman {{
     color: #00fff7;
     padding: 0px 15px;
     margin: 0px 0px 0px 12px;
@@ -1091,23 +1167,23 @@ tooltip label {
     background-color: alpha(@bg0, 0.9);
     border: 1px solid @bg1;
     transition: all 0.25s ease-in-out;
-}
+}}
 
-#custom-pacman:hover {
+#custom-pacman:hover {{
     background: alpha(#00fff7, 0.12);
     color: #00fff7;
     text-shadow: 0px 0px 2px alpha(#00fff7, 0.6);
-}
+}}
 
 
 /* ~/.config/waybar/style.css */
-#group-taskbar {
+#group-taskbar {{
     padding: 0 5px;
-}
+}}
 
-#group-taskbar image {
+#group-taskbar image {{
     padding: 0 2px;
-}
+}}
 
 
 
@@ -1115,7 +1191,7 @@ tooltip label {
    START MENU BUTTON - Default Style
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/*#custom-start-menu {
+/*#custom-start-menu {{
     font-family: "JetBrainsMono Nerd Font";
     font-size: 18px;
     color: #61afef;
@@ -1124,19 +1200,19 @@ tooltip label {
     border-radius: 8px;
     background: transparent;
     transition: all 200ms ease;
-}*/
+}}*/
 /*
-#custom-start-menu:hover {
+#custom-start-menu:hover {{
     background: rgba(97, 175, 239, 0.15);
     color: #61afef;
-}
+}}
 */
 
-#custom-start-menu:active {
+#custom-start-menu:active {{
     background: rgba(97, 175, 239, 0.25);
-}
+}}
 
-#custom-start-menu {
+#custom-start-menu {{
     background-image: url("~/.config/hypr-control-center/assets/start-icons/arch.svg");
     background-size: 42px 42px;
     background-repeat: no-repeat;
@@ -1146,12 +1222,12 @@ tooltip label {
     padding: 8 8px;
     margin: 4px;
     border-radius: 8px;
-}
+}}
 
-#custom-start-menu:hover {
+#custom-start-menu:hover {{
     /*background-color: rgba(255, 255, 255, 0.1);*/
     background-color: alpha(@bg0, 0.6);
-}
+}}
 '''
     
     def add_vertical_bar_css(self):
@@ -1216,7 +1292,13 @@ if __name__ == "__main__":
             if 'error' in result:
                 print(f"Error: {result['error']}")
         print("="*60)
+    elif len(sys.argv) > 2 and sys.argv[1] == "setfont":
+        # Test font family generation
+        primary = sys.argv[2]
+        print(f"Primary font: {primary}")
+        print(f"Generated: {manager.get_font_family_string(primary)}")
     else:
         print("Usage:")
         print("  python waybar_style_manager.py analyze  - Analyze Nerd Font icons")
         print("  python waybar_style_manager.py verify   - Verify Nerd Font installation")
+        print("  python waybar_style_manager.py setfont 'GeistMono Nerd Font'  - Test font generation")

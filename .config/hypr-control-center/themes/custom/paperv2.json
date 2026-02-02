@@ -1,0 +1,63 @@
+{
+  "id": "paperv2",
+  "is_builtin": false,
+  "name": "Paperv2",
+  "is_light": true,
+  "colors": {
+    "bg0": "#9a9996",
+    "bg1": "#9a9996",
+    "bg2": "#deddda",
+    "bg3": "#ffffff",
+    "bg4": "#ffffff",
+    "fg": "#252525",
+    "grey0": "#606060",
+    "grey1": "#808080",
+    "grey2": "#a0a0a0",
+    "red": "#c30771",
+    "orange": "#e64100",
+    "yellow": "#b58900",
+    "green": "#10a778",
+    "aqua": "#007687",
+    "blue": "#008ec4",
+    "purple": "#6c71c4"
+  },
+  "rofi": {
+    "background": "#F1F1F1",
+    "background-alt": "#E0E0E0",
+    "foreground": "#252525",
+    "selected": "#008EC4",
+    "active": "#10A778",
+    "urgent": "#C30771"
+  },
+  "kitty": {
+    "background": "#f1f1f1",
+    "foreground": "#252525",
+    "cursor": "#008ec4"
+  },
+  "waybar": {
+    "global": {
+      "window_radius": 47,
+      "window_opacity": 0.5
+    },
+    "workspaces": {
+      "button_normal_bg": "bg1",
+      "button_active_bg": "blue",
+      "button_hover_bg": "purple",
+      "button_urgent_bg": "red"
+    },
+    "modules": {
+      "cpu": {
+        "color": "blue"
+      },
+      "memory": {
+        "color": "green"
+      },
+      "clock": {
+        "color": "blue"
+      },
+      "network": {
+        "wifi": "purple"
+      }
+    }
+  }
+}

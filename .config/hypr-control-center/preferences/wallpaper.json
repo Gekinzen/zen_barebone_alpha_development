@@ -1,7 +1,8 @@
 {
-  "current": "/home/paul/wallpapers/walls/ancient-ruins-overgrown-nature-desktop-wallpaper.jpg",
+  "current": "/home/paul/wallpapers/walls/68747470733a2f2f692e696d6775722e636f6d2f37365435764b332e6a706567.jpg",
   "folder": "/home/paul/wallpapers/walls",
   "slideshow_enabled": false,
-  "slideshow_interval": 60,
-  "random_transition": false
+  "slideshow_interval": 3600,
+  "random_transition": false,
+  "transition": "random"
 }

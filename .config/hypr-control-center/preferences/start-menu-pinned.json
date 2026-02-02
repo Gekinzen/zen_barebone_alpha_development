@@ -1,13 +1,9 @@
 {
   "pinned": [
-    "firefox",
-    "code",
-    "thunar",
-    "discord",
-    "spotify",
-    "zen",
-    "discover",
-    "zen-browser",
-    "about-xfce"
+    "kitty",
+    "org.openrgb.openrgb",
+    "battle realms zen edition",
+    "org.filezillaproject.filezilla",
+    "hypr-control-center"
   ]
 }
