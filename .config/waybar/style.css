@@ -1,20 +1,25 @@
-@import '../colorscheme/tokyo-night-storm.css';
+/* Waybar Style: Classic - Generated 2026-02-02 10:09 */
+/* User: paul | Home: /home/paul */
+@import '../hypr/colorscheme/nord.css';
 
 * {
-    border: none;
-    border-radius: 0px;
     font-family: "Adwaita Sans", "JetBrainsMono Nerd Font Propo", sans-serif;
-    font-size: 20px;
+    font-size: 15px;
     font-weight: bold;
     min-height: 0;
+    border: none;
+    border-radius: 0;
     padding: 0;
     margin: 0;
 }
-window#waybar {
-    border-radius:0px;
-    background: alpha(@bg0,0.57);
-    }
 
+#waybar {
+    background: alpha(@bg0, 0.50);
+    border-radius: 16px;
+    color: @fg;
+    margin: 3px;
+    margin-bottom: 0px;
+}
 
 tooltip {
     background: @bg0;
@@ -27,215 +32,192 @@ tooltip label {
     padding: 6px;
 }
 
-#workspaces {
-    background-color: alpha(@bg0,0.21);
-    /*padding: 18px 20px;*/
-    padding: 5px 3px 5px 3px;
-    min-width: 176px;
-    margin: 0 0 0 12px;
-    border-radius: 26px;
-    border: 1px solid @bg1;
-    color: @fg;
+.modules-center, .modules-left, .modules-right {
+    background-color: transparent;
+    margin: 3px;
+    padding: 4px;
 }
 
-#workspaces button {
-    padding: 0px 6px;
-    margin: 0px 3px;
-    color: transparent;
-    border-radius: 16px;
-    background-color: @bg1;
-    transition: all 0.3s ease-in-out;
-}
-
-#workspaces button.active {
-    background-color: @blue;
-    color: @bg0;
-    min-width: 50px;
-    border-radius: 16px;
-    transition: all 0.3s ease-in-out;
-    font-size: 13px;
-}
-
-#workspaces button:hover {
-    background-color: @purple;
-    color: @bg0;
-    border-radius: 16px;
-    min-width: 50px;
-    background-size: 400% 400%;
-}
-
-#workspaces button.urgent {
-    background-color: @red;
-    color: @bg0;
-    border-radius: 16px;
-    min-width: 50px;
-    background-size: 400% 400%;
-    transition: all 0.3s ease-in-out;
-}
-
-/* ================================================
-   SYSTEM MODULES - Base Styling + Hover Effects
-   ================================================ */
-
-#battery,
-#pulseaudio,
-#cpu,
-#memory,
-#temperature,
-#network,
-#bluetooth,
-#clock,
-#custom-notification {
+#bluetooth, #temperature, #custom-music, #clock, #battery, #pulseaudio,
+#network, #cpu, #memory, #custom-menuApp, #custom-power, #custom-switcher,
+#custom-notification, #custom-pacman, #tray {
     background-color: alpha(@bg0, 0.9);
-    padding: 0 15px 0 15px;
+    padding: 0 15px;
     margin: 0 0 0 12px;
     border-radius: 45px;
     border: 1px solid @bg1;
-    transition: all 0.25s ease-in-out;
+    transition: all 0.3s ease;
 }
 
-/* CPU Module */
-#cpu {
-    color: @blue;
-}
 
+/* Module Colors */
+#cpu { color: @blue; }
+#memory { color: @green; }
+#temperature { color: @orange; }
+#pulseaudio { color: @yellow; }
+#battery { color: @green; }
+#bluetooth { color: @blue; }
+#clock { color: @blue; }
+#network { color: @purple; }
+#custom-pacman { color: @cyan; }
+#custom-music { color: #f5c2e7; }
+
+
+/* Hover Effects */
 #cpu:hover {
     background: alpha(@blue, 0.12);
-    color: @blue;
     text-shadow: 0px 0px 2px alpha(@blue, 0.6);
 }
-
-/* Memory Module */
-#memory {
-    color: @green;
-}
-
 #memory:hover {
     background: alpha(@green, 0.12);
-    color: @green;
     text-shadow: 0px 0px 2px alpha(@green, 0.6);
 }
-
-/* Temperature Module */
-#temperature {
-    color: @orange;
-}
-
 #temperature:hover {
     background: alpha(@orange, 0.12);
-    color: @orange;
     text-shadow: 0px 0px 2px alpha(@orange, 0.6);
 }
-
-/* PulseAudio Module */
-#pulseaudio {
-    color: @yellow;
-}
-
 #pulseaudio:hover {
     background: alpha(@yellow, 0.12);
     text-shadow: 0px 0px 2px alpha(@yellow, 0.6);
 }
-
-#pulseaudio.muted {
-    color: @red;
-    opacity: 0.6;
-}
-
-/* Battery Module - No Blinking */
-#battery {
-    color: @green;
-}
-
 #battery:hover {
     background: alpha(@green, 0.12);
     text-shadow: 0px 0px 2px alpha(@green, 0.6);
 }
-
-#battery.warning {
-    color: @orange;
-}
-
-#battery.critical {
-    color: @red;
-}
-
-/* Bluetooth Module */
-#bluetooth {
-    color: @blue;
-}
-
 #bluetooth:hover {
     background: alpha(@blue, 0.12);
-    color: @blue;
     text-shadow: 0px 0px 2px alpha(@blue, 0.6);
 }
-
-#bluetooth.connected {
-    color: @green;
-}
-
-#bluetooth.disconnected {
-    color: @red;
-    opacity: 0.6;
-}
-
-/* Clock Module */
-#clock {
-    color: @blue;
-}
-
 #clock:hover {
     background: alpha(@blue, 0.12);
     text-shadow: 0px 0px 2px alpha(@blue, 0.6);
 }
-
-#custom-notification {
-    color: @fg;
-    margin: 0 12px 0 12px;
+#network:hover {
+    background: alpha(@purple, 0.12);
+    text-shadow: 0px 0px 2px alpha(@purple, 0.6);
+}
+#custom-pacman:hover {
+    background: alpha(@cyan, 0.12);
+    text-shadow: 0px 0px 2px alpha(@cyan, 0.6);
 }
 
-/* Network Module - Enhanced */
-#network {
-    color: @purple;
-    text-shadow: 0px 0px 1.5px @fg;
+
+#custom-pacman.updated {
+    color: @green;
+    background: alpha(@green, 0.15);
 }
 
-#network.wifi:hover {
-    background: alpha(@blue, 0.12);
+#custom-pacman.pending {
     color: @blue;
-    text-shadow: 0px 0px 2px alpha(@blue, 0.6);
+    background: alpha(@blue, 0.15);
 }
 
-#network.ethernet {
-    color: @green;
+#custom-pacman.warning {
+    color: @yellow;
+    background: alpha(@yellow, 0.15);
 }
 
-#network.ethernet:hover {
-    background: alpha(@green, 0.12);
-    color: @green;
-    text-shadow: 0px 0px 2px alpha(@green, 0.6);
-}
-
-#network.disconnected {
+#custom-pacman.critical {
     color: @red;
-    text-shadow: 0px 0px 2px alpha(@red, 0.6);
+    background: alpha(@red, 0.15);
 }
 
-#network.disconnected:hover {
-    background: alpha(@red, 0.12);
+#workspaces {
+    background-color: alpha(@bg0, 0.21);
+    border-radius: 26px;
+    padding: 5px 3px;
+    margin-left: 5px;
+    border: 1px solid @bg1;
+    transition: all 0.5s ease-in-out;
 }
 
-#network:active {
-    }
+#workspaces button {
+    background-color: @bg1;
+    border-radius: 16px;
+    padding: 0px;
+    margin-right: 5px;
+    min-width: 22px;
+    transition: all 0.5s ease-out;
+}
 
-/* Tray */
-#tray {
-    background-color: @bg0;
-    padding: 0 10px;
-    margin: 0 0 0 12px;
+#workspaces button.active {
+    min-width: 50px;
+    background-color: @blue;
+}
+
+#workspaces button:hover {
+    background-color: @purple;
+}
+
+#workspaces button.urgent {
+    background-color: @red;
+}
+
+#taskbar {
+    background-color: alpha(@bg0, 0.9);
+    padding: 5px 6px;
+    margin: 0 0 0 24px;
+    border-radius: 18px;
+    border: 1px solid @bg1;
+}
+
+#taskbar button {
+    padding: 0.4em 0.8em;
+    margin: 0 4px;
+    border-radius: 13px;
+    background-color: @bg1;
+    color: @fg;
+    transition: all 0.25s ease-in-out;
+}
+
+#taskbar button.active {
+    background-color: @blue;
+    color: @bg0;
+}
+
+#taskbar button:hover {
+    background-color: @bg3;
+    color: @fg;
+}
+
+#custom-taskbar {
+    background-color: alpha(@bg0, 0.9);
+    padding: 0 30px;
+    margin: 0 0 0 24px;
     border-radius: 45px;
     border: 1px solid @bg1;
+    font-family: "JetBrainsMono Nerd Font Propo";
+    font-size: 24px;
+    color: @fg;
+}
+
+#custom-start-menu {
+    background-image: url("/home/paul/.config/hypr-control-center/assets/start-icons/arch.svg");
+    background-size: 24px 24px;
+    background-repeat: no-repeat;
+    background-position: center;
+    min-width: 36px;
+    min-height: 36px;
+    border-radius: 50%;
+    padding: 0;
+    margin-left: 8px;
+}
+
+#custom-start-menu:hover {
+    background-color: alpha(@bg0, 0.6);
+}
+
+#custom-music {
+    font-size: 14px;
+}
+
+#custom-music:hover {
+    border-radius: 16px;
+    background-color: rgba(69, 71, 90, 0.55);
+}
+
+#tray {
+    padding: 0px 5px;
 }
 
 #tray > .passive {
@@ -245,263 +227,4 @@ tooltip label {
 #tray > .needs-attention {
     -gtk-icon-effect: highlight;
     background-color: @red;
-}
-
-#tray {
-    padding: 0px 5px;
-    transition: all .3s ease; 
-}
-
-#tray menu * {
-    padding: 0px 5px;
-    transition: all .3s ease; 
-}
-
-#tray menu separator {
-    padding: 0px 5px;
-    transition: all .3s ease; 
-}
-
-/* Taskbar */
-#custom-taskbar {
-    background-color: @bg0;
-    padding: 0 15px;
-    margin: 0 0 0 12px;
-    border-radius: 45px;
-    border: 1px solid @bg1;
-    font-family: "JetBrainsMono Nerd Font Propo", "JetBrainsMono NFM";
-    font-size: 16px;
-    font-weight: bold;
-    color: @fg;
-    min-height: 0;
-}
-
-#taskbar {
-    background-color: @bg0;
-    padding: 5px 6px;
-    margin: 0 0 0 12px;
-    border-radius: 18px;
-    border: 1px solid @bg1;
-}
-
-#taskbar button {
-    padding: 0.4em 0.8em;
-    margin: 0 4px;
-    border-radius: 14px;
-    background-color: @bg1;
-    color: @fg;
-    transition: all 0.25s ease-in-out;
-}
-
-#taskbar button.running {
-    background-color: @bg2;
-    color: @fg;
-    border-bottom: 2px solid @blue;
-}
-
-#taskbar button.active {
-    background-color: @blue;
-    color: @bg0;
-    }
-
-#taskbar button:hover {
-    background-color: @bg3;
-    color: @fg;
-    }
-
-#taskbar button.urgent {
-    background-color: @red;
-    color: @bg0;
-    -gtk-icon-effect: highlight;
-}
-
-#taskbar button.pinned {
-    /*background-color: transparent;*/
-    background: alpha(@bg0, 0.6);
-    border: 1px dashed @bg3;
-    color: @grey1;
-    opacity: 0.6;
-}
-
-#taskbar button.pinned.running {
-    background-color: @bg2;
-    border: 1px solid @bg3;
-    color: @fg;
-    opacity: 1;
-}
-
-#taskbar button.pinned.active {
-    background-color: @blue;
-    border: 1px solid @blue;
-    color: @bg0;
-    opacity: 1;
-    }
-
-#window:hover {
-    background-color: @bg1;
-}
-
-#taskbar button image,
-#taskbar button label {
-    transition: opacity 0.2s ease-in-out;
-}
-
-/*
-#custom-taskbar,
-#custom-pinned {
-    font-size: 20px;
-    padding: 5px 14px;
-}
-*/
-
-
-/* Taskbar Module */
-#custom-taskbar {
-    font-family: "JetBrainsMono Nerd Font";
-    font-size: 16px;
-    padding: 0 10px;
-}
-
-#custom-taskbar .focused {
-    color: #7aa2f7;
-}
-
-#custom-taskbar .running {
-    color: #c0caf5;
-}
-
-#custom-taskbar .pinned-only {
-    color: #565f89;
-}
-
-
-
-#custom-endpoint {
-    color: transparent;
-    text-shadow: 0px 0px 1.5px @fg;
-}
-
-#group-expand {
-    background: alpha(@bg0, 0.6);
-    padding: 0px 5px;
-    transition: all .3s ease; 
-}
-
-#custom-expand {
-    padding: 0px 5px;
-    color: @fg;
-    text-shadow: 0px 0px 2px rgba(0, 0, 0, .7);
-    transition: all .3s ease; 
-}
-
-#custom-expand:hover {
-    color: rgba(255,255,255,.2);
-    text-shadow: 0px 0px 2px rgba(255, 255, 255, .5);
-}
-
-/* ================================================
-   MUSIC PLAYER MODULE - Waybar Compatible
-   ================================================ */
-
-#custom-music {
-    color: #f5c2e7;
-    padding: 0px 15px;
-    margin: 0px 0px 0px 12px;
-    border-radius: 45px;
-    background-color: alpha(@bg0, 0.9);
-    border: 1px solid @bg1;
-    transition: all 0.25s ease-in-out;
-}
-
-#custom-music:hover {
-    border-radius: 1rem;
-    background-color: rgba(69, 71, 90, 0.55);
-}
-
-#custom-music.playing {
-    color: #98c379;
-}
-
-#custom-music.paused {
-    color: #e5c07b;
-    opacity: 0.8;
-}
-
-#custom-music.idle {
-    color: #5c6370;
-    opacity: 0.6;
-}
-
-
-
-/* PACMAN UPDATE MODULE */
-
-#custom-pacman {
-    color: #00fff7;
-    padding: 0px 15px;
-    margin: 0px 0px 0px 12px;
-    border-radius: 45px;
-    background-color: alpha(@bg0, 0.9);
-    border: 1px solid @bg1;
-    transition: all 0.25s ease-in-out;
-}
-
-#custom-pacman:hover {
-    background: alpha(#00fff7, 0.12);
-    color: #00fff7;
-    text-shadow: 0px 0px 2px alpha(#00fff7, 0.6);
-}
-
-
-/* ~/.config/waybar/style.css */
-#group-taskbar {
-    padding: 0 5px;
-}
-
-#group-taskbar image {
-    padding: 0 2px;
-}
-
-
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   START MENU BUTTON - Default Style
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-/*#custom-start-menu {
-    font-family: "JetBrainsMono Nerd Font";
-    font-size: 18px;
-    color: #61afef;
-    padding: 0 14px;
-    margin: 4px 2px;
-    border-radius: 8px;
-    background: transparent;
-    transition: all 200ms ease;
-}*/
-/*
-#custom-start-menu:hover {
-    background: rgba(97, 175, 239, 0.15);
-    color: #61afef;
-}
-*/
-
-#custom-start-menu:active {
-    background: rgba(97, 175, 239, 0.25);
-}
-
-#custom-start-menu {
-    background-image: url("/home/paul/.config/hypr-control-center/assets/start-icons/arch.svg");
-    background-size: 42px 42px;
-    background-repeat: no-repeat;
-    background-position: center;
-    min-width: 36px;
-    min-height: 36px;
-    padding: 8 8px;
-    margin: 4px;
-    border-radius: 8px;
-}
-
-#custom-start-menu:hover {
-    /*background-color: rgba(255, 255, 255, 0.1);*/
-    background-color: alpha(@bg0, 0.6);
 }

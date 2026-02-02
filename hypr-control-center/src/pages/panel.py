@@ -1,6 +1,13 @@
 """
 Panel (Waybar) Configuration Page
 Main Panel only - Dock (Waybar2) coming soon!
+Includes: Module Layout + Group/Expand Drawer Configuration
+
+FIXED v2.0:
+- Drawer selections now PERSIST across restarts
+- Preferences saved to ~/.config/hypr-control-center/preferences/drawer-config.json
+- Apply Drawer Config updates waybar config.jsonc AND reloads waybar
+- Dynamic paths for any user
 """
 
 import gi
@@ -10,6 +17,7 @@ from gi.repository import Gtk, Adw, GLib
 from typing import Callable
 import json
 import os
+from pathlib import Path
 from datetime import datetime
 
 from ..widgets import (
@@ -22,8 +30,94 @@ from .panel_helpers import (
 )
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# DYNAMIC PATHS - Works for any user!
+# ═══════════════════════════════════════════════════════════════════════════════
+
+HOME = Path.home()
+PREFERENCES_DIR = HOME / ".config/hypr-control-center/preferences"
+DRAWER_PREFS_FILE = PREFERENCES_DIR / "drawer-config.json"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DRAWER MODULE DEFINITIONS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Modules that can be placed in the group/expand drawer
+DRAWER_AVAILABLE_MODULES = [
+    ("pulseaudio", "󰕾 Audio", "audio-volume-high-symbolic"),
+    ("cpu", "󰻠 CPU Usage", "utilities-system-monitor-symbolic"),
+    ("memory", "󰍛 Memory Usage", "drive-harddisk-symbolic"),
+    ("temperature", "󰔏 Temperature", "temperature-symbolic"),
+    ("network", "󰖩 Network", "network-wireless-symbolic"),
+    ("bluetooth", "󰂯 Bluetooth", "bluetooth-symbolic"),
+    ("battery", "󰁹 Battery", "battery-symbolic"),
+    ("backlight", "󰃟 Brightness", "display-brightness-symbolic"),
+    ("custom/pacman", "󰀼 System Updates", "system-software-update-symbolic"),
+    ("disk", "󰋊 Disk Usage", "drive-harddisk-symbolic"),
+]
+
+# Expand icon options - Nerd Fonts
+EXPAND_ICON_OPTIONS = [
+    ("chevron_left", "", "Chevron <"),
+    ("arrow_left", "", "Arrow <"),
+    ("menu", "󰍜", "Menu"),
+    ("chevron_alt", "󰁌", "Chevron Alt"),
+    ("dots_h", "󰘕", "Dots H"),
+    ("dots_v", "⋮", "Dots V"),
+]
+
+# Default drawer config
+DEFAULT_DRAWER_CONFIG = {
+    "enabled_modules": ["pulseaudio", "cpu", "memory", "temperature", "network", "bluetooth", "custom/pacman"],
+    "animation_duration": 600,
+    "expand_direction": "left",
+    "expand_icon": "chevron_left",
+    "click_to_reveal": True
+}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DRAWER PREFERENCES MANAGEMENT
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def load_drawer_preferences() -> dict:
+    """Load drawer preferences from file, returns defaults if not found"""
+    try:
+        if DRAWER_PREFS_FILE.exists():
+            data = json.loads(DRAWER_PREFS_FILE.read_text())
+            # Merge with defaults to handle new fields
+            config = DEFAULT_DRAWER_CONFIG.copy()
+            config.update(data)
+            print(f"[Panel] Loaded drawer preferences: {len(config.get('enabled_modules', []))} modules")
+            return config
+    except Exception as e:
+        print(f"[Panel] Error loading drawer preferences: {e}")
+    
+    return DEFAULT_DRAWER_CONFIG.copy()
+
+
+def save_drawer_preferences(config: dict) -> bool:
+    """Save drawer preferences to file for persistence"""
+    try:
+        PREFERENCES_DIR.mkdir(parents=True, exist_ok=True)
+        
+        config["updated"] = datetime.now().isoformat()
+        DRAWER_PREFS_FILE.write_text(json.dumps(config, indent=2, ensure_ascii=False))
+        
+        print(f"[Panel] Saved drawer preferences: {config.get('enabled_modules', [])}")
+        return True
+    except Exception as e:
+        print(f"[Panel] Error saving drawer preferences: {e}")
+        return False
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MAIN PAGE BUILDER
+# ═══════════════════════════════════════════════════════════════════════════════
+
 def build_panel_page(window) -> Gtk.ScrolledWindow:
-    """Build Panel (Waybar) settings page - Main panel only for now"""
+    """Build Panel (Waybar) settings page - Module Layout + Drawer Config"""
     scrolled = Gtk.ScrolledWindow()
     scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
     
@@ -44,14 +138,19 @@ def build_panel_page(window) -> Gtk.ScrolledWindow:
         window.waybar_style_manager = WaybarStyleManager(WAYBAR_DIR)
         window.waybar_style_manager.load_style()
     
+    # ═══════════════════════════════════════════════════════════════
+    # VALIDATE GROUP/EXPAND CONFIG ON PAGE LOAD
+    # ═══════════════════════════════════════════════════════════════
+    _validate_group_expand_config(window.waybar_manager)
+    
     # Header
     page_header = window._create_page_header(
         "Panel (Waybar)",
-        "Configure your main Waybar panel - modules, position, and appearance"
+        "Configure your Waybar panel modules and drawer"
     )
     content.append(page_header)
     
-    # Info banner about Dock
+    # Info banner about Theming
     info_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
     info_box.add_css_class('info-banner')
     info_box.set_margin_bottom(16)
@@ -60,7 +159,7 @@ def build_panel_page(window) -> Gtk.ScrolledWindow:
     info_icon.set_pixel_size(16)
     info_box.append(info_icon)
     
-    info_label = Gtk.Label(label="📌 Dock (Waybar2) configuration coming soon! Focus on main panel for now.")
+    info_label = Gtk.Label(label="💡 Panel appearance (colors, opacity, style) is controlled in the Theming page")
     info_label.add_css_class('setting-description')
     info_label.set_halign(Gtk.Align.START)
     info_box.append(info_label)
@@ -75,6 +174,65 @@ def build_panel_page(window) -> Gtk.ScrolledWindow:
     return scrolled
 
 
+def _validate_group_expand_config(wm):
+    """Validate and fix group/expand configuration if needed"""
+    config = wm.main_config
+    needs_save = False
+    
+    # Check if group/expand is used anywhere
+    all_modules = []
+    for pos in ['left', 'center', 'right']:
+        all_modules.extend(config.get(f'modules-{pos}', []))
+    
+    has_group_expand = 'group/expand' in all_modules
+    
+    if has_group_expand:
+        # Validate custom/expand - MUST have visible format!
+        if "custom/expand" not in config:
+            config["custom/expand"] = {"format": "", "tooltip": False}
+            needs_save = True
+        elif not config["custom/expand"].get("format"):
+            config["custom/expand"]["format"] = ""
+            needs_save = True
+        
+        # Validate custom/endpoint
+        if "custom/endpoint" not in config:
+            config["custom/endpoint"] = {"format": "|", "tooltip": False}
+            needs_save = True
+        
+        # Validate group/expand has drawer config
+        if "group/expand" not in config:
+            config["group/expand"] = {
+                "orientation": "horizontal",
+                "drawer": {"transition-duration": 600, "transition-to-left": True, "click-to-reveal": True},
+                "modules": ["custom/expand", "pulseaudio", "cpu", "memory", "temperature", "network", "bluetooth", "custom/pacman", "custom/endpoint"]
+            }
+            needs_save = True
+        else:
+            if "drawer" not in config["group/expand"]:
+                config["group/expand"]["drawer"] = {"transition-duration": 600, "transition-to-left": True, "click-to-reveal": True}
+                needs_save = True
+            
+            modules = config["group/expand"].get("modules", [])
+            if not modules:
+                modules = ["custom/expand", "pulseaudio", "cpu", "memory", "custom/endpoint"]
+                config["group/expand"]["modules"] = modules
+                needs_save = True
+            else:
+                if "custom/expand" not in modules:
+                    modules.insert(0, "custom/expand")
+                    needs_save = True
+                if "custom/endpoint" not in modules:
+                    modules.append("custom/endpoint")
+                    needs_save = True
+                if needs_save:
+                    config["group/expand"]["modules"] = modules
+    
+    if needs_save:
+        print("[Panel] Saving fixed group/expand configuration...")
+        wm.save_config(config, is_dock=False)
+
+
 def _build_main_panel_content(window) -> Gtk.Box:
     """Build main panel configuration content"""
     content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
@@ -84,228 +242,8 @@ def _build_main_panel_content(window) -> Gtk.Box:
     content.set_margin_bottom(16)
     
     wm = window.waybar_manager
-    sm = window.waybar_style_manager
     
-    # ═══════════════════════════════════════════════════════════════
-    # PANEL BEHAVIOR
-    # ═══════════════════════════════════════════════════════════════
-    
-    behavior_group = SettingsGroup("Panel Behavior")
-    
-    # Position
-    position = wm.get_position(is_dock=False)
-    w = DropdownRow(
-        "Position on Screen",
-        ["top", "bottom"],
-        position if position in ["top", "bottom"] else "top",
-        lambda v: _on_position_change(window, v, is_dock=False),
-        "Where the panel appears on screen"
-    )
-    window.widgets['main_position'] = w
-    behavior_group.append(w)
-    
-    # Show on display
-    monitors = get_monitor_list()
-    current_output = wm.get_output(is_dock=False)
-    if current_output:
-        monitor_value = current_output
-    else:
-        monitor_value = "All Monitors"
-    
-    w = DropdownRow(
-        "Show on Display",
-        monitors,
-        monitor_value,
-        lambda v: _on_monitor_change(window, v, is_dock=False),
-        "Which monitor to show the panel on"
-    )
-    window.widgets['main_monitor'] = w
-    behavior_group.append(w)
-    
-    # Extend to screen edges
-    w = ToggleRow(
-        "Extend to Screen Edges",
-        wm.get_margin('left', is_dock=False) == 0,
-        lambda v: _on_extend_toggle(window, v, is_dock=False),
-        "Panel spans full width/height of screen"
-    )
-    window.widgets['main_extend'] = w
-    behavior_group.append(w)
-    
-    content.append(behavior_group)
-    
-    # ═══════════════════════════════════════════════════════════════
-    # PANEL APPEARANCE
-    # ═══════════════════════════════════════════════════════════════
-    
-    appearance_group = SettingsGroup("Panel Appearance")
-    
-    # Style Mode Selector (Minimal vs Modern)
-    style_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-    style_box.set_margin_top(8)
-    style_box.set_margin_bottom(8)
-    
-    style_label = Gtk.Label(label="Panel Style")
-    style_label.add_css_class('setting-label')
-    style_label.set_halign(Gtk.Align.START)
-    style_label.set_hexpand(True)
-    style_box.append(style_label)
-    
-    # Get current style mode
-    current_mode = sm.get_current_style_mode()
-    
-    # Style dropdown
-    style_dropdown = Gtk.DropDown()
-    style_dropdown.set_model(Gtk.StringList.new(["Minimal", "Modern"]))
-    style_dropdown.set_selected(0 if current_mode == 'minimal' else 1)
-    style_dropdown.set_valign(Gtk.Align.CENTER)
-    style_dropdown.connect('notify::selected', lambda d, _: _on_style_mode_changed(window, d))
-    style_box.append(style_dropdown)
-    
-    appearance_group.append(style_box)
-    
-    # Font Size selector
-    font_size_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-    font_size_box.set_margin_top(8)
-    font_size_box.set_margin_bottom(8)
-    
-    font_size_label = Gtk.Label(label="Panel Font Size")
-    font_size_label.add_css_class('setting-label')
-    font_size_label.set_halign(Gtk.Align.START)
-    font_size_label.set_hexpand(True)
-    font_size_box.append(font_size_label)
-    
-    # Get current font size from CSS
-    current_font_size = sm.get_current_font_size() or 16
-    
-    # Font size presets: font-size in px
-    font_sizes = [
-        ('Small', 10),
-        ('Medium', 16),
-        ('Large', 20),
-        ('X-Large', 26)
-    ]
-    
-    # Create font size buttons
-    font_size_buttons = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-    font_size_buttons.add_css_class('size-selector')
-    
-    for name, font_size in font_sizes:
-        btn = Gtk.ToggleButton(label=name)
-        btn.add_css_class('size-btn')
-        if font_size == current_font_size:
-            btn.set_active(True)
-        btn.connect('toggled', lambda b, fs=font_size: _on_font_size_changed(window, b, fs))
-        font_size_buttons.append(btn)
-    
-    font_size_box.append(font_size_buttons)
-    appearance_group.append(font_size_box)
-    
-    # Panel Height selector
-    height_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-    height_box.set_margin_top(8)
-    height_box.set_margin_bottom(8)
-    
-    height_label = Gtk.Label(label="Panel Height")
-    height_label.add_css_class('setting-label')
-    height_label.set_halign(Gtk.Align.START)
-    height_label.set_hexpand(True)
-    height_box.append(height_label)
-    
-    # Get current height from config
-    current_height = wm.get_height(is_dock=False)
-    
-    # Height presets in pixels
-    heights = [
-        ('Small', 10),
-        ('Medium', 20),
-        ('Large', 30),
-        ('X-Large', 40)
-    ]
-    
-    # Create height buttons
-    height_buttons = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-    height_buttons.add_css_class('size-selector')
-    
-    for name, height in heights:
-        btn = Gtk.ToggleButton(label=name)
-        btn.add_css_class('size-btn')
-        if height == current_height:
-            btn.set_active(True)
-        btn.connect('toggled', lambda b, h=height: _on_height_changed(window, b, h))
-        height_buttons.append(btn)
-    
-    height_box.append(height_buttons)
-    appearance_group.append(height_box)
-    
-    # Transparent background toggle
-    is_transparent = sm.is_transparent()
-    
-    w = ToggleRow(
-        "Transparent Background",
-        is_transparent,
-        lambda v: _on_transparent_toggle(window, v, is_dock=False),
-        "Use fully transparent background"
-    )
-    window.widgets['main_transparent'] = w
-    appearance_group.append(w)
-    
-    # Background opacity (only when not transparent)
-    current_opacity = sm.get_current_opacity() or 0.6
-    w = FloatRow(
-        "Background Opacity",
-        current_opacity if not is_transparent else 0.6,
-        0.0,
-        1.0,
-        lambda v: _on_opacity_change(window, v, is_dock=False),
-        "Panel background transparency (0=clear, 1=opaque)"
-    )
-    w.set_sensitive(not is_transparent)
-    window.widgets['main_opacity'] = w
-    appearance_group.append(w)
-    
-    # Border radius (only when not extended)
-    extend_to_edges = wm.get_margin('left', is_dock=False) == 0
-    current_radius = sm.get_border_radius() or 46
-    w = IntegerRow(
-        "Border Radius",
-        current_radius,
-        0,
-        50,
-        lambda v: _on_border_radius_change(window, v, is_dock=False),
-        "Corner roundness in pixels"
-    )
-    w.set_sensitive(not extend_to_edges)
-    window.widgets['main_border_radius'] = w
-    appearance_group.append(w)
-    
-    # Margins
-    margin_header = Gtk.Label(label="MARGINS")
-    margin_header.add_css_class('section-header')
-    margin_header.set_halign(Gtk.Align.START)
-    margin_header.set_margin_top(16)
-    margin_header.set_margin_bottom(8)
-    appearance_group.append(margin_header)
-    
-    for side in ['top', 'bottom', 'left', 'right']:
-        value = wm.get_margin(side, is_dock=False)
-        w = IntegerRow(
-            f"Margin {side.title()}",
-            value,
-            0,
-            100,
-            lambda v, s=side: wm.set_margin(s, v, is_dock=False),
-            f"Space from screen {side}"
-        )
-        window.widgets[f'main_margin_{side}'] = w
-        appearance_group.append(w)
-    
-    content.append(appearance_group)
-    
-    # ═══════════════════════════════════════════════════════════════
-    # MODULE CONFIGURATION
-    # ═══════════════════════════════════════════════════════════════
-    
+    # MODULE LAYOUT SECTION
     modules_group = SettingsGroup("Module Layout")
     
     info = Gtk.Label(label="Drag and drop modules to rearrange. Click + to add new modules.")
@@ -315,15 +253,13 @@ def _build_main_panel_content(window) -> Gtk.Box:
     info.set_margin_bottom(12)
     modules_group.append(info)
     
-    # Module zones
     zones_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
     zones_box.set_homogeneous(True)
     
     for pos in ['left', 'center', 'right']:
         modules = wm.get_modules(pos, is_dock=False)
         zone = create_module_drop_zone(
-            pos,
-            modules,
+            pos, modules,
             lambda p: _on_add_module(window, p, is_dock=False),
             lambda p, m: _on_remove_module(window, p, m, is_dock=False),
             lambda p, data: _on_reorder_modules(window, p, data, is_dock=False)
@@ -333,7 +269,142 @@ def _build_main_panel_content(window) -> Gtk.Box:
     modules_group.append(zones_box)
     content.append(modules_group)
     
-    # Action buttons
+    # ═══════════════════════════════════════════════════════════════
+    # GROUP/EXPAND DRAWER CONFIGURATION - WITH PERSISTENCE!
+    # ═══════════════════════════════════════════════════════════════
+    
+    drawer_group = SettingsGroup("Expandable Drawer (group/expand)")
+    
+    drawer_info = Gtk.Label()
+    drawer_info.set_markup("<small>Configure which modules appear in the expandable drawer.\nClick the 󰁌 icon on your panel to expand/collapse.</small>")
+    drawer_info.add_css_class('setting-description')
+    drawer_info.set_wrap(True)
+    drawer_info.set_halign(Gtk.Align.START)
+    drawer_info.set_margin_bottom(12)
+    drawer_group.append(drawer_info)
+    
+    # ═══════════════════════════════════════════════════════════════
+    # LOAD SAVED PREFERENCES - Key fix for persistence!
+    # ═══════════════════════════════════════════════════════════════
+    saved_prefs = load_drawer_preferences()
+    current_drawer_modules = saved_prefs.get("enabled_modules", DEFAULT_DRAWER_CONFIG["enabled_modules"])
+    
+    window._drawer_checkboxes = {}
+    
+    modules_flow = Gtk.FlowBox()
+    modules_flow.set_selection_mode(Gtk.SelectionMode.NONE)
+    modules_flow.set_max_children_per_line(3)
+    modules_flow.set_min_children_per_line(2)
+    modules_flow.set_column_spacing(12)
+    modules_flow.set_row_spacing(8)
+    modules_flow.set_homogeneous(True)
+    
+    for module_id, module_name, icon_name in DRAWER_AVAILABLE_MODULES:
+        item_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        item_box.set_margin_start(8)
+        item_box.set_margin_end(8)
+        item_box.set_margin_top(4)
+        item_box.set_margin_bottom(4)
+        
+        check = Gtk.CheckButton()
+        # USE SAVED PREFERENCES for initial state!
+        check.set_active(module_id in current_drawer_modules)
+        window._drawer_checkboxes[module_id] = check
+        item_box.append(check)
+        
+        icon = Gtk.Image.new_from_icon_name(icon_name)
+        icon.set_pixel_size(16)
+        item_box.append(icon)
+        
+        label = Gtk.Label(label=module_name)
+        label.set_halign(Gtk.Align.START)
+        item_box.append(label)
+        
+        modules_flow.append(item_box)
+    
+    drawer_group.append(modules_flow)
+    
+    # Drawer settings row
+    drawer_settings_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
+    drawer_settings_box.set_margin_top(12)
+    
+    # Animation duration - USE SAVED VALUE
+    duration_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+    duration_label = Gtk.Label(label="Animation Duration:")
+    duration_label.add_css_class('setting-description')
+    duration_box.append(duration_label)
+    
+    duration_spin = Gtk.SpinButton.new_with_range(100, 2000, 50)
+    duration_spin.set_value(saved_prefs.get("animation_duration", 600))
+    duration_spin.set_tooltip_text("Drawer animation duration in milliseconds")
+    window._drawer_duration_spin = duration_spin
+    duration_box.append(duration_spin)
+    
+    ms_label = Gtk.Label(label="ms")
+    ms_label.add_css_class('dim-label')
+    duration_box.append(ms_label)
+    drawer_settings_box.append(duration_box)
+    
+    # Direction - USE SAVED VALUE
+    direction_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+    direction_label = Gtk.Label(label="Expand Direction:")
+    direction_label.add_css_class('setting-description')
+    direction_box.append(direction_label)
+    
+    direction_dd = Gtk.DropDown()
+    direction_dd.set_model(Gtk.StringList.new(["← Left", "→ Right"]))
+    saved_direction = saved_prefs.get("expand_direction", "left")
+    direction_dd.set_selected(0 if saved_direction == "left" else 1)
+    direction_dd.set_tooltip_text("Direction the drawer expands")
+    window._drawer_direction_dd = direction_dd
+    direction_box.append(direction_dd)
+    drawer_settings_box.append(direction_box)
+    
+    drawer_group.append(drawer_settings_box)
+    
+    # Expand icon selector - USE SAVED VALUE
+    icon_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+    icon_box.set_margin_top(8)
+    
+    icon_label = Gtk.Label(label="Expand Icon:")
+    icon_label.add_css_class('setting-description')
+    icon_box.append(icon_label)
+    
+    icon_display_names = [f"{data[1]} {data[2]}" for data in EXPAND_ICON_OPTIONS]
+    icon_keys = [data[0] for data in EXPAND_ICON_OPTIONS]
+    icon_values = [data[1] for data in EXPAND_ICON_OPTIONS]
+    
+    icon_dd = Gtk.DropDown()
+    icon_dd.set_model(Gtk.StringList.new(icon_display_names))
+    
+    saved_icon_key = saved_prefs.get("expand_icon", "chevron_left")
+    current_idx = 0
+    for i, key in enumerate(icon_keys):
+        if key == saved_icon_key:
+            current_idx = i
+            break
+    icon_dd.set_selected(current_idx)
+    
+    window._drawer_icon_dd = icon_dd
+    window._drawer_icon_keys = icon_keys
+    window._drawer_icon_values = icon_values
+    icon_box.append(icon_dd)
+    drawer_group.append(icon_box)
+    
+    # Apply drawer button
+    drawer_btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+    drawer_btn_box.set_margin_top(12)
+    drawer_btn_box.set_halign(Gtk.Align.END)
+    
+    apply_drawer_btn = Gtk.Button(label="Apply Drawer Config")
+    apply_drawer_btn.add_css_class('suggested-action')
+    apply_drawer_btn.connect('clicked', lambda b: _apply_drawer_config(window))
+    drawer_btn_box.append(apply_drawer_btn)
+    drawer_group.append(drawer_btn_box)
+    
+    content.append(drawer_group)
+    
+    # ACTION BUTTONS
     content.append(window._create_action_buttons(
         on_reset=lambda b: _on_panel_reset(window, is_dock=False),
         on_apply=lambda b: _on_panel_apply(window, is_dock=False)
@@ -342,209 +413,182 @@ def _build_main_panel_content(window) -> Gtk.Box:
     return content
 
 
-# ═══════════════════════════════════════════════════════════════════
-# HELPER FUNCTIONS
-# ═══════════════════════════════════════════════════════════════════
-
-def _on_monitor_change(window, monitor_name: str, is_dock: bool):
-    """Handle monitor selection change"""
-    if monitor_name in ["All Monitors", "Primary"]:
-        window.waybar_manager.set_output(None, is_dock=is_dock)
-    else:
-        window.waybar_manager.set_output(monitor_name, is_dock=is_dock)
-
-
-def _on_position_change(window, position: str, is_dock: bool):
-    """Handle position change - updates config and CSS for vertical bars"""
-    wm = window.waybar_manager
-    sm = window.waybar_style_manager
-    
-    # Set position in config
-    wm.set_position(position, is_dock=is_dock)
-    
-    # If vertical bar (left/right), add module zone styling
-    if position in ['left', 'right']:
-        sm.add_vertical_bar_css()
-    else:
-        sm.remove_vertical_bar_css()
-
-
-def _on_font_size_changed(window, button, font_size: int):
-    """Handle font size button toggle - changes font-size in CSS"""
-    if button.get_active():
-        # Deactivate other buttons
-        parent = button.get_parent()
-        for child in parent:
-            if isinstance(child, Gtk.ToggleButton) and child != button:
-                child.set_active(False)
-        
-        # Update CSS font-size
-        sm = window.waybar_style_manager
-        sm.set_font_size(font_size)
-        sm.save_style()
-        
-        # Reload waybar to apply
-        window.waybar_manager.reload_waybar()
-        window._show_toast(f"Font size: {font_size}px")
-
-
-def _on_height_changed(window, button, height: int):
-    """Handle height button toggle - changes panel height in config"""
-    if button.get_active():
-        # Deactivate other buttons
-        parent = button.get_parent()
-        for child in parent:
-            if isinstance(child, Gtk.ToggleButton) and child != button:
-                child.set_active(False)
-        
-        # Update height in config
-        wm = window.waybar_manager
-        wm.set_height(height, is_dock=False)
-        
-        # Auto-save and reload
-        _on_panel_apply(window, is_dock=False)
-        
-        window._show_toast(f"Panel height: {height}px")
-
-
-def _on_style_mode_changed(window, dropdown):
-    """Handle style mode change"""
-    selected = dropdown.get_selected()
-    mode = 'minimal' if selected == 0 else 'modern'
-    
-    sm = window.waybar_style_manager
+def _apply_drawer_config(window):
+    """Apply drawer configuration - SAVES PREFERENCES + UPDATES WAYBAR"""
     wm = window.waybar_manager
     
-    # Apply CSS style
-    sm.apply_style_mode(mode)
+    # Collect selected modules
+    selected_modules = []
+    for module_id, checkbox in window._drawer_checkboxes.items():
+        if checkbox.get_active():
+            selected_modules.append(module_id)
     
-    # Apply config changes (modules) - method exists in waybar_manager
-    if hasattr(wm, 'apply_style_config'):
-        wm.apply_style_config(mode, is_dock=False)
+    if not selected_modules:
+        window._show_toast("Please select at least one module for the drawer")
+        return
+    
+    # Get settings
+    duration = int(window._drawer_duration_spin.get_value())
+    to_left = window._drawer_direction_dd.get_selected() == 0
+    direction = "left" if to_left else "right"
+    
+    icon_idx = window._drawer_icon_dd.get_selected()
+    expand_icon_key = window._drawer_icon_keys[icon_idx] if icon_idx < len(window._drawer_icon_keys) else "chevron_left"
+    expand_icon_value = window._drawer_icon_values[icon_idx] if icon_idx < len(window._drawer_icon_values) else ""
     
     # ═══════════════════════════════════════════════════════════════
-    # SAVE TO waybar-menu.json (SINGLE SOURCE OF TRUTH for taskbar)
+    # SAVE PREFERENCES TO FILE (for persistence!)
     # ═══════════════════════════════════════════════════════════════
-    prefs_file = os.path.expanduser("~/.config/hypr-control-center/preferences/waybar-menu.json")
-    os.makedirs(os.path.dirname(prefs_file), exist_ok=True)
+    prefs = {
+        "enabled_modules": selected_modules,
+        "animation_duration": duration,
+        "expand_direction": direction,
+        "expand_icon": expand_icon_key,
+        "click_to_reveal": True
+    }
+    save_drawer_preferences(prefs)
     
-    prefs_data = {
-        "style_mode": mode,
-        "last_updated": datetime.now().isoformat()
+    # ═══════════════════════════════════════════════════════════════
+    # UPDATE WAYBAR CONFIG.JSONC
+    # ═══════════════════════════════════════════════════════════════
+    drawer_modules = ["custom/expand"] + selected_modules + ["custom/endpoint"]
+    
+    group_expand_config = {
+        "orientation": "horizontal",
+        "drawer": {
+            "transition-duration": duration,
+            "transition-to-left": to_left,
+            "click-to-reveal": True
+        },
+        "modules": drawer_modules
     }
     
-    with open(prefs_file, 'w') as f:
-        json.dump(prefs_data, f, indent=2)
+    # Update custom/expand with selected icon
+    wm.main_config["custom/expand"] = {
+        "format": expand_icon_value if expand_icon_value else "",
+        "tooltip": False
+    }
     
-    # Reload waybar
+    if "custom/endpoint" not in wm.main_config:
+        wm.main_config["custom/endpoint"] = {"format": "|", "tooltip": False}
+    
+    wm.main_config["group/expand"] = group_expand_config
+    
+    # Ensure group/expand is in modules-right
+    modules_right = wm.main_config.get("modules-right", [])
+    if "group/expand" not in modules_right:
+        modules_right.insert(0, "group/expand")
+        wm.main_config["modules-right"] = modules_right
+    
+    # Ensure all enabled modules have configs
+    _ensure_module_configs(wm.main_config, selected_modules)
+    
+    # Save and reload
+    wm.save_config(wm.main_config, is_dock=False)
     wm.reload_waybar()
     
-    window._show_toast(f"Applied {mode.capitalize()} style")
+    window._show_toast(f"✅ Drawer configured with {len(selected_modules)} modules")
+    print(f"[Panel] Applied drawer config: {selected_modules}")
 
 
-def _on_transparent_toggle(window, transparent: bool, is_dock: bool):
-    """Handle transparent background toggle"""
-    sm = window.waybar_style_manager
+def _ensure_module_configs(config: dict, enabled_modules: list):
+    """Ensure all enabled modules have basic configs"""
+    HOME = Path.home()
+    HYPR_CONTROL_CENTER = HOME / ".config/hypr-control-center"
+    ALACRITTY_DIR = HOME / ".config/alacritty"
+    KITTY_MODULES = HOME / ".config/kitty/modules"
     
-    if transparent:
-        # Set to transparent
-        sm.set_opacity(1.0, transparent=True)
-        # Disable opacity slider
-        if 'main_opacity' in window.widgets:
-            window.widgets['main_opacity'].set_sensitive(False)
-    else:
-        # Set to current opacity value
-        current_opacity = 0.6
-        if 'main_opacity' in window.widgets:
-            window.widgets['main_opacity'].set_sensitive(True)
-        sm.set_opacity(current_opacity, transparent=False)
+    module_defaults = {
+        "battery": {
+            "interval": 5, "states": {"warning": 30, "critical": 15},
+            "format": " {icon} ", "format-charging": " {icon} ", "format-plugged": " {icon} ",
+            "format-icons": ["", "", "", "", ""],
+            "tooltip": True, "tooltip-format": "Battery: {capacity}%"
+        },
+        "backlight": {
+            "format": " {icon} ", "format-icons": ["󰃞", "󰃟", "󰃠"],
+            "tooltip": True, "tooltip-format": "Brightness: {percent}%",
+            "on-scroll-up": "brightnessctl set +5%", "on-scroll-down": "brightnessctl set 5%-"
+        },
+        "disk": {
+            "interval": 30, "format": " 󰋊 ", "path": "/",
+            "tooltip": True, "tooltip-format": "Disk: {used} / {total} ({percentage_used}%)"
+        },
+        "pulseaudio": {
+            "scroll-step": 10, "format": " {icon}", "format-muted": "",
+            "format-icons": {"headphone": "", "default": ["", "", ""]},
+            "tooltip": True, "tooltip-format": "Volume: {volume}%",
+            "on-click": str(KITTY_MODULES / "audiotop.sh"), "on-click-right": "pavucontrol"
+        },
+        "cpu": {
+            "interval": 1, "format": " {icon}",
+            "format-icons": ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"],
+            "tooltip": True, "tooltip-format": "CPU: {usage}%",
+            "on-click": str(ALACRITTY_DIR / "btmrun.sh")
+        },
+        "memory": {
+            "interval": 1, "format": " {icon}",
+            "format-icons": ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"],
+            "tooltip": True, "tooltip-format": "Memory: {used:0.1f}G / {total:0.1f}G",
+            "on-click": str(ALACRITTY_DIR / "btmrun.sh")
+        },
+        "temperature": {
+            "format": " {icon}", "format-icons": ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"],
+            "tooltip": True, "tooltip-format": "Temperature: {temperatureC}°C"
+        },
+        "network": {
+            "interval": 1, "format-wifi": " {icon} ", "format-ethernet": " {icon} ", "format-disconnected": "󰤮",
+            "format-icons": {"wifi": ["󰤯", "󰤟", "󰤢", "󰤥", "󰤨"], "ethernet": "󰈀"},
+            "tooltip": True, "on-click": str(HYPR_CONTROL_CENTER / "scripts/wifi_selector.py")
+        },
+        "bluetooth": {
+            "format": " ", "format-disabled": " ", "format-connected": " {num_connections} ",
+            "tooltip": True, "on-click": str(ALACRITTY_DIR / "bluetoothrun.sh"), "on-click-right": "blueman-manager"
+        },
+        "custom/pacman": {
+            "exec": str(HYPR_CONTROL_CENTER / "scripts/pacman-updates.sh"),
+            "return-type": "json", "interval": 3600, "format": "󰏔 {}", "tooltip": True,
+            "on-click": str(HYPR_CONTROL_CENTER / "scripts/pacman-updates.sh --update"),
+            "on-click-right": str(HYPR_CONTROL_CENTER / "scripts/pacman-updates.sh --refresh")
+        }
+    }
     
-    # Save CSS immediately
-    sm.save_style()
-    window.waybar_manager.reload_waybar()
+    for module_id in enabled_modules:
+        if module_id not in config and module_id in module_defaults:
+            config[module_id] = module_defaults[module_id]
+            print(f"[Panel] Added missing module config: {module_id}")
 
 
-def _on_opacity_change(window, opacity: float, is_dock: bool):
-    """Handle opacity slider change"""
-    sm = window.waybar_style_manager
-    # Only apply if not in transparent mode
-    if not sm.is_transparent():
-        sm.set_opacity(opacity, transparent=False)
-        # Save CSS immediately
-        sm.save_style()
-        window.waybar_manager.reload_waybar()
-
-
-def _on_border_radius_change(window, radius: int, is_dock: bool):
-    """Handle border radius change"""
-    sm = window.waybar_style_manager
-    sm.set_border_radius(radius, enabled=True)
-    # Save CSS immediately
-    sm.save_style()
-    window.waybar_manager.reload_waybar()
-
-
-def _on_extend_toggle(window, extend: bool, is_dock: bool):
-    """Handle extend to edges toggle - sets all margins and disables border-radius"""
-    wm = window.waybar_manager
-    sm = window.waybar_style_manager
-    
-    if extend:
-        # Extend to edges: all margins to 0, border-radius to 0
-        wm.set_margin('left', 0, is_dock=is_dock)
-        wm.set_margin('right', 0, is_dock=is_dock)
-        wm.set_margin('top', 0, is_dock=is_dock)
-        wm.set_margin('bottom', 0, is_dock=is_dock)
-        sm.set_border_radius(0, enabled=False)
-        sm.set_box_shadow(enabled=False)
-        
-        # Disable border-radius control
-        if 'main_border_radius' in window.widgets:
-            window.widgets['main_border_radius'].set_sensitive(False)
-    else:
-        # Floating panel: restore margins, enable border-radius
-        wm.set_margin('left', 0, is_dock=is_dock)
-        wm.set_margin('right', 0, is_dock=is_dock)
-        
-        # Restore border-radius to slider value
-        if 'main_border_radius' in window.widgets:
-            window.widgets['main_border_radius'].set_sensitive(True)
-        
-        sm.set_border_radius(46, enabled=True)
-        sm.set_box_shadow(enabled=True)
-    
-    # Save changes
-    sm.save_style()
-    wm.reload_waybar()
-
+# ═══════════════════════════════════════════════════════════════════
+# MODULE HELPER FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════
 
 def _on_add_module(window, position: str, is_dock: bool):
     """Show dialog to add a module"""
     wm = window.waybar_manager
-    
-    # Get all modules defined in config
     all_modules = list(wm.get_available_modules())
     
-    # Get currently used modules (in all zones)
+    special_modules = ['group/expand', 'tray', 'custom/expand', 'custom/endpoint']
+    for sm in special_modules:
+        if sm not in all_modules:
+            all_modules.append(sm)
+    
     used_modules = []
     for pos in ['left', 'center', 'right']:
         used_modules.extend(wm.get_modules(pos, is_dock=is_dock))
     
-    # Get available modules (not yet used)
     available_modules = [m for m in all_modules if m not in used_modules]
     
     if not available_modules:
         window._show_toast("All modules are already in use!")
         return
     
-    # Create selection dialog
     dialog = Adw.MessageDialog(
         transient_for=window,
         heading=f"Add Module to {position.upper()}",
         body="Select a module to add:"
     )
     
-    # Create list box with available modules
     list_box = Gtk.ListBox()
     list_box.set_selection_mode(Gtk.SelectionMode.SINGLE)
     list_box.add_css_class('boxed-list')
@@ -557,14 +601,15 @@ def _on_add_module(window, position: str, is_dock: bool):
         box.set_margin_start(12)
         box.set_margin_end(12)
         
-        # Icon
-        icon_name = _get_module_icon(module)
-        icon = Gtk.Image.new_from_icon_name(icon_name)
+        icon = Gtk.Image.new_from_icon_name(_get_module_icon(module))
         icon.set_pixel_size(24)
         box.append(icon)
         
-        # Label
-        label = Gtk.Label(label=_get_module_display_name(module))
+        display_name = _get_module_display_name(module)
+        if module == 'group/expand':
+            display_name += " (Collapsible Drawer)"
+        
+        label = Gtk.Label(label=display_name)
         label.set_halign(Gtk.Align.START)
         label.set_hexpand(True)
         box.append(label)
@@ -573,7 +618,6 @@ def _on_add_module(window, position: str, is_dock: bool):
         row.module_name = module
         list_box.append(row)
     
-    # Scrolled window for list
     scrolled = Gtk.ScrolledWindow()
     scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
     scrolled.set_min_content_height(200)
@@ -591,46 +635,73 @@ def _on_add_module(window, position: str, is_dock: bool):
             selected_row = list_box.get_selected_row()
             if selected_row:
                 module = selected_row.module_name
-                # Add module
+                if module == 'group/expand':
+                    _ensure_group_expand_config(wm)
                 wm.add_module(position, module, is_dock=is_dock)
-                # Auto-save and reload
                 _on_panel_apply(window, is_dock=is_dock)
                 window._show_toast(f"Added {module} to {position}")
-                # Refresh page
                 _refresh_panel_page(window, is_dock=is_dock)
     
     dialog.connect('response', on_response)
     dialog.present()
 
 
+def _ensure_group_expand_config(wm):
+    """Ensure group/expand and its dependencies are properly configured"""
+    config = wm.main_config
+    
+    if "custom/expand" not in config:
+        config["custom/expand"] = {"format": "", "tooltip": False}
+    elif not config["custom/expand"].get("format"):
+        config["custom/expand"]["format"] = ""
+    
+    if "custom/endpoint" not in config:
+        config["custom/endpoint"] = {"format": "|", "tooltip": False}
+    
+    if "group/expand" not in config:
+        saved_prefs = load_drawer_preferences()
+        enabled = saved_prefs.get("enabled_modules", DEFAULT_DRAWER_CONFIG["enabled_modules"])
+        
+        config["group/expand"] = {
+            "orientation": "horizontal",
+            "drawer": {
+                "transition-duration": saved_prefs.get("animation_duration", 600),
+                "transition-to-left": saved_prefs.get("expand_direction", "left") == "left",
+                "click-to-reveal": True
+            },
+            "modules": ["custom/expand"] + enabled + ["custom/endpoint"]
+        }
+    else:
+        if "drawer" not in config["group/expand"]:
+            config["group/expand"]["drawer"] = {"transition-duration": 600, "transition-to-left": True, "click-to-reveal": True}
+        modules = config["group/expand"].get("modules", [])
+        if "custom/expand" not in modules:
+            modules.insert(0, "custom/expand")
+        if "custom/endpoint" not in modules:
+            modules.append("custom/endpoint")
+        config["group/expand"]["modules"] = modules
+
+
 def _refresh_panel_page(window, is_dock: bool = False):
     """Refresh panel page to show updated module layout"""
     page_name = "panel" if not is_dock else "dock"
-
     old_page = window.stack.get_child_by_name(page_name)
 
-    # Save scroll position
     vadj_value = 0
     if isinstance(old_page, Gtk.ScrolledWindow):
         vadj = old_page.get_vadjustment()
         vadj_value = vadj.get_value()
 
-    # Rebuild content
-    content = _build_main_panel_content(window)
-
-    scrolled = Gtk.ScrolledWindow()
-    scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-    scrolled.set_child(content)
+    new_page = build_panel_page(window)
 
     if old_page:
         window.stack.remove(old_page)
 
-    window.stack.add_named(scrolled, page_name)
+    window.stack.add_named(new_page, page_name)
     window.stack.set_visible_child_name(page_name)
 
-    # Restore scroll position
     def restore_scroll():
-        vadj = scrolled.get_vadjustment()
+        vadj = new_page.get_vadjustment()
         vadj.set_value(vadj_value)
         return False
 
@@ -640,32 +711,18 @@ def _refresh_panel_page(window, is_dock: bool = False):
 def _get_module_icon(module: str) -> str:
     """Get icon name for module"""
     icons = {
-        'clock': 'preferences-system-time-symbolic',
-        'hyprland/workspaces': 'view-grid-symbolic',
-        'hyprland/window': 'window-symbolic',
-        'custom/taskbar': 'view-list-symbolic',
-        'custom/pinned': 'pin-symbolic',
-        'custom/music': 'multimedia-player-symbolic',
-        'custom/pacman': 'system-software-update-symbolic',
-        'custom/expand': 'go-previous-symbolic',
-        'custom/endpoint': 'separator-symbolic',
-        'group/expand': 'view-more-symbolic',
-        'tray': 'system-tray-symbolic',
-        'pulseaudio': 'audio-volume-high-symbolic',
-        'network': 'network-wireless-symbolic',
-        'battery': 'battery-symbolic',
-        'custom/notification': 'notification-symbolic',
-        'cpu': 'utilities-system-monitor-symbolic',
-        'memory': 'drive-harddisk-symbolic',
-        'disk': 'drive-harddisk-symbolic',
-        'temperature': 'temperature-symbolic',
-        'backlight': 'display-brightness-symbolic',
-        'bluetooth': 'bluetooth-symbolic',
-        'wlr/taskbar': 'view-list-symbolic',
-        'idle_inhibitor': 'preferences-desktop-screensaver-symbolic',
-        'mpd': 'multimedia-player-symbolic',
-        'custom/weather': 'weather-clear-symbolic',
-        'custom/start-menu': 'view-list-symbolic'
+        'clock': 'preferences-system-time-symbolic', 'hyprland/workspaces': 'view-grid-symbolic',
+        'hyprland/window': 'window-symbolic', 'custom/taskbar': 'view-list-symbolic',
+        'custom/pinned': 'pin-symbolic', 'custom/music': 'multimedia-player-symbolic',
+        'custom/pacman': 'system-software-update-symbolic', 'custom/expand': 'go-previous-symbolic',
+        'custom/endpoint': 'list-remove-symbolic', 'group/expand': 'view-more-symbolic',
+        'tray': 'system-tray-symbolic', 'pulseaudio': 'audio-volume-high-symbolic',
+        'network': 'network-wireless-symbolic', 'battery': 'battery-symbolic',
+        'custom/notification': 'notification-symbolic', 'cpu': 'utilities-system-monitor-symbolic',
+        'memory': 'drive-harddisk-symbolic', 'disk': 'drive-harddisk-symbolic',
+        'temperature': 'sensors-temperature-symbolic', 'backlight': 'display-brightness-symbolic',
+        'bluetooth': 'bluetooth-symbolic', 'wlr/taskbar': 'view-list-symbolic',
+        'custom/start-menu': 'start-here-symbolic'
     }
     return icons.get(module, 'application-x-executable-symbolic')
 
@@ -673,32 +730,14 @@ def _get_module_icon(module: str) -> str:
 def _get_module_display_name(module: str) -> str:
     """Get display name for module"""
     names = {
-        'clock': 'Clock',
-        'hyprland/workspaces': 'Workspaces',
-        'hyprland/window': 'Active Window Title',
-        'tray': 'System Tray',
-        'pulseaudio': 'Audio',
-        'network': 'Network',
-        'battery': 'Battery',
-        'bluetooth': 'Bluetooth',
-        'cpu': 'CPU Usage',
-        'memory': 'Memory Usage',
-        'disk': 'Disk Usage',
-        'temperature': 'Temperature',
-        'backlight': 'Brightness',
-        'custom/notification': 'Notifications',
-        'custom/taskbar': 'Taskbar',
-        'custom/pinned': 'Pinned Apps',
-        'custom/music': 'Music Player',
-        'custom/pacman': 'System Updates (Pacman)',
-        'custom/expand': 'Expand Drawer',
-        'custom/endpoint': 'Separator',
-        'custom/weather': 'Weather',
-        'group/expand': 'Expandable Group',
-        'wlr/taskbar': 'WLR Taskbar',
-        'idle_inhibitor': 'Idle Inhibitor',
-        'mpd': 'Music Player Daemon',
-        'custom/start-menu': 'Start Menu',
+        'clock': 'Clock', 'hyprland/workspaces': 'Workspaces', 'hyprland/window': 'Active Window Title',
+        'tray': 'System Tray', 'pulseaudio': 'Audio', 'network': 'Network', 'battery': 'Battery',
+        'bluetooth': 'Bluetooth', 'cpu': 'CPU Usage', 'memory': 'Memory Usage', 'disk': 'Disk Usage',
+        'temperature': 'Temperature', 'backlight': 'Brightness', 'custom/notification': 'Notifications',
+        'custom/taskbar': 'Taskbar', 'custom/pinned': 'Pinned Apps', 'custom/music': 'Music Player',
+        'custom/pacman': 'System Updates (Pacman)', 'custom/expand': 'Drawer Toggle',
+        'custom/endpoint': 'Drawer End Marker', 'group/expand': 'Expandable Drawer',
+        'wlr/taskbar': 'WLR Taskbar', 'custom/start-menu': 'Start Menu'
     }
     return names.get(module, module.replace('/', ' ').title())
 
@@ -712,28 +751,21 @@ def _on_remove_module(window, position: str, module: str, is_dock: bool):
 
 
 def _on_reorder_modules(window, position: str, data: str, is_dock: bool):
-    """Handle module reordering via drag and drop - supports within-zone reordering"""
+    """Handle module reordering via drag and drop"""
     parts = data.split(':')
+    wm = window.waybar_manager
     
     if len(parts) >= 4:
-        # NEW FORMAT: "from_pos:from_module:to_pos:target_module:before/after" or "from_pos:from_module:to_pos:append"
-        from_pos = parts[0]
-        from_module = parts[1]
-        to_pos = parts[2]
-        
-        wm = window.waybar_manager
+        from_pos, from_module, to_pos = parts[0], parts[1], parts[2]
         
         if len(parts) == 4 and parts[3] == 'append':
-            # Drop in empty space - append to end
             if from_pos == to_pos:
-                # Same zone - move to end
                 modules = wm.get_modules(to_pos, is_dock)
                 if from_module in modules:
                     modules.remove(from_module)
                     modules.append(from_module)
                     wm.set_modules(to_pos, modules, is_dock)
             else:
-                # Different zone - move
                 wm.move_module(from_pos, to_pos, from_module, is_dock)
             
             window._show_toast(f"Moved {from_module} to {to_pos}")
@@ -741,46 +773,25 @@ def _on_reorder_modules(window, position: str, data: str, is_dock: bool):
             _refresh_panel_page(window, is_dock)
             
         elif len(parts) == 5:
-            # Drop on specific module with before/after
             target_module = parts[3]
             insert_before = parts[4] == 'before'
             
             if from_pos == to_pos:
-                # WITHIN SAME ZONE - reorder
                 modules = wm.get_modules(to_pos, is_dock)
-                
                 if from_module in modules and target_module in modules:
-                    # Remove from current position
                     modules.remove(from_module)
-                    
-                    # Find target index
                     target_idx = modules.index(target_module)
-                    
-                    # Insert before or after
-                    if insert_before:
-                        modules.insert(target_idx, from_module)
-                    else:
-                        modules.insert(target_idx + 1, from_module)
-                    
+                    modules.insert(target_idx if insert_before else target_idx + 1, from_module)
                     wm.set_modules(to_pos, modules, is_dock)
                     window._show_toast(f"Reordered {from_module} in {to_pos}")
             else:
-                # BETWEEN ZONES - move and insert
-                # Remove from source
                 wm.remove_module(from_pos, from_module, is_dock)
-                
-                # Get target modules
                 modules = wm.get_modules(to_pos, is_dock)
-                
                 if target_module in modules:
                     target_idx = modules.index(target_module)
-                    if insert_before:
-                        modules.insert(target_idx, from_module)
-                    else:
-                        modules.insert(target_idx + 1, from_module)
+                    modules.insert(target_idx if insert_before else target_idx + 1, from_module)
                 else:
                     modules.append(from_module)
-                
                 wm.set_modules(to_pos, modules, is_dock)
                 window._show_toast(f"Moved {from_module} from {from_pos} to {to_pos}")
             
@@ -788,10 +799,9 @@ def _on_reorder_modules(window, position: str, data: str, is_dock: bool):
             _refresh_panel_page(window, is_dock)
     
     elif len(parts) == 2:
-        # OLD FORMAT: "from_pos:module" - backwards compatibility
         from_pos, module = parts
         if from_pos != position:
-            window.waybar_manager.move_module(from_pos, position, module, is_dock=is_dock)
+            wm.move_module(from_pos, position, module, is_dock=is_dock)
             window._show_toast(f"Moved {module} from {from_pos} to {position}")
             _on_panel_apply(window, is_dock)
             _refresh_panel_page(window, is_dock)
@@ -804,7 +814,7 @@ def _on_panel_reset(window, is_dock: bool):
     dialog = Adw.MessageDialog(
         transient_for=window,
         heading=f"Reset {panel_type}?",
-        body=f"This will restore the {panel_type.lower()} to default configuration."
+        body=f"This will restore the {panel_type.lower()} to default configuration.\nDrawer preferences will also be reset."
     )
     dialog.add_response("cancel", "Cancel")
     dialog.add_response("reset", "Reset")
@@ -817,17 +827,16 @@ def _on_panel_reset_response(window, dialog, response, is_dock: bool):
     """Handle panel reset confirmation"""
     if response == "reset":
         wm = window.waybar_manager
-        
-        # Create default config
         default_config = wm.create_default_config(is_dock=is_dock)
         
-        # Update the appropriate config
         if is_dock:
             wm.dock_config = default_config
         else:
             wm.main_config = default_config
         
-        # Save and reload
+        # Reset drawer preferences too
+        save_drawer_preferences(DEFAULT_DRAWER_CONFIG)
+        
         wm.save_config(default_config, is_dock=is_dock)
         wm.reload_waybar()
         _refresh_panel_page(window, is_dock=is_dock)
@@ -835,16 +844,13 @@ def _on_panel_reset_response(window, dialog, response, is_dock: bool):
 
 
 def _on_panel_apply(window, is_dock: bool):
-    """Apply panel changes - saves config.jsonc only"""
+    """Apply panel changes"""
     wm = window.waybar_manager
     
-    # Save config.jsonc (layout)
     if is_dock:
         wm.save_config(wm.dock_config, is_dock=True)
     else:
         wm.save_config(wm.main_config, is_dock=False)
     
-    # Reload waybar to apply changes
     wm.reload_waybar()
-    
     window._show_toast("Panel configuration applied!")

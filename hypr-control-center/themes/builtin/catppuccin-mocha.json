@@ -1,0 +1,126 @@
+{
+  "id": "catppuccin-mocha",
+  "name": "Catppuccin Mocha",
+  "description": "Soothing pastel theme",
+  "is_builtin": true,
+  "version": "1.0",
+  "created_at": "2026-01-14T16:58:46.354669",
+  "modified_at": "2026-01-14T16:58:46.354672",
+  "colors": {
+    "bg0": "#1e1e2e",
+    "bg1": "#181825",
+    "bg2": "#313244",
+    "bg3": "#45475a",
+    "bg4": "#585b70",
+    "fg": "#cdd6f4",
+    "grey0": "#6c7086",
+    "grey1": "#7f849c",
+    "grey2": "#9399b2",
+    "red": "#f38ba8",
+    "orange": "#fab387",
+    "yellow": "#f9e2af",
+    "green": "#a6e3a1",
+    "aqua": "#94e2d5",
+    "blue": "#89b4fa",
+    "purple": "#cba6f7"
+  },
+  "rofi": {
+    "background": "#1E1D2F",
+    "background-alt": "#282839",
+    "foreground": "#D9E0EE",
+    "selected": "#7AA2F7",
+    "active": "#ABE9B3",
+    "urgent": "#F28FAD"
+  },
+  "kitty": {
+    "background": "#1e1e2e",
+    "foreground": "#cdd6f4",
+    "cursor": "#f5e0dc",
+    "color0": "#45475a",
+    "color1": "#f38ba8",
+    "color2": "#a6e3a1",
+    "color3": "#f9e2af",
+    "color4": "#89b4fa",
+    "color5": "#cba6f7",
+    "color6": "#94e2d5",
+    "color7": "#bac2de",
+    "color8": "#585b70",
+    "color9": "#f38ba8",
+    "color10": "#a6e3a1",
+    "color11": "#f9e2af",
+    "color12": "#89b4fa",
+    "color13": "#cba6f7",
+    "color14": "#94e2d5",
+    "color15": "#a6adc8"
+  },
+  "waybar": {
+    "global": {
+      "window_radius": 47,
+      "window_opacity": 0.5,
+      "module_radius": 45,
+      "module_opacity": 0.9
+    },
+    "workspaces": {
+      "container_opacity": 0.21,
+      "container_radius": 26,
+      "button_normal_bg": "bg1",
+      "button_active_bg": "blue",
+      "button_active_text": "bg0",
+      "button_hover_bg": "purple",
+      "button_hover_text": "bg0",
+      "button_urgent_bg": "red",
+      "button_urgent_text": "bg0"
+    },
+    "modules": {
+      "cpu": {
+        "color": "blue"
+      },
+      "memory": {
+        "color": "green"
+      },
+      "temperature": {
+        "color": "orange"
+      },
+      "pulseaudio": {
+        "color": "yellow",
+        "muted": "red"
+      },
+      "battery": {
+        "color": "green",
+        "warning": "orange",
+        "critical": "red"
+      },
+      "bluetooth": {
+        "color": "blue",
+        "connected": "green",
+        "disconnected": "red"
+      },
+      "clock": {
+        "color": "blue"
+      },
+      "network": {
+        "wifi": "purple",
+        "ethernet": "green",
+        "disconnected": "red"
+      },
+      "notification": {
+        "color": "fg"
+      }
+    },
+    "taskbar": {
+      "button_normal_bg": "bg1",
+      "button_running_bg": "bg2",
+      "button_running_indicator": "blue",
+      "button_active_bg": "blue",
+      "button_active_text": "bg0",
+      "button_hover_bg": "bg3",
+      "button_urgent_bg": "red"
+    },
+    "music": {
+      "default": "purple",
+      "playing": "green",
+      "paused": "yellow",
+      "idle": "grey0"
+    }
+  }
+}

@@ -55,6 +55,38 @@
       "exec_cmd": "standard notes",
       "desktop_file": null,
       "wm_class": "standard notes"
+    },
+    {
+      "app_id": "responsivelyapp",
+      "name": "Responsivelyapp",
+      "icon": "responsivelyapp",
+      "exec_cmd": "responsivelyapp",
+      "desktop_file": null,
+      "wm_class": "responsivelyapp"
+    },
+    {
+      "app_id": "zen",
+      "name": "Zen Browser",
+      "icon": "zen-browser",
+      "exec_cmd": "/opt/zen-browser-bin/zen-bin",
+      "desktop_file": "/usr/share/applications/zen.desktop",
+      "wm_class": "zen"
+    },
+    {
+      "app_id": "io.github.lainsce.notejot",
+      "name": "Notejot",
+      "icon": "io.github.lainsce.Notejot",
+      "exec_cmd": "io.github.lainsce.Notejot",
+      "desktop_file": "/usr/share/applications/io.github.lainsce.Notejot.desktop",
+      "wm_class": null
+    },
+    {
+      "app_id": "lutris",
+      "name": "Lutris",
+      "icon": "net.lutris.Lutris",
+      "exec_cmd": "/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=lutris --file-forwarding net.lutris.Lutris @@u  @@",
+      "desktop_file": "/var/lib/flatpak/exports/share/applications/net.lutris.Lutris.desktop",
+      "wm_class": "lutris"
     }
   ]
 }

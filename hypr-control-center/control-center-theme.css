@@ -1,0 +1,49 @@
+
+/* Auto-generated Control Center Theme - Black */
+@define-color bg_color #000000;
+@define-color fg_color #ffffff;
+@define-color accent_color #62aeef;
+@define-color accent_bg_color #62aeef;
+@define-color destructive_color #e06b74;
+@define-color success_color #98c379;
+@define-color warning_color #e5c07b;
+@define-color error_color #e06b74;
+
+@define-color window_bg_color #000000;
+@define-color window_fg_color #ffffff;
+@define-color view_bg_color #101010;
+@define-color view_fg_color #ffffff;
+@define-color headerbar_bg_color #101010;
+@define-color headerbar_fg_color #ffffff;
+@define-color card_bg_color #101010;
+@define-color card_fg_color #ffffff;
+@define-color sidebar_bg_color #101010;
+@define-color sidebar_fg_color #ffffff;
+
+window, .background {
+    background-color: @window_bg_color;
+    color: @window_fg_color;
+}
+
+.sidebar {
+    background-color: @sidebar_bg_color;
+}
+
+.card {
+    background-color: @card_bg_color;
+    border-radius: 12px;
+}
+
+.suggested-action {
+    background-color: @accent_color;
+    color: #000000;
+}
+
+.destructive-action {
+    background-color: @destructive_color;
+    color: #000000;
+}
+
+headerbar {
+    background-color: @headerbar_bg_color;
+}

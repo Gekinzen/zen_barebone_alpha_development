@@ -1,78 +1,152 @@
 #!/bin/bash
-#
-# Start Menu Toggle Script for Waybar
-# ====================================
-# Location: ~/.config/hypr-control-center/scripts/start-menu-toggle.sh
-#
-# Features:
-# - Auto-positions based on Waybar config (same as panel widget)
-# - GTK4 Layer Shell support for proper window positioning
-# - Smart window detection via Hyprland IPC
-#
-# Usage: 
-#   start-menu-toggle.sh        # Toggle start menu
-#   start-menu-toggle.sh open   # Force open
-#   start-menu-toggle.sh close  # Force close
-#
+# ═══════════════════════════════════════════════════════════════════════════════
+# Start Menu Toggle - v2.3 DAEMON MODE
+# ═══════════════════════════════════════════════════════════════════════════════
+# INSTANT toggle using daemon mode - menu stays resident, just show/hide
 
 CONFIG_DIR="$HOME/.config/hypr-control-center"
 START_MENU="$CONFIG_DIR/start-menu.py"
+PID_FILE="/tmp/hypr-startmenu.pid"
 
-# Check if start menu window exists using Hyprland IPC
-is_running() {
-    hyprctl clients -j | jq -e '.[] | select(.class == "com.hyprland.startmenu" or .title == "Start Menu")' > /dev/null 2>&1
+# ═══════════════════════════════════════════════════════════════════════════════
+# DAEMON STATUS CHECK
+# ═══════════════════════════════════════════════════════════════════════════════
+
+get_daemon_pid() {
+    if [ -f "$PID_FILE" ]; then
+        local pid
+        pid=$(cat "$PID_FILE" 2>/dev/null)
+        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            echo "$pid"
+            return 0
+        fi
+    fi
+    return 1
 }
 
-# Get window address if running
-get_window_address() {
-    hyprctl clients -j | jq -r '.[] | select(.class == "com.hyprland.startmenu" or .title == "Start Menu") | .address' 2>/dev/null | head -1
+is_daemon_running() {
+    get_daemon_pid >/dev/null 2>&1
 }
 
-# Launch start menu with Layer Shell support
-launch_menu() {
-    echo "[StartMenu Toggle] 🚀 Opening start menu..."
-    echo "[StartMenu Toggle] 📍 Position will be auto-detected from Waybar config"
+# ═══════════════════════════════════════════════════════════════════════════════
+# DAEMON CONTROL
+# ═══════════════════════════════════════════════════════════════════════════════
+
+start_daemon() {
+    if is_daemon_running; then
+        echo "[StartMenu] Daemon already running (PID: $(get_daemon_pid))"
+        return 0
+    fi
     
-    # Launch with GTK4 Layer Shell preload for proper positioning
-    cd "$CONFIG_DIR" && LD_PRELOAD=/usr/lib/libgtk4-layer-shell.so python3 "$START_MENU" &
+    echo "[StartMenu] 🚀 Starting daemon..."
+    cd "$CONFIG_DIR" || exit 1
     
-    # Wait a moment to ensure it starts
-    sleep 0.1
+    LD_PRELOAD=/usr/lib/libgtk4-layer-shell.so \
+    GDK_BACKEND=wayland \
+    python3 "$START_MENU" --daemon &
     
-    echo "[StartMenu Toggle] ✅ Start menu launched!"
+    disown
+    
+    # Wait for daemon to start
+    sleep 0.3
+    
+    if is_daemon_running; then
+        echo "[StartMenu] ✅ Daemon started (PID: $(get_daemon_pid))"
+    else
+        echo "[StartMenu] ❌ Daemon failed to start"
+        return 1
+    fi
 }
+
+stop_daemon() {
+    local pid
+    pid=$(get_daemon_pid)
+    
+    if [ -n "$pid" ]; then
+        echo "[StartMenu] 🛑 Stopping daemon (PID: $pid)..."
+        kill "$pid" 2>/dev/null
+        rm -f "$PID_FILE"
+        echo "[StartMenu] ✅ Daemon stopped"
+    else
+        echo "[StartMenu] ⚠️ Daemon not running"
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TOGGLE - INSTANT via SIGUSR1
+# ═══════════════════════════════════════════════════════════════════════════════
+
+toggle_menu() {
+    local pid
+    pid=$(get_daemon_pid)
+    
+    if [ -n "$pid" ]; then
+        # INSTANT! Just send signal to toggle
+        kill -USR1 "$pid" 2>/dev/null
+    else
+        # Start daemon first, then show
+        start_daemon
+        sleep 0.2
+        pid=$(get_daemon_pid)
+        if [ -n "$pid" ]; then
+            kill -USR1 "$pid" 2>/dev/null
+        fi
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LEGACY MODE (non-daemon)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+start_legacy() {
+    echo "[StartMenu] 🚀 Starting (legacy mode)..."
+    cd "$CONFIG_DIR" || exit 1
+    
+    LD_PRELOAD=/usr/lib/libgtk4-layer-shell.so \
+    GDK_BACKEND=wayland \
+    python3 "$START_MENU" &
+    
+    disown
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MAIN
+# ═══════════════════════════════════════════════════════════════════════════════
 
 case "${1:-toggle}" in
-    open)
-        if ! is_running; then
-            launch_menu
+    toggle)
+        toggle_menu
+        ;;
+    daemon|start-daemon)
+        start_daemon
+        ;;
+    stop|stop-daemon)
+        stop_daemon
+        ;;
+    restart)
+        stop_daemon
+        sleep 0.3
+        start_daemon
+        ;;
+    status)
+        if is_daemon_running; then
+            echo "[StartMenu] ✅ Daemon running (PID: $(get_daemon_pid))"
         else
-            # Already open, focus it
-            addr=$(get_window_address)
-            [ -n "$addr" ] && hyprctl dispatch focuswindow "address:$addr"
-            echo "[StartMenu Toggle] ℹ️ Start menu already open, focusing..."
+            echo "[StartMenu] ❌ Daemon not running"
         fi
         ;;
-        
-    close)
-        if is_running; then
-            echo "[StartMenu Toggle] 🚪 Closing start menu..."
-            addr=$(get_window_address)
-            [ -n "$addr" ] && hyprctl dispatch closewindow "address:$addr"
-            echo "[StartMenu Toggle] ✅ Start menu closed!"
-        else
-            echo "[StartMenu Toggle] ℹ️ Start menu not running"
-        fi
+    legacy)
+        start_legacy
         ;;
-        
-    toggle|*)
-        if is_running; then
-            echo "[StartMenu Toggle] 🚪 Closing start menu..."
-            addr=$(get_window_address)
-            [ -n "$addr" ] && hyprctl dispatch closewindow "address:$addr"
-            echo "[StartMenu Toggle] ✅ Start menu closed!"
-        else
-            launch_menu
-        fi
+    *)
+        echo "Usage: $0 {toggle|daemon|stop|restart|status|legacy}"
+        echo ""
+        echo "Commands:"
+        echo "  toggle   - Toggle menu visibility (starts daemon if needed)"
+        echo "  daemon   - Start daemon in background"
+        echo "  stop     - Stop daemon"
+        echo "  restart  - Restart daemon"
+        echo "  status   - Check daemon status"
+        echo "  legacy   - Start without daemon (slower)"
         ;;
 esac

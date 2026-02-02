@@ -17,6 +17,7 @@ import subprocess
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Any, List, Callable
+from pages.theming import build_theming_page
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CONFIGURATION PATHS

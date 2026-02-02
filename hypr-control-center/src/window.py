@@ -1,5 +1,7 @@
 """
-Main Control Center Window - COMPLETE WITH WHITE ICONS FIX
+Main Control Center Window - COMPLETE WITH WHITE ICONS FIX + THEMING MODULE
+Added: Plugins page, Time & Language page, Workspace page (with orientation & multi-monitor)
+Fixed: Theme persistence on restart using initialize_saved_theme()
 """
 
 import gi
@@ -18,25 +20,181 @@ from .pages.displays import build_displays_page
 from .pages.power import build_power_page
 from .pages.notifications import build_notifications_page
 from .pages.wallpaper import build_wallpaper_page
-from .pages.placeholders import (
-    build_workspaces_page, build_input_page, build_keybinds_page
-)
 from .pages.animations import build_animations_page 
+from .pages.theming import build_theming_page
+
+# ════════════════════════════════════════════════════════════════════════════
+# NEW PAGE IMPORTS
+# ════════════════════════════════════════════════════════════════════════════
+from .pages.input import build_input_page
+from .pages.plugins import build_plugins_page
+from .pages.time_language import build_time_language_page
+from .pages.updates import build_updates_page
+from .pages.keybinds import build_keybinds_page
+
+# ════════════════════════════════════════════════════════════════════════════
+# WORKSPACE SECTION - Full workspace configuration module
+# ════════════════════════════════════════════════════════════════════════════
+try:
+    from theming_modules.workspace_section import build_workspace_section_for_expander, build_workspace_section
+    HAS_WORKSPACE_MODULE = True
+    print("[Window] 󰙀 Workspace module loaded")
+except ImportError:
+    try:
+        # Alternative import path
+        from .pages.placeholders import build_workspaces_page
+        HAS_WORKSPACE_MODULE = False
+        print("[Window] ⚠️ Workspace module not found - using placeholder")
+    except ImportError:
+        HAS_WORKSPACE_MODULE = False
+        print("[Window] ⚠️ No workspace module available")
 
 
+# ════════════════════════════════════════════════════════════════════════════
+# IMPORT THEMING MODULE - This is the fix!
+# ════════════════════════════════════════════════════════════════════════════
+try:
+    from .pages.theming import initialize_saved_theme, get_saved_theme_data
+    HAS_THEMING_MODULE = True
+    print("[Window] 󰍣 Theming module loaded")
+except ImportError:
+    try:
+        # Alternative import path
+        from modules.theming import initialize_saved_theme, get_saved_theme_data
+        HAS_THEMING_MODULE = True
+        print("[Window] 󰍣 Theming module loaded (modules path)")
+    except ImportError:
+        HAS_THEMING_MODULE = False
+        print("[Window] ⚠️ Theming module not found - using fallback")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# NERD FONT ICON MAP
+# ════════════════════════════════════════════════════════════════════════════
 ICON_MAP = {
-    "wallpaper": "",
-    "appearance": "",
-    "panel": "",
-    "notifications": "",
-    "themes": "",
+    "wallpaper": "󰸉",
+    "appearance": "󰇞",
+    "panel": "",
+    "notifications": "󰎟",
+    "themes": "󰍣",
+    "theming": "󰍣",
     "workspaces": "󰙀",
     "animations": "󰔎",
-    "input": "",
+    "input": "",
     "displays": "󰍹",
     "power": "󰐥",
     "keybinds": "󰌌",
+    "plugins": "󱁤",
+    "time_language": "󰥔",
+    "updates": "󰚰",
 }
+
+
+def build_workspaces_page_wrapper(window) -> Gtk.Widget:
+    """
+    Build Workspaces page - uses full module if available, otherwise placeholder
+    """
+    if HAS_WORKSPACE_MODULE:
+        # Use the full workspace section module
+        return _build_full_workspaces_page(window)
+    else:
+        # Fallback to placeholder
+        return _build_placeholder_workspaces_page(window)
+
+
+def _build_full_workspaces_page(window) -> Gtk.Widget:
+    """Build full workspaces page with all features"""
+    page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+    page.set_margin_start(24)
+    page.set_margin_end(24)
+    page.set_margin_top(24)
+    page.set_margin_bottom(24)
+    
+    # Header
+    header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+    header.set_margin_bottom(24)
+    
+    title = Gtk.Label(label="Workspaces")
+    title.add_css_class('page-title')
+    title.set_halign(Gtk.Align.START)
+    header.append(title)
+    
+    subtitle = Gtk.Label(label="Configure workspace orientation, multi-monitor behavior, and layout settings")
+    subtitle.add_css_class('page-subtitle')
+    subtitle.set_halign(Gtk.Align.START)
+    header.append(subtitle)
+    
+    page.append(header)
+    
+    # Main content from workspace_section module
+    try:
+        workspace_content = build_workspace_section(window)
+        workspace_content.set_margin_start(0)
+        workspace_content.set_margin_end(0)
+        page.append(workspace_content)
+    except Exception as e:
+        print(f"[Window] Error building workspace section: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # Show error message
+        error_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        error_label = Gtk.Label()
+        error_label.set_markup(f"<span color='#e06c75'>⚠️ Error loading workspace settings: {str(e)}</span>")
+        error_label.set_wrap(True)
+        error_box.append(error_label)
+        page.append(error_box)
+    
+    return page
+
+
+def _build_placeholder_workspaces_page(window) -> Gtk.Widget:
+    """Build placeholder workspaces page when module not available"""
+    page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+    page.set_margin_start(24)
+    page.set_margin_end(24)
+    page.set_margin_top(24)
+    page.set_margin_bottom(24)
+    
+    # Header
+    header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+    header.set_margin_bottom(24)
+    
+    title = Gtk.Label(label="Workspaces")
+    title.add_css_class('page-title')
+    title.set_halign(Gtk.Align.START)
+    header.append(title)
+    
+    subtitle = Gtk.Label(label="Workspace configuration")
+    subtitle.add_css_class('page-subtitle')
+    subtitle.set_halign(Gtk.Align.START)
+    header.append(subtitle)
+    
+    page.append(header)
+    
+    # Placeholder content
+    placeholder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+    placeholder.set_valign(Gtk.Align.CENTER)
+    placeholder.set_vexpand(True)
+    
+    icon = Gtk.Label(label="󰙀")
+    icon.add_css_class("page-title")
+    icon.set_opacity(0.5)
+    placeholder.append(icon)
+    
+    msg = Gtk.Label(label="Workspace module not installed")
+    msg.add_css_class("dim-label")
+    placeholder.append(msg)
+    
+    hint = Gtk.Label()
+    hint.set_markup("<small>Copy <tt>workspace_section.py</tt> to <tt>theming_modules/</tt> to enable</small>")
+    hint.add_css_class("dim-label")
+    placeholder.append(hint)
+    
+    page.append(placeholder)
+    
+    return page
+
 
 class ControlCenterWindow(Adw.ApplicationWindow):
     """Main Control Center Window"""
@@ -44,9 +202,12 @@ class ControlCenterWindow(Adw.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app)
         
-        self.set_title("Hyprland Control Center")
+        self.set_title("Zenpy - Hypr Center Alpha")
         self._set_optimal_window_size()
         self.set_resizable(True)
+        
+        # Store current theme data
+        self.current_theme_data = None
         
         from .theme_manager import ThemeManager
         theme_mgr = ThemeManager()
@@ -62,8 +223,42 @@ class ControlCenterWindow(Adw.ApplicationWindow):
         self.config.parse_look_and_feel()
         self.widgets = {}
         
+        # ════════════════════════════════════════════════════════════════════
+        # CRITICAL FIX: Initialize saved theme BEFORE applying CSS
+        # This ensures the correct theme is loaded on startup
+        # ════════════════════════════════════════════════════════════════════
+        self._initialize_theme()
+        
         self._apply_css()
         self._build_ui()
+    
+    def _initialize_theme(self):
+        """
+        Initialize theme from saved preferences.
+        This is the key function that ensures theme persistence!
+        """
+        if HAS_THEMING_MODULE:
+            print("[Window] ════════════════════════════════════════════════")
+            print("[Window] 🎨 Initializing saved theme...")
+            print("[Window] ════════════════════════════════════════════════")
+            
+            try:
+                # This reads preferences/theme.json and applies the saved theme
+                self.current_theme_data = initialize_saved_theme(self)
+                
+                if self.current_theme_data:
+                    theme_name = self.current_theme_data.get('name', 'Unknown')
+                    theme_id = self.current_theme_data.get('id', 'unknown')
+                    print(f"[Window] 󰍣 Theme initialized: {theme_name} (id={theme_id})")
+                else:
+                    print("[Window] ⚠️ No theme data returned, using defaults")
+                    
+            except Exception as e:
+                print(f"[Window] ❌ Theme initialization error: {e}")
+                import traceback
+                traceback.print_exc()
+        else:
+            print("[Window] ⚠️ Theming module not available, skipping theme init")
     
     def _set_optimal_window_size(self):
         """Set window size based on monitor dimensions"""
@@ -99,27 +294,53 @@ class ControlCenterWindow(Adw.ApplicationWindow):
         self.set_default_size(1100, 750)
         
     def _apply_css(self):
-        """Apply themed CSS with white icon override"""
+        """
+        Apply themed CSS with white icon override.
+        
+        UPDATED: Now uses the theme initialized by _initialize_theme()
+        instead of calling ThemeManager separately.
+        """
         from .theme_manager import ThemeManager
         
         theme_mgr = ThemeManager()
         theme_source = theme_mgr.get_theme_source_mode()
         
-        if theme_source == "gtk":
-            from .styles import get_css
-            css = get_css()
+        # ════════════════════════════════════════════════════════════════════
+        # UPDATED: Check if we have theme data from initialize_saved_theme()
+        # ════════════════════════════════════════════════════════════════════
+        if HAS_THEMING_MODULE and self.current_theme_data:
+            # Theme was already loaded and CSS was generated by initialize_saved_theme()
+            # The CSS provider was already added, so we just need the icon override
+            print(f"[Window] 📄 Using theme from theming module: {self.current_theme_data.get('name')}")
+            
+            # Still apply the theme colors for any additional CSS needs
+            colors = self.current_theme_data.get('colors', {})
+            if colors:
+                css = self._generate_themed_css(colors)
+                provider = Gtk.CssProvider()
+                provider.load_from_data(css.encode())
+                Gtk.StyleContext.add_provider_for_display(
+                    Gdk.Display.get_default(),
+                    provider,
+                    Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+                )
         else:
-            current_theme = theme_mgr.get_current_theme()
-            colors = theme_mgr.get_theme_colors(current_theme)
-            css = self._generate_themed_css(colors)
-        
-        provider = Gtk.CssProvider()
-        provider.load_from_data(css.encode())
-        Gtk.StyleContext.add_provider_for_display(
-            Gdk.Display.get_default(),
-            provider,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-        )
+            # Fallback to old ThemeManager behavior
+            if theme_source == "gtk":
+                from .styles import get_css
+                css = get_css()
+            else:
+                current_theme = theme_mgr.get_current_theme()
+                colors = theme_mgr.get_theme_colors(current_theme)
+                css = self._generate_themed_css(colors)
+            
+            provider = Gtk.CssProvider()
+            provider.load_from_data(css.encode())
+            Gtk.StyleContext.add_provider_for_display(
+                Gdk.Display.get_default(),
+                provider,
+                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            )
         
         # WHITE ICON OVERRIDE - NO PLACEHOLDERS!
         nuclear_css = """
@@ -172,17 +393,25 @@ class ControlCenterWindow(Adw.ApplicationWindow):
         self.stack.set_hexpand(True)
         self.stack.set_vexpand(True)
         
+        # ═══ ADD PAGES TO STACK ═══
         self.stack.add_named(build_wallpaper_page(self), "wallpaper")
         self.stack.add_named(build_appearance_page(self), "appearance")
         self.stack.add_named(build_panel_page(self), "panel")
         self.stack.add_named(build_notifications_page(self), "notifications")
         self.stack.add_named(build_themes_page(self), "themes")
-        self.stack.add_named(build_workspaces_page(self), "workspaces")
+        self.stack.add_named(build_theming_page(self), "theming")
+        
+        # ═══ WORKSPACES PAGE - Uses full module or placeholder ═══
+        self.stack.add_named(build_workspaces_page_wrapper(self), "workspaces")
+        
+        self.stack.add_named(build_plugins_page(self), "plugins")
         self.stack.add_named(build_animations_page(self), "animations")
         self.stack.add_named(build_input_page(self), "input")
         self.stack.add_named(build_displays_page(self), "displays")
         self.stack.add_named(build_power_page(self), "power")
+        self.stack.add_named(build_time_language_page(self), "time_language")
         self.stack.add_named(build_keybinds_page(self), "keybinds")
+        self.stack.add_named(build_updates_page(self), "updates")
         
         scrolled.set_child(self.stack)
         main_box.append(scrolled)
@@ -198,21 +427,25 @@ class ControlCenterWindow(Adw.ApplicationWindow):
         title.set_halign(Gtk.Align.START)
         sidebar.append(title)
         
+        # ═══ NAVIGATION SECTIONS - UPDATED WITH PLUGINS & TIME/LANGUAGE ═══
         nav_sections = [
             ("DESKTOP", [
                 ("Wallpaper", "wallpaper", "preferences-desktop-wallpaper-symbolic"),
                 ("Appearance", "appearance", "preferences-desktop-appearance-symbolic"),
                 ("Panel", "panel", "view-paged-symbolic"),
                 ("Notifications", "notifications", "preferences-system-notifications-symbolic"),
-                ("Theme Switcher", "themes", "applications-graphics-symbolic"),
+                ("Theming", "theming", "preferences-desktop-theme-symbolic"),
                 ("Workspaces", "workspaces", "view-grid-symbolic"),
+                ("Plugins", "plugins", "application-x-addon-symbolic"),
             ]),
             ("SYSTEM", [
                 ("Animations", "animations", "preferences-desktop-effects-symbolic"),
                 ("Input Devices", "input", "input-keyboard-symbolic"),
                 ("Displays", "displays", "video-display-symbolic"),
                 ("Power & Battery", "power", "battery-symbolic"),
+                ("Time & Language", "time_language", "preferences-system-time-symbolic"),
                 ("Keybinds", "keybinds", "preferences-desktop-keyboard-shortcuts-symbolic"),
+                ("Updates", "updates", "software-update-available-symbolic"),
             ]),
         ]
         
@@ -257,7 +490,7 @@ class ControlCenterWindow(Adw.ApplicationWindow):
         spacer.set_vexpand(True)
         sidebar.append(spacer)
         
-        version = Gtk.Label(label="v1.0.0")
+        version = Gtk.Label(label="v2.0.0")
         version.add_css_class('setting-description')
         version.set_margin_bottom(4)
         sidebar.append(version)
@@ -399,21 +632,30 @@ class ControlCenterWindow(Adw.ApplicationWindow):
         
         dialog = Adw.AboutWindow(
             transient_for=self,
-            application_name="Hyprland Control Center",
+            application_name="Zenpy - Hypr Center",
             application_icon="preferences-system",
             developer_name="Gekinzen",
-            version="1.0.0",
+            version="2.0.0",
             comments="A GUI settings panel for Hyprland",
             website="https://github.com/gekinzen/hyprland-control-center",
             issue_url="https://github.com/gekinzen/hyprland-control-center/issues",
             license_type=Gtk.License.MIT_X11,
         )
         
+        # Add current theme info
+        theme_info = ""
+        if self.current_theme_data:
+            theme_info = f"\n<b>Current Theme:</b> {self.current_theme_data.get('name', 'Unknown')}"
+        
+        # Add workspace module info
+        workspace_info = "Enabled" if HAS_WORKSPACE_MODULE else "Placeholder"
+        
         system_info = f"""<b>System:</b>
 <b>Hostname:</b> {hostname}
 <b>Kernel:</b> {kernel}
 <b>Hyprland:</b> {hypr_version}
-<b>Desktop:</b> Wayland"""
+<b>Desktop:</b> Wayland{theme_info}
+<b>Workspace Module:</b> {workspace_info}"""
         
         dialog.set_debug_info(system_info)
         dialog.present()
@@ -441,3 +683,30 @@ class ControlCenterWindow(Adw.ApplicationWindow):
                 css_provider,
                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
             )
+    
+    def refresh_theme(self):
+        """
+        Refresh the current theme.
+        Call this after theme changes in the Theming page.
+        """
+        if HAS_THEMING_MODULE:
+            self.current_theme_data = initialize_saved_theme(self)
+            self._apply_css()
+            self._show_toast(f"Theme refreshed: {self.current_theme_data.get('name', 'Unknown')}")
+    
+    def refresh_workspaces(self):
+        """
+        Refresh workspace settings.
+        Call this after workspace configuration changes.
+        """
+        if HAS_WORKSPACE_MODULE:
+            # Reload the workspace page if needed
+            try:
+                # Get current page
+                current = self.stack.get_visible_child_name()
+                
+                # If on workspaces page, refresh it
+                if current == "workspaces":
+                    self._show_toast("Workspace settings updated")
+            except Exception as e:
+                print(f"[Window] Error refreshing workspaces: {e}")

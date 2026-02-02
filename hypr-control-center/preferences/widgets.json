@@ -1,18 +1,18 @@
 {
   "widgets": {
     "clock": {
-      "x": 4,
-      "y": 0,
+      "x": 0,
+      "y": 72,
       "enabled": true
     },
     "system_monitor": {
-      "x": 3078,
-      "y": 252,
+      "x": 3055,
+      "y": 330,
       "enabled": true
     },
     "weather": {
-      "x": 3019,
-      "y": 21,
+      "x": 2977,
+      "y": 81,
       "enabled": true
     }
   }

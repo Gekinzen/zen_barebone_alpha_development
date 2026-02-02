@@ -1,151 +1,17 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-   Panel Widget Stylesheet - Simplified & Fixed
-   ═══════════════════════════════════════════════════════════════════════════
-   Location: ~/.config/hypr-control-center/assets/panel-widget-simple.css
-   
-   This is a SIMPLIFIED version with direct variable replacement
-   Variables like @rounding get replaced by Python before loading
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   WINDOW & CONTAINER
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-window {
-    background: transparent;
-}
-
-.panel-container {
-    background: alpha(#282c34, @opacity);
-    border-radius: @rounding_lg;
-    border: 1px solid alpha(white, 0.1);
-    padding: 4px 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   TASKBAR ITEMS
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-.taskbar-item {
-    background: transparent;
-    border: none;
-    border-radius: @rounding;
-    padding: 6px 8px;
-    margin: 2px;
-    min-width: 36px;
-    min-height: 36px;
-    transition: all 150ms ease;
-}
-
-.taskbar-item:hover {
-    background: alpha(white, 0.08);
-}
-
-/* Focused window - subtle bg + accent underline */
-.taskbar-item.focused {
-    background: alpha(@accent_color, 0.15);
-    border-bottom: 2px solid @accent_color;
-}
-
-/* Running but not focused - just underline */
-.taskbar-item.running {
-    border-bottom: 2px solid alpha(@accent_color, 0.5);
-}
-
-/* Pinned but not running - dimmed */
-.taskbar-item.not-running {
-    opacity: @inactive_opacity;
-}
-
-.taskbar-item.not-running:hover {
-    opacity: 1;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   ICONS
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-.taskbar-icon {
-    color: white;
-    font-size: 20px;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   SEPARATOR
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-.separator {
-    background: alpha(white, 0.15);
-    min-width: 1px;
-    margin: 8px 4px;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   POPOVERS (Window List & Context Menu)
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-.window-list-popover,
-.context-menu {
-    background: alpha(#282c34, @opacity);
-    border: 1px solid alpha(@accent_color, 0.3);
-    border-radius: @rounding_lg;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-}
-
-.window-list-popover > contents,
-.context-menu > contents {
-    background: transparent;
-    padding: 4px;
-}
-
-.window-list-item,
-.context-menu button {
-    background: transparent;
-    border: none;
-    border-radius: @rounding;
-    padding: 8px 12px;
-    margin: 2px;
-    color: white;
-    transition: all 150ms ease;
-}
-
-.window-list-item:hover,
-.context-menu button:hover {
-    background: alpha(@accent_color, 0.15);
-}
-
-.focus-indicator {
-    color: @accent_color;
-    margin-right: 8px;
-    font-weight: 600;
-}
-
-.window-close-btn {
-    opacity: 0.5;
-    min-width: 24px;
-    min-height: 24px;
-    transition: all 150ms ease;
-}
-
-.window-close-btn:hover {
-    opacity: 1;
-    color: @red_color;
-    background: alpha(@red_color, 0.15);
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   TOOLTIPS
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-tooltip {
-    background: alpha(#282c34, @opacity);
-    border: 1px solid alpha(@accent_color, 0.2);
-    border-radius: @rounding;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-tooltip label {
-    color: white;
-    padding: 6px 10px;
-}
+/* Panel Widget CSS - 2026-02-02 10:38 */
+window { background: transparent; }
+.panel-container { background: alpha(#2e3440, 0.85); border-radius: 12px; border: 1px solid alpha(#eceff4, 0.1); padding: 4px 8px; }
+.taskbar-item { background: transparent; border: none; border-radius: 8px; padding: 6px 8px; margin: 2px; min-width: 36px; min-height: 36px; transition: all 150ms ease; }
+.taskbar-item:hover { background: alpha(#eceff4, 0.08); }
+.taskbar-item.focused { background: alpha(#81a1c1, 0.15); border-bottom: 2px solid #81a1c1; }
+.taskbar-item.running { border-bottom: 2px solid alpha(#81a1c1, 0.5); }
+.taskbar-icon { color: #eceff4; font-size: 20px; }
+.window-list-popover { background: alpha(#2e3440, 0.95); border: 1px solid alpha(#81a1c1, 0.3); border-radius: 12px; }
+.window-list-item { background: transparent; border: none; border-radius: 8px; padding: 8px 12px; margin: 2px; color: #eceff4; }
+.window-list-item:hover { background: alpha(#81a1c1, 0.15); }
+.focus-indicator { color: #81a1c1; margin-right: 8px; }
+.window-close-btn { opacity: 0.5; }
+.window-close-btn:hover { opacity: 1; color: #bf616a; }
+.dim-label { opacity: 0.7; font-size: 0.85em; color: #7b88a1; }
+tooltip { background: alpha(#2e3440, 0.95); border: 1px solid alpha(#81a1c1, 0.2); border-radius: 8px; }
+tooltip label { color: #eceff4; padding: 6px 10px; }

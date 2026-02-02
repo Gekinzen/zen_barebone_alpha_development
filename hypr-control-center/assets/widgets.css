@@ -1,7 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════ */
-/* ═══════════════════════════════════════════════════════════════ */
-/* START MENU & WIDGETS - YOUR ORIGINAL STYLES PRESERVED BELOW      */
-/* ═══════════════════════════════════════════════════════════════ */
+/* START MENU & WIDGETS - YOUR ORIGINAL STYLES PRESERVED           */
 /* ═══════════════════════════════════════════════════════════════ */
 
 /* START MENU - Windows 11 Style */
@@ -245,21 +243,19 @@ flowboxchild {
 }
 
 /* ═══════════════════════════════════════════════════════════════ */
-/* COMPACT WIDGETS CSS - 360x220 Design                              */
-/* Clean, minimal, mobile-inspired                                   */
+/* WEATHER WIDGET - Compact 380x240 (7-day forecast)               */
 /* ═══════════════════════════════════════════════════════════════ */
 
-/* WEATHER WIDGET - Compact 360x220 */
 .weather-compact {
     background: rgba(28, 28, 30, 0.92);
     border-radius: 16px;
     padding: 0;
     border: 1px solid rgba(255, 255, 255, 0.12);
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
-    min-width: 360px;
-    max-width: 360px;
-    min-height: 220px;
-    max-height: 220px;
+    min-width: 380px;
+    max-width: 380px;
+    min-height: 240px;
+    max-height: 240px;
 }
 
 .weather-compact:hover {
@@ -320,7 +316,7 @@ flowboxchild {
     background: rgba(46, 46, 48, 0.4);
     border-radius: 8px;
     padding: 6px 4px;
-    min-width: 42px;
+    min-width: 46px;
     border: 1px solid rgba(255, 255, 255, 0.05);
     transition: all 0.2s ease;
 }
@@ -342,7 +338,7 @@ flowboxchild {
 }
 
 .forecast-icon-compact {
-    font-size: 20px;
+    font-size: 18px;
     margin: 2px 0;
     filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.3));
 }
@@ -356,8 +352,7 @@ flowboxchild {
 }
 
 /* ═══════════════════════════════════════════════════════════════ */
-/* SYSTEM MONITOR - Clean Design (Reference Style)                  */
-/* No icons, text labels, prominent boxed graphs                    */
+/* SYSTEM MONITOR - Clean Design                                   */
 /* ═══════════════════════════════════════════════════════════════ */
 
 .sysmon-clean {
@@ -373,7 +368,6 @@ flowboxchild {
     overflow: hidden;
 }
 
-/* Ensure cards don't expand */
 .sysmon-card-clean * {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -384,7 +378,6 @@ flowboxchild {
     border-color: rgba(255, 255, 255, 0.15);
 }
 
-/* Title with accent bar */
 .title-accent {
     background: #ff453a;
     border-radius: 2px;
@@ -401,7 +394,6 @@ flowboxchild {
     opacity: 0.95;
 }
 
-/* Details button - horizontal three dots */
 .details-btn-clean {
     background: transparent;
     border: none;
@@ -426,7 +418,6 @@ flowboxchild {
     letter-spacing: 2px;
 }
 
-/* Clean Cards - FIXED SIZE */
 .sysmon-card-clean {
     background: rgba(46, 46, 48, 0.4);
     border-radius: 12px;
@@ -443,7 +434,6 @@ flowboxchild {
     border-color: rgba(255, 255, 255, 0.1);
 }
 
-/* Card name - clean, centered */
 .card-name-clean {
     font-family: "Adwaita Sans", sans-serif;
     font-size: 12px;
@@ -452,7 +442,6 @@ flowboxchild {
     opacity: 0.9;
 }
 
-/* Stat labels (tiny, uppercase) */
 .stat-label-tiny {
     font-family: "Adwaita Sans", sans-serif;
     font-size: 9px;
@@ -463,7 +452,6 @@ flowboxchild {
     text-transform: uppercase;
 }
 
-/* Stat values (prominent but controlled width) */
 .stat-value-clean {
     font-family: "Adwaita Sans", sans-serif;
     font-size: 15px;
@@ -473,28 +461,14 @@ flowboxchild {
     max-width: 65px;
 }
 
-/* ═══════════════════════════════════════════════════════════════ */
-/* COLOR-CODED STATS - Green → Yellow → Orange → Red               */
-/* ═══════════════════════════════════════════════════════════════ */
-
-.stat-green {
-    color: #30d158 !important;
-}
-
-.stat-yellow {
-    color: #ffd60a !important;
-}
-
-.stat-orange {
-    color: #ff9f0a !important;
-}
-
-.stat-red {
-    color: #ff453a !important;
-}
+/* Color-coded stats */
+.stat-green { color: #30d158 !important; }
+.stat-yellow { color: #ffd60a !important; }
+.stat-orange { color: #ff9f0a !important; }
+.stat-red { color: #ff453a !important; }
 
 /* ═══════════════════════════════════════════════════════════════ */
-/* TOOLTIP STYLING - Synced with widget background                 */
+/* TOOLTIP STYLING                                                 */
 /* ═══════════════════════════════════════════════════════════════ */
 
 tooltip {
@@ -521,55 +495,10 @@ tooltip decoration {
     background: transparent;
 }
 
+
 /* ═══════════════════════════════════════════════════════════════ */
-/* CLOCK WIDGET - Keep original transparent design                  */
+/* DROP INDICATORS for Widget Reordering                           */
 /* ═══════════════════════════════════════════════════════════════ */
-
-window[title^="hypr-widget-"] {
-    background-color: transparent;
-}
-
-.clock-widget-container {
-    background-color: transparent !important;
-    background: transparent !important;
-    border: none;
-    padding: 35px 45px;
-}
-
-.time-label-transparent {
-    font-family: "Adwaita Sans", "JetBrainsMono Nerd Font Propo", sans-serif;
-    font-size: 120px;
-    font-weight: 900;
-    color: #ffffff;
-    margin-bottom: 10px;
-    text-shadow: 
-        0 0 100px rgba(0, 0, 0, 1),
-        0 0 80px rgba(0, 0, 0, 0.95),
-        0 5px 50px rgba(0, 0, 0, 1),
-        5px 5px 15px rgba(0, 0, 0, 1),
-        -5px -5px 15px rgba(0, 0, 0, 1),
-        0 0 30px rgba(255, 255, 255, 0.4);
-    letter-spacing: -4px;
-}
-
-.date-label-transparent {
-    font-family: "Adwaita Sans", "JetBrainsMono Nerd Font Propo", sans-serif;
-    font-size: 24px;
-    font-weight: 800;
-    color: #ffffff;
-    text-shadow: 
-        0 0 50px rgba(0, 0, 0, 1),
-        0 3px 30px rgba(0, 0, 0, 1),
-        3px 3px 10px rgba(0, 0, 0, 1),
-        -3px -3px 10px rgba(0, 0, 0, 1),
-        0 0 15px rgba(255, 255, 255, 0.3);
-    letter-spacing: 0.5px;
-}
-
-
-/* ========================================
-   DROP INDICATORS for Within-Zone Reordering
-   ======================================== */
 
 .module-chip.drop-before {
     border-top: 2px solid #3584e4;
@@ -591,4 +520,13 @@ window[title^="hypr-widget-"] {
     background-color: rgba(53, 132, 228, 0.1);
     border: 2px dashed #3584e4;
     transition: all 0.2s ease;
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* DIM LABEL - Generic utility class                               */
+/* ═══════════════════════════════════════════════════════════════ */
+
+.dim-label {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.4);
 }

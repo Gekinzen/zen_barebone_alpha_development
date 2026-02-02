@@ -1,0 +1,9 @@
+{
+  "corner_radius": 32,
+  "opacity": 0.6865079365079365,
+  "blur": true,
+  "shadow": true,
+  "use_nerd_fonts": true,
+  "fuzzy_threshold": 0.8,
+  "show_app_source": true
+}

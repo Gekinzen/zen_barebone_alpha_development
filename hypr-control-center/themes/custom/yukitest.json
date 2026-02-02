@@ -1,0 +1,63 @@
+{
+  "id": "yukitest",
+  "is_builtin": false,
+  "name": "yukitest",
+  "is_light": false,
+  "colors": {
+    "bg0": "#3d3846",
+    "bg1": "#282839",
+    "bg2": "#313244",
+    "bg3": "#45475a",
+    "bg4": "#585b70",
+    "fg": "#d9e0ee",
+    "grey0": "#6c7086",
+    "grey1": "#7f849c",
+    "grey2": "#9399b2",
+    "red": "#f28fad",
+    "orange": "#fab387",
+    "yellow": "#f9e2af",
+    "green": "#abe9b3",
+    "aqua": "#94e2d5",
+    "blue": "#7aa2f7",
+    "purple": "#cba6f7"
+  },
+  "rofi": {
+    "background": "#1E1D2F",
+    "background-alt": "#282839",
+    "foreground": "#D9E0EE",
+    "selected": "#7AA2F7",
+    "active": "#ABE9B3",
+    "urgent": "#F28FAD"
+  },
+  "kitty": {
+    "background": "#1e1d2f",
+    "foreground": "#d9e0ee",
+    "cursor": "#f5e0dc"
+  },
+  "waybar": {
+    "global": {
+      "window_radius": 47,
+      "window_opacity": 0.5
+    },
+    "workspaces": {
+      "button_normal_bg": "bg1",
+      "button_active_bg": "blue",
+      "button_hover_bg": "purple",
+      "button_urgent_bg": "red"
+    },
+    "modules": {
+      "cpu": {
+        "color": "blue"
+      },
+      "memory": {
+        "color": "green"
+      },
+      "clock": {
+        "color": "blue"
+      },
+      "network": {
+        "wifi": "purple"
+      }
+    }
+  }
+}

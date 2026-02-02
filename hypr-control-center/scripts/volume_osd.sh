@@ -1,6 +1,5 @@
 #!/bin/bash
-# Volume OSD with notifications
-
+# Volume OSD with notifications - limited to 100%
 ACTION="$1"
 
 get_volume() {
@@ -13,19 +12,20 @@ get_mute_status() {
 
 case "$ACTION" in
     up)
-        # Volume up 5%
-        wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+
+        # Check current volume first
+        CURRENT=$(get_volume)
+        if [ "$CURRENT" -lt 100 ]; then
+            wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+
+        fi
         VOLUME=$(get_volume)
         notify-send -u low -t 1500 -h string:x-canonical-private-synchronous:volume -h int:value:$VOLUME "󰕾 Volume" "$VOLUME%"
         ;;
     down)
-        # Volume down 5%
         wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
         VOLUME=$(get_volume)
         notify-send -u low -t 1500 -h string:x-canonical-private-synchronous:volume -h int:value:$VOLUME "󰕾 Volume" "$VOLUME%"
         ;;
     mute)
-        # Toggle mute
         wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
         MUTED=$(get_mute_status)
         if [ "$MUTED" = "true" ]; then
