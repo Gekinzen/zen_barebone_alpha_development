@@ -2,7 +2,7 @@
 set -e
 
 # ==================================================
-# Zen Barebone Installer (REPLACE MODE)
+# Zen Barebone Installer (REPLACE MODE + ZSH FIX)
 # ==================================================
 
 # ---------- Colors ----------
@@ -19,21 +19,21 @@ echo "======================================"
 echo ""
 
 # ==================================================
-# Detect OS (Arch only for now)
+# Detect OS (Arch-based only)
 # ==================================================
 if [[ -f /etc/os-release ]]; then
-    . /etc/os-release
+  . /etc/os-release
 else
-    echo -e "${RED}❌ Cannot detect OS${NC}"
-    exit 1
+  echo -e "${RED}❌ Cannot detect OS${NC}"
+  exit 1
 fi
 
 case "$ID" in
-    arch|endeavouros|cachyos) ;;
-    *)
-        echo -e "${RED}❌ Unsupported distro: $ID${NC}"
-        exit 1
-        ;;
+  arch|endeavouros|cachyos) ;;
+  *)
+    echo -e "${RED}❌ Unsupported distro: $ID${NC}"
+    exit 1
+    ;;
 esac
 
 echo -e "${GREEN}✅ Detected distro: $NAME${NC}"
@@ -52,29 +52,29 @@ echo -e "${CYAN}🧠 Checking existing configs...${NC}"
 
 FOUND=false
 for cfg in "${CONFIG_TARGETS[@]}"; do
-    [[ -d "$HOME/.config/$cfg" ]] && FOUND=true
+  [[ -d "$HOME/.config/$cfg" ]] && FOUND=true
 done
 
 if [[ "$FOUND" == true ]]; then
-    echo -e "${YELLOW}⚠️ Existing configs found — backing up${NC}"
-    mkdir -p "$BACKUP_DIR"
+  echo -e "${YELLOW}⚠️ Existing configs found — backing up${NC}"
+  mkdir -p "$BACKUP_DIR"
 
-    for cfg in "${CONFIG_TARGETS[@]}"; do
-        if [[ -d "$HOME/.config/$cfg" ]]; then
-            echo -e "  ${GREEN}✓${NC} Backing up $cfg"
-            cp -a "$HOME/.config/$cfg" "$BACKUP_DIR/"
-        fi
-    done
-
-    if [[ -d "$HOME/.cache/waybar" ]]; then
-        mkdir -p "$BACKUP_DIR/.cache"
-        cp -a "$HOME/.cache/waybar" "$BACKUP_DIR/.cache/"
+  for cfg in "${CONFIG_TARGETS[@]}"; do
+    if [[ -d "$HOME/.config/$cfg" ]]; then
+      echo -e "  ${GREEN}✓${NC} Backing up $cfg"
+      cp -a "$HOME/.config/$cfg" "$BACKUP_DIR/"
     fi
+  done
 
-    echo -e "${GREEN}✅ Backup saved to:${NC} $BACKUP_DIR"
-    echo ""
+  if [[ -d "$HOME/.cache/waybar" ]]; then
+    mkdir -p "$BACKUP_DIR/.cache"
+    cp -a "$HOME/.cache/waybar" "$BACKUP_DIR/.cache/"
+  fi
+
+  echo -e "${GREEN}✅ Backup saved to:${NC} $BACKUP_DIR"
+  echo ""
 else
-    echo -e "${GREEN}✓ No existing configs detected${NC}"
+  echo -e "${GREEN}✓ No existing configs detected${NC}"
 fi
 
 # ==================================================
@@ -87,31 +87,56 @@ sudo pacman -S --needed --noconfirm git base-devel curl rsync
 # yay
 # ==================================================
 if ! command -v yay &>/dev/null; then
-    echo -e "${BLUE}📦 Installing yay...${NC}"
-    git clone https://aur.archlinux.org/yay.git /tmp/yay
-    (cd /tmp/yay && makepkg -si --noconfirm)
-    rm -rf /tmp/yay
+  echo -e "${BLUE}📦 Installing yay...${NC}"
+  git clone https://aur.archlinux.org/yay.git /tmp/yay
+  (cd /tmp/yay && makepkg -si --noconfirm)
+  rm -rf /tmp/yay
 fi
+
+# ==================================================
+# ZSH SETUP (FIX: Failed to launch child: zsh)
+# ==================================================
+echo -e "${PURPLE}🐚 Setting up Zsh...${NC}"
+
+if ! command -v zsh &>/dev/null; then
+  sudo pacman -S --needed --noconfirm zsh
+fi
+
+if [[ ! -x /bin/zsh ]]; then
+  echo -e "${RED}❌ /bin/zsh not found${NC}"
+  exit 1
+fi
+
+if ! grep -q "^/bin/zsh$" /etc/shells; then
+  echo "/bin/zsh" | sudo tee -a /etc/shells >/dev/null
+fi
+
+if [[ "$SHELL" != "/bin/zsh" ]]; then
+  chsh -s /bin/zsh "$USER" || true
+fi
+
+echo -e "${GREEN}✅ Zsh ready${NC}"
+echo ""
 
 # ==================================================
 # Desktop Packages (includes Thunar)
 # ==================================================
 echo -e "${PURPLE}📦 Installing desktop packages...${NC}"
 yay -S --needed --noconfirm \
-    hyprland xdg-desktop-portal-hyprland \
-    swww waybar swaync rofi wofi kitty thunar \
-    grim slurp wl-clipboard cliphist \
-    nwg-look adw-gtk-theme \
-    ttf-jetbrains-mono-nerd \
-    ttf-geist-mono-nerd \
-    noto-fonts-emoji
+  hyprland xdg-desktop-portal-hyprland \
+  swww waybar swaync rofi wofi kitty thunar \
+  grim slurp wl-clipboard cliphist \
+  nwg-look adw-gtk-theme \
+  ttf-jetbrains-mono-nerd \
+  ttf-geist-mono-nerd \
+  noto-fonts-emoji
 
 # ==================================================
 # Python / GTK deps
 # ==================================================
 echo -e "${PURPLE}📦 Installing Python + GTK deps...${NC}"
 sudo pacman -S --needed --noconfirm \
-    python python-pip python-gobject gtk4 libadwaita python-pytz
+  python python-pip python-gobject gtk4 libadwaita python-pytz
 
 pip install --break-system-packages pillow psutil
 
@@ -124,19 +149,16 @@ REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 CONFIG_SOURCE="$REPO_ROOT/.config"
 
 if [[ ! -d "$CONFIG_SOURCE" ]]; then
-    echo -e "${RED}❌ Repo .config folder not found${NC}"
-    exit 1
+  echo -e "${RED}❌ Repo .config folder not found${NC}"
+  exit 1
 fi
 
 mkdir -p "$HOME/.config"
 
 for dir in "$CONFIG_SOURCE"/*; do
-    name="$(basename "$dir")"
-
-    echo -e "${BLUE}→ Installing:${NC} $name"
-
-    rsync -av --delete \
-        "$dir/" "$HOME/.config/$name/"
+  name="$(basename "$dir")"
+  echo -e "${BLUE}→ Installing:${NC} $name"
+  rsync -av --delete "$dir/" "$HOME/.config/$name/"
 done
 
 echo -e "${GREEN}✅ Configs applied successfully${NC}"
@@ -146,16 +168,16 @@ echo ""
 # Directories
 # ==================================================
 mkdir -p \
-    "$HOME/wallpapers" \
-    "$HOME/.local/bin" \
-    "$HOME/.config/hypr/scripts" \
-    "$HOME/.config/systemd/user"
+  "$HOME/wallpapers" \
+  "$HOME/.local/bin" \
+  "$HOME/.config/hypr/scripts" \
+  "$HOME/.config/systemd/user"
 
 # ==================================================
 # Ownership Fix
 # ==================================================
 if [[ "$(stat -c '%U' "$HOME/.config")" != "$USER" ]]; then
-    sudo chown -R "$USER:$USER" "$HOME/.config"
+  sudo chown -R "$USER:$USER" "$HOME/.config"
 fi
 
 # ==================================================
@@ -172,6 +194,6 @@ echo ""
 echo -e "${GREEN}🎉 Zen Barebone successfully installed.${NC}"
 echo ""
 echo "Next steps:"
-echo "  • Reboot"
+echo "  • Reboot (important for shell change)"
 echo "  • Login to Hyprland"
 echo ""
