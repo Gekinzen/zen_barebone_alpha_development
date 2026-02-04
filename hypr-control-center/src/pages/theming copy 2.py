@@ -1,6 +1,6 @@
 """
 ═══════════════════════════════════════════════════════════════════════════════
-THEMING MODULE - Hyprland Control Center v2.4.2 MODULAR
+THEMING MODULE - Hyprland Control Center v2.4 MODULAR
 Complete Theme Management with ALL v2.1 Features + Hyprbars + SwayNC Support
 ═══════════════════════════════════════════════════════════════════════════════
 
@@ -14,8 +14,7 @@ Features:
 - 16 BUILTIN THEMES: All rofi themes converted
 - HYPRBARS SUPPORT: Auto-detect plugin, sync colors/fonts with theme (v2.3)
 - SWAYNC SUPPORT: Auto-sync notification center colors (v2.4)
-- THEMED DROPDOWNS: bg3 background for popover, proper listview styling (v2.4.1)
-- AUTO-REFRESH DROPDOWN CSS: CSS updates when theme changes (v2.4.2)
+- THEMED DROPDOWNS: bg4 background, fg text styling (v2.4)
 """
 import gi
 gi.require_version('Gtk', '4.0')
@@ -78,213 +77,88 @@ except ImportError:
 _CSS_PROVIDER = None
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# THEMED DROPDOWN CSS (v2.4.2) - bg3 popover background, auto-refresh on theme change
+# THEMED DROPDOWN CSS (v2.4) - bg4 background, fg text
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _get_dropdown_css(colors: dict) -> str:
-    """Generate CSS for themed dropdowns with proper popover styling"""
-    bg0 = colors.get("bg0", "#282c34")
-    bg1 = colors.get("bg1", "#353b45")
-    bg2 = colors.get("bg2", "#2c313a")
-    bg3 = colors.get("bg3", "#3e4451")
+    """Generate CSS for themed dropdowns"""
     bg4 = colors.get("bg4", "#4b5263")
     fg = colors.get("fg", "#abb2bf")
-    grey1 = colors.get("grey1", "#5c6370")
+    bg3 = colors.get("bg3", "#3e4451")
     blue = colors.get("blue", "#61afef")
     
     return f'''
-/* ═══════════════════════════════════════════════════════════════════════════
-   THEMED DROPDOWNS (v2.4.2) - bg3 popover, auto-refresh on theme change
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-/* Main dropdown button */
-dropdown.themed-dropdown > button,
+/* Themed Dropdowns (v2.4) - bg4 background, fg text */
+dropdown.themed-dropdown,
 .themed-dropdown > button {{
     background: {bg4};
     color: {fg};
     border-radius: 6px;
-    padding: 4px 12px;
+    padding: 4px 8px;
     min-height: 32px;
-    border: none;
-    box-shadow: none;
 }}
 
-dropdown.themed-dropdown > button:hover,
+dropdown.themed-dropdown:hover,
 .themed-dropdown > button:hover {{
     background: {bg3};
 }}
 
-dropdown.themed-dropdown > button:focus,
+dropdown.themed-dropdown:focus,
 .themed-dropdown > button:focus {{
     outline: 2px solid {blue};
     outline-offset: -2px;
 }}
 
-/* Dropdown arrow/indicator */
-dropdown.themed-dropdown > button > box > image,
-dropdown.themed-dropdown .dropdown-arrow {{
-    color: {grey1};
-    -gtk-icon-size: 14px;
-}}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   POPOVER - The dropdown list container (bg3 background)
-   ═══════════════════════════════════════════════════════════════════════════ */
-
 dropdown.themed-dropdown popover,
-dropdown.themed-dropdown popover.menu,
-dropdown.themed-dropdown > popover {{
-    background: {bg3};
-    border-radius: 8px;
-    border: 1px solid {bg4};
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    padding: 0;
+.themed-dropdown popover {{
+    background: {bg4};
 }}
 
-dropdown.themed-dropdown popover > contents,
-dropdown.themed-dropdown popover > arrow {{
-    background: {bg3};
-    border: none;
-}}
-
-/* Remove default popover styling */
-dropdown.themed-dropdown popover.background,
-dropdown.themed-dropdown popover contents {{
-    background: {bg3};
-    border-radius: 8px;
-    padding: 4px;
-}}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   LISTVIEW - GTK4 DropDown uses ListView internally
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-dropdown.themed-dropdown listview {{
-    background: transparent;
-    padding: 4px;
-}}
-
-dropdown.themed-dropdown listview > row {{
-    background: transparent;
+dropdown.themed-dropdown popover modelbutton,
+.themed-dropdown popover modelbutton {{
     color: {fg};
     padding: 8px 12px;
-    border-radius: 4px;
-    margin: 1px 0;
-    min-height: 24px;
 }}
 
-dropdown.themed-dropdown listview > row:hover {{
-    background: {bg4};
-}}
-
-dropdown.themed-dropdown listview > row:selected {{
-    background: {blue};
-    color: #ffffff;
-}}
-
-dropdown.themed-dropdown listview > row:selected:hover {{
-    background: {blue};
-    color: #ffffff;
-}}
-
-/* Row label text */
-dropdown.themed-dropdown listview > row > label,
-dropdown.themed-dropdown listview > row label {{
-    color: inherit;
-}}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   SCROLLBAR inside dropdown
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-dropdown.themed-dropdown scrollbar {{
-    background: transparent;
-}}
-
-dropdown.themed-dropdown scrollbar trough {{
+dropdown.themed-dropdown popover modelbutton:hover,
+.themed-dropdown popover modelbutton:hover {{
     background: {bg3};
-    border-radius: 4px;
 }}
 
-dropdown.themed-dropdown scrollbar slider {{
-    background: {bg4};
-    border-radius: 4px;
-    min-width: 6px;
-    min-height: 30px;
+dropdown.themed-dropdown popover modelbutton:selected,
+.themed-dropdown popover modelbutton:selected {{
+    background: {blue};
+    color: #ffffff;
 }}
-
-dropdown.themed-dropdown scrollbar slider:hover {{
-    background: {grey1};
-}}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   SPINBUTTON - themed spin buttons
-   ═══════════════════════════════════════════════════════════════════════════ */
 
 spinbutton.themed-spin {{
     background: {bg4};
     color: {fg};
     border-radius: 6px;
-    border: none;
 }}
 
-spinbutton.themed-spin text {{
-    background: transparent;
-    color: {fg};
-}}
-
-spinbutton.themed-spin button {{
-    background: {bg3};
-    color: {fg};
-    border: none;
-    min-width: 24px;
-}}
-
-spinbutton.themed-spin button:hover {{
-    background: {bg2};
-}}
-
-spinbutton.themed-spin:focus,
-spinbutton.themed-spin:focus-within {{
+spinbutton.themed-spin:focus {{
     outline: 2px solid {blue};
     outline-offset: -2px;
 }}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   GENERIC POPOVER STYLING (for all themed popovers)
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-popover.themed-popover,
-popover.themed-popover > contents {{
-    background: {bg3};
-    border-radius: 8px;
-    border: 1px solid {bg4};
-}}
-
-popover.themed-popover modelbutton {{
-    color: {fg};
-    padding: 8px 12px;
-    border-radius: 4px;
-}}
-
-popover.themed-popover modelbutton:hover {{
-    background: {bg4};
-}}
-
-popover.themed-popover modelbutton:selected {{
-    background: {blue};
-    color: #ffffff;
-}}
 '''
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# THEME INITIALIZATION
+# ═══════════════════════════════════════════════════════════════════════════════
 
-def _refresh_css_provider(colors: dict, window=None):
-    """Refresh the CSS provider with new theme colors (v2.4.2)"""
+def initialize_saved_theme(window=None) -> dict:
+    """Initialize theme from saved preferences on app startup"""
     global _CSS_PROVIDER
     
+    data = get_saved_theme_data()
+    if not data:
+        data = {"id": "one-dark", "name": "One Dark", "colors": BUILTIN_THEMES["one-dark"]["colors"], "is_builtin": True}
+    
+    colors = data.get('colors', BUILTIN_THEMES["one-dark"]["colors"])
     ASSETS_DIR.mkdir(parents=True, exist_ok=True)
     
-    # Generate CSS with themed dropdown styles
+    # Generate CSS with themed dropdown styles (v2.4)
     base_css = generate_control_center_css(colors)
     dropdown_css = _get_dropdown_css(colors)
     full_css = base_css + "\n" + dropdown_css
@@ -296,39 +170,15 @@ def _refresh_css_provider(colors: dict, window=None):
     display = Gdk.Display.get_default()
     if display:
         if _CSS_PROVIDER:
-            try:
-                Gtk.StyleContext.remove_provider_for_display(display, _CSS_PROVIDER)
-            except:
-                pass
-        
+            try: Gtk.StyleContext.remove_provider_for_display(display, _CSS_PROVIDER)
+            except: pass
         _CSS_PROVIDER = Gtk.CssProvider()
         try:
             _CSS_PROVIDER.load_from_path(str(CONTROL_CENTER_CSS))
-            Gtk.StyleContext.add_provider_for_display(
-                display, _CSS_PROVIDER, 
-                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 100
-            )
-            print(f"[theming] ✓ CSS refreshed with new theme colors")
-        except Exception as e:
-            print(f"[theming] CSS load error: {e}")
+            Gtk.StyleContext.add_provider_for_display(display, _CSS_PROVIDER, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 100)
+        except: pass
     
-    if window:
-        window.queue_draw()
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# THEME INITIALIZATION
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def initialize_saved_theme(window=None) -> dict:
-    """Initialize theme from saved preferences on app startup"""
-    data = get_saved_theme_data()
-    if not data:
-        data = {"id": "one-dark", "name": "One Dark", "colors": BUILTIN_THEMES["one-dark"]["colors"], "is_builtin": True}
-    
-    colors = data.get('colors', BUILTIN_THEMES["one-dark"]["colors"])
-    _refresh_css_provider(colors, window)
-    
+    if window: window.queue_resize()
     return data
 
 def ensure_theme_initialized(window=None) -> dict:
@@ -347,11 +197,6 @@ def _refresh_ui(window, pm):
     window.current_waybar_config = theme.get("waybar", DEFAULT_WAYBAR_CONFIG).copy()
     window.current_rofi_config = theme.get("rofi", {}).copy()
     window.current_kitty_config = theme.get("kitty", {}).copy()
-    
-    # ═══════════════════════════════════════════════════════════════════════════
-    # AUTO-REFRESH CSS ON THEME CHANGE (v2.4.2)
-    # ═══════════════════════════════════════════════════════════════════════════
-    _refresh_css_provider(colors, window)
     
     # Update clickable color swatches
     if hasattr(window, 'color_swatches'):
@@ -377,9 +222,6 @@ def _refresh_ui(window, pm):
     
     # Sync hyprbars with new theme colors (v2.3)
     sync_hyprbars_with_theme(window, colors)
-    
-    # Sync swaync with new theme colors (v2.4)
-    sync_swaync_with_theme(window, colors)
 
 def _refresh_dropdown(window, pm):
     """Refresh theme dropdown"""
@@ -404,8 +246,9 @@ def _reload_start_menu() -> bool:
     try:
         if pid_file.exists():
             pid = int(pid_file.read_text().strip())
+            # Check if process exists
             try:
-                os.kill(pid, 0)
+                os.kill(pid, 0)  # Signal 0 just checks if process exists
                 os.kill(pid, signal.SIGUSR2)
                 print(f"[start-menu] ✓ Sent SIGUSR2 to PID {pid}")
                 return True
@@ -450,12 +293,12 @@ def _apply_theme(window, pm):
         if apply_hyprbars_settings(window):
             results.append("Hyprbars")
     
-    # Apply SwayNC colorscheme (v2.4) - direct overwrite to style.css
+    # Apply SwayNC colorscheme (v2.4) - uses manual colors from window.current_swaync_config
     if is_swaync_installed():
         if apply_swaync_settings(window):
             results.append("SwayNC")
     
-    # Reload Start Menu theme via SIGUSR2
+    # Reload Start Menu theme via SIGUSR2 (v2.4)
     if _reload_start_menu():
         results.append("Start Menu")
     
@@ -525,7 +368,7 @@ def build_theming_page(window) -> Gtk.ScrolledWindow:
     window.all_themes = themes
     
     dd = Gtk.DropDown()
-    dd.add_css_class("themed-dropdown")
+    dd.add_css_class("themed-dropdown")  # v2.4 themed dropdown
     model = Gtk.StringList()
     active_idx, active_id = 0, pm.profiles.get("active_profile", "one-dark")
     for i, t in enumerate(themes):
@@ -573,19 +416,11 @@ def build_theming_page(window) -> Gtk.ScrolledWindow:
     
     def on_color_change(key, value):
         window.current_theme_colors[key] = value
-        
-        # Auto-refresh CSS when colors change (v2.4.2)
-        _refresh_css_provider(window.current_theme_colors, window)
-        
         if hasattr(window, 'waybar_preview'): window.waybar_preview.update_colors(window.current_theme_colors)
         if hasattr(window, 'rofi_preview'): window.rofi_preview.update_colors(window.current_theme_colors)
         if hasattr(window, 'kitty_preview'): window.kitty_preview.update_colors(window.current_theme_colors)
-        
         # Sync hyprbars colors when theme colors change (v2.3)
         sync_hyprbars_with_theme(window, window.current_theme_colors)
-        
-        # Sync swaync colors when theme colors change (v2.4)
-        sync_swaync_with_theme(window, window.current_theme_colors)
     
     # Backgrounds
     bg_label = Gtk.Label(label="Backgrounds"); bg_label.add_css_class("caption"); bg_label.add_css_class("dim-label")
@@ -631,42 +466,19 @@ def build_theming_page(window) -> Gtk.ScrolledWindow:
     main_box.append(color_group)
     
     # ═══════════════════════════════════════════════════════════════════════════
-    # HELPER: Create expander with icon
-    # ═══════════════════════════════════════════════════════════════════════════
-    def create_expander_with_icon(icon_name: str, label_text: str) -> Gtk.Expander:
-        """Create an expander with a proper GTK symbolic icon"""
-        expander = Gtk.Expander()
-        expander.add_css_class("card")
-        expander.set_margin_bottom(8)
-        
-        # Create header box with icon + label
-        header_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        
-        # Icon
-        icon = Gtk.Image.new_from_icon_name(icon_name)
-        icon.set_pixel_size(16)
-        header_box.append(icon)
-        
-        # Label
-        label = Gtk.Label(label=label_text)
-        label.set_xalign(0)
-        header_box.append(label)
-        
-        expander.set_label_widget(header_box)
-        return expander
-    
-    # ═══════════════════════════════════════════════════════════════════════════
     # EXPANDER SECTIONS
     # ═══════════════════════════════════════════════════════════════════════════
     
     # Waybar Section with Panel Style Presets
-    waybar_expander = create_expander_with_icon("view-grid-symbolic", "Waybar Panel (Style Presets)")
+    waybar_expander = Gtk.Expander(label="󰀻  Waybar Panel (Style Presets)")
+    waybar_expander.add_css_class("card"); waybar_expander.set_margin_bottom(8)
     waybar_content = build_waybar_section(window)
     waybar_expander.set_child(waybar_content)
     main_box.append(waybar_expander)
     
     # Start Menu & Taskbar
-    start_expander = create_expander_with_icon("view-app-grid-symbolic", "Start Menu & Taskbar")
+    start_expander = Gtk.Expander(label="  Start Menu & Taskbar")
+    start_expander.add_css_class("card"); start_expander.set_margin_bottom(8)
     start_content = build_start_menu_taskbar_section(window, colors)
     start_expander.set_child(start_content)
     main_box.append(start_expander)
@@ -675,7 +487,8 @@ def build_theming_page(window) -> Gtk.ScrolledWindow:
     # HYPRBARS SECTION (v2.3) - Only shows if plugin is active
     # ═══════════════════════════════════════════════════════════════════════════
     if is_hyprbars_active():
-        hyprbars_expander = create_expander_with_icon("window-maximize-symbolic", "Hyprbars Window Decorations")
+        hyprbars_expander = Gtk.Expander(label="  Hyprbars Window Decorations")
+        hyprbars_expander.add_css_class("card"); hyprbars_expander.set_margin_bottom(8)
         hyprbars_content = build_hyprbars_section(window, colors)
         hyprbars_expander.set_child(hyprbars_content)
         main_box.append(hyprbars_expander)
@@ -684,13 +497,15 @@ def build_theming_page(window) -> Gtk.ScrolledWindow:
     # SWAYNC SECTION (v2.4) - Only shows if installed
     # ═══════════════════════════════════════════════════════════════════════════
     if is_swaync_installed():
-        swaync_expander = create_expander_with_icon("preferences-system-notifications-symbolic", "SwayNC Notifications")
+        swaync_expander = Gtk.Expander(label="󰂚  SwayNC Notifications")
+        swaync_expander.add_css_class("card"); swaync_expander.set_margin_bottom(8)
         swaync_content = build_swaync_section(window, colors)
         swaync_expander.set_child(swaync_content)
         main_box.append(swaync_expander)
     
     # Rofi Section
-    rofi_expander = create_expander_with_icon("system-search-symbolic", "Rofi Launcher")
+    rofi_expander = Gtk.Expander(label="  Rofi Launcher")
+    rofi_expander.add_css_class("card"); rofi_expander.set_margin_bottom(8)
     
     rofi_content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
     rofi_content.set_margin_start(16); rofi_content.set_margin_end(16)
@@ -726,7 +541,8 @@ def build_theming_page(window) -> Gtk.ScrolledWindow:
     main_box.append(rofi_expander)
     
     # Kitty Section
-    kitty_expander = create_expander_with_icon("utilities-terminal-symbolic", "Kitty Terminal")
+    kitty_expander = Gtk.Expander(label="  Kitty Terminal")
+    kitty_expander.add_css_class("card"); kitty_expander.set_margin_bottom(8)
     
     kitty_content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
     kitty_content.set_margin_start(16); kitty_content.set_margin_end(16)
@@ -761,7 +577,8 @@ def build_theming_page(window) -> Gtk.ScrolledWindow:
     main_box.append(kitty_expander)
     
     # Hyprland Section
-    hypr_expander = create_expander_with_icon("preferences-desktop-display-symbolic", "Hyprland")
+    hypr_expander = Gtk.Expander(label=" Hyprland")
+    hypr_expander.add_css_class("card"); hypr_expander.set_margin_bottom(8)
     
     hypr_content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
     hypr_content.set_margin_start(16); hypr_content.set_margin_end(16)
@@ -770,7 +587,7 @@ def build_theming_page(window) -> Gtk.ScrolledWindow:
     hypr_content.append(create_section_header("WINDOW ROUNDING"))
     rr = create_setting_row("Corner Radius", "0=square, higher=rounder")
     rs = Gtk.SpinButton.new_with_range(0, 30, 1); rs.set_value(12)
-    rs.add_css_class("themed-spin")
+    rs.add_css_class("themed-spin")  # v2.4 themed spin
     rs.connect('value-changed', lambda s: apply_hyprland_rounding(int(s.get_value())))
     rr.append(rs); hypr_content.append(rr)
     
@@ -787,14 +604,7 @@ def build_theming_page(window) -> Gtk.ScrolledWindow:
     reset_btn.connect("clicked", lambda b: _reset_theme(window, pm))
     action_box.append(reset_btn)
     
-    # Apply button with icon
-    apply_btn = Gtk.Button()
-    apply_btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-    apply_btn_icon = Gtk.Image.new_from_icon_name("emblem-ok-symbolic")
-    apply_btn_label = Gtk.Label(label="Apply Theme")
-    apply_btn_box.append(apply_btn_icon)
-    apply_btn_box.append(apply_btn_label)
-    apply_btn.set_child(apply_btn_box)
+    apply_btn = Gtk.Button(label="󰄬 Apply Theme")
     apply_btn.add_css_class("suggested-action")
     apply_btn.connect("clicked", lambda b: _apply_theme(window, pm))
     action_box.append(apply_btn)
@@ -819,6 +629,4 @@ __all__ = [
     'apply_hyprbars_settings',
     # SwayNC exports (v2.4)
     'is_swaync_installed', 'sync_swaync_with_theme', 'apply_swaync_colorscheme',
-    # CSS refresh (v2.4.2)
-    '_refresh_css_provider',
 ]

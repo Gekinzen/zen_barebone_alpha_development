@@ -1,14 +1,25 @@
 #!/usr/bin/env python3
 """
-Clock Widget - Based on working transparency test
-Simple approach: CSS + Layer Shell = Transparent!
+Clock Widget - Timezone Aware Version
+Features:
+- Configurable timezone from widgets.json
+- 24h/12h format support
+- Position persistence
+- Draggable
 """
 import gi
 gi.require_version('Gtk', '4.0')
 from gi.repository import Gtk, Gdk, GLib
-import datetime
 import json
 from pathlib import Path
+from datetime import datetime
+
+try:
+    import pytz
+    HAS_PYTZ = True
+except ImportError:
+    HAS_PYTZ = False
+    print("[clock] ⚠️ pytz not installed, using local time")
 
 try:
     gi.require_version('Gtk4LayerShell', '1.0')
@@ -20,18 +31,27 @@ except:
 
 
 class ClockWidget(Gtk.Window):
-    """Transparent clock widget - simple working approach"""
+    """Transparent clock widget with timezone support"""
     
-    def __init__(self, app):
+    def __init__(self, app, is_secondary=False):
         super().__init__(application=app)
         
-        self.set_title("hypr-widget-clock")
+        self.is_secondary = is_secondary
+        self.config_key = "clock_secondary" if is_secondary else "clock"
+        
+        if is_secondary:
+            self.set_title("hypr-widget-clock-secondary")
+            self.namespace = "hypr-widget-clock-secondary"
+        else:
+            self.set_title("hypr-widget-clock")
+            self.namespace = "hypr-widget-clock"
+        
         self.set_decorated(False)
         self.set_resizable(False)
         
         # Position tracking
         self.current_x = 100
-        self.current_y = 100
+        self.current_y = 100 if not is_secondary else 250
         self.drag_origin_x = 0
         self.drag_origin_y = 0
         self.is_dragging = False
@@ -41,16 +61,20 @@ class ClockWidget(Gtk.Window):
         self.config_path = self.config_dir / "widgets.json"
         self.config_dir.mkdir(parents=True, exist_ok=True)
         
-        # Load position
-        self._load_position()
+        # Default settings
+        self.timezone = "Asia/Manila"
+        self.format_24h = True
         
-        # Apply CSS FIRST
+        # Load config
+        self._load_config()
+        
+        # Apply CSS
         self._apply_css()
         
         # Build UI
         self._build_ui()
         
-        # Setup layer shell AFTER UI
+        # Setup layer shell
         if HAS_LAYER_SHELL:
             self._setup_layer_shell()
         
@@ -60,21 +84,28 @@ class ClockWidget(Gtk.Window):
         # Start updates
         self.update_time()
         GLib.timeout_add_seconds(1, self.update_time)
+        
+        # Watch config changes
+        GLib.timeout_add_seconds(5, self._check_config_changes)
     
-    def _load_position(self):
-        """Load saved position"""
+    def _load_config(self):
+        """Load configuration"""
         if self.config_path.exists():
             try:
                 with open(self.config_path, 'r') as f:
                     config = json.load(f)
-                widget_config = config.get('widgets', {}).get('clock', {})
-                self.current_x = widget_config.get('x', 100)
-                self.current_y = widget_config.get('y', 100)
-            except:
-                pass
+                
+                widget_config = config.get('widgets', {}).get(self.config_key, {})
+                self.current_x = widget_config.get('x', self.current_x)
+                self.current_y = widget_config.get('y', self.current_y)
+                self.timezone = widget_config.get('timezone', self.timezone)
+                self.format_24h = widget_config.get('format_24h', self.format_24h)
+                
+            except Exception as e:
+                print(f"[clock] Config load error: {e}")
     
-    def _save_position(self):
-        """Save position"""
+    def _save_config(self):
+        """Save position to config"""
         config = {"widgets": {}}
         if self.config_path.exists():
             try:
@@ -86,56 +117,99 @@ class ClockWidget(Gtk.Window):
         if 'widgets' not in config:
             config['widgets'] = {}
         
-        config['widgets']['clock'] = {
+        if self.config_key not in config['widgets']:
+            config['widgets'][self.config_key] = {}
+        
+        config['widgets'][self.config_key].update({
             'x': self.current_x,
             'y': self.current_y,
             'enabled': True
-        }
+        })
         
         with open(self.config_path, 'w') as f:
             json.dump(config, f, indent=2)
     
+    def _check_config_changes(self) -> bool:
+        """Check for config changes (timezone, format)"""
+        if self.config_path.exists():
+            try:
+                with open(self.config_path, 'r') as f:
+                    config = json.load(f)
+                
+                widget_config = config.get('widgets', {}).get(self.config_key, {})
+                new_tz = widget_config.get('timezone', self.timezone)
+                new_format = widget_config.get('format_24h', self.format_24h)
+                
+                if new_tz != self.timezone or new_format != self.format_24h:
+                    self.timezone = new_tz
+                    self.format_24h = new_format
+                    self.update_time()
+                    
+            except:
+                pass
+        
+        return True
+    
     def _apply_css(self):
-        """Apply CSS - same pattern as working test"""
+        """Apply CSS"""
+        # Different color for secondary clock
+        if self.is_secondary:
+            time_color = "#87ceeb"  # Light blue
+            glow_color = "rgba(135, 206, 235, 0.4)"
+        else:
+            time_color = "#ffffff"
+            glow_color = "rgba(255, 255, 255, 0.4)"
+        
         css = Gtk.CssProvider()
-        css.load_from_string("""
-            * {
+        css.load_from_string(f"""
+            * {{
                 background: transparent;
                 background-color: rgba(0,0,0,0);
-            }
+            }}
             
-            .clock-container {
+            .clock-container {{
                 padding: 20px 30px;
-            }
+            }}
             
-            .time-label {
+            .time-label {{
                 font-family: "Adwaita Sans", "JetBrainsMono Nerd Font Propo", sans-serif;
                 font-size: 120px;
                 font-weight: 900;
-                color: #ffffff;
+                color: {time_color};
                 text-shadow: 
                     0 0 100px rgba(0, 0, 0, 1),
                     0 0 80px rgba(0, 0, 0, 0.95),
                     0 5px 50px rgba(0, 0, 0, 1),
                     5px 5px 15px rgba(0, 0, 0, 1),
                     -5px -5px 15px rgba(0, 0, 0, 1),
-                    0 0 30px rgba(255, 255, 255, 0.4);
+                    0 0 30px {glow_color};
                 letter-spacing: -4px;
-            }
+            }}
             
-            .date-label {
+            .date-label {{
                 font-family: "Adwaita Sans", "JetBrainsMono Nerd Font Propo", sans-serif;
                 font-size: 24px;
                 font-weight: 800;
-                color: #ffffff;
+                color: {time_color};
                 text-shadow: 
                     0 0 50px rgba(0, 0, 0, 1),
                     0 3px 30px rgba(0, 0, 0, 1),
                     3px 3px 10px rgba(0, 0, 0, 1),
                     -3px -3px 10px rgba(0, 0, 0, 1),
-                    0 0 15px rgba(255, 255, 255, 0.3);
+                    0 0 15px {glow_color};
                 letter-spacing: 0.5px;
-            }
+            }}
+            
+            .timezone-label {{
+                font-family: "Adwaita Sans", "JetBrainsMono Nerd Font Propo", sans-serif;
+                font-size: 14px;
+                font-weight: 600;
+                color: rgba(255, 255, 255, 0.6);
+                text-shadow: 
+                    0 0 30px rgba(0, 0, 0, 1),
+                    2px 2px 8px rgba(0, 0, 0, 1);
+                margin-top: 8px;
+            }}
         """)
         Gtk.StyleContext.add_provider_for_display(
             Gdk.Display.get_default(), css,
@@ -144,7 +218,6 @@ class ClockWidget(Gtk.Window):
     
     def _build_ui(self):
         """Build clock UI"""
-        # Container - spacing=0 for tight layout
         container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         container.add_css_class("clock-container")
         container.set_halign(Gtk.Align.CENTER)
@@ -162,13 +235,19 @@ class ClockWidget(Gtk.Window):
         self.date_label.set_halign(Gtk.Align.CENTER)
         container.append(self.date_label)
         
+        # Timezone label (only for secondary or non-local)
+        self.tz_label = Gtk.Label()
+        self.tz_label.add_css_class("timezone-label")
+        self.tz_label.set_halign(Gtk.Align.CENTER)
+        container.append(self.tz_label)
+        
         self.set_child(container)
     
     def _setup_layer_shell(self):
         """Setup layer shell"""
         Gtk4LayerShell.init_for_window(self)
         Gtk4LayerShell.set_layer(self, Gtk4LayerShell.Layer.BOTTOM)
-        Gtk4LayerShell.set_namespace(self, "hypr-widget-clock")
+        Gtk4LayerShell.set_namespace(self, self.namespace)
         Gtk4LayerShell.set_keyboard_mode(self, Gtk4LayerShell.KeyboardMode.ON_DEMAND)
         Gtk4LayerShell.set_exclusive_zone(self, -1)
         
@@ -221,21 +300,56 @@ class ClockWidget(Gtk.Window):
         self.current_x = max(0, int(self.drag_origin_x + offset_x))
         self.current_y = max(0, int(self.drag_origin_y + offset_y))
         
-        self._save_position()
+        self._save_config()
     
-    def update_time(self):
-        """Update clock"""
-        now = datetime.datetime.now()
-        self.time_label.set_text(now.strftime("%H:%M"))
-        self.date_label.set_text(now.strftime("%A, %B %d"))
+    def update_time(self) -> bool:
+        """Update clock display"""
+        try:
+            if HAS_PYTZ:
+                tz = pytz.timezone(self.timezone)
+                now = datetime.now(tz)
+            else:
+                now = datetime.now()
+            
+            # Format time
+            if self.format_24h:
+                self.time_label.set_text(now.strftime("%H:%M"))
+            else:
+                self.time_label.set_text(now.strftime("%I:%M %p"))
+            
+            # Date
+            self.date_label.set_text(now.strftime("%A, %B %d"))
+            
+            # Timezone indicator
+            if self.is_secondary or self.timezone != "Asia/Manila":
+                tz_short = self.timezone.split('/')[-1].replace('_', ' ')
+                self.tz_label.set_text(tz_short)
+                self.tz_label.set_visible(True)
+            else:
+                self.tz_label.set_visible(False)
+            
+        except Exception as e:
+            print(f"[clock] Time update error: {e}")
+            self.time_label.set_text("--:--")
+        
         return True
 
 
 def main():
-    app = Gtk.Application(application_id="com.hypr.widget.clock")
+    import sys
+    
+    # Check if running as secondary clock
+    is_secondary = "--secondary" in sys.argv or "secondary" in sys.argv
+    
+    if is_secondary:
+        app_id = "com.hypr.widget.clock.secondary"
+    else:
+        app_id = "com.hypr.widget.clock"
+    
+    app = Gtk.Application(application_id=app_id)
     
     def on_activate(app):
-        widget = ClockWidget(app)
+        widget = ClockWidget(app, is_secondary=is_secondary)
         widget.present()
     
     app.connect("activate", on_activate)

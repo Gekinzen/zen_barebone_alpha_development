@@ -1,19 +1,24 @@
 #!/usr/bin/env python3
 """
-═══════════════════════════════════════════════════════════════════════════════
-Hyprland Panel Widget - v2.1 INSTANT Edition
-═══════════════════════════════════════════════════════════════════════════════
-Waybar Overlay Taskbar with TRUE TRANSPARENT background
+Hyprland Panel Widget - Waybar Overlay Taskbar
+==============================================
 
-Changes in v2.1:
-- ✅ TRUE TRANSPARENT WINDOW (like clock widget approach)
-- ✅ INSTANT launch (optimized initialization)
-- ✅ Smart position detection from Waybar config
-- ✅ Auto-detect Flatpak, Pacman, AUR, Snap apps
-- ✅ Auto-close when mouse leaves
+A GTK4 Layer Shell overlay that positions itself exactly where
+custom/taskbar is placed in Waybar config (left, center, or right).
 
-Run: LD_PRELOAD=/usr/lib/libgtk4-layer-shell.so python3 panel_widget.py
-═══════════════════════════════════════════════════════════════════════════════
+Features:
+- DAEMON MODE: Stay resident, toggle via SIGUSR1 for instant show/hide
+- Dynamic position sync with Waybar config
+- Pin/Unpin apps (Windows-style)
+- Window list popover
+- Context menu
+- Theme sync from Waybar style.css (with @import resolution)
+- Smart close: closes when mouse leaves panel and clicks outside
+- Auto-detection for Flatpak, Pacman, AUR, Snap apps
+
+Run (legacy):  LD_PRELOAD=/usr/lib/libgtk4-layer-shell.so python3 panel_widget.py
+Run (daemon):  LD_PRELOAD=/usr/lib/libgtk4-layer-shell.so python3 panel_widget.py --daemon
+Toggle:        kill -USR1 $(cat /tmp/hypr-panel.pid)
 """
 
 import gi
@@ -26,8 +31,10 @@ import asyncio
 import threading
 import os
 import re
+import signal
+import argparse
 from pathlib import Path
-from typing import Optional, Dict, List, Tuple
+from typing import Optional, Dict, List, Tuple, NamedTuple
 from dataclasses import dataclass, field
 from enum import Enum, auto
 import sys
@@ -37,6 +44,7 @@ try:
     gi.require_version('Gtk4LayerShell', '1.0')
     from gi.repository import Gtk4LayerShell
     HAS_LAYER_SHELL = True
+    print("[Panel] ✅ GTK4 Layer Shell available")
 except:
     HAS_LAYER_SHELL = False
     print("[Panel] ⚠️ GTK4 Layer Shell not found!")
@@ -52,142 +60,34 @@ try:
     from window_tracker import WindowTracker, AppGroup
     from pinned_manager import PinnedManager, PinnedApp, get_pinned_manager
     from icon_resolver import get_resolver, get_nerd_icon
+    from waybar_config_reader import WaybarConfigReader, get_waybar_reader, PanelPosition, WaybarTheme
     HAS_MODULES = True
+    print("[Panel] ✅ All modules loaded")
 except ImportError as e:
     print(f"[Panel] ❌ Import error: {e}")
     HAS_MODULES = False
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# PATHS & THEME
-# ═══════════════════════════════════════════════════════════════════════════════
-
-CONFIG_DIR = Path.home() / ".config/hypr-control-center"
-PREFERENCES_DIR = CONFIG_DIR / "preferences"
-
-DEFAULT_COLORS = {
-    "bg0": "#1e2127", "bg1": "#282b31", "bg2": "#2c313a", "bg3": "#3e4451", "bg4": "#4b5263",
-    "fg": "#abb2bf", "grey0": "#5c6370", "grey1": "#828997", "grey2": "#abb2bf",
-    "red": "#e06c75", "orange": "#d19a66", "yellow": "#e5c07b", "green": "#98c379",
-    "aqua": "#56b6c2", "blue": "#61afef", "purple": "#c678dd"
-}
-
-
-def get_current_theme_colors() -> dict:
-    theme_files = [
-        PREFERENCES_DIR / "theme.json",
-        CONFIG_DIR / "current-theme.json",
-    ]
-    
-    for theme_file in theme_files:
-        if theme_file.exists():
-            try:
-                with open(theme_file, 'r') as f:
-                    return json.load(f).get('colors', DEFAULT_COLORS)
-            except:
-                pass
-    
-    return DEFAULT_COLORS
-
-
-def is_light_theme(colors: dict) -> bool:
-    bg = colors.get('bg0', '#1e2127')
-    if bg.startswith('#'):
-        try:
-            r = int(bg[1:3], 16)
-            g = int(bg[3:5], 16)
-            b = int(bg[5:7], 16)
-            return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.5
-        except:
-            pass
-    return False
+# PID file for daemon mode
+PID_FILE = Path("/tmp/hypr-panel.pid")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# POSITION DETECTION
-# ═══════════════════════════════════════════════════════════════════════════════
-
-@dataclass
-class PanelPosition:
-    location: str = "center"
-    waybar_position: str = "top"
-    margin_left: int = 8
-    margin_right: int = 8
-    margin_top: int = 48
-    margin_bottom: int = 8
-    waybar_height: int = 40
-
-
-def detect_panel_position(module_name: str = "custom/taskbar") -> PanelPosition:
-    position = PanelPosition()
-    
-    waybar_configs = [
-        Path.home() / ".config/waybar/config.jsonc",
-        Path.home() / ".config/waybar/config.json",
-    ]
-    
-    for config_path in waybar_configs:
-        if not config_path.exists():
-            continue
-        
-        try:
-            content = config_path.read_text()
-            content = re.sub(r'//.*$', '', content, flags=re.MULTILINE)
-            content = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
-            config = json.loads(content)
-            
-            waybar_pos = config.get("position", "top")
-            position.waybar_position = waybar_pos
-            waybar_height = config.get("height", 40)
-            position.waybar_height = waybar_height
-            
-            waybar_margin_top = config.get("margin-top", 0)
-            waybar_margin_bottom = config.get("margin-bottom", 0)
-            
-            if waybar_pos == "bottom":
-                position.margin_bottom = waybar_height + waybar_margin_bottom + 8
-                position.margin_top = 8
-            else:
-                position.margin_top = waybar_height + waybar_margin_top + 8
-                position.margin_bottom = 8
-            
-            modules_left = config.get("modules-left", [])
-            modules_center = config.get("modules-center", [])
-            modules_right = config.get("modules-right", [])
-            
-            if module_name in modules_left:
-                position.location = "left"
-                idx = modules_left.index(module_name)
-                position.margin_left = config.get("margin-left", 0) + idx * 50 + 8
-            elif module_name in modules_center:
-                position.location = "center"
-            elif module_name in modules_right:
-                position.location = "right"
-                idx = modules_right.index(module_name)
-                modules_after = len(modules_right) - 1 - idx
-                position.margin_right = config.get("margin-right", 0) + modules_after * 50 + 8
-            
-            break
-        except:
-            continue
-    
-    return position
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# APP DETECTION
+# ENHANCED APP DETECTION SYSTEM
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class AppType(Enum):
-    NATIVE = auto()
-    FLATPAK = auto()
-    SNAP = auto()
-    APPIMAGE = auto()
+    """Application installation type"""
+    NATIVE = auto()      # Pacman / AUR
+    FLATPAK = auto()     # Flatpak
+    SNAP = auto()        # Snap
+    APPIMAGE = auto()    # AppImage
     UNKNOWN = auto()
 
 
 @dataclass
 class AppInfo:
+    """Comprehensive application information"""
     app_id: str
     name: str
     exec_cmd: str
@@ -199,23 +99,57 @@ class AppInfo:
     categories: List[str] = field(default_factory=list)
     keywords: List[str] = field(default_factory=list)
     terminal: bool = False
-    score: int = 0
+    score: int = 0  # Match confidence score
 
 
 class AppDetector:
-    DESKTOP_DIRS = [
+    """
+    Advanced application detector that handles:
+    - Native packages (pacman, AUR)
+    - Flatpak applications
+    - Snap packages
+    - AppImages
+    
+    Uses multiple strategies for matching:
+    1. Exact WM_CLASS match
+    2. Desktop file name match
+    3. StartupWMClass match
+    4. Exec command analysis
+    5. Fuzzy name matching
+    """
+    
+    # Desktop file directories with their types and priorities
+    DESKTOP_DIRS: List[Tuple[Path, AppType, int]] = [
+        # User local (highest priority)
         (Path.home() / ".local/share/applications", AppType.NATIVE, 100),
+        # Flatpak user
         (Path.home() / ".local/share/flatpak/exports/share/applications", AppType.FLATPAK, 95),
+        # System native
         (Path("/usr/share/applications"), AppType.NATIVE, 90),
+        (Path("/usr/local/share/applications"), AppType.NATIVE, 85),
+        # Flatpak system
         (Path("/var/lib/flatpak/exports/share/applications"), AppType.FLATPAK, 80),
+        # Snap
         (Path("/var/lib/snapd/desktop/applications"), AppType.SNAP, 75),
+        (Path.home() / "snap" / "applications", AppType.SNAP, 70),
+        # XDG data dirs
+        *[(Path(p) / "applications", AppType.NATIVE, 60) 
+          for p in os.environ.get("XDG_DATA_DIRS", "").split(":") if p],
     ]
     
+    # Cache for desktop file parsing
     _cache: Dict[str, AppInfo] = {}
     _desktop_files: Optional[Dict[str, List[Tuple[Path, AppType, int]]]] = None
     
     @classmethod
-    def _index_desktop_files(cls):
+    def clear_cache(cls):
+        """Clear the application cache"""
+        cls._cache.clear()
+        cls._desktop_files = None
+    
+    @classmethod
+    def _index_desktop_files(cls) -> Dict[str, List[Tuple[Path, AppType, int]]]:
+        """Index all desktop files for quick lookup"""
         if cls._desktop_files is not None:
             return cls._desktop_files
         
@@ -227,75 +161,112 @@ class AppDetector:
             
             try:
                 for desktop_file in desktop_dir.glob("*.desktop"):
+                    # Index by filename (without .desktop)
                     key = desktop_file.stem.lower()
                     if key not in cls._desktop_files:
                         cls._desktop_files[key] = []
                     cls._desktop_files[key].append((desktop_file, app_type, priority))
                     
+                    # Also index by simple name (last part of reverse domain)
+                    # e.g., "org.mozilla.firefox" -> "firefox"
                     if "." in key:
                         simple_key = key.split(".")[-1]
                         if simple_key not in cls._desktop_files:
                             cls._desktop_files[simple_key] = []
                         cls._desktop_files[simple_key].append((desktop_file, app_type, priority - 5))
-            except:
+            except PermissionError:
                 continue
         
+        print(f"[AppDetector] 📚 Indexed {len(cls._desktop_files)} desktop file entries")
         return cls._desktop_files
     
     @classmethod
     def find_app(cls, app_id: str, wm_class: Optional[str] = None) -> Optional[AppInfo]:
+        """
+        Find application by app_id or WM_CLASS.
+        
+        Search strategy:
+        1. Check cache
+        2. Try exact filename match
+        3. Parse desktop files and score them
+        4. Return best match above threshold
+        """
+        # Normalize identifiers
         app_id_lower = app_id.lower().replace(" ", "-").replace("_", "-")
         wm_class_lower = wm_class.lower() if wm_class else app_id_lower
         
+        # Check cache
         cache_key = f"{app_id_lower}:{wm_class_lower}"
         if cache_key in cls._cache:
             return cls._cache[cache_key]
         
+        # Index desktop files if not done
         desktop_index = cls._index_desktop_files()
-        candidates = []
-        checked = set()
         
+        # Collect candidates
+        candidates: List[AppInfo] = []
+        checked_files: set = set()
+        
+        # Strategy 1: Direct filename match
         for key in [app_id_lower, wm_class_lower, app_id_lower.split(".")[-1]]:
             if key in desktop_index:
                 for desktop_file, app_type, priority in desktop_index[key]:
-                    if desktop_file in checked:
+                    if desktop_file in checked_files:
                         continue
-                    checked.add(desktop_file)
+                    checked_files.add(desktop_file)
                     
-                    app_info = cls._parse_and_score(desktop_file, app_type, priority, app_id_lower, wm_class_lower)
+                    app_info = cls._parse_and_score(
+                        desktop_file, app_type, priority,
+                        app_id_lower, wm_class_lower
+                    )
                     if app_info and app_info.score > 0:
                         candidates.append(app_info)
+        
+        # Strategy 2: Full scan for harder matches (only if no good candidates)
+        if not candidates or max(c.score for c in candidates) < 50:
+            for desktop_dir, app_type, priority in cls.DESKTOP_DIRS:
+                if not desktop_dir.exists():
+                    continue
+                
+                try:
+                    for desktop_file in desktop_dir.glob("*.desktop"):
+                        if desktop_file in checked_files:
+                            continue
+                        checked_files.add(desktop_file)
+                        
+                        app_info = cls._parse_and_score(
+                            desktop_file, app_type, priority,
+                            app_id_lower, wm_class_lower
+                        )
+                        if app_info and app_info.score > 30:
+                            candidates.append(app_info)
+                except PermissionError:
+                    continue
         
         if not candidates:
             return None
         
+        # Sort by score (highest first)
         candidates.sort(key=lambda x: x.score, reverse=True)
         best = candidates[0]
+        
+        # Cache result
         cls._cache[cache_key] = best
+        
+        print(f"[AppDetector] ✅ Found: {best.name} ({best.app_type.name}) score={best.score}")
         return best
     
     @classmethod
-    def _parse_and_score(cls, desktop_file, default_type, base_priority, app_id, wm_class):
+    def _parse_and_score(cls, desktop_file: Path, default_type: AppType, 
+                         base_priority: int, app_id: str, wm_class: str) -> Optional[AppInfo]:
+        """Parse a desktop file and score how well it matches"""
         try:
             content = desktop_file.read_text(errors='ignore')
         except:
             return None
         
-        entry = {}
-        in_entry = False
-        for line in content.splitlines():
-            line = line.strip()
-            if line == "[Desktop Entry]":
-                in_entry = True
-                continue
-            elif line.startswith("["):
-                if in_entry:
-                    break
-                continue
-            if in_entry and "=" in line:
-                k, _, v = line.partition("=")
-                entry[k.strip()] = v.strip()
-        
+        # Parse desktop entry
+        entry = cls._parse_desktop_entry(content)
         if not entry:
             return None
         
@@ -304,7 +275,11 @@ class AppDetector:
         icon = entry.get("Icon", "")
         startup_wm_class = entry.get("StartupWMClass", "").lower()
         flatpak_id = entry.get("X-Flatpak", "")
+        terminal = entry.get("Terminal", "").lower() == "true"
+        categories = entry.get("Categories", "").split(";")
+        keywords = entry.get("Keywords", "").split(";")
         
+        # Determine actual app type
         app_type = default_type
         if flatpak_id or "flatpak run" in exec_cmd:
             app_type = AppType.FLATPAK
@@ -314,11 +289,15 @@ class AppDetector:
                     flatpak_id = match.group(1)
         elif "/snap/" in exec_cmd:
             app_type = AppType.SNAP
+        elif ".appimage" in exec_cmd.lower() or ".AppImage" in exec_cmd:
+            app_type = AppType.APPIMAGE
         
+        # Calculate match score
         score = base_priority
         filename = desktop_file.stem.lower()
         name_lower = name.lower()
         
+        # Exact matches (high score)
         if startup_wm_class == wm_class:
             score += 100
         elif startup_wm_class == app_id:
@@ -332,16 +311,38 @@ class AppDetector:
         if name_lower == wm_class or name_lower == app_id:
             score += 85
         
+        # Partial matches
         if wm_class in filename or app_id in filename:
             score += 50
         if wm_class in name_lower or app_id in name_lower:
             score += 45
+        if wm_class in startup_wm_class:
+            score += 60
         
+        # Flatpak ID matching
         if flatpak_id:
             flatpak_simple = flatpak_id.lower().split(".")[-1]
             if flatpak_simple == wm_class or flatpak_simple == app_id:
                 score += 80
+            elif wm_class in flatpak_id.lower() or app_id in flatpak_id.lower():
+                score += 55
         
+        # Exec command analysis
+        exec_lower = exec_cmd.lower()
+        exec_basename = Path(exec_cmd.split()[0] if exec_cmd else "").stem.lower()
+        
+        if exec_basename == wm_class or exec_basename == app_id:
+            score += 65
+        elif wm_class in exec_lower or app_id in exec_lower:
+            score += 35
+        
+        # Keywords match
+        for kw in keywords:
+            if kw.lower() == wm_class or kw.lower() == app_id:
+                score += 40
+                break
+        
+        # No match penalty
         if score <= base_priority:
             return None
         
@@ -354,27 +355,108 @@ class AppDetector:
             icon_name=icon,
             wm_class=startup_wm_class or filename,
             flatpak_id=flatpak_id,
+            categories=[c for c in categories if c],
+            keywords=[k for k in keywords if k],
+            terminal=terminal,
             score=score
         )
     
     @classmethod
+    def _parse_desktop_entry(cls, content: str) -> Optional[Dict[str, str]]:
+        """Parse [Desktop Entry] section from desktop file"""
+        entry = {}
+        in_desktop_entry = False
+        
+        for line in content.splitlines():
+            line = line.strip()
+            
+            if line == "[Desktop Entry]":
+                in_desktop_entry = True
+                continue
+            elif line.startswith("[") and line.endswith("]"):
+                if in_desktop_entry:
+                    break
+                continue
+            
+            if not in_desktop_entry or not line or line.startswith("#"):
+                continue
+            
+            if "=" in line:
+                key, _, value = line.partition("=")
+                entry[key.strip()] = value.strip()
+        
+        return entry if entry else None
+    
+    @classmethod
     def get_launch_command(cls, app_info: AppInfo) -> str:
-        exec_cmd = re.sub(r'\s+%[a-zA-Z]', '', app_info.exec_cmd)
+        """Generate the best launch command for an app"""
+        exec_cmd = app_info.exec_cmd
+        
+        # Clean field codes (%u %U %f %F etc.)
+        exec_cmd = re.sub(r'\s+%[a-zA-Z]', '', exec_cmd)
         
         if app_info.app_type == AppType.FLATPAK and app_info.flatpak_id:
             return f"flatpak run {app_info.flatpak_id}"
+        elif app_info.app_type == AppType.SNAP:
+            return exec_cmd
+        elif app_info.app_type == AppType.APPIMAGE:
+            return exec_cmd
+        else:
+            parts = exec_cmd.split()
+            clean_parts = []
+            skip_env = True
+            for part in parts:
+                if skip_env and ("=" in part or part == "env"):
+                    continue
+                skip_env = False
+                clean_parts.append(part)
+            return " ".join(clean_parts) if clean_parts else exec_cmd
+    
+    @classmethod
+    def is_flatpak_installed(cls, app_id: str) -> Tuple[bool, Optional[str]]:
+        """Check if app is installed as flatpak and get its ID"""
+        try:
+            result = subprocess.run(
+                ["flatpak", "list", "--app", "--columns=application"],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0:
+                app_id_lower = app_id.lower()
+                for line in result.stdout.splitlines():
+                    flatpak_id = line.strip()
+                    if not flatpak_id:
+                        continue
+                    if app_id_lower in flatpak_id.lower():
+                        return True, flatpak_id
+                    simple = flatpak_id.split(".")[-1].lower()
+                    if simple == app_id_lower:
+                        return True, flatpak_id
+        except:
+            pass
+        return False, None
+    
+    @classmethod
+    def is_native_installed(cls, app_id: str) -> bool:
+        """Check if app is installed natively (pacman/AUR)"""
+        try:
+            result = subprocess.run(
+                ["which", app_id], capture_output=True, timeout=2
+            )
+            if result.returncode == 0:
+                return True
+        except:
+            pass
         
-        parts = exec_cmd.split()
-        clean_parts = []
-        skip_env = True
+        try:
+            result = subprocess.run(
+                ["pacman", "-Qq", app_id], capture_output=True, timeout=2
+            )
+            if result.returncode == 0:
+                return True
+        except:
+            pass
         
-        for part in parts:
-            if skip_env and ("=" in part or part == "env"):
-                continue
-            skip_env = False
-            clean_parts.append(part)
-        
-        return " ".join(clean_parts) if clean_parts else exec_cmd
+        return False
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -382,7 +464,11 @@ class AppDetector:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class TaskbarItem(Gtk.Button):
-    def __init__(self, panel, app_id, pinned_app=None, app_group=None):
+    """Single taskbar item with icon, click handlers, and context menu"""
+    
+    def __init__(self, panel: 'PanelWidget', app_id: str, 
+                 pinned_app: Optional[PinnedApp] = None,
+                 app_group: Optional[AppGroup] = None):
         super().__init__()
         
         self.panel = panel
@@ -390,6 +476,7 @@ class TaskbarItem(Gtk.Button):
         self.pinned_app = pinned_app
         self.app_group = app_group
         
+        # Detect app info
         wm_class = self._get_wm_class()
         self.app_info = AppDetector.find_app(app_id, wm_class)
         
@@ -404,6 +491,7 @@ class TaskbarItem(Gtk.Button):
         self._setup_clicks()
     
     def _build_ui(self):
+        """Build icon widget"""
         box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         box.set_valign(Gtk.Align.CENTER)
         
@@ -433,6 +521,7 @@ class TaskbarItem(Gtk.Button):
         return self.app_id
     
     def _update_state(self):
+        """Update CSS classes based on state"""
         for cls in ["focused", "running", "not-running"]:
             self.remove_css_class(cls)
         
@@ -461,6 +550,7 @@ class TaskbarItem(Gtk.Button):
                 AppType.FLATPAK: "📦",
                 AppType.SNAP: "🔷",
                 AppType.APPIMAGE: "📀",
+                AppType.NATIVE: "",
             }
             type_icon = type_icons.get(self.app_info.app_type, "")
             if type_icon:
@@ -485,26 +575,32 @@ class TaskbarItem(Gtk.Button):
         self.add_controller(right)
     
     def _on_left_click(self, btn):
+        """Left click - focus or launch"""
+        print(f"[TaskbarItem] Click: {self.app_id}")
+        
         if self.is_running and self.app_group:
             if self.app_group.window_count == 1:
                 window = self.app_group.most_recent_window
                 if window:
                     self.panel.focus_window(window.address)
-                    GLib.timeout_add(100, self.panel.close)
+                    GLib.timeout_add(100, self.panel._dismiss)
             else:
                 self._show_window_list()
         elif self.is_pinned:
             self.panel.launch_app(self.app_id, self.app_info)
-            GLib.timeout_add(100, self.panel.close)
+            GLib.timeout_add(100, self.panel._dismiss)
     
     def _on_middle_click(self, gesture, n_press, x, y):
+        """Middle click - close all"""
         if self.is_running and self.app_group:
             self.panel.close_app(self.app_group.wm_class)
     
     def _on_right_click(self, gesture, n_press, x, y):
+        """Right click - context menu"""
         self._show_context_menu()
     
     def _show_window_list(self):
+        """Show window list popover"""
         if not self.app_group:
             return
         
@@ -553,6 +649,7 @@ class TaskbarItem(Gtk.Button):
         popover.popup()
     
     def _show_context_menu(self):
+        """Show context menu with app type info"""
         popover = Gtk.Popover()
         popover.set_parent(self)
         popover.add_css_class("context-menu")
@@ -565,10 +662,12 @@ class TaskbarItem(Gtk.Button):
         box.set_margin_start(4)
         box.set_margin_end(4)
         
+        # App type header
         if self.app_info:
             type_labels = {
                 AppType.FLATPAK: "📦 Flatpak",
                 AppType.SNAP: "🔷 Snap",
+                AppType.APPIMAGE: "📀 AppImage",
                 AppType.NATIVE: "💻 Native",
             }
             type_label = type_labels.get(self.app_info.app_type, "")
@@ -579,46 +678,61 @@ class TaskbarItem(Gtk.Button):
                 header.set_margin_start(8)
                 header.set_margin_bottom(4)
                 box.append(header)
+                
+                sep = Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL)
+                sep.set_margin_bottom(4)
+                box.append(sep)
         
+        # Pin/Unpin
         if self.is_pinned:
             btn = Gtk.Button(label="📍 Unpin from taskbar")
             btn.add_css_class("flat")
-            btn.connect("clicked", lambda b: self._do_action_close(popover, lambda: self.panel.unpin_app(self.app_id)))
+            btn.connect("clicked", lambda b: self._do_action_and_close(
+                popover, lambda: self.panel.unpin_app(self.app_id)))
             box.append(btn)
         else:
             btn = Gtk.Button(label="📌 Pin to taskbar")
             btn.add_css_class("flat")
-            btn.connect("clicked", lambda b: self._do_action_close(popover, lambda: self.panel.pin_app(self._get_wm_class())))
+            btn.connect("clicked", lambda b: self._do_action_and_close(
+                popover, lambda: self.panel.pin_app(self._get_wm_class())))
             box.append(btn)
         
+        # New window
         new_btn = Gtk.Button(label="🆕 New window")
         new_btn.add_css_class("flat")
-        new_btn.connect("clicked", lambda b: self._do_action_close(popover, lambda: self.panel.launch_app(self._get_wm_class(), self.app_info)))
+        new_btn.connect("clicked", lambda b: self._do_action_and_close(
+            popover, lambda: self.panel.launch_app(self._get_wm_class(), self.app_info)))
         box.append(new_btn)
         
+        # Close all
         if self.is_running:
             close_btn = Gtk.Button(label="❌ Close all windows")
             close_btn.add_css_class("flat")
-            close_btn.connect("clicked", lambda b: self._do_action_close(popover, lambda: self.panel.close_app(self.app_group.wm_class)))
+            close_btn.connect("clicked", lambda b: self._do_action_and_close(
+                popover, lambda: self.panel.close_app(self.app_group.wm_class)))
             box.append(close_btn)
         
         popover.set_child(box)
         popover.popup()
     
-    def _do_action_close(self, popover, action):
+    def _do_action_and_close(self, popover: Gtk.Popover, action):
+        """Execute action, close popover, then dismiss panel"""
         popover.popdown()
         action()
-        GLib.timeout_add(100, self.panel.close)
+        GLib.timeout_add(100, self.panel._dismiss)
     
-    def _focus_single(self, address, popover):
+    def _focus_single(self, address: str, popover: Gtk.Popover):
+        """Focus window and dismiss panel"""
         popover.popdown()
         self.panel.focus_window(address)
-        GLib.timeout_add(100, self.panel.close)
+        GLib.timeout_add(100, self.panel._dismiss)
     
-    def _close_single(self, address, popover):
+    def _close_single(self, address: str, popover: Gtk.Popover):
+        """Close a single window"""
         self.panel.close_window(address)
     
-    def update(self, app_group=None):
+    def update(self, app_group: Optional[AppGroup] = None):
+        """Update state"""
         self.app_group = app_group
         self.is_running = app_group is not None and app_group.window_count > 0
         self.is_focused = app_group.has_focus if app_group else False
@@ -631,284 +745,879 @@ class TaskbarItem(Gtk.Button):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class PanelWidget(Gtk.Window):
-    def __init__(self, module_name: str = "custom/taskbar"):
+    """
+    Panel overlay widget that syncs position with Waybar.
+    
+    Positions itself exactly where custom/taskbar module is in Waybar config.
+    
+    Daemon Mode:
+    - Starts hidden, stays resident in memory
+    - SIGUSR1 toggles visibility instantly
+    - Hide instead of close when mouse leaves
+    
+    Smart Close Behavior:
+    - Once mouse enters the panel, it becomes "armed"
+    - When mouse leaves the panel (after entering), start close timer
+    - Timer hides (daemon) or closes (legacy) the panel
+    """
+    
+    def __init__(self, module_name: str = "custom/panel", daemon_mode: bool = False):
         super().__init__()
         
         self.module_name = module_name
+        self.daemon_mode = daemon_mode
         self.set_title("hypr-panel")
         self.set_decorated(False)
         self.set_resizable(False)
         
+        # Config directory
         self.config_dir = Path.home() / ".config/hypr-control-center"
         
-        self.position = detect_panel_position(module_name)
+        # Load Waybar config
+        self.waybar_reader = get_waybar_reader()
+        self.position = self.waybar_reader.get_panel_position(module_name)
+        self.theme = self.waybar_reader.get_theme()
         
+        # Read waybar height + margins directly from config
+        self._waybar_props = self._read_waybar_props()
+        
+        print(f"[Panel] 📍 Position: {self.position.location}")
+        print(f"[Panel] 📏 Waybar: h={self._waybar_props['height']}, "
+              f"mb={self._waybar_props['margin_bottom']}, mt={self._waybar_props['margin_top']}")
+        print(f"[Panel] 🔧 Daemon mode: {daemon_mode}")
+        
+        # Setup layer shell
         if HAS_LAYER_SHELL:
             self._setup_layer_shell()
         
-        # Apply TRUE TRANSPARENT CSS
-        self._apply_transparent_css()
+        # Apply CSS (with @import resolution + waybar opacity sync)
+        self._apply_css()
         
+        # Build UI
         self._build_ui()
         
+        # Components
         self.items: Dict[str, TaskbarItem] = {}
-        self.tracker = None
-        self.pinned_manager = None
+        self.tracker: Optional[WindowTracker] = None
+        self.pinned_manager: Optional[PinnedManager] = None
         self._async_loop = None
         self._tracker_thread = None
         
+        # Smart close state
         self._mouse_has_entered = False
         self._mouse_inside = False
         self._close_timer_id = None
+        self._close_generation = 0  # Prevent stale timer races
         self._active_popover = None
         
+        # Initialize
         self._init_components()
         
+        # Track mouse enter/leave
         motion_controller = Gtk.EventControllerMotion()
         motion_controller.connect("enter", self._on_mouse_enter)
         motion_controller.connect("leave", self._on_mouse_leave)
         self.add_controller(motion_controller)
+        
+        # Daemon mode: intercept close-request to hide instead of destroy
+        if daemon_mode:
+            self.connect("close-request", self._on_close_request)
+            self._write_pid()
+            self._setup_signal_handlers()
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # DAEMON MODE
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def _write_pid(self):
+        """Write PID file for signal-based toggle"""
+        try:
+            PID_FILE.write_text(str(os.getpid()))
+            print(f"[Panel] 📝 PID file: {PID_FILE} (pid={os.getpid()})")
+        except Exception as e:
+            print(f"[Panel] ⚠️ Failed to write PID: {e}")
+    
+    def _cleanup_pid(self):
+        """Remove PID file on exit"""
+        try:
+            if PID_FILE.exists():
+                PID_FILE.unlink()
+                print("[Panel] 🗑️ PID file removed")
+        except:
+            pass
+    
+    def _setup_signal_handlers(self):
+        """Setup Unix signal handlers for daemon control"""
+        # SIGUSR1 = toggle visibility
+        GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGUSR1, self._on_toggle_signal)
+        # SIGTERM = clean shutdown
+        GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGTERM, self._on_quit_signal)
+        print("[Panel] 📡 Signal handlers: USR1=toggle, TERM=quit")
+    
+    def _on_toggle_signal(self) -> bool:
+        """SIGUSR1 handler - toggle panel visibility"""
+        if self.get_visible():
+            print("[Panel] 📡 SIGUSR1 → Hide")
+            self._hide_panel()
+        else:
+            print("[Panel] 📡 SIGUSR1 → Show")
+            self._show_panel()
+        return True  # Keep handler active
+    
+    def _on_quit_signal(self) -> bool:
+        """SIGTERM handler - clean shutdown"""
+        print("[Panel] 📡 SIGTERM → Shutdown")
+        self._cleanup_pid()
+        self.destroy()
+        return False
+    
+    def _on_close_request(self, window) -> bool:
+        """Intercept close in daemon mode → hide instead of destroy"""
+        if self.daemon_mode:
+            self._hide_panel()
+            return True  # Prevent actual destruction
+        return False  # Allow normal close
+    
+    def _show_panel(self):
+        """Show panel and refresh state"""
+        self._mouse_has_entered = False
+        self._mouse_inside = False
+        self._close_generation += 1
+        
+        # Rebuild UI with fresh window state
+        self._rebuild_ui()
+        self.set_visible(True)
+    
+    def _hide_panel(self):
+        """Hide panel (daemon mode)"""
+        self._mouse_has_entered = False
+        self._mouse_inside = False
+        self._close_generation += 1
+        
+        if self._close_timer_id:
+            GLib.source_remove(self._close_timer_id)
+            self._close_timer_id = None
+        
+        self.set_visible(False)
+    
+    def _dismiss(self) -> bool:
+        """
+        Dismiss the panel.
+        Daemon mode: hide. Legacy mode: close (destroy).
+        Called after user actions like clicking an app.
+        """
+        if self._has_open_popover():
+            return False
+        
+        if self.daemon_mode:
+            self._hide_panel()
+        else:
+            self.close()
+        return False
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # SMART CLOSE (mouse enter/leave)
+    # ═══════════════════════════════════════════════════════════════════════
     
     def _on_mouse_enter(self, controller, x, y):
+        """Mouse entered the panel"""
         self._mouse_has_entered = True
         self._mouse_inside = True
+        self._close_generation += 1  # Invalidate pending timers
         
         if self._close_timer_id:
             GLib.source_remove(self._close_timer_id)
             self._close_timer_id = None
     
     def _on_mouse_leave(self, controller):
+        """Mouse left the panel - start delayed dismiss"""
         self._mouse_inside = False
         
         if self._mouse_has_entered:
-            def delayed_close():
+            gen = self._close_generation
+            
+            def delayed_dismiss():
                 self._close_timer_id = None
+                # Stale timer check
+                if gen != self._close_generation:
+                    return False
                 if not self._mouse_inside and not self._has_open_popover():
-                    self._close_panel()
+                    print("[Panel] ⏱️ Timer expired → dismiss")
+                    self._dismiss()
                 return False
             
-            self._close_timer_id = GLib.timeout_add(400, delayed_close)
+            self._close_timer_id = GLib.timeout_add(400, delayed_dismiss)
     
     def _has_open_popover(self) -> bool:
-        return self._active_popover and self._active_popover.is_visible()
-    
-    def register_popover(self, popover):
-        self._active_popover = popover
-        
-        def on_closed(p):
-            self._active_popover = None
-            if not self._mouse_inside and self._mouse_has_entered:
-                GLib.timeout_add(300, lambda: self._close_panel() if not self._mouse_inside else None)
-        
-        popover.connect("closed", on_closed)
-    
-    def _close_panel(self):
-        if self._has_open_popover():
-            return False
-        self._mouse_has_entered = False
-        self.close()
+        """Check if any popover is currently open"""
+        if self._active_popover and self._active_popover.is_visible():
+            return True
         return False
     
+    def register_popover(self, popover: Gtk.Popover):
+        """Register a popover so panel knows not to dismiss while it's open"""
+        self._active_popover = popover
+        
+        def on_popover_closed(p):
+            self._active_popover = None
+            if not self._mouse_inside and self._mouse_has_entered:
+                gen = self._close_generation
+                
+                def delayed_dismiss():
+                    if gen != self._close_generation:
+                        return False
+                    if not self._mouse_inside and not self._has_open_popover():
+                        self._dismiss()
+                    return False
+                
+                GLib.timeout_add(300, delayed_dismiss)
+        
+        popover.connect("closed", on_popover_closed)
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # WAYBAR CONFIG READING
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def _read_waybar_props(self) -> dict:
+        """
+        Read waybar height, margins, and position directly from config.
+        Handles both single-config and array (multi-monitor) formats.
+        """
+        props = {
+            "height": 40,
+            "margin_top": 0,
+            "margin_bottom": 0,
+            "margin_left": 0,
+            "margin_right": 0,
+            "position": "bottom",
+            "output": None,
+        }
+        
+        config_paths = [
+            Path.home() / ".config/waybar/config.jsonc",
+            Path.home() / ".config/waybar/config.json",
+            Path.home() / ".config/waybar/config",
+        ]
+        
+        for config_path in config_paths:
+            if not config_path.exists():
+                continue
+            try:
+                content = config_path.read_text()
+                # Strip JSONC comments
+                content = re.sub(r'//.*$', '', content, flags=re.MULTILINE)
+                content = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
+                # Strip trailing commas before } or ]
+                content = re.sub(r',\s*([}\]])', r'\1', content)
+                raw = json.loads(content)
+                
+                # Handle array configs (multi-monitor)
+                data = None
+                if isinstance(raw, list):
+                    # Find config for primary/DP-2 output, or first one
+                    for cfg in raw:
+                        if isinstance(cfg, dict):
+                            out = cfg.get("output", "")
+                            if not out or out == "*" or "DP" in str(out):
+                                data = cfg
+                                break
+                    if data is None and raw:
+                        data = raw[0] if isinstance(raw[0], dict) else {}
+                    print(f"[Panel] 📄 Array config with {len(raw)} entries")
+                elif isinstance(raw, dict):
+                    data = raw
+                else:
+                    continue
+                
+                if not data:
+                    continue
+                
+                props["height"] = data.get("height", 40)
+                props["margin_top"] = data.get("margin-top", 0)
+                props["margin_bottom"] = data.get("margin-bottom", 0)
+                props["margin_left"] = data.get("margin-left", 0)
+                props["margin_right"] = data.get("margin-right", 0)
+                props["position"] = data.get("position", "bottom")
+                props["output"] = data.get("output", None)
+                
+                print(f"[Panel] 📄 Waybar config: {config_path.name} "
+                      f"(h={props['height']}, pos={props['position']}, "
+                      f"mt={props['margin_top']}, mb={props['margin_bottom']})")
+                break
+            except Exception as e:
+                print(f"[Panel] ⚠️ Error parsing waybar config {config_path}: {e}")
+        
+        return props
+    
     def _setup_layer_shell(self):
+        """
+        Setup GTK4 Layer Shell - same approach as start-menu.py.
+        
+        KEY: exclusive_zone(-1) positions relative to SCREEN EDGES,
+        not relative to waybar's exclusive zone. This matches how
+        start-menu.py does it (proven working).
+        """
         Gtk4LayerShell.init_for_window(self)
         Gtk4LayerShell.set_layer(self, Gtk4LayerShell.Layer.TOP)
         Gtk4LayerShell.set_namespace(self, "hypr-panel")
         Gtk4LayerShell.set_keyboard_mode(self, Gtk4LayerShell.KeyboardMode.NONE)
-        Gtk4LayerShell.set_exclusive_zone(self, 0)
+        # CRITICAL: -1 = ignore exclusive zones, position from screen edges
+        # This is what start-menu.py uses and it works correctly
+        Gtk4LayerShell.set_exclusive_zone(self, -1)
         
-        pos = self.position
+        wb = self._waybar_props
+        gap = 8  # Same gap as start-menu.py
         
-        if pos.waybar_position == "bottom":
+        # ─── Vertical positioning ───────────────────────────────────────
+        # Same formula as start-menu.py:
+        #   margin = waybar_height + waybar_margin + gap
+        
+        if wb["position"] == "bottom":
+            total_bottom = wb["height"] + wb["margin_bottom"] + gap
+            
             Gtk4LayerShell.set_anchor(self, Gtk4LayerShell.Edge.BOTTOM, True)
             Gtk4LayerShell.set_anchor(self, Gtk4LayerShell.Edge.TOP, False)
-            Gtk4LayerShell.set_margin(self, Gtk4LayerShell.Edge.BOTTOM, pos.margin_bottom)
+            Gtk4LayerShell.set_margin(self, Gtk4LayerShell.Edge.BOTTOM, total_bottom)
+            
+            print(f"[Panel] ⬇️ Bottom: margin={total_bottom}px "
+                  f"(h={wb['height']} + mb={wb['margin_bottom']} + gap={gap})")
         else:
+            total_top = wb["height"] + wb["margin_top"] + gap
+            
             Gtk4LayerShell.set_anchor(self, Gtk4LayerShell.Edge.TOP, True)
             Gtk4LayerShell.set_anchor(self, Gtk4LayerShell.Edge.BOTTOM, False)
-            Gtk4LayerShell.set_margin(self, Gtk4LayerShell.Edge.TOP, pos.margin_top)
+            Gtk4LayerShell.set_margin(self, Gtk4LayerShell.Edge.TOP, total_top)
+            
+            print(f"[Panel] ⬆️ Top: margin={total_top}px "
+                  f"(h={wb['height']} + mt={wb['margin_top']} + gap={gap})")
         
-        if pos.location == "left":
+        # ─── Horizontal positioning ─────────────────────────────────────
+        
+        if self.position.location == "left":
             Gtk4LayerShell.set_anchor(self, Gtk4LayerShell.Edge.LEFT, True)
             Gtk4LayerShell.set_anchor(self, Gtk4LayerShell.Edge.RIGHT, False)
-            Gtk4LayerShell.set_margin(self, Gtk4LayerShell.Edge.LEFT, pos.margin_left)
-        elif pos.location == "center":
-            Gtk4LayerShell.set_anchor(self, Gtk4LayerShell.Edge.LEFT, False)
-            Gtk4LayerShell.set_anchor(self, Gtk4LayerShell.Edge.RIGHT, False)
+            Gtk4LayerShell.set_margin(self, Gtk4LayerShell.Edge.LEFT, self.position.margin_left)
+            print(f"[Panel] ⬅️ LEFT, margin={self.position.margin_left}")
+            
+        elif self.position.location == "center":
+            Gtk4LayerShell.set_anchor(self, Gtk4LayerShell.Edge.LEFT, True)
+            Gtk4LayerShell.set_anchor(self, Gtk4LayerShell.Edge.RIGHT, True)
+            Gtk4LayerShell.set_margin(self, Gtk4LayerShell.Edge.LEFT, self.position.margin_left)
+            Gtk4LayerShell.set_margin(self, Gtk4LayerShell.Edge.RIGHT, self.position.margin_right)
+            print(f"[Panel] ⬛ CENTER, L={self.position.margin_left}, R={self.position.margin_right}")
+            
         else:
             Gtk4LayerShell.set_anchor(self, Gtk4LayerShell.Edge.RIGHT, True)
             Gtk4LayerShell.set_anchor(self, Gtk4LayerShell.Edge.LEFT, False)
-            Gtk4LayerShell.set_margin(self, Gtk4LayerShell.Edge.RIGHT, pos.margin_right)
-    
-    def _apply_transparent_css(self):
-        """Apply CSS with TRUE TRANSPARENT WINDOW (like clock widget)"""
-        colors = get_current_theme_colors()
-        light = is_light_theme(colors)
+            Gtk4LayerShell.set_margin(self, Gtk4LayerShell.Edge.RIGHT, self.position.margin_right)
+            print(f"[Panel] ➡️ RIGHT, margin={self.position.margin_right}")
         
-        css = f'''
-/* ═══════════════════════════════════════════════════════════════════════════ */
-/* PANEL WIDGET - TRUE TRANSPARENT WINDOW (Clock Widget Approach)              */
-/* ═══════════════════════════════════════════════════════════════════════════ */
-
-/* Force ALL window backgrounds transparent */
-window,
-window *,
-window.background,
-window.background *,
-.background,
-.background * {{
-    background-color: rgba(0, 0, 0, 0) !important;
-    background-image: none !important;
-    box-shadow: none !important;
-}}
-
-/* The actual panel container - this has the styled background */
-.panel-container {{
-    background: alpha({colors['bg0']}, 0.92);
-    border-radius: 12px;
-    border: 1px solid alpha({colors['fg']}, 0.12);
-    padding: 4px 8px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-}}
-
-.taskbar-item {{
-    background: transparent;
-    border: none;
-    border-radius: 8px;
-    padding: 6px 8px;
-    margin: 2px;
-    min-width: 36px;
-    min-height: 36px;
-    transition: all 150ms ease;
-}}
-
-.taskbar-item:hover {{
-    background: alpha({colors['fg']}, 0.08);
-}}
-
-.taskbar-item.focused {{
-    background: alpha({colors['blue']}, 0.15);
-    border-bottom: 2px solid {colors['blue']};
-}}
-
-.taskbar-item.running {{
-    border-bottom: 2px solid alpha({colors['blue']}, 0.5);
-}}
-
-.taskbar-item.not-running {{
-    opacity: 0.6;
-}}
-
-.taskbar-item.not-running:hover {{
-    opacity: 1;
-}}
-
-.taskbar-icon {{
-    color: {colors['fg']};
-    font-size: 20px;
-    background: transparent;
-}}
-
-.separator {{
-    background: alpha({colors['fg']}, 0.15);
-    min-width: 1px;
-    margin: 8px 4px;
-}}
-
-.window-list-popover,
-.context-menu {{
-    background: alpha({colors['bg0']}, 0.95);
-    border: 1px solid alpha({colors['blue']}, 0.3);
-    border-radius: 12px;
-}}
-
-.window-list-popover > contents,
-.context-menu > contents {{
-    background: transparent;
-    padding: 4px;
-}}
-
-.window-list-item,
-.context-menu button {{
-    background: transparent;
-    border: none;
-    border-radius: 8px;
-    padding: 8px 12px;
-    margin: 2px;
-    color: {colors['fg']};
-}}
-
-.window-list-item:hover,
-.context-menu button:hover {{
-    background: alpha({colors['blue']}, 0.15);
-}}
-
-.focus-indicator {{
-    color: {colors['blue']};
-    margin-right: 8px;
-    background: transparent;
-}}
-
-.window-close-btn {{
-    opacity: 0.5;
-    min-width: 24px;
-    min-height: 24px;
-    background: transparent;
-}}
-
-.window-close-btn:hover {{
-    opacity: 1;
-    color: {colors['red']};
-}}
-
-.dim-label {{
-    opacity: 0.7;
-    font-size: 0.85em;
-    color: {colors['grey1']};
-    background: transparent;
-}}
-
-tooltip {{
-    background: alpha({colors['bg0']}, 0.95);
-    border: 1px solid alpha({colors['blue']}, 0.2);
-    border-radius: 8px;
-}}
-
-tooltip label {{
-    color: {colors['fg']};
-    padding: 6px 10px;
-    background: transparent;
-}}
-
-box {{
-    background: transparent;
-}}
-
-label {{
-    background: transparent;
-}}
-
-image {{
-    background: transparent;
-}}
-
-popover {{
-    background: transparent;
-}}
-
-popover contents {{
-    background: transparent;
-}}
-'''
+        print("[Panel] ✅ Layer Shell configured")
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # THEME / CSS
+    # ═══════════════════════════════════════════════════════════════════════
+    
+    def _get_hyprland_config(self) -> dict:
+        """Read Hyprland config for colors and opacity"""
+        config = {
+            "active_opacity": 1.0,
+            "inactive_opacity": 1.0,
+            "active_border_color": "#61afef",
+            "inactive_border_color": "#5c6370",
+            "rounding": 8,
+        }
+        
+        hypr_conf = Path.home() / ".config/hypr/hyprland.conf"
+        conf_files = [hypr_conf]
+        conf_dir = Path.home() / ".config/hypr"
+        
+        for extra in ["colors.conf", "theme.conf", "decoration.conf", "appearance.conf"]:
+            extra_path = conf_dir / extra
+            if extra_path.exists():
+                conf_files.append(extra_path)
+        
+        for conf_file in conf_files:
+            if not conf_file.exists():
+                continue
+            
+            try:
+                content = conf_file.read_text()
+                
+                for line in content.splitlines():
+                    line = line.strip()
+                    if line.startswith("#") or not line:
+                        continue
+                    
+                    if "active_opacity" in line:
+                        try:
+                            val = line.split("=")[1].strip().split("#")[0].strip()
+                            config["active_opacity"] = float(val)
+                        except:
+                            pass
+                    elif "inactive_opacity" in line:
+                        try:
+                            val = line.split("=")[1].strip().split("#")[0].strip()
+                            config["inactive_opacity"] = float(val)
+                        except:
+                            pass
+                    elif "rounding" in line and "border" not in line.lower():
+                        try:
+                            val = line.split("=")[1].strip().split("#")[0].strip()
+                            config["rounding"] = int(val)
+                        except:
+                            pass
+                    elif "col.active_border" in line:
+                        try:
+                            val = line.split("=")[1].strip().split("#")[0].strip()
+                            config["active_border_color"] = self._parse_hypr_color(val)
+                        except:
+                            pass
+                    elif "col.inactive_border" in line:
+                        try:
+                            val = line.split("=")[1].strip().split("#")[0].strip()
+                            config["inactive_border_color"] = self._parse_hypr_color(val)
+                        except:
+                            pass
+                            
+            except Exception as e:
+                print(f"[Panel] ⚠️ Error reading {conf_file}: {e}")
+        
+        print(f"[Panel] 🎨 Hyprland config: opacity={config['active_opacity']}, "
+              f"border={config['active_border_color']}, rounding={config['rounding']}")
+        
+        return config
+    
+    def _parse_hypr_color(self, color_str: str) -> str:
+        """Parse Hyprland color format to CSS hex"""
+        color_str = color_str.strip()
+        
+        if color_str.startswith("rgba(") or color_str.startswith("rgb("):
+            inner = color_str.split("(")[1].rstrip(")")
+            if len(inner) == 8:
+                return f"#{inner[:6]}"
+            elif len(inner) == 6:
+                return f"#{inner}"
+        
+        if color_str.startswith("0x"):
+            hex_part = color_str[2:]
+            if len(hex_part) >= 6:
+                return f"#{hex_part[:6]}"
+        
+        if color_str.startswith("$"):
+            var_map = {
+                "$blue": "#61afef",
+                "$red": "#e06c75",
+                "$green": "#98c379",
+                "$yellow": "#e5c07b",
+                "$purple": "#c678dd",
+                "$cyan": "#56b6c2",
+                "$orange": "#d19a66",
+            }
+            return var_map.get(color_str.lower(), "#61afef")
+        
+        if color_str.startswith("#"):
+            return color_str[:7]
+        
+        return "#61afef"
+    
+    def _resolve_css_imports(self, css_path: Path, content: str, 
+                             visited: Optional[set] = None) -> str:
+        """
+        Recursively resolve @import directives in CSS files.
+        
+        e.g., @import '../hypr/colorscheme/nord.css'; in waybar style.css
+        → inlines the content of ~/.config/hypr/colorscheme/nord.css
+        """
+        if visited is None:
+            visited = set()
+        
+        resolved_path = str(css_path.resolve())
+        if resolved_path in visited:
+            return content  # Prevent circular imports
+        visited.add(resolved_path)
+        
+        lines = content.splitlines()
+        resolved_lines = []
+        
+        for line in lines:
+            stripped = line.strip()
+            
+            # Match @import 'path'; or @import "path";
+            import_match = re.match(r"""@import\s+['"](.+?)['"]\s*;?""", stripped)
+            if import_match:
+                import_rel = import_match.group(1)
+                import_path = (css_path.parent / import_rel).resolve()
+                
+                if import_path.exists():
+                    try:
+                        import_content = import_path.read_text()
+                        # Recursively resolve nested imports
+                        import_content = self._resolve_css_imports(
+                            import_path, import_content, visited
+                        )
+                        resolved_lines.append(f"/* @import resolved: {import_rel} */")
+                        resolved_lines.append(import_content)
+                        print(f"[Panel] 📎 Resolved @import: {import_rel} → {import_path}")
+                        continue
+                    except Exception as e:
+                        print(f"[Panel] ⚠️ Failed to resolve @import {import_rel}: {e}")
+                else:
+                    print(f"[Panel] ⚠️ @import not found: {import_path}")
+            
+            resolved_lines.append(line)
+        
+        return "\n".join(resolved_lines)
+    
+    def _get_waybar_colors(self) -> dict:
+        """
+        Parse colors from Waybar style.css with @import resolution.
+        
+        Also extracts:
+        - waybar_opacity: background alpha from #waybar selector
+        - waybar_radius: border-radius from #waybar selector
+        """
+        colors = {
+            "bg": None,
+            "fg": None,
+            "accent": None,
+            "red": "#e06c75",
+            "green": "#98c379",
+            "yellow": "#e5c07b",
+            "blue": "#61afef",
+            "waybar_opacity": None,
+            "waybar_radius": None,
+        }
+        
+        waybar_css_paths = [
+            Path.home() / ".config/waybar/style.css",
+            Path.home() / ".config/waybar/themes/current.css",
+            Path.home() / ".config/waybar/colors.css",
+        ]
+        
+        for css_path in waybar_css_paths:
+            if not css_path.exists():
+                continue
+                
+            try:
+                content = css_path.read_text()
+                
+                # ─── Resolve @import directives ─────────────────────────
+                content = self._resolve_css_imports(css_path, content)
+                
+                # ─── Parse with selector tracking ───────────────────────
+                current_selector = ""
+                brace_depth = 0
+                
+                for line in content.splitlines():
+                    line = line.strip()
+                    
+                    # Track CSS selector context
+                    if "{" in line:
+                        if brace_depth == 0:
+                            current_selector = line.split("{")[0].strip()
+                        brace_depth += line.count("{")
+                    if "}" in line:
+                        brace_depth -= line.count("}")
+                        if brace_depth <= 0:
+                            current_selector = ""
+                            brace_depth = 0
+                    
+                    # ─── @define-color (from imported colorschemes) ─────
+                    if line.startswith("@define-color"):
+                        # Use split(None, 1) to handle rgba() values with spaces
+                        raw = line.replace("@define-color", "").strip().rstrip(";")
+                        parts = raw.split(None, 1)
+                        if len(parts) >= 2:
+                            name = parts[0].lower()
+                            color = parts[1].strip()
+                            
+                            if any(k in name for k in ["bg0", "bg", "background", "base", "mantle", "crust"]):
+                                if not colors["bg"]:
+                                    colors["bg"] = color
+                            elif any(k in name for k in ["fg", "foreground", "text"]):
+                                if not colors["fg"]:
+                                    colors["fg"] = color
+                            elif any(k in name for k in ["accent", "primary"]):
+                                if not colors["accent"]:
+                                    colors["accent"] = color
+                            
+                            # Named colors
+                            if name == "blue" or name.endswith("-blue"):
+                                colors["blue"] = color
+                            elif name == "red" or name.endswith("-red"):
+                                colors["red"] = color
+                            elif name == "green" or name.endswith("-green"):
+                                colors["green"] = color
+                            elif name == "yellow" or name.endswith("-yellow"):
+                                colors["yellow"] = color
+                    
+                    # ─── #waybar selector properties ────────────────────
+                    if "#waybar" in current_selector:
+                        # Extract background opacity: alpha(@bg0, 0.50)
+                        if "background" in line:
+                            alpha_match = re.search(
+                                r'alpha\(@?\w+,\s*([\d.]+)\)', line
+                            )
+                            if alpha_match and colors["waybar_opacity"] is None:
+                                colors["waybar_opacity"] = float(alpha_match.group(1))
+                                print(f"[Panel] 🎨 Waybar opacity: {colors['waybar_opacity']}")
+                        
+                        # Extract border-radius
+                        if "border-radius" in line:
+                            radius_match = re.search(r'(\d+)', line)
+                            if radius_match and colors["waybar_radius"] is None:
+                                colors["waybar_radius"] = int(radius_match.group(1))
+                                print(f"[Panel] 🎨 Waybar radius: {colors['waybar_radius']}px")
+                    
+                    # ─── CSS custom properties (--var) ──────────────────
+                    if line.startswith("--") and ":" in line:
+                        name, _, value = line.partition(":")
+                        name = name.strip().lower()
+                        value = value.strip().rstrip(";").strip()
+                        
+                        if "bg" in name or "background" in name:
+                            if not colors["bg"]:
+                                colors["bg"] = value
+                        elif "fg" in name or "foreground" in name:
+                            if not colors["fg"]:
+                                colors["fg"] = value
+                        elif "accent" in name or "primary" in name:
+                            if not colors["accent"]:
+                                colors["accent"] = value
+                    
+                    # ─── Inline background/color ────────────────────────
+                    if ("background:" in line or "background-color:" in line) and "#waybar" not in current_selector:
+                        value = line.split(":")[-1].strip().rstrip(";").strip()
+                        if value.startswith("#") or value.startswith("rgb"):
+                            if not colors["bg"]:
+                                colors["bg"] = value
+                    elif "color:" in line and "background" not in line:
+                        value = line.split(":")[-1].strip().rstrip(";").strip()
+                        if value.startswith("#") or value.startswith("rgb"):
+                            if not colors["fg"]:
+                                colors["fg"] = value
+                
+                print(f"[Panel] 🎨 Parsed CSS: {css_path.name} "
+                      f"(bg={colors['bg']}, fg={colors['fg']}, opacity={colors['waybar_opacity']})")
+                
+            except Exception as e:
+                print(f"[Panel] ⚠️ Error parsing {css_path}: {e}")
+        
+        return colors
+    
+    def _apply_css(self):
+        """Apply theme CSS with waybar opacity + radius sync"""
+        t = self.theme
+        h = self._get_hyprland_config()
+        w = self._get_waybar_colors()
+        
+        accent_color = w["accent"] or h["active_border_color"] or t.blue
+        bg_color = w["bg"] or t.bg0
+        fg_color = w["fg"] or t.fg
+        red_color = w["red"] or t.red
+        
+        # ─── Sync opacity with waybar ──────────────────────────────────
+        # Priority: waybar CSS opacity → hyprland active_opacity
+        opacity = w.get("waybar_opacity") or h["active_opacity"]
+        inactive_opacity = h["inactive_opacity"] * 0.6
+        
+        # ─── Sync border-radius with waybar ────────────────────────────
+        # Priority: waybar CSS radius → hyprland rounding
+        waybar_radius = w.get("waybar_radius")
+        if waybar_radius is not None:
+            rounding = waybar_radius
+        else:
+            rounding = h["rounding"]
+        rounding_lg = min(rounding + 4, int(rounding * 1.5))
+        
+        variables = {
+            "@accent_color": accent_color,
+            "@bg_color": bg_color,
+            "@fg_color": fg_color,
+            "@opacity": str(opacity),
+            "@inactive_opacity": str(inactive_opacity),
+            "@rounding": f"{rounding}px",
+            "@rounding_lg": f"{rounding_lg}px",
+            "@red_color": red_color,
+            "@green_color": w["green"] or t.green,
+            "@yellow_color": w["yellow"] or t.yellow,
+            "@blue_color": w["blue"] or t.blue,
+        }
+        
+        css_file = self.config_dir / "assets" / "panel-widget.css"
+        css = None
+        
+        if css_file.exists():
+            try:
+                css = css_file.read_text()
+                print(f"[Panel] 📄 Loaded: {css_file}")
+            except Exception as e:
+                print(f"[Panel] ⚠️ Failed to load {css_file}: {e}")
+        
+        if not css:
+            css = self._get_default_css()
+            self._save_default_css(css_file, css)
+        
+        for var, value in variables.items():
+            css = css.replace(var, value)
         
         provider = Gtk.CssProvider()
         provider.load_from_string(css)
         Gtk.StyleContext.add_provider_for_display(
             Gdk.Display.get_default(),
             provider,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 100
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
+        
+        print(f"[Panel] 🎨 Theme: accent={accent_color}, bg={bg_color}, "
+              f"opacity={opacity}, radius={rounding}px")
+    
+    def _get_default_css(self) -> str:
+        """Get default embedded CSS template"""
+        return '''
+/* Panel Widget - Auto-generated CSS */
+window {
+    background: transparent;
+}
+
+.panel-container {
+    background: alpha(@bg_color, @opacity);
+    border-radius: @rounding_lg;
+    border: 1px solid alpha(@fg_color, 0.1);
+    padding: 4px 8px;
+}
+
+.taskbar-item {
+    background: transparent;
+    border: none;
+    border-radius: @rounding;
+    padding: 6px 8px;
+    margin: 2px;
+    min-width: 36px;
+    min-height: 36px;
+    transition: all 150ms ease;
+}
+
+.taskbar-item:hover {
+    background: alpha(@fg_color, 0.08);
+}
+
+.taskbar-item.focused {
+    background: alpha(@accent_color, 0.15);
+    border-bottom: 2px solid @accent_color;
+}
+
+.taskbar-item.running {
+    border-bottom: 2px solid alpha(@accent_color, 0.5);
+}
+
+.taskbar-item.not-running {
+    opacity: @inactive_opacity;
+}
+
+.taskbar-item.not-running:hover {
+    opacity: 1;
+}
+
+.taskbar-icon {
+    color: @fg_color;
+    font-size: 20px;
+}
+
+.separator {
+    background: alpha(@fg_color, 0.15);
+    min-width: 1px;
+    margin: 8px 4px;
+}
+
+.window-list-popover,
+.context-menu {
+    background: alpha(@bg_color, @opacity);
+    border: 1px solid alpha(@accent_color, 0.3);
+    border-radius: @rounding_lg;
+}
+
+.window-list-popover > contents,
+.context-menu > contents {
+    background: transparent;
+    padding: 4px;
+}
+
+.window-list-item,
+.context-menu button {
+    background: transparent;
+    border: none;
+    border-radius: @rounding;
+    padding: 8px 12px;
+    margin: 2px;
+    color: @fg_color;
+}
+
+.window-list-item:hover,
+.context-menu button:hover {
+    background: alpha(@accent_color, 0.15);
+}
+
+.focus-indicator {
+    color: @accent_color;
+    margin-right: 8px;
+}
+
+.window-close-btn {
+    opacity: 0.5;
+    min-width: 24px;
+    min-height: 24px;
+}
+
+.window-close-btn:hover {
+    opacity: 1;
+    color: @red_color;
+}
+
+.dim-label {
+    opacity: 0.7;
+    font-size: 0.85em;
+}
+
+tooltip {
+    background: alpha(@bg_color, @opacity);
+    border: 1px solid alpha(@accent_color, 0.2);
+    border-radius: @rounding;
+}
+
+tooltip label {
+    color: @fg_color;
+    padding: 6px 10px;
+}
+'''
+    
+    def _save_default_css(self, css_file: Path, css: str):
+        """Save default CSS file"""
+        try:
+            css_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            header = '''/*
+ * Panel Widget Stylesheet
+ * ========================
+ * Location: ~/.config/hypr-control-center/assets/panel-widget.css
+ * 
+ * Syncs with Waybar style.css opacity & border-radius
+ * Auto-generated - Feel free to customize!
+ */
+
+'''
+            css_file.write_text(header + css)
+            print(f"[Panel] 💾 Created: {css_file}")
+        except Exception as e:
+            print(f"[Panel] ⚠️ Could not save CSS: {e}")
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # UI
+    # ═══════════════════════════════════════════════════════════════════════
     
     def _build_ui(self):
+        """Build panel UI"""
         self.container = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=2)
         self.container.add_css_class("panel-container")
         self.container.set_halign(Gtk.Align.CENTER)
@@ -927,6 +1636,7 @@ popover contents {{
         self.set_child(self.container)
     
     def _init_components(self):
+        """Initialize tracker and pinned manager"""
         self.pinned_manager = get_pinned_manager(self.config_dir)
         self.pinned_manager.on_change(self._on_pinned_change)
         
@@ -940,19 +1650,26 @@ popover contents {{
             asyncio.set_event_loop(self._async_loop)
             try:
                 self._async_loop.run_until_complete(self.tracker.start())
-            except:
-                pass
+            except Exception as e:
+                print(f"[Panel] Tracker error: {e}")
         
         self._tracker_thread = threading.Thread(target=run_tracker, daemon=True)
         self._tracker_thread.start()
+        
+        print("[Panel] ✅ Components initialized")
     
     def _on_tracker_change(self):
-        GLib.idle_add(self._update_ui)
+        """Window state changed - update UI only if visible"""
+        if self.get_visible():
+            GLib.idle_add(self._update_ui)
     
     def _on_pinned_change(self):
-        GLib.idle_add(self._rebuild_ui)
+        """Pinned apps changed - rebuild UI only if visible"""
+        if self.get_visible():
+            GLib.idle_add(self._rebuild_ui)
     
     def _rebuild_ui(self):
+        """Rebuild entire taskbar"""
         self.items.clear()
         
         while (child := self.pinned_box.get_first_child()):
@@ -990,9 +1707,11 @@ popover contents {{
         has_running = self.running_box.get_first_child() is not None
         self.separator.set_visible(has_pinned and has_running)
         
+        print(f"[Panel] 🔄 Rebuilt: {len(self.items)} items")
         return False
     
     def _update_ui(self):
+        """Update existing items without full rebuild"""
         if not self.tracker:
             return False
         
@@ -1030,64 +1749,184 @@ popover contents {{
         
         return False
     
-    def focus_window(self, address):
-        if self._async_loop and self.tracker:
-            asyncio.run_coroutine_threadsafe(self.tracker.focus_window(address), self._async_loop)
+    # ═══════════════════════════════════════════════════════════════════════
+    # ACTIONS
+    # ═══════════════════════════════════════════════════════════════════════
     
-    def close_window(self, address):
+    def focus_window(self, address: str):
         if self._async_loop and self.tracker:
-            asyncio.run_coroutine_threadsafe(self.tracker.close_window(address), self._async_loop)
+            asyncio.run_coroutine_threadsafe(
+                self.tracker.focus_window(address),
+                self._async_loop
+            )
     
-    def close_app(self, wm_class):
+    def close_window(self, address: str):
         if self._async_loop and self.tracker:
-            asyncio.run_coroutine_threadsafe(self.tracker.close_app(wm_class), self._async_loop)
+            asyncio.run_coroutine_threadsafe(
+                self.tracker.close_window(address),
+                self._async_loop
+            )
     
-    def launch_app(self, app_id, app_info=None):
+    def close_app(self, wm_class: str):
+        if self._async_loop and self.tracker:
+            asyncio.run_coroutine_threadsafe(
+                self.tracker.close_app(wm_class),
+                self._async_loop
+            )
+    
+    def launch_app(self, app_id: str, app_info: Optional[AppInfo] = None):
+        """Launch an app with smart detection"""
+        print(f"[Panel] 🚀 Launching: {app_id}")
+        
         if not app_info:
             app_info = AppDetector.find_app(app_id)
         
         if app_info:
-            cmd = AppDetector.get_launch_command(app_info)
-            print(f"[Panel] 🚀 Launching: {app_info.name} ({app_info.app_type.name})")
-            self._exec_command(cmd)
-        else:
-            print(f"[Panel] 🚀 Direct launch: {app_id}")
-            self._exec_command(app_id)
+            return self._launch_with_info(app_info)
+        
+        print(f"[Panel] ⚠️ No .desktop found for {app_id}, trying smart detection...")
+        
+        is_flatpak, flatpak_id = AppDetector.is_flatpak_installed(app_id)
+        if is_flatpak and flatpak_id:
+            print(f"[Panel] 📦 Found as Flatpak: {flatpak_id}")
+            return self._exec_command(f"flatpak run {flatpak_id}")
+        
+        if AppDetector.is_native_installed(app_id):
+            print(f"[Panel] 💻 Found as native: {app_id}")
+            return self._exec_command(app_id)
+        
+        print(f"[Panel] ❓ Unknown app, trying direct: {app_id}")
+        return self._exec_command(app_id)
     
-    def _exec_command(self, cmd):
+    def _launch_with_info(self, app_info: AppInfo) -> bool:
+        """Launch app using detected AppInfo"""
+        cmd = AppDetector.get_launch_command(app_info)
+        
+        type_names = {
+            AppType.FLATPAK: "Flatpak",
+            AppType.SNAP: "Snap",
+            AppType.APPIMAGE: "AppImage",
+            AppType.NATIVE: "Native",
+        }
+        
+        print(f"[Panel] 🚀 {type_names.get(app_info.app_type, 'Unknown')}: {app_info.name}")
+        print(f"[Panel] 📝 Command: {cmd}")
+        
+        if app_info.terminal:
+            term = os.environ.get("TERMINAL", "kitty")
+            cmd = f"{term} -e {cmd}"
+            print(f"[Panel] 🖥️ Terminal wrapped: {cmd}")
+        
+        success = self._exec_command(cmd)
+        
+        if not success:
+            try:
+                desktop_name = app_info.desktop_file.stem if app_info.desktop_file else app_info.app_id
+                print(f"[Panel] 🔄 Fallback: gtk-launch {desktop_name}")
+                subprocess.Popen(
+                    ["gtk-launch", desktop_name],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                return True
+            except:
+                pass
+        
+        return success
+    
+    def _exec_command(self, cmd: str) -> bool:
+        """Execute command via hyprctl"""
         try:
             subprocess.Popen(
                 ["hyprctl", "dispatch", "exec", cmd],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL
             )
-        except:
-            pass
+            return True
+        except Exception as e:
+            print(f"[Panel] ❌ Exec failed: {e}")
+            return False
     
-    def pin_app(self, app_id):
+    def pin_app(self, app_id: str):
         if self.pinned_manager:
             self.pinned_manager.pin_app(app_id)
     
-    def unpin_app(self, app_id):
+    def unpin_app(self, app_id: str):
         if self.pinned_manager:
             self.pinned_manager.unpin_app(app_id)
-    
+
     def cleanup(self):
+        """Clean shutdown"""
         if self._close_timer_id:
             GLib.source_remove(self._close_timer_id)
+            self._close_timer_id = None
         if self.tracker:
             self.tracker.stop()
         if self._async_loop:
             self._async_loop.call_soon_threadsafe(self._async_loop.stop)
+        if self.daemon_mode:
+            self._cleanup_pid()
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MAIN
+# ═══════════════════════════════════════════════════════════════════════════════
 
 def main():
+    parser = argparse.ArgumentParser(description="Hyprland Panel Widget")
+    parser.add_argument(
+        "--daemon", action="store_true",
+        help="Run in daemon mode (stay resident, toggle via SIGUSR1)"
+    )
+    parser.add_argument(
+        "--module", type=str, default=None,
+        help="Waybar module name to align with (default: auto-detect)"
+    )
+    args, _ = parser.parse_known_args()
+    
+    mode_str = "DAEMON" if args.daemon else "LEGACY"
+    
+    print(f"""
+╔══════════════════════════════════════════════════════════════════════╗
+║       HYPRLAND PANEL - Waybar Overlay Taskbar                        ║
+║       ─────────────────────────────────────────────────────────────  ║
+║       Mode: {mode_str:<55s}║
+║       ✅ Auto-detection: Flatpak, Pacman/AUR, Snap, AppImage         ║
+║       ✅ Smart app matching with scoring system                      ║
+║       ✅ Theme sync from Waybar + Hyprland (@import resolved)        ║
+║       ✅ Waybar opacity & border-radius sync                         ║
+║       ✅ Daemon mode with SIGUSR1 instant toggle                     ║
+╚══════════════════════════════════════════════════════════════════════╝
+""")
+    
     if not HAS_MODULES:
         print("[Panel] ❌ Missing required modules!")
         return
     
-    panel = PanelWidget("custom/taskbar")
+    # Auto-detect module name
+    reader = get_waybar_reader()
+    module_name = args.module
+    
+    if not module_name:
+        for name in ["custom/taskbar", "custom/panel", "wlr/taskbar"]:
+            if reader.has_module(name):
+                module_name = name
+                break
+        if not module_name:
+            module_name = "custom/taskbar"
+    
+    print(f"[Panel] Using module: {module_name}")
+    
+    # Create panel
+    panel = PanelWidget(module_name, daemon_mode=args.daemon)
     panel.present()
+    
+    # Daemon mode: start hidden, wait for SIGUSR1
+    if args.daemon:
+        GLib.idle_add(lambda: panel.set_visible(False) or False)
+        print("[Panel] 👻 Daemon started (hidden) - send SIGUSR1 to toggle")
+    
+    print("[Panel] ✅ Panel ready!")
     
     loop = GLib.MainLoop()
     
@@ -1100,6 +1939,7 @@ def main():
     try:
         loop.run()
     except KeyboardInterrupt:
+        print("\n[Panel] Shutting down...")
         panel.cleanup()
         loop.quit()
 

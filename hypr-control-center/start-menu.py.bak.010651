@@ -1,21 +1,30 @@
 #!/usr/bin/env python3
 """
 ═══════════════════════════════════════════════════════════════════════════════
-Hyprland Start Menu - v2.5 DAEMON Edition (ENHANCED)
+Hyprland Start Menu - v3.0 DAEMON Edition (WAYBAR CSS SYNC)
 ═══════════════════════════════════════════════════════════════════════════════
 Windows 11-style launcher with TRUE INSTANT toggle
 
-Changes in v2.5:
-- ✅ FIXED: Folder and Settings icons now visible
-- ✅ FIXED: Pin/Unpin now works correctly
+Changes in v3.0:
+- ✅ WAYBAR CSS SYNC - Colors, opacity, border-radius from waybar style.css
+- ✅ @import resolution - follows nord.css, catppuccin.css, etc.
+- ✅ Array config support - multi-monitor waybar configs handled
+- ✅ Icon caching - instant repopulate on toggle
+- ✅ Smart hide - skips unnecessary list rebuild
+- ✅ parse_known_args - handles waybar --cursor argument
+
+Preserved from v2.5:
 - ✅ DAEMON MODE - Menu stays resident, show/hide is INSTANT
 - ✅ CIRCULAR AVATAR with proper image fitting
 - ✅ TRUE TRANSPARENT WINDOW
 - ✅ App caching for fast startup
-- ✅ ENHANCED: GLib.unix_signal_add for reliable SIGUSR1 toggle
-- ✅ ENHANCED: ESC closes from search entry too
-- ✅ ENHANCED: Better focus handling (won't close during popover)
-- ✅ ENHANCED: Click outside detection improved
+- ✅ GLib.unix_signal_add for reliable SIGUSR1 toggle
+- ✅ ESC closes from search entry too
+- ✅ Better focus handling (won't close during popover)
+- ✅ Click outside detection improved
+- ✅ Folder and Settings icons visible
+- ✅ Pin/Unpin works correctly
+- ✅ Fuzzy search with scoring
 
 Location: ~/.config/hypr-control-center/start-menu.py
 Run: LD_PRELOAD=/usr/lib/libgtk4-layer-shell.so python3 start-menu.py [--daemon]
@@ -53,18 +62,18 @@ except:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class NerdIcons:
-    USER = ""          # nf-fa-user
+    USER = ""          # nf-fa-user
     FOLDER = "󰉋"       # nf-md-folder
-    SETTINGS = ""      # nf-fa-cog
+    SETTINGS = ""      # nf-fa-cog
     POWER = "⏻"         # power symbol
-    LOCK = ""          # nf-fa-lock
+    LOCK = ""          # nf-fa-lock
     LOGOUT = "󰍃"       # nf-md-logout
-    RESTART = ""       # nf-fa-refresh
-    SHUTDOWN = ""      # nf-oct-stop
-    SEARCH = ""        # nf-fa-search
+    RESTART = ""       # nf-fa-refresh
+    SHUTDOWN = ""      # nf-oct-stop
+    SEARCH = ""        # nf-fa-search
     PIN = "󰐃"          # nf-md-pin
     UNPIN = "󰐄"        # nf-md-pin_off
-    APP = ""           # nf-fa-th_large
+    APP = ""           # nf-fa-th_large
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -163,33 +172,26 @@ class UserProfile:
         """Find user avatar - checks AccountsService and common locations"""
         username = UserProfile.get_username()
         
-        # Priority order for avatar locations
         avatar_paths = [
-            # AccountsService icon file (most reliable)
             Path(f"/var/lib/AccountsService/icons/{username}"),
-            # User-set locations
             Path.home() / ".face",
             Path.home() / ".face.icon",
             Path.home() / ".config/ostree/ostree-user-avatar",
-            # GNOME
             Path.home() / ".local/share/gnome-photos/profile-picture.png",
         ]
         
         for path in avatar_paths:
             if path.exists() and path.is_file():
-                # Verify it's actually an image
                 try:
                     with open(path, 'rb') as f:
                         header = f.read(8)
-                        # Check for PNG, JPEG, or other image magic bytes
                         if (header[:4] == b'\x89PNG' or 
-                            header[:2] == b'\xff\xd8' or  # JPEG
+                            header[:2] == b'\xff\xd8' or
                             header[:6] in (b'GIF87a', b'GIF89a')):
                             return str(path)
                 except:
                     pass
         
-        # Check AccountsService config file for Icon= path
         as_config = Path(f"/var/lib/AccountsService/users/{username}")
         if as_config.exists():
             try:
@@ -207,65 +209,42 @@ class UserProfile:
     @staticmethod
     def create_circular_avatar(path: str, size: int = 32) -> Gtk.Widget:
         """Create a circular avatar widget with proper image fitting"""
-        
-        # Create drawing area for circular clip
         drawing_area = Gtk.DrawingArea()
         drawing_area.set_size_request(size, size)
         drawing_area.set_halign(Gtk.Align.CENTER)
         drawing_area.set_valign(Gtk.Align.CENTER)
         
-        # Store pixbuf for drawing
         pixbuf = None
         if path and os.path.exists(path):
             try:
-                # Load and scale image to cover the circle
                 original = GdkPixbuf.Pixbuf.new_from_file(path)
-                
-                # Calculate scaling to COVER (not fit) - ensures no empty space
                 orig_w = original.get_width()
                 orig_h = original.get_height()
-                
-                # Scale to cover
                 scale = max(size / orig_w, size / orig_h)
                 new_w = int(orig_w * scale)
                 new_h = int(orig_h * scale)
-                
                 scaled = original.scale_simple(new_w, new_h, GdkPixbuf.InterpType.BILINEAR)
-                
-                # Center crop
                 x_offset = (new_w - size) // 2
                 y_offset = (new_h - size) // 2
-                
                 pixbuf = GdkPixbuf.Pixbuf.new(GdkPixbuf.Colorspace.RGB, True, 8, size, size)
-                pixbuf.fill(0x00000000)  # Transparent
-                
-                scaled.copy_area(
-                    x_offset, y_offset,
-                    size, size,
-                    pixbuf,
-                    0, 0
-                )
+                pixbuf.fill(0x00000000)
+                scaled.copy_area(x_offset, y_offset, size, size, pixbuf, 0, 0)
             except Exception as e:
                 print(f"[StartMenu] ⚠️ Avatar load error: {e}")
                 pixbuf = None
         
         def draw_func(area, cr, width, height):
-            # Draw circular clip path
             cr.arc(width / 2, height / 2, min(width, height) / 2, 0, 2 * 3.14159)
             cr.clip()
-            
             if pixbuf:
-                # Draw the image
                 Gdk.cairo_set_source_pixbuf(cr, pixbuf, 0, 0)
                 cr.paint()
             else:
-                # Draw fallback circle with user icon
-                cr.set_source_rgba(0.38, 0.68, 0.93, 0.3)  # Blue tint
+                cr.set_source_rgba(0.38, 0.68, 0.93, 0.3)
                 cr.paint()
         
         drawing_area.set_draw_func(draw_func)
         
-        # Wrap in a frame for the border
         frame = Gtk.Frame()
         frame.set_child(drawing_area)
         frame.add_css_class("avatar-frame")
@@ -274,7 +253,7 @@ class UserProfile:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# SMART APP LOADER with CACHING
+# SMART APP LOADER with CACHING + ICON CACHE
 # ═══════════════════════════════════════════════════════════════════════════════
 
 class SmartAppLoader:
@@ -297,6 +276,9 @@ class SmartAppLoader:
     
     CACHE_FILE = Path.home() / ".cache/hypr-startmenu/apps.json"
     CACHE_MAX_AGE = 300
+    
+    # ── Icon path cache (avoids repeated filesystem lookups) ──────────
+    _icon_cache = {}
     
     @classmethod
     def get_cache_hash(cls) -> str:
@@ -464,9 +446,23 @@ class SmartAppLoader:
     
     @classmethod
     def find_icon_path(cls, icon_name: str, size: int = 48) -> str:
+        """Find icon path with in-memory caching for instant repeated lookups"""
         if not icon_name:
             return None
         
+        # Check cache first
+        cache_key = f"{icon_name}:{size}"
+        if cache_key in cls._icon_cache:
+            return cls._icon_cache[cache_key]
+        
+        # Resolve path
+        result = cls._find_icon_path_uncached(icon_name, size)
+        cls._icon_cache[cache_key] = result
+        return result
+    
+    @classmethod
+    def _find_icon_path_uncached(cls, icon_name: str, size: int = 48) -> str:
+        """Actual icon lookup - filesystem intensive"""
         if icon_name.startswith('/') and os.path.exists(icon_name):
             return icon_name
         
@@ -499,15 +495,154 @@ class SmartAppLoader:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# THEME HELPER
+# WAYBAR CSS PARSER - @import resolution + color/opacity/radius extraction
+# Same approach as panel_widget.py (proven working)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def get_current_theme_colors() -> dict:
-    theme_files = [
-        Path.home() / ".config/hypr-control-center/preferences/theme.json",
-        Path.home() / ".config/hypr-control-center/current-theme.json",
+def resolve_css_imports(css_path: Path, content: str, visited: set = None) -> str:
+    """
+    Recursively resolve @import directives in CSS files.
+    e.g., @import '../hypr/colorscheme/nord.css'; → inlines the content
+    """
+    if visited is None:
+        visited = set()
+    
+    resolved_path = str(css_path.resolve())
+    if resolved_path in visited:
+        return content
+    visited.add(resolved_path)
+    
+    lines = content.splitlines()
+    resolved_lines = []
+    
+    for line in lines:
+        stripped = line.strip()
+        
+        import_match = re.match(r"""@import\s+['"](.+?)['"]\s*;?""", stripped)
+        if import_match:
+            import_rel = import_match.group(1)
+            import_path = (css_path.parent / import_rel).resolve()
+            
+            if import_path.exists():
+                try:
+                    import_content = import_path.read_text()
+                    import_content = resolve_css_imports(
+                        import_path, import_content, visited
+                    )
+                    resolved_lines.append(f"/* @import resolved: {import_rel} */")
+                    resolved_lines.append(import_content)
+                    print(f"[StartMenu] 📎 Resolved @import: {import_rel} → {import_path}")
+                    continue
+                except Exception as e:
+                    print(f"[StartMenu] ⚠️ Failed to resolve @import {import_rel}: {e}")
+            else:
+                print(f"[StartMenu] ⚠️ @import not found: {import_path}")
+        
+        resolved_lines.append(line)
+    
+    return "\n".join(resolved_lines)
+
+
+def get_waybar_css_info() -> dict:
+    """
+    Parse waybar style.css (with @import resolution) to extract:
+    - colors: dict of @define-color and CSS custom properties
+    - opacity: background alpha from #waybar selector
+    - border_radius: border-radius from #waybar selector
+    
+    This ensures start-menu always matches waybar's visual style.
+    """
+    info = {
+        "colors": {},
+        "opacity": None,
+        "border_radius": None,
+    }
+    
+    css_paths = [
+        Path.home() / ".config/waybar/style.css",
+        Path.home() / ".config/waybar/themes/current.css",
+        Path.home() / ".config/waybar/colors.css",
     ]
     
+    for css_path in css_paths:
+        if not css_path.exists():
+            continue
+        try:
+            content = css_path.read_text()
+            content = resolve_css_imports(css_path, content)
+            
+            current_selector = ""
+            brace_depth = 0
+            
+            for line in content.splitlines():
+                line = line.strip()
+                
+                # Track CSS selector context
+                if "{" in line:
+                    if brace_depth == 0:
+                        current_selector = line.split("{")[0].strip()
+                    brace_depth += line.count("{")
+                if "}" in line:
+                    brace_depth -= line.count("}")
+                    if brace_depth <= 0:
+                        current_selector = ""
+                        brace_depth = 0
+                
+                # ─── @define-color (from imported colorschemes) ─────────
+                if line.startswith("@define-color"):
+                    raw = line.replace("@define-color", "").strip().rstrip(";")
+                    parts = raw.split(None, 1)
+                    if len(parts) >= 2:
+                        name = parts[0].strip()
+                        color = parts[1].strip()
+                        info["colors"][name] = color
+                
+                # ─── #waybar selector properties ────────────────────────
+                if "#waybar" in current_selector:
+                    if "background" in line:
+                        alpha_match = re.search(
+                            r'alpha\(\s*@?\w+\s*,\s*([\d.]+)\s*\)', line
+                        )
+                        if alpha_match and info["opacity"] is None:
+                            info["opacity"] = float(alpha_match.group(1))
+                    
+                    if "border-radius" in line:
+                        radius_match = re.search(r'(\d+)', line)
+                        if radius_match and info["border_radius"] is None:
+                            info["border_radius"] = int(radius_match.group(1))
+                
+                # ─── CSS custom properties (--var) ──────────────────────
+                if line.startswith("--") and ":" in line:
+                    vname, _, vvalue = line.partition(":")
+                    vname = vname.strip().lstrip("-")
+                    vvalue = vvalue.strip().rstrip(";").strip()
+                    if vvalue.startswith("#") or vvalue.startswith("rgb"):
+                        info["colors"][vname] = vvalue
+            
+            n_colors = len(info["colors"])
+            print(f"[StartMenu] 🎨 Waybar CSS: {css_path.name} "
+                  f"({n_colors} colors, opacity={info['opacity']}, "
+                  f"radius={info['border_radius']})")
+            break
+            
+        except Exception as e:
+            print(f"[StartMenu] ⚠️ Error parsing {css_path}: {e}")
+    
+    return info
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# THEME HELPER - Waybar CSS > theme.json > defaults
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def get_current_theme_colors(waybar_css_colors: dict = None) -> dict:
+    """
+    Get theme colors with priority:
+    1. Waybar CSS @define-color (always matches waybar)
+    2. theme.json (control center preference)
+    3. One Dark defaults (hardcoded fallback)
+    """
+    # Layer 0: Hardcoded defaults (One Dark)
     colors = {
         "bg0": "#1e2127", "bg1": "#282b31", "bg2": "#2c313a",
         "bg3": "#3e4451", "bg4": "#4b5263", "fg": "#abb2bf",
@@ -517,15 +652,25 @@ def get_current_theme_colors() -> dict:
         "purple": "#c678dd",
     }
     
+    # Layer 1: theme.json
+    theme_files = [
+        Path.home() / ".config/hypr-control-center/preferences/theme.json",
+        Path.home() / ".config/hypr-control-center/current-theme.json",
+    ]
+    
     for theme_file in theme_files:
         try:
             if theme_file.exists():
                 with open(theme_file, 'r') as f:
                     data = json.load(f)
                     colors.update(data.get('colors', {}))
-                    return colors
+                    break
         except:
             continue
+    
+    # Layer 2: Waybar CSS colors (highest priority - always synced)
+    if waybar_css_colors:
+        colors.update(waybar_css_colors)
     
     return colors
 
@@ -542,6 +687,67 @@ def is_light_theme(colors: dict) -> bool:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# WAYBAR CONFIG PARSER - Handles single + array (multi-monitor) configs
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def parse_waybar_config() -> dict:
+    """
+    Parse waybar config with support for:
+    - JSONC comments (//, /* */)
+    - Trailing commas
+    - Array configs (multi-monitor)
+    
+    Returns the config dict for the primary/DP-2 output.
+    """
+    config_paths = [
+        Path.home() / ".config/waybar/config.jsonc",
+        Path.home() / ".config/waybar/config.json",
+        Path.home() / ".config/waybar/config",
+    ]
+    
+    for config_path in config_paths:
+        if not config_path.exists():
+            continue
+        try:
+            content = config_path.read_text()
+            # Strip JSONC comments
+            content = re.sub(r'//.*$', '', content, flags=re.MULTILINE)
+            content = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
+            # Strip trailing commas before } or ]
+            content = re.sub(r',\s*([}\]])', r'\1', content)
+            
+            raw = json.loads(content)
+            
+            # Handle array configs (multi-monitor)
+            config = None
+            if isinstance(raw, list):
+                for cfg in raw:
+                    if isinstance(cfg, dict):
+                        out = cfg.get("output", "")
+                        if not out or out == "*" or "DP" in str(out):
+                            config = cfg
+                            break
+                if config is None and raw:
+                    config = raw[0] if isinstance(raw[0], dict) else {}
+                print(f"[StartMenu] 📄 Array config with {len(raw)} entries")
+            elif isinstance(raw, dict):
+                config = raw
+            else:
+                continue
+            
+            if config:
+                print(f"[StartMenu] 📄 Waybar config: {config_path.name} "
+                      f"(h={config.get('height', 40)}, "
+                      f"pos={config.get('position', 'top')})")
+                return config
+                
+        except Exception as e:
+            print(f"[StartMenu] ⚠️ Error parsing waybar config {config_path}: {e}")
+    
+    return {}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # MAIN APPLICATION - DAEMON MODE
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -554,9 +760,17 @@ class StartMenu(Gtk.ApplicationWindow):
         self.pinned_file = self.config_dir / "preferences/start-menu-pinned.json"
         self.pinned_file.parent.mkdir(parents=True, exist_ok=True)
         
-        # Load theme
-        self.theme_colors = get_current_theme_colors()
+        # ── Parse waybar config + CSS once ────────────────────────────
+        self._waybar_config = parse_waybar_config()
+        self._waybar_css = get_waybar_css_info()
+        
+        # ── Load theme (waybar CSS > theme.json > defaults) ───────────
+        self.theme_colors = get_current_theme_colors(self._waybar_css["colors"])
         self.is_light = is_light_theme(self.theme_colors)
+        
+        # ── Waybar visual properties ──────────────────────────────────
+        self._bg_opacity = self._waybar_css.get("opacity") or 0.92
+        self._border_radius = self._waybar_css.get("border_radius") or 16
         
         # Load data
         self.pinned_apps = self.load_pinned_apps()
@@ -574,7 +788,8 @@ class StartMenu(Gtk.ApplicationWindow):
         self._active_popover = None
         self._search_query = ""
         self._is_visible = False
-        self._ignore_focus_loss = False  # ENHANCED: Prevent focus loss during popover
+        self._ignore_focus_loss = False
+        self._suppress_search = False  # Prevent repopulate on programmatic clear
         
         # Get position
         self.waybar_position = self._get_waybar_position()
@@ -605,27 +820,20 @@ class StartMenu(Gtk.ApplicationWindow):
     def _on_focus_leave(self, controller):
         """Hide when focus is lost (daemon mode) - ENHANCED"""
         if self.daemon_mode and self._is_visible:
-            # Don't close if popover is active
             if self._active_popover and self._active_popover.is_visible():
                 return
-            # Don't close if we're ignoring focus loss
             if self._ignore_focus_loss:
                 return
-            # Small delay to check if we should really close
             GLib.timeout_add(150, self._check_and_hide)
     
     def _check_and_hide(self):
         """Check if we should hide - ENHANCED"""
-        # Don't hide if popover is active
         if self._active_popover and self._active_popover.is_visible():
             return False
-        # Don't hide if mouse is inside
         if self._mouse_inside:
             return False
-        # Don't hide if window is active
         if self.is_active():
             return False
-        # Don't hide if ignoring focus loss
         if self._ignore_focus_loss:
             return False
         
@@ -638,26 +846,28 @@ class StartMenu(Gtk.ApplicationWindow):
         self._is_visible = True
         self._ignore_focus_loss = False
         
-        # Force window to show
         self.set_visible(True)
         self.present()
         
-        # Ensure window is on top and focused
-        # Focus search entry after small delay
         GLib.timeout_add(50, lambda: self.search_entry.grab_focus() if self._is_visible else False)
         print("[StartMenu] 👁️ Menu shown")
     
     def hide_menu(self):
-        """Hide the menu (for daemon mode)"""
+        """Hide the menu (for daemon mode) - OPTIMIZED"""
         if not self._is_visible:
             return
-            
+        
         self._is_visible = False
         if self.daemon_mode:
             self.set_visible(False)
-            # Clear search when hiding
+            # Clear search without triggering repopulate signal
+            self._suppress_search = True
             self.search_entry.set_text("")
-            self.populate_apps_list("")
+            self._suppress_search = False
+            # Only rebuild list if search was active (optimization)
+            if self._search_query:
+                self._search_query = ""
+                self.populate_apps_list("")
         else:
             self.close()
         print("[StartMenu] 🙈 Menu hidden")
@@ -670,6 +880,10 @@ class StartMenu(Gtk.ApplicationWindow):
             self.show_menu()
     
     def _get_waybar_position(self) -> dict:
+        """
+        Calculate start menu position based on parsed waybar config.
+        Uses the shared parse_waybar_config() result for consistency.
+        """
         position = {
             "location": "center",
             "waybar_position": "top",
@@ -677,55 +891,44 @@ class StartMenu(Gtk.ApplicationWindow):
             "margin_bottom": 48, "margin_top": 48,
         }
         
-        waybar_configs = [
-            Path.home() / ".config/waybar/config.jsonc",
-            Path.home() / ".config/waybar/config.json",
-        ]
+        config = self._waybar_config
+        if not config:
+            return position
         
-        for config_path in waybar_configs:
-            if not config_path.exists():
-                continue
-            
-            try:
-                content = config_path.read_text()
-                content = re.sub(r'//.*$', '', content, flags=re.MULTILINE)
-                content = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
-                config = json.loads(content)
-                
-                waybar_pos = config.get("position", "top")
-                position["waybar_position"] = waybar_pos
-                
-                waybar_height = config.get("height", 40)
-                waybar_margin_top = config.get("margin-top", 0)
-                waybar_margin_bottom = config.get("margin-bottom", 0)
-                
-                if waybar_pos == "bottom":
-                    position["margin_bottom"] = waybar_height + waybar_margin_bottom + 8
-                    position["margin_top"] = 8
-                else:
-                    position["margin_top"] = waybar_height + waybar_margin_top + 8
-                    position["margin_bottom"] = 8
-                
-                module_name = "custom/start-menu"
-                modules_left = config.get("modules-left", [])
-                modules_center = config.get("modules-center", [])
-                modules_right = config.get("modules-right", [])
-                
-                if module_name in modules_left:
-                    position["location"] = "left"
-                    idx = modules_left.index(module_name)
-                    position["margin_left"] = config.get("margin-left", 0) + idx * 50 + 8
-                elif module_name in modules_center:
-                    position["location"] = "center"
-                elif module_name in modules_right:
-                    position["location"] = "right"
-                    idx = modules_right.index(module_name)
-                    modules_after = len(modules_right) - 1 - idx
-                    position["margin_right"] = config.get("margin-right", 0) + modules_after * 50 + 8
-                
-                break
-            except:
-                continue
+        waybar_pos = config.get("position", "top")
+        position["waybar_position"] = waybar_pos
+        
+        waybar_height = config.get("height", 40)
+        waybar_margin_top = config.get("margin-top", 0)
+        waybar_margin_bottom = config.get("margin-bottom", 0)
+        
+        if waybar_pos == "bottom":
+            position["margin_bottom"] = waybar_height + waybar_margin_bottom + 8
+            position["margin_top"] = 8
+        else:
+            position["margin_top"] = waybar_height + waybar_margin_top + 8
+            position["margin_bottom"] = 8
+        
+        module_name = "custom/start-menu"
+        modules_left = config.get("modules-left", [])
+        modules_center = config.get("modules-center", [])
+        modules_right = config.get("modules-right", [])
+        
+        if module_name in modules_left:
+            position["location"] = "left"
+            idx = modules_left.index(module_name)
+            position["margin_left"] = config.get("margin-left", 0) + idx * 50 + 8
+        elif module_name in modules_center:
+            position["location"] = "center"
+        elif module_name in modules_right:
+            position["location"] = "right"
+            idx = modules_right.index(module_name)
+            modules_after = len(modules_right) - 1 - idx
+            position["margin_right"] = config.get("margin-right", 0) + modules_after * 50 + 8
+        
+        print(f"[StartMenu] 📐 Position: {position['location']}, "
+              f"wb_pos={waybar_pos}, h={waybar_height}, "
+              f"mt={position['margin_top']}, mb={position['margin_bottom']}")
         
         return position
     
@@ -782,7 +985,6 @@ class StartMenu(Gtk.ApplicationWindow):
         
         def on_closed(p):
             self._active_popover = None
-            # Delay re-enabling focus loss handling
             GLib.timeout_add(200, self._reenable_focus_loss)
         
         popover.connect("closed", on_closed)
@@ -800,11 +1002,18 @@ class StartMenu(Gtk.ApplicationWindow):
         return False
     
     def load_css(self):
+        """Generate CSS using waybar-synced colors, opacity, and border-radius"""
         colors = self.theme_colors
         text_color = colors['fg']
+        bg_opacity = self._bg_opacity
+        border_radius = self._border_radius
+        
+        # Slightly higher opacity for start menu (readability)
+        # but still synced proportionally with waybar
+        menu_opacity = min(0.95, bg_opacity + 0.10) if bg_opacity < 0.90 else bg_opacity
         
         css = f'''
-/* Start Menu v2.5 - Daemon Edition with Fixed Icons */
+/* Start Menu v3.0 - Waybar CSS Synced */
 
 window, window *, window.background, window.background *,
 .background, .background * {{
@@ -814,8 +1023,8 @@ window, window *, window.background, window.background *,
 }}
 
 .start-menu {{
-    background: alpha({colors['bg0']}, 0.92);
-    border-radius: 16px;
+    background: alpha({colors['bg0']}, {menu_opacity});
+    border-radius: {border_radius}px;
     border: 1px solid alpha({colors['fg']}, 0.12);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }}
@@ -910,10 +1119,10 @@ window, window *, window.background, window.background *,
 }}
 
 .bottom-bar {{
-    background: alpha({colors['bg1']}, 0.6);
+    background: alpha({colors.get('bg1', colors['bg0'])}, 0.6);
     border-top: 1px solid alpha({colors['fg']}, 0.08);
     padding: 14px 20px;
-    border-radius: 0 0 16px 16px;
+    border-radius: 0 0 {border_radius}px {border_radius}px;
 }}
 
 .user-name {{
@@ -1094,7 +1303,6 @@ image {{ background: transparent; }}
                     data = json.load(f)
                     return data.get('pinned', [])
             else:
-                # Default pinned apps - use desktop file names
                 default = ["firefox", "code", "thunar", "kitty"]
                 self.save_pinned_apps(default)
                 return default
@@ -1111,14 +1319,11 @@ image {{ background: transparent; }}
     
     def get_app_id(self, app_info):
         """Generate a unique ID for an app - use desktop file basename for reliability"""
-        # Use desktop file path as the primary identifier
         desktop_file = app_info.get('desktop_file', '')
         if desktop_file:
-            # Get basename without .desktop extension
             basename = Path(desktop_file).stem
             return basename.lower()
         
-        # Fallback to name-based ID
         name = app_info['name'].lower()
         name = re.sub(r'[^\w\s]', '', name)
         name = name.replace(' ', '-')
@@ -1143,8 +1348,7 @@ image {{ background: transparent; }}
             self.refresh_pinned_section()
             print(f"[StartMenu] 📍 Unpinned: {app_id}")
         else:
-            # Try fuzzy match - maybe the stored ID format is different
-            for pinned_id in self.pinned_apps[:]:  # Copy list to allow modification
+            for pinned_id in self.pinned_apps[:]:
                 if app_id in pinned_id or pinned_id in app_id:
                     self.pinned_apps.remove(pinned_id)
                     self.save_pinned_apps(self.pinned_apps)
@@ -1157,15 +1361,12 @@ image {{ background: transparent; }}
         """Check if an app is pinned"""
         app_id = self.get_app_id(app_info)
         
-        # Direct match
         if app_id in self.pinned_apps:
             return True
         
-        # Fuzzy match for legacy IDs
         for pinned_id in self.pinned_apps:
             if app_id in pinned_id or pinned_id in app_id:
                 return True
-            # Also check app name
             if pinned_id.lower() in app_info['name'].lower():
                 return True
         
@@ -1175,23 +1376,19 @@ image {{ background: transparent; }}
         """Find an app by its ID - with improved matching"""
         app_id_lower = app_id.lower()
         
-        # First: exact desktop file match
         for app in self.all_apps:
             if self.get_app_id(app) == app_id_lower:
                 return app
         
-        # Second: desktop file contains the ID
         for app in self.all_apps:
             desktop_file = app.get('desktop_file', '').lower()
             if app_id_lower in Path(desktop_file).stem:
                 return app
         
-        # Third: app name contains the ID
         for app in self.all_apps:
             if app_id_lower in app['name'].lower():
                 return app
         
-        # Fourth: ID contains app name
         for app in self.all_apps:
             app_name_clean = re.sub(r'[^\w]', '', app['name'].lower())
             if app_name_clean in app_id_lower or app_id_lower in app_name_clean:
@@ -1275,7 +1472,6 @@ image {{ background: transparent; }}
         self.search_entry.set_placeholder_text(f"{NerdIcons.SEARCH}  Type to search (fuzzy match)...")
         self.search_entry.add_css_class("search-entry")
         self.search_entry.connect("search-changed", self.on_search_changed)
-        # ENHANCED: ESC in search entry also closes menu
         self.search_entry.connect("stop-search", lambda w: self.hide_menu())
         right_box.append(self.search_entry)
         
@@ -1366,7 +1562,6 @@ image {{ background: transparent; }}
         
         button.set_child(box)
         
-        # Store app_id directly on the button for reliable unpin
         button.app_id = self.get_app_id(app_info)
         button.app_info = app_info
         
@@ -1443,7 +1638,6 @@ image {{ background: transparent; }}
         popover.set_menu_model(menu)
         popover.set_parent(widget)
         
-        # Store the app_id for the action handler
         self.current_context_app = app_info
         self.current_context_app_id = self.get_app_id(app_info)
         
@@ -1462,7 +1656,6 @@ image {{ background: transparent; }}
         popover.set_menu_model(menu)
         popover.set_parent(widget)
         
-        # Store the app_id for the action handler
         self.current_context_app = app_info
         self.current_context_app_id = self.get_app_id(app_info)
         
@@ -1499,15 +1692,12 @@ image {{ background: transparent; }}
         user_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         user_box.set_valign(Gtk.Align.CENTER)
         
-        # Get avatar
         avatar_path = UserProfile.get_avatar_path()
         
         if avatar_path:
-            # Create circular avatar
             avatar_widget = UserProfile.create_circular_avatar(avatar_path, 32)
             user_box.append(avatar_widget)
         else:
-            # Fallback: circular container with user icon
             fallback_box = Gtk.Box()
             fallback_box.add_css_class("user-avatar-fallback")
             fallback_box.set_halign(Gtk.Align.CENTER)
@@ -1522,7 +1712,6 @@ image {{ background: transparent; }}
             frame.add_css_class("avatar-frame")
             user_box.append(frame)
         
-        # Display name
         display_name = UserProfile.get_display_name()
         user_label = Gtk.Label(label=display_name)
         user_label.add_css_class("user-name")
@@ -1538,7 +1727,6 @@ image {{ background: transparent; }}
         # BOTTOM BUTTONS - FIXED ICONS!
         # ══════════════════════════════════════════════════════════════════════
         
-        # Folder button
         folder_btn = Gtk.Button()
         folder_btn.add_css_class("icon-button")
         folder_icon = Gtk.Label(label=NerdIcons.FOLDER)
@@ -1548,7 +1736,6 @@ image {{ background: transparent; }}
         folder_btn.connect("clicked", lambda b: self.launch_thunar())
         bar.append(folder_btn)
         
-        # Settings button
         settings_btn = Gtk.Button()
         settings_btn.add_css_class("icon-button")
         settings_icon = Gtk.Label(label=NerdIcons.SETTINGS)
@@ -1558,7 +1745,6 @@ image {{ background: transparent; }}
         settings_btn.connect("clicked", lambda b: self.launch_control_center())
         bar.append(settings_btn)
         
-        # Power button
         power_btn = Gtk.MenuButton()
         power_btn.add_css_class("icon-button")
         power_icon = Gtk.Label(label=NerdIcons.POWER)
@@ -1572,13 +1758,6 @@ image {{ background: transparent; }}
         power_menu.append(f"{NerdIcons.RESTART}  Restart", "app.restart")
         power_menu.append(f"{NerdIcons.SHUTDOWN}  Shutdown", "app.shutdown")
         power_btn.set_menu_model(power_menu)
-        
-        # ENHANCED: Register power menu popover to prevent unwanted close
-        def on_power_toggled(btn):
-            popover = btn.get_popover()
-            if popover:
-                self.register_popover(popover)
-        # power_btn.connect("toggled", on_power_toggled)  # REMOVED - not needed
         
         bar.append(power_btn)
         
@@ -1627,6 +1806,9 @@ image {{ background: transparent; }}
             self.launch_app(row.app_info)
     
     def on_search_changed(self, entry):
+        """Handle search text changes - with suppress flag for optimization"""
+        if self._suppress_search:
+            return
         self._search_query = entry.get_text()
         self.populate_apps_list(self._search_query)
 
@@ -1693,7 +1875,7 @@ def main():
     parser = argparse.ArgumentParser(description='Hyprland Start Menu')
     parser.add_argument('--daemon', '-d', action='store_true', help='Run in daemon mode')
     parser.add_argument('--toggle', '-t', action='store_true', help='Toggle existing instance')
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()  # Handles waybar's --cursor argument
     
     app = StartMenuApp(daemon_mode=args.daemon)
     

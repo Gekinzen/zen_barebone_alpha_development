@@ -17,14 +17,6 @@
       "wm_class": null
     },
     {
-      "app_id": "kitty",
-      "name": "kitty",
-      "icon": "kitty",
-      "exec_cmd": "kitty",
-      "desktop_file": "/usr/share/applications/kitty.desktop",
-      "wm_class": null
-    },
-    {
       "app_id": "code-oss",
       "name": "Code - OSS",
       "icon": "com.visualstudio.code.oss",

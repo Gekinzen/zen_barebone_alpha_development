@@ -1,38 +1,38 @@
 {
   "id": "yukitest",
   "is_builtin": false,
-  "name": "yukitest",
+  "name": "Yukitest",
   "is_light": false,
   "colors": {
-    "bg0": "#3d3846",
-    "bg1": "#282839",
-    "bg2": "#313244",
-    "bg3": "#45475a",
-    "bg4": "#585b70",
-    "fg": "#d9e0ee",
-    "grey0": "#6c7086",
-    "grey1": "#7f849c",
-    "grey2": "#9399b2",
-    "red": "#f28fad",
-    "orange": "#fab387",
-    "yellow": "#f9e2af",
-    "green": "#abe9b3",
-    "aqua": "#94e2d5",
-    "blue": "#7aa2f7",
-    "purple": "#cba6f7"
+    "bg0": "#77767b",
+    "bg1": "#3c474d",
+    "bg2": "#475258",
+    "bg3": "#4f585e",
+    "bg4": "#5d6b66",
+    "fg": "#dad1be",
+    "grey0": "#7a8478",
+    "grey1": "#859289",
+    "grey2": "#9da9a0",
+    "red": "#e67e80",
+    "orange": "#e69875",
+    "yellow": "#dbbc7f",
+    "green": "#a7c080",
+    "aqua": "#83c092",
+    "blue": "#7fbbb3",
+    "purple": "#d699b6"
   },
   "rofi": {
-    "background": "#1E1D2F",
-    "background-alt": "#282839",
-    "foreground": "#D9E0EE",
-    "selected": "#7AA2F7",
-    "active": "#ABE9B3",
-    "urgent": "#F28FAD"
+    "background": "#323D43",
+    "background-alt": "#3C474D",
+    "foreground": "#DAD1BE",
+    "selected": "#7FBBB3",
+    "active": "#A7C080",
+    "urgent": "#E67E80"
   },
   "kitty": {
-    "background": "#1e1d2f",
-    "foreground": "#d9e0ee",
-    "cursor": "#f5e0dc"
+    "background": "#323d43",
+    "foreground": "#dad1be",
+    "cursor": "#dad1be"
   },
   "waybar": {
     "global": {

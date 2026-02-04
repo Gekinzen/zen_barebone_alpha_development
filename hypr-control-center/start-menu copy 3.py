@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
 """
-Hyprland Start Menu - v4.1 ULTRA-OPTIMIZED DAEMON
+Hyprland Start Menu - v4.0 ULTRA-OPTIMIZED DAEMON
 Windows 11-style launcher
-
-v4.1 Changes:
-- Text colors now use grey2 from theme for Paper/Yousai compatibility
-- Added @grey2_color CSS variable
-- All text elements (labels, titles, names) use grey2
 
 v4.0 Changes:
 - Ready file for bash script coordination
@@ -370,7 +365,7 @@ class ThemeManager:
         
         colors = {"bg": None, "fg": None, "accent": None, "red": "#e06c75", "green": "#98c379",
                   "yellow": "#e5c07b", "blue": "#61afef", "purple": "#c678dd", "aqua": "#56b6c2",
-                  "orange": "#d19a66", "grey0": "#5c6370", "grey1": "#828997", "grey2": "#a0a0a0",
+                  "orange": "#d19a66", "grey0": "#5c6370", "grey1": "#828997",
                   "waybar_opacity": None, "waybar_radius": None}
         
         for cp in [Path.home()/".config/waybar/style.css", Path.home()/".config/waybar/themes/current.css"]:
@@ -394,7 +389,6 @@ class ThemeManager:
                             if any(k in n for k in ["bg0", "bg", "background", "base"]) and not colors["bg"]: colors["bg"] = c
                             elif any(k in n for k in ["fg", "foreground", "text"]) and not colors["fg"]: colors["fg"] = c
                             elif any(k in n for k in ["accent", "primary"]) and not colors["accent"]: colors["accent"] = c
-                            elif "grey2" in n: colors["grey2"] = c
                             for cn in ["blue", "red", "green", "yellow", "purple", "aqua", "orange"]:
                                 if cn in n: colors[cn] = c
                     if "#waybar" in sel:
@@ -441,19 +435,13 @@ class ThemeManager:
         hypr_config = cls.get_hyprland_config()
         
         colors = {"bg0": "#1e2127", "bg1": "#282b31", "fg": "#abb2bf", "grey0": "#5c6370", "grey1": "#828997",
-                  "grey2": "#a0a0a0", "red": "#e06c75", "orange": "#d19a66", "yellow": "#e5c07b", "green": "#98c379",
+                  "red": "#e06c75", "orange": "#d19a66", "yellow": "#e5c07b", "green": "#98c379",
                   "aqua": "#56b6c2", "blue": "#61afef", "purple": "#c678dd"}
         
         for tf in [Path.home()/".config/hypr-control-center/preferences/theme.json"]:
             if tf.exists():
                 try:
-                    with open(tf) as f: 
-                        theme_data = json.load(f)
-                        theme_colors = theme_data.get('colors', {})
-                        colors.update(theme_colors)
-                        # Ensure grey2 is loaded
-                        if 'grey2' in theme_colors:
-                            colors['grey2'] = theme_colors['grey2']
+                    with open(tf) as f: colors.update(json.load(f).get('colors', {}))
                     break
                 except: pass
         
@@ -461,7 +449,6 @@ class ThemeManager:
         if waybar_colors.get("bg"): colors["bg0"] = waybar_colors["bg"]
         if waybar_colors.get("fg"): colors["fg"] = waybar_colors["fg"]
         if waybar_colors.get("accent"): colors["accent"] = waybar_colors["accent"]
-        if waybar_colors.get("grey2"): colors["grey2"] = waybar_colors["grey2"]
         for c in ["blue", "red", "green", "yellow", "purple", "aqua", "orange"]:
             if waybar_colors.get(c): colors[c] = waybar_colors[c]
         if not colors.get("accent"): colors["accent"] = colors["blue"]
@@ -717,25 +704,16 @@ class StartMenu(Gtk.ApplicationWindow):
         rounding_lg = min(rounding + 4, int(rounding * 1.5))
         inactive_opacity = self.hypr_config.get("inactive_opacity", 0.8) * 0.6
         
-        # v4.1: Added @grey2_color for text elements
         variables = {
             "@accent_color": colors.get("accent", colors["blue"]),
-            "@bg_color": colors["bg0"], 
-            "@bg1_color": colors.get("bg1", colors["bg0"]),
-            "@fg_color": colors["fg"], 
-            "@grey2_color": colors.get("grey2", colors.get("grey1", "#828997")),  # NEW: grey2 for text
-            "@opacity": str(menu_opacity),
+            "@bg_color": colors["bg0"], "@bg1_color": colors.get("bg1", colors["bg0"]),
+            "@fg_color": colors["fg"], "@opacity": str(menu_opacity),
             "@inactive_opacity": str(inactive_opacity),
-            "@rounding": f"{rounding}px", 
-            "@rounding_lg": f"{rounding_lg}px",
-            "@red_color": colors["red"], 
-            "@green_color": colors["green"],
-            "@yellow_color": colors["yellow"], 
-            "@blue_color": colors["blue"],
-            "@purple_color": colors["purple"], 
-            "@aqua_color": colors["aqua"],
-            "@orange_color": colors["orange"], 
-            "@grey0_color": colors["grey0"],
+            "@rounding": f"{rounding}px", "@rounding_lg": f"{rounding_lg}px",
+            "@red_color": colors["red"], "@green_color": colors["green"],
+            "@yellow_color": colors["yellow"], "@blue_color": colors["blue"],
+            "@purple_color": colors["purple"], "@aqua_color": colors["aqua"],
+            "@orange_color": colors["orange"], "@grey0_color": colors["grey0"],
             "@grey1_color": colors["grey1"],
         }
         
@@ -756,9 +734,7 @@ class StartMenu(Gtk.ApplicationWindow):
         Gtk.StyleContext.add_provider_for_display(self.get_display(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 100)
 
     def _get_default_css(self):
-        """v4.1: Updated CSS with grey2 for all text colors"""
         return '''
-/* Start Menu v4.1 CSS - grey2 text colors for Paper/Yousai themes */
 window, window *, window.background, window.background *, .background, .background * {
     background-color: rgba(0, 0, 0, 0) !important;
     background-image: none !important;
@@ -772,90 +748,58 @@ window, window *, window.background, window.background *, .background, .backgrou
 }
 .start-left { padding: 20px; border-right: 1px solid alpha(@fg_color, 0.08); background: transparent; }
 .start-right { padding: 20px; background: transparent; }
-
-/* v4.1: Section titles use grey2 */
-.section-title { font-size: 13px; font-weight: 600; color: @grey2_color; margin-bottom: 12px; background: transparent; }
-
+.section-title { font-size: 13px; font-weight: 600; color: alpha(@fg_color, 0.7); margin-bottom: 12px; background: transparent; }
 .app-tile { background: transparent; border: none; border-radius: @rounding; padding: 12px 8px; min-width: 72px; transition: all 150ms ease; }
 .app-tile:hover { background: alpha(@fg_color, 0.08); }
 .app-tile:active { background: alpha(@fg_color, 0.12); }
-
-/* v4.1: App tile labels use grey2 */
-.app-tile-label { font-size: 11px; color: @grey2_color; background: transparent; }
-
+.app-tile-label { font-size: 11px; color: @fg_color; background: transparent; }
 .app-row { border-radius: @rounding; margin: 2px 0; padding: 8px 12px; transition: all 150ms ease; background: transparent; }
 .app-row:hover { background: alpha(@fg_color, 0.06); }
-
-/* v4.1: App row names use grey2 */
-.app-row-name { font-size: 13px; font-weight: 500; color: @grey2_color; background: transparent; }
+.app-row-name { font-size: 13px; font-weight: 500; color: @fg_color; background: transparent; }
 .app-row-source { font-size: 10px; color: @grey1_color; margin-left: 8px; background: transparent; }
-
-.search-entry { background: alpha(@fg_color, 0.08); border: 1px solid alpha(@fg_color, 0.12); border-radius: @rounding; padding: 10px 14px; color: @grey2_color; margin-bottom: 12px; }
+.search-entry { background: alpha(@fg_color, 0.08); border: 1px solid alpha(@fg_color, 0.12); border-radius: @rounding; padding: 10px 14px; color: @fg_color; margin-bottom: 12px; }
 .search-entry:focus { background: alpha(@fg_color, 0.1); border-color: @accent_color; }
 .search-hint { font-size: 11px; color: @grey1_color; margin-bottom: 8px; background: transparent; }
-
 .bottom-bar { background: alpha(@bg1_color, 0.6); border-top: 1px solid alpha(@fg_color, 0.08); padding: 14px 20px; border-radius: 0 0 @rounding_lg @rounding_lg; }
-
-/* v4.1: User name uses grey2 */
-.user-name { font-size: 14px; font-weight: 600; color: @grey2_color; background: transparent; }
-
-/* v4.1: Nerd icons use grey2 */
-.nerd-icon { font-family: "JetBrainsMono Nerd Font", "Symbols Nerd Font Mono", monospace; font-size: 18px; color: @grey2_color; background: transparent; min-width: 24px; min-height: 24px; }
-
+.user-name { font-size: 14px; font-weight: 600; color: @fg_color; background: transparent; }
+.nerd-icon { font-family: "JetBrainsMono Nerd Font", "Symbols Nerd Font Mono", monospace; font-size: 18px; color: @fg_color; background: transparent; min-width: 24px; min-height: 24px; }
 .icon-button { background: transparent; border: none; border-radius: @rounding; padding: 8px; min-width: 40px; min-height: 40px; transition: all 150ms ease; }
 .icon-button:hover { background: alpha(@fg_color, 0.08); }
-
-/* v4.1: Icon button labels use grey2 */
-.icon-button label, .icon-button .nerd-icon { font-family: "JetBrainsMono Nerd Font", "Symbols Nerd Font Mono", monospace; font-size: 18px; color: @grey2_color; background: transparent; }
-
+.icon-button label, .icon-button .nerd-icon { font-family: "JetBrainsMono Nerd Font", "Symbols Nerd Font Mono", monospace; font-size: 18px; color: @fg_color; background: transparent; }
 .avatar-frame { border-radius: 50%; border: 2px solid alpha(@accent_color, 0.4); background: transparent; min-width: 36px; min-height: 36px; padding: 0; margin: 0; }
 .avatar-frame > * { border-radius: 50%; }
 .user-avatar-fallback { background: alpha(@accent_color, 0.2); border-radius: 50%; min-width: 32px; min-height: 32px; padding: 4px; }
 .user-avatar-fallback label { font-family: "JetBrainsMono Nerd Font", monospace; font-size: 16px; color: @accent_color; }
-
-/* v4.1: Letter headers use accent color (kept as is for visual distinction) */
 .letter-header { font-size: 14px; font-weight: 600; color: @accent_color; padding: 8px 12px 4px; background: transparent; }
-
 .loading-label { font-size: 12px; color: @grey1_color; padding: 20px; }
-
 scrollbar { background: transparent; }
 scrollbar slider { background: alpha(@fg_color, 0.2); border-radius: 4px; min-width: 8px; }
 scrollbar slider:hover { background: alpha(@fg_color, 0.3); }
 scrolledwindow { background: transparent; }
 scrolledwindow > viewport { background: transparent; }
-
 popover, popover.menu { background: alpha(@bg_color, 0.95); border: 1px solid alpha(@accent_color, 0.3); border-radius: @rounding_lg; padding: 6px; }
 popover contents { background: transparent; }
-
-/* v4.1: Popover buttons use grey2 */
-popover button, popover.menu button { background: transparent; border: none; border-radius: @rounding; padding: 8px 12px; color: @grey2_color; }
+popover button, popover.menu button { background: transparent; border: none; border-radius: @rounding; padding: 8px 12px; color: @fg_color; }
 popover button:hover, popover.menu button:hover { background: alpha(@accent_color, 0.15); }
-popover modelbutton { padding: 8px 12px; border-radius: 6px; color: @grey2_color; background: transparent; }
+popover modelbutton { padding: 8px 12px; border-radius: 6px; color: @fg_color; background: transparent; }
 popover modelbutton:hover { background: alpha(@accent_color, 0.15); }
-
 .apps-list { background: transparent; }
 .apps-list row { padding: 0; background: transparent; }
 .apps-list row:hover { background: alpha(@fg_color, 0.05); }
-
 listbox, listbox row, flowbox, flowboxchild, box, label, image { background: transparent; }
-
-/* v4.1: Labels inherit grey2 */
-label { color: @grey2_color; }
-
 .source-badge { font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
 .source-flatpak { background: alpha(@blue_color, 0.2); color: @blue_color; }
 .source-snap { background: alpha(@orange_color, 0.2); color: @orange_color; }
 .source-aur { background: alpha(@aqua_color, 0.2); color: @aqua_color; }
 .source-pacman { background: alpha(@green_color, 0.2); color: @green_color; }
-
 tooltip { background: alpha(@bg_color, @opacity); border: 1px solid alpha(@accent_color, 0.2); border-radius: @rounding; }
-tooltip label { color: @grey2_color; padding: 6px 10px; }
+tooltip label { color: @fg_color; padding: 6px 10px; }
 '''
 
     def _save_default_css(self, css_file, css):
         try:
             css_file.parent.mkdir(parents=True, exist_ok=True)
-            css_file.write_text("/* Start Menu v4.1 CSS - @variable substitution - grey2 text */\n" + css)
+            css_file.write_text("/* Start Menu v4.0 CSS - @variable substitution */\n" + css)
         except: pass
 
     def load_pinned_apps(self):
@@ -1304,7 +1248,7 @@ class StartMenuApp(Gtk.Application):
 # ═══════════════════════════════════════════════════════════════════════════════
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description='Hyprland Start Menu v4.1')
+    parser = argparse.ArgumentParser(description='Hyprland Start Menu v4.0')
     parser.add_argument('--daemon', '-d', action='store_true', help='Run in daemon mode')
     parser.add_argument('--toggle', '-t', action='store_true', help='Toggle existing instance')
     args, _ = parser.parse_known_args()

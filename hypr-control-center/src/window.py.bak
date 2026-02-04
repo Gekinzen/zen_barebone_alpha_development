@@ -107,9 +107,9 @@ def _get_page_builder(name: str):
         elif name == "keybinds":
             from .pages.keybinds import build_keybinds_page
             _page_builders[name] = build_keybinds_page
-        elif name == "widgets":
-            from .pages.widgets_page import WidgetsPage
-            _page_builders[name] = lambda window: WidgetsPage(window)
+        elif name == "Widgets":
+            from .pages.keybinds import build_keybinds_page
+            _page_builders[name] = build_keybinds_page
     return _page_builders.get(name)
 
 
@@ -157,7 +157,6 @@ ICON_MAP = {
     "workspaces": "󰙀", "animations": "󰔎", "input": "󰌌",
     "displays": "󰍹", "power": "󰐥", "keybinds": "󰌌",
     "plugins": "󱁤", "time_language": "󰥔", "updates": "󰚰",
-    "widgets": "󰍺",
 }
 
 NAV_SECTIONS = (
@@ -169,7 +168,6 @@ NAV_SECTIONS = (
         ("Theming", "theming", "preferences-desktop-theme-symbolic"),
         ("Workspaces", "workspaces", "view-grid-symbolic"),
         ("Plugins", "plugins", "application-x-addon-symbolic"),
-        ("Widgets", "widgets", "preferences-desktop-apps-symbolic"),
     )),
     ("SYSTEM", (
         ("Animations", "animations", "preferences-desktop-effects-symbolic"),

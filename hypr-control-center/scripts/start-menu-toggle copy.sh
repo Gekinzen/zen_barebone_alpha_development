@@ -1,9 +1,8 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════════════════════
-# Start Menu Toggle - v3.0 OPTIMIZED DAEMON MODE
+# Start Menu Toggle - v2.3 DAEMON MODE
 # ═══════════════════════════════════════════════════════════════════════════════
 # INSTANT toggle using daemon mode - menu stays resident, just show/hide
-# v3.0: Fast polling instead of blind sleep for instant first-boot toggle
 
 CONFIG_DIR="$HOME/.config/hypr-control-center"
 START_MENU="$CONFIG_DIR/start-menu.py"
@@ -48,17 +47,15 @@ start_daemon() {
     
     disown
     
-    # Fast poll: check every 50ms, up to 2 seconds
-    for i in $(seq 1 40); do
-        if is_daemon_running; then
-            echo "[StartMenu] ✅ Daemon started (PID: $(get_daemon_pid)) in ~$((i * 50))ms"
-            return 0
-        fi
-        sleep 0.05
-    done
+    # Wait for daemon to start
+    sleep 0.3
     
-    echo "[StartMenu] ❌ Daemon failed to start"
-    return 1
+    if is_daemon_running; then
+        echo "[StartMenu] ✅ Daemon started (PID: $(get_daemon_pid))"
+    else
+        echo "[StartMenu] ❌ Daemon failed to start"
+        return 1
+    fi
 }
 
 stop_daemon() {
@@ -87,12 +84,11 @@ toggle_menu() {
         # INSTANT! Just send signal to toggle
         kill -USR1 "$pid" 2>/dev/null
     else
-        # First boot: start daemon, poll for ready, then toggle
+        # Start daemon first, then show
         start_daemon
+        sleep 0.2
         pid=$(get_daemon_pid)
         if [ -n "$pid" ]; then
-            # Small delay for GTK to finish init after PID is written
-            sleep 0.15
             kill -USR1 "$pid" 2>/dev/null
         fi
     fi
