@@ -1,0 +1,128 @@
+configuration {
+    icon-theme: "Zafiro-Nord-Black-Blue";
+    modi: "drun";
+    show-icons: true;
+    drun-display-format: "{name}";
+    display-drun: " ";    /* search icon instead of text */
+}
+
+* {
+    /* Catppuccin Mocha Colors with RGBA for blur */
+    background:        rgba(30,30,46,0.55);   /* #1e1e2e */
+    background-alt:    rgba(49,50,68,0.55);   /* #313244 */
+    foreground:        #cdd6f4;               /* same color, text unaffected by blur */
+    selected:          #f38ba8;
+    active:            #a6e3a1;
+    urgent:            #f38ba8;
+
+    border-color:      #fab387;
+}
+
+window {
+    transparency: "real";
+    location: north;
+    anchor: center;
+    fullscreen: false;
+
+   width: 800px;
+    height: 510px;
+
+    margin: 0px;
+    padding: 20px;
+
+    border: 1px;
+    border-color: rgba(202,204,224,0.0);  /* fully transparent for no black border */
+    border-radius: 50px;
+    x-offset: 0px;
+    y-offset: 10px;
+
+    background-color: @background;   /* now RGBA for blur */
+}
+
+mainbox {
+    spacing: 20px;
+    background-color: transparent;
+    children: [ "inputbar", "listview" ];
+}
+
+inputbar {
+     padding:                     80px 80px;
+     margin: 20px 40px;
+    background-color: @background-alt;
+        background-image:            url("~/walls/w3.png", width);
+
+    border-radius: 50px;
+    spacing: 10px;
+
+    children: [ "prompt", "entry" ];
+}
+
+prompt {
+padding: 20px;
+    border-radius: 50px;
+    text-color: @foreground;
+    background-color: inherit;
+}
+
+entry {
+padding: 20px;
+    border-radius: 50px;
+    text-color: @foreground;
+    background-color: inherit;
+    placeholder: "  ";
+}
+
+listview {
+    layout: vertical;
+    lines: 15;
+    columns: 3;
+
+    spacing: 10px;
+    margin: 10px 0;
+    padding: 0px;
+
+    dynamic: true;
+    scrollbar: false;
+
+    background-color: transparent;   /* keep transparent for blur */
+}
+
+scrollbar {
+    handle-width: 5px;
+    handle-color: @selected;
+    background-color: rgba(49,50,68,0.55);   /* @background-alt as RGBA */
+}
+
+element {
+    padding: 12px;
+    border-radius: 100px;
+
+    background-color: transparent;
+    text-color: @foreground;
+    cursor: pointer;
+}
+
+element normal.normal {
+    background-color: transparent;
+    text-color: @foreground;
+}
+
+element selected.normal {
+    background-color: @selected;
+    text-color: @background;   /* still RGBA now */
+}
+
+element-icon {
+    size: 47px;
+    background-color: transparent;
+}
+
+element-text {
+    background-color: transparent;
+    text-color: inherit;
+    font: "JetBrainsMono Nerd Font 11";
+    vertical-align: 0.5;
+    horizontal-align: 0.0;
+    padding: 0px 10px 0px 20px; /* top right bottom left */
+}
+

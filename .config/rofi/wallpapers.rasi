@@ -1,0 +1,76 @@
+configuration {
+    show-icons: true;          /* show image previews if available */
+    drun-display-format: "{name}";
+    display-drun: " ";
+}
+
+* {
+    background:        #3c3836;
+    background-alt:    #504945;
+    foreground:        #ebdbb2;
+    selected:          #d65d0e;
+    active:            #458588;
+    urgent:            #cc241d;
+    border-color:      #dd8d68;
+}
+
+window {
+    transparency: "real";
+    location: north;
+    anchor: center;
+    fullscreen: false;
+    width: 900px;
+    height: 220px;
+    margin: 0px;
+    padding: 20px;
+    border: 0px;
+    border-radius: 50px;
+    background-color: @background;
+}
+
+mainbox {
+    spacing: 20px;
+    background-color: transparent;
+    children: [ "listview" ];
+}
+
+listview {
+    layout: horizontal;
+    lines: 1;
+    columns: 5;
+    spacing: 10px;
+    margin: 10px 0;
+    padding: 0px;
+    dynamic: true;
+    scrollbar: false;
+    background-color: transparent;
+}
+
+element {
+    padding: 0px;
+    border-radius: 20px;
+    background-color: transparent;
+    text-color: @foreground;
+    cursor: pointer;
+}
+
+element normal.normal {
+    background-color: transparent;
+    text-color: @foreground;
+}
+
+element selected.normal {
+    background-color: @selected;
+    text-color: @background;
+}
+
+element-icon {
+    size: 80px;            /* size of the wallpaper boxes */
+    background-color: transparent;
+}
+
+element-text {
+    text-color: transparent; /* hide text, only show preview */
+    background-color: transparent;
+}
+
