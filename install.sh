@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
-# ===============================
-# Zen Barebone Installer
-# ===============================
+# ==================================================
+# Zen Barebone Installer (REPLACE MODE)
+# ==================================================
 
 # ---------- Colors ----------
 RED='\033[0;31m'
@@ -18,9 +18,9 @@ echo -e "${CYAN}🚀 Zen Barebone Installer${NC}"
 echo "======================================"
 echo ""
 
-# ===============================
-# Detect OS
-# ===============================
+# ==================================================
+# Detect OS (Arch only for now)
+# ==================================================
 if [[ -f /etc/os-release ]]; then
     . /etc/os-release
 else
@@ -29,10 +29,7 @@ else
 fi
 
 case "$ID" in
-    arch|endeavouros|cachyos)
-        DISTRO="arch"
-        PKG_INSTALL="sudo pacman -S --needed --noconfirm"
-        ;;
+    arch|endeavouros|cachyos) ;;
     *)
         echo -e "${RED}❌ Unsupported distro: $ID${NC}"
         exit 1
@@ -42,31 +39,24 @@ esac
 echo -e "${GREEN}✅ Detected distro: $NAME${NC}"
 echo ""
 
-# ===============================
-# SMART CONFIG BACKUP
-# ===============================
+# ==================================================
+# SMART BACKUP (~/.config + waybar cache)
+# ==================================================
 BACKUP_ROOT="$HOME/.config/zen-backups"
 TIMESTAMP="$(date +'%Y-%m-%d_%H-%M-%S')"
 BACKUP_DIR="$BACKUP_ROOT/backup_$TIMESTAMP"
 
-CONFIG_TARGETS=(
-    "hypr"
-    "waybar"
-    "kitty"
-    "swaync"
-    "rofi"
-    "zen"
-)
+CONFIG_TARGETS=(hypr waybar kitty swaync rofi zen)
 
-echo -e "${CYAN}🧠 Checking existing ~/.config...${NC}"
+echo -e "${CYAN}🧠 Checking existing configs...${NC}"
 
-FOUND_EXISTING=false
+FOUND=false
 for cfg in "${CONFIG_TARGETS[@]}"; do
-    [[ -d "$HOME/.config/$cfg" ]] && FOUND_EXISTING=true
+    [[ -d "$HOME/.config/$cfg" ]] && FOUND=true
 done
 
-if [[ "$FOUND_EXISTING" == true ]]; then
-    echo -e "${YELLOW}⚠️ Existing configs detected — backing up${NC}"
+if [[ "$FOUND" == true ]]; then
+    echo -e "${YELLOW}⚠️ Existing configs found — backing up${NC}"
     mkdir -p "$BACKUP_DIR"
 
     for cfg in "${CONFIG_TARGETS[@]}"; do
@@ -76,27 +66,26 @@ if [[ "$FOUND_EXISTING" == true ]]; then
         fi
     done
 
-    # Waybar cache
     if [[ -d "$HOME/.cache/waybar" ]]; then
         mkdir -p "$BACKUP_DIR/.cache"
         cp -a "$HOME/.cache/waybar" "$BACKUP_DIR/.cache/"
     fi
 
-    echo -e "${GREEN}✅ Backup stored at:${NC} $BACKUP_DIR"
+    echo -e "${GREEN}✅ Backup saved to:${NC} $BACKUP_DIR"
     echo ""
 else
-    echo -e "${GREEN}✓ Fresh install detected${NC}"
+    echo -e "${GREEN}✓ No existing configs detected${NC}"
 fi
 
-# ===============================
+# ==================================================
 # Base Dependencies
-# ===============================
-echo -e "${BLUE}📦 Installing base packages...${NC}"
-$PKG_INSTALL git base-devel curl rsync
+# ==================================================
+echo -e "${BLUE}📦 Installing base dependencies...${NC}"
+sudo pacman -S --needed --noconfirm git base-devel curl rsync
 
-# ===============================
+# ==================================================
 # yay
-# ===============================
+# ==================================================
 if ! command -v yay &>/dev/null; then
     echo -e "${BLUE}📦 Installing yay...${NC}"
     git clone https://aur.archlinux.org/yay.git /tmp/yay
@@ -104,9 +93,9 @@ if ! command -v yay &>/dev/null; then
     rm -rf /tmp/yay
 fi
 
-# ===============================
-# Desktop Packages (FIXED: Thunar added)
-# ===============================
+# ==================================================
+# Desktop Packages (includes Thunar)
+# ==================================================
 echo -e "${PURPLE}📦 Installing desktop packages...${NC}"
 yay -S --needed --noconfirm \
     hyprland xdg-desktop-portal-hyprland \
@@ -117,17 +106,19 @@ yay -S --needed --noconfirm \
     ttf-geist-mono-nerd \
     noto-fonts-emoji
 
-# ===============================
+# ==================================================
 # Python / GTK deps
-# ===============================
+# ==================================================
 echo -e "${PURPLE}📦 Installing Python + GTK deps...${NC}"
-$PKG_INSTALL python python-pip python-gobject gtk4 libadwaita python-pytz
+sudo pacman -S --needed --noconfirm \
+    python python-pip python-gobject gtk4 libadwaita python-pytz
+
 pip install --break-system-packages pillow psutil
 
-# ===============================
-# DEPLOY CONFIGS FROM REPO
-# ===============================
-echo -e "${CYAN}📂 Deploying .config from repo...${NC}"
+# ==================================================
+# DEPLOY CONFIGS (REPLACE MODE)
+# ==================================================
+echo -e "${CYAN}📂 Applying configs from repo...${NC}"
 
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 CONFIG_SOURCE="$REPO_ROOT/.config"
@@ -142,45 +133,45 @@ mkdir -p "$HOME/.config"
 for dir in "$CONFIG_SOURCE"/*; do
     name="$(basename "$dir")"
 
-    echo -e "${BLUE}→ Installing config:${NC} $name"
+    echo -e "${BLUE}→ Installing:${NC} $name"
 
-    rsync -av \
-        --ignore-existing \
+    rsync -av --delete \
         "$dir/" "$HOME/.config/$name/"
 done
 
-echo -e "${GREEN}✅ Config deployment done${NC}"
+echo -e "${GREEN}✅ Configs applied successfully${NC}"
 echo ""
 
-# ===============================
+# ==================================================
 # Directories
-# ===============================
+# ==================================================
 mkdir -p \
     "$HOME/wallpapers" \
     "$HOME/.local/bin" \
     "$HOME/.config/hypr/scripts" \
     "$HOME/.config/systemd/user"
 
-# ===============================
+# ==================================================
 # Ownership Fix
-# ===============================
+# ==================================================
 if [[ "$(stat -c '%U' "$HOME/.config")" != "$USER" ]]; then
     sudo chown -R "$USER:$USER" "$HOME/.config"
 fi
 
-# ===============================
-# Done
-# ===============================
+# ==================================================
+# DONE
+# ==================================================
 echo ""
 echo -e "${PURPLE}════════════════════════════════════${NC}"
 echo -e "${PURPLE} INSTALL COMPLETE${NC}"
 echo -e "${PURPLE}════════════════════════════════════${NC}"
 echo ""
 
-[[ "$FOUND_EXISTING" == true ]] && echo -e "${CYAN}📦 Backup:${NC} $BACKUP_DIR"
+[[ "$FOUND" == true ]] && echo -e "${CYAN}📦 Backup created at:${NC} $BACKUP_DIR"
 
-echo -e "${GREEN}🎉 Zen Barebone ready.${NC}"
-echo "Next:"
+echo -e "${GREEN}🎉 Zen Barebone successfully installed.${NC}"
+echo ""
+echo "Next steps:"
 echo "  • Reboot"
 echo "  • Login to Hyprland"
 echo ""
