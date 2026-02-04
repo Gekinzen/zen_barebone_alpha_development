@@ -42,40 +42,48 @@ A custom GTK4/Libadwaita settings application for managing your Hyprland desktop
 | Module | Description |
 |--------|-------------|
 | **Appearance** | General look and feel, gaps, borders, rounding |
-| **Panel** | Waybar configuration with module management |
-| **Theme Switcher** | Global theming for Waybar, Rofi, Kitty, and widgets |
+| **Panel** | Waybar configuration with drag-drop module management |
+| **Theming** | Global theming for Waybar, Rofi, Kitty, SwayNC, Hyprbars |
+| **Wallpaper** | SWWW integration with slideshow, pagination, folder browser |
 | **Workspaces** | Workspace behavior, persistent workspaces, icons |
+| **Widgets** | Desktop widgets management (clock, weather, system monitor) |
+| **Plugins** | Hyprpm plugin manager (Hyprbars, Hyprspace, etc.) |
 | **Animations** | Bezier curves, window animations, workspace transitions |
 | **Input Devices** | Keyboard, mouse, touchpad settings |
 | **Displays** | Monitor configuration, scaling, rotation |
 | **Keybinds** | Keyboard shortcuts management |
 
-### 🎨 Unified Theming System
+### 🎨 Unified Theming System (13+ Themes)
 One-click theme switching across all applications:
-- **Waybar** - Custom color variables and styling
-- **Rofi** - Matching launcher theme
-- **Kitty** - Terminal colors
+- **Waybar** - Custom color variables and detailed styling
+- **Rofi** - Matching launcher theme with direct color definitions
+- **Kitty** - Terminal colors (16-color palette)
+- **Start Menu** - Windows 11-style launcher with full theming
+- **Hyprbars** - Window decoration colors
+- **SwayNC** - Notification center styling
 - **Desktop Widgets** - Clock, weather, system monitor
-- **Control Center** - GTK4 app styling
+- **Control Center** - Self-theming GTK4 app
 
 ### 🖥️ Desktop Widgets
 GTK4 Layer Shell widgets that live on your desktop (behind all windows):
-- **Clock Widget** - Customizable time/date with timezone support (dual clock capable)
-- **Weather Widget** - Current conditions and 7-day forecast with auto-location detection
+- **Clock Widget** - Customizable time/date with dual timezone support
+- **Weather Widget** - Current conditions and 7-day forecast (auto-location detection)
 - **System Monitor** - CPU, GPU, RAM, and network stats with live graphs
+- **Draggable** - Click and drag to reposition, positions auto-saved
 
-### 📊 ZenPyBar (Optional)
-Custom Python-based status bar/taskbar system:
-- Embedded taskbar with window tracking
-- Multi-monitor support
-- Pin/unpin applications
-- Shared window tracker (no duplicates)
+### 🎮 Start Menu
+Windows 11-style application launcher:
+- **Optimized Daemon** - Preload system for instant response (<100ms)
+- **Grid/List View** - Toggle between tile and list layouts
+- **Search** - Fast application search
+- **Themed** - Syncs with global theme system
+- **Power Menu** - Shutdown, restart, logout options
 
-### 🚀 Performance Focused
-- Lazy loading for faster startup
-- Efficient memory management
-- Optimized animations
-- Minimal resource footprint
+### 🔌 Plugin Management
+Hyprpm integration for Hyprland plugins:
+- **Hyprbars** - Window title bars with theming
+- **Hyprspace** - Workspace overview (MOD+TAB)
+- **One-click enable/disable** from Control Center
 
 ---
 
@@ -186,9 +194,15 @@ zen_barebone_alpha_development/
 | **Gruvbox Dark** | Retro groove colors | Yellow |
 | **Nord** | Arctic, north-bluish palette | Frost Blue |
 | **Tokyo Night Storm** | Futuristic Tokyo aesthetic | Purple |
-| **Catppuccin Mocha** | Pastel dark theme | Mauve |
+| **Catppuccin Mocha** | Soothing pastel theme | Mauve |
 | **Everforest Dark** | Nature-inspired greens | Green |
-| **macOS Dark Blue** | Apple-inspired design | Blue |
+| **Dracula** | Famous dark theme | Purple |
+| **Solarized Dark** | Ethan Schoonover's classic | Blue |
+| **Cyberpunk** | Neon futuristic | Pink/Cyan |
+| **Arc** | Modern flat design | Blue |
+| **Adapta** | Material Design inspired | Teal |
+| **Paper** | Light, clean aesthetic | Blue |
+| **Yousai** | Elegant light theme | Purple |
 
 ### Creating Custom Themes
 
@@ -318,14 +332,40 @@ Widgets are draggable! Just click and drag to reposition. Positions are saved to
 
 ## Roadmap
 
-- [x] Core Control Center with settings pages
-- [x] Unified theming system
-- [x] Desktop widgets (clock, weather, system monitor)
-- [x] Theme export/import
-- [ ] More built-in themes
-- [ ] Plugin system for custom modules
-- [ ] Wallpaper manager integration
-- [ ] Per-workspace theming
+### ✅ Completed Features
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Core Control Center | ✅ Done | GTK4/Libadwaita settings app |
+| Unified Theming System | ✅ Done | 11+ themes with live switching |
+| Desktop Widgets | ✅ Done | Clock, Weather, System Monitor with drag support |
+| Theme Export/Import | ✅ Done | JSON format, shareable presets |
+| More Built-in Themes | ✅ Done | One Dark, Gruvbox, Nord, Tokyo Night, Catppuccin, Everforest, Dracula, Solarized, Cyberpunk, Arc, Adapta, Paper, Yousai |
+| Plugin System (Hyprpm) | ✅ Done | Control Center page for Hyprbars, Hyprspace, etc. |
+| Wallpaper Manager | ✅ Done | SWWW integration with slideshow, pagination, folder selection |
+| Classic/Modern UI Toggle | ✅ Done | Floating cards design with transparency support |
+
+### 🚧 In Progress
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Per-Workspace Theming | 🚧 Planned | Different themes per workspace |
+| More Widget Types | 🚧 Planned | Calendar, media player, quick settings |
+
+### Theme Targets (Auto-Synced)
+
+When you switch themes, the following are automatically updated:
+
+| Component | Integration |
+|-----------|-------------|
+| **Waybar** | CSS color variables + style |
+| **Rofi** | colors.rasi with direct color definitions |
+| **Kitty Terminal** | theme.conf with 16-color palette |
+| **Start Menu** | Full CSS with grey2 text support |
+| **Hyprbars** | Title bar colors and styling |
+| **SwayNC** | Notification center theming |
+| **Desktop Widgets** | Clock, weather, system monitor |
+| **Control Center** | Self-theming with live reload |
 
 ---
 
