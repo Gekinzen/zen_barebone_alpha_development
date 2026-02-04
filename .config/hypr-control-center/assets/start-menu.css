@@ -1,23 +1,23 @@
-/* Start Menu CSS - 2026-02-02 10:38 */
+/* Start Menu CSS - 2026-02-04 15:05 */
 window { background: transparent; }
-.start-menu { background: alpha(#2e3440, 0.95); border-radius: 16px; border: 1px solid alpha(#eceff4, 0.1); }
-.start-left { padding: 20px; border-right: 1px solid alpha(#eceff4, 0.08); }
+.start-menu { background: alpha(#1a1b26, 0.95); border-radius: 16px; border: 1px solid alpha(#c0caf5, 0.1); }
+.start-left { padding: 20px; border-right: 1px solid alpha(#c0caf5, 0.08); }
 .start-right { padding: 20px; }
-.section-title { font-size: 13px; font-weight: 600; color: alpha(#eceff4, 0.7); margin-bottom: 12px; }
+.section-title { font-size: 13px; font-weight: 600; color: alpha(#c0caf5, 0.7); margin-bottom: 12px; }
 .app-tile { background: transparent; border: none; border-radius: 8px; padding: 12px 8px; min-width: 72px; transition: all 150ms ease; }
-.app-tile:hover { background: alpha(#eceff4, 0.08); }
-.app-tile-label { font-size: 11px; color: #eceff4; }
+.app-tile:hover { background: alpha(#c0caf5, 0.08); }
+.app-tile-label { font-size: 11px; color: #c0caf5; }
 .app-row { border-radius: 8px; margin: 2px 0; padding: 8px 12px; transition: all 150ms ease; }
-.app-row:hover { background: alpha(#eceff4, 0.06); }
-.search-entry { background: alpha(#eceff4, 0.08); border: 1px solid alpha(#eceff4, 0.12); border-radius: 8px; padding: 10px 14px; color: #eceff4; margin-bottom: 12px; }
-.search-entry:focus { background: alpha(#eceff4, 0.1); border-color: #81a1c1; }
-.bottom-bar { background: alpha(#3b4252, 0.8); border-top: 1px solid alpha(#eceff4, 0.08); padding: 14px 20px; border-radius: 0 0 16px 16px; }
-.user-name { font-size: 14px; font-weight: 600; color: #eceff4; }
-.icon-button { background: transparent; border: none; border-radius: 8px; padding: 8px; min-width: 40px; min-height: 40px; color: #eceff4; }
-.icon-button:hover { background: alpha(#eceff4, 0.08); }
-.letter-header { font-size: 14px; font-weight: 600; color: #81a1c1; padding: 8px 12px 4px; }
-scrollbar slider { background: alpha(#eceff4, 0.2); border-radius: 4px; min-width: 8px; }
-scrollbar slider:hover { background: alpha(#eceff4, 0.3); }
-popover { background: alpha(#2e3440, 0.95); border: 1px solid alpha(#81a1c1, 0.3); border-radius: 12px; padding: 6px; }
-popover button { background: transparent; border: none; border-radius: 8px; padding: 8px 12px; color: #eceff4; }
-popover button:hover { background: alpha(#81a1c1, 0.15); }
+.app-row:hover { background: alpha(#c0caf5, 0.06); }
+.search-entry { background: alpha(#c0caf5, 0.08); border: 1px solid alpha(#c0caf5, 0.12); border-radius: 8px; padding: 10px 14px; color: #c0caf5; margin-bottom: 12px; }
+.search-entry:focus { background: alpha(#c0caf5, 0.1); border-color: #7aa2f7; }
+.bottom-bar { background: alpha(#16161e, 0.8); border-top: 1px solid alpha(#c0caf5, 0.08); padding: 14px 20px; border-radius: 0 0 16px 16px; }
+.user-name { font-size: 14px; font-weight: 600; color: #c0caf5; }
+.icon-button { background: transparent; border: none; border-radius: 8px; padding: 8px; min-width: 40px; min-height: 40px; color: #c0caf5; }
+.icon-button:hover { background: alpha(#c0caf5, 0.08); }
+.letter-header { font-size: 14px; font-weight: 600; color: #7aa2f7; padding: 8px 12px 4px; }
+scrollbar slider { background: alpha(#c0caf5, 0.2); border-radius: 4px; min-width: 8px; }
+scrollbar slider:hover { background: alpha(#c0caf5, 0.3); }
+popover { background: alpha(#1a1b26, 0.95); border: 1px solid alpha(#7aa2f7, 0.3); border-radius: 12px; padding: 6px; }
+popover button { background: transparent; border: none; border-radius: 8px; padding: 8px 12px; color: #c0caf5; }
+popover button:hover { background: alpha(#7aa2f7, 0.15); }

@@ -42,11 +42,11 @@ columns = 70
 lines = 17
 
 [window.padding]
-x = 70
-y = 70
+x = 40
+y = 40
 
 # ----- Font -----
 
 [font]
-size = 10.0
+size = 14.0
 

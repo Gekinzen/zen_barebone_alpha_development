@@ -15,7 +15,7 @@ FEATURES:
 - Reset defaults functionality
 
 ═══════════════════════════════════════════════════════════════════════════════
-CRITICAL FEATURES (v2.3):
+CRITICAL FEATURES (v2.4):
 ═══════════════════════════════════════════════════════════════════════════════
 - DYNAMIC PATHS: All paths use Path.home() - works for any user!
 - SAFE JSON PARSING: update_workspace_format() uses dict access, NOT regex
@@ -24,6 +24,8 @@ CRITICAL FEATURES (v2.3):
 - DISPLAY/OUTPUT: Reads monitors from hypr/monitors.conf (nwg-displays)
   → "All Monitors" removes "output" field from config.jsonc
   → Specific monitor adds "output": "DP-2" at end of root JSON object
+- CONFIG IS IPC: panel_widget.py reads config.jsonc FRESH every launch,
+  so all changes made here auto-apply on next panel open — no restart needed
 ═══════════════════════════════════════════════════════════════════════════════
 """
 import gi
@@ -1353,7 +1355,12 @@ def build_waybar_section_for_expander(window) -> Gtk.Widget:
 
 
 def build_waybar_section(window) -> Gtk.Box:
-    """Build the complete Waybar configuration section"""
+    """Build the complete Waybar configuration section
+    
+    All changes made here are written to ~/.config/waybar/config.jsonc.
+    panel_widget.py reads that file FRESH on every launch, so changes
+    auto-apply on next panel open — no restart needed.
+    """
     main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
     main_box.set_margin_start(16)
     main_box.set_margin_end(16)
@@ -2062,10 +2069,16 @@ def build_waybar_section(window) -> Gtk.Box:
     info_box.append(user_label)
     
     safe_label = Gtk.Label()
-    safe_label.set_markup("✅ <small>v2.3: Safe JSON parsing + Dynamic paths + Clock Format + Monitor Output</small>")
+    safe_label.set_markup("✅ <small>v2.4: Safe JSON parsing + Dynamic paths + Clock Format + Monitor Output</small>")
     safe_label.add_css_class("dim-label")
     safe_label.set_xalign(0)
     info_box.append(safe_label)
+    
+    ipc_label = Gtk.Label()
+    ipc_label.set_markup("🔄 <small>Config is IPC: panel_widget.py reads config.jsonc fresh every launch</small>")
+    ipc_label.add_css_class("dim-label")
+    ipc_label.set_xalign(0)
+    info_box.append(ipc_label)
     
     path_label = Gtk.Label()
     path_label.set_markup(f"<small><tt>Config: {WAYBAR_CONFIG}</tt></small>")

@@ -1,19 +1,35 @@
 {
   "widgets": {
     "clock": {
-      "x": 0,
-      "y": 72,
-      "enabled": true
+      "x": 28,
+      "y": 23,
+      "enabled": true,
+      "format_24h": true
     },
     "system_monitor": {
-      "x": 3055,
-      "y": 330,
+      "x": 3048,
+      "y": 290,
       "enabled": true
     },
     "weather": {
-      "x": 2977,
-      "y": 81,
-      "enabled": true
+      "x": 3014,
+      "y": 45,
+      "enabled": true,
+      "location": "manual",
+      "location_name": "Antipolo"
+    },
+    "clock_secondary": {
+      "enabled": false,
+      "x": 100,
+      "y": 250,
+      "timezone": "Asia/Manila",
+      "format_24h": true
     }
+  },
+  "detected_location": {
+    "city": "Marikina City",
+    "region": "Metro Manila",
+    "lat": 14.6376,
+    "lon": 121.1165
   }
 }

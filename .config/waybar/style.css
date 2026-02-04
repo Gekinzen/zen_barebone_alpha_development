@@ -1,10 +1,10 @@
-/* Waybar Style: Classic - Generated 2026-02-02 10:09 */
+/* Waybar Style: Classic - Generated 2026-02-04 10:05 */
 /* User: paul | Home: /home/paul */
-@import '../hypr/colorscheme/nord.css';
+@import '../hypr/colorscheme/tokyo-night.css';
 
 * {
     font-family: "Adwaita Sans", "JetBrainsMono Nerd Font Propo", sans-serif;
-    font-size: 15px;
+    font-size: 20px;
     font-weight: bold;
     min-height: 0;
     border: none;
@@ -141,7 +141,7 @@ tooltip label {
 }
 
 #workspaces button.active {
-    min-width: 50px;
+    min-width: 65px;
     background-color: @blue;
 }
 
@@ -208,7 +208,7 @@ tooltip label {
 }
 
 #custom-music {
-    font-size: 14px;
+    font-size: 19px;
 }
 
 #custom-music:hover {

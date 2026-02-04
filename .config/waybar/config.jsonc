@@ -297,7 +297,7 @@
     },
     "custom/start-menu": {
         "format": "  ",
-        "tooltip": true,
+        "tooltip": false,
         "on-click": "/home/paul/.config/hypr-control-center/scripts/start-menu-toggle.sh",
         "on-click-right": "/home/paul/.config/hypr-control-center/scripts/start-menu-toggle.sh close"
     },
