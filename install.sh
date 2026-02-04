@@ -3,6 +3,7 @@ set -e
 
 # ===============================
 # Hyprland Control Center Installer
+# With Smart Config Backup
 # ===============================
 
 # ---------- Colors ----------
@@ -30,17 +31,15 @@ echo -e "${CYAN}🚀 Hyprland Control Center Installer${NC}"
 echo "======================================"
 echo ""
 
-# ---------- Detect Distro ----------
+# ===============================
+# Detect OS
+# ===============================
 if [[ -f /etc/os-release ]]; then
     . /etc/os-release
 else
     echo -e "${RED}❌ Cannot detect OS${NC}"
     exit 1
 fi
-
-DISTRO=""
-PKG_INSTALL=""
-AUR_INSTALL=""
 
 case "$ID" in
     arch|endeavouros|cachyos)
@@ -60,7 +59,55 @@ esac
 echo -e "${GREEN}✅ Detected distro: $NAME${NC}"
 echo ""
 
-# ---------- Base deps ----------
+# ===============================
+# SMART CONFIG BACKUP
+# ===============================
+BACKUP_ROOT="$HOME/.config/zen-backups"
+TIMESTAMP="$(date +'%Y-%m-%d_%H-%M-%S')"
+BACKUP_DIR="$BACKUP_ROOT/backup_$TIMESTAMP"
+
+CONFIG_TARGETS=(
+    "hypr"
+    "waybar"
+    "kitty"
+    "swaync"
+    "rofi"
+    "zen"
+)
+
+echo -e "${CYAN}🧠 Checking existing user configuration...${NC}"
+
+FOUND_EXISTING=false
+for cfg in "${CONFIG_TARGETS[@]}"; do
+    [[ -d "$HOME/.config/$cfg" ]] && FOUND_EXISTING=true
+done
+
+if [[ "$FOUND_EXISTING" == true ]]; then
+    echo -e "${YELLOW}⚠️ Existing config detected — creating backup${NC}"
+    mkdir -p "$BACKUP_DIR"
+
+    for cfg in "${CONFIG_TARGETS[@]}"; do
+        if [[ -d "$HOME/.config/$cfg" ]]; then
+            echo -e "  ${GREEN}✓${NC} Backing up $cfg"
+            cp -a "$HOME/.config/$cfg" "$BACKUP_DIR/"
+        fi
+    done
+
+    # Backup Waybar cache
+    if [[ -d "$HOME/.cache/waybar" ]]; then
+        mkdir -p "$BACKUP_DIR/.cache"
+        cp -a "$HOME/.cache/waybar" "$BACKUP_DIR/.cache/"
+    fi
+
+    echo -e "${GREEN}✅ Backup saved to:${NC} $BACKUP_DIR"
+    echo ""
+else
+    echo -e "${GREEN}✓ Fresh install detected (no backup needed)${NC}"
+fi
+
+# ===============================
+# Base Dependencies
+# ===============================
 echo -e "${BLUE}📦 Installing base dependencies...${NC}"
 if [[ "$DISTRO" == "arch" ]]; then
     $PKG_INSTALL git base-devel
@@ -68,99 +115,89 @@ else
     $PKG_INSTALL git curl
 fi
 
-# ---------- yay (Arch only) ----------
-if [[ "$DISTRO" == "arch" ]]; then
-    if ! command -v yay &>/dev/null; then
-        echo -e "${BLUE}📦 Installing yay...${NC}"
-        git clone https://aur.archlinux.org/yay.git /tmp/yay
-        (cd /tmp/yay && makepkg -si --noconfirm)
-        rm -rf /tmp/yay
-    else
-        echo -e "${GREEN}✅ yay already installed${NC}"
-    fi
+# ===============================
+# yay (Arch)
+# ===============================
+if [[ "$DISTRO" == "arch" ]] && ! command -v yay &>/dev/null; then
+    echo -e "${BLUE}📦 Installing yay...${NC}"
+    git clone https://aur.archlinux.org/yay.git /tmp/yay
+    (cd /tmp/yay && makepkg -si --noconfirm)
+    rm -rf /tmp/yay
 fi
 
-# ---------- Hyprland ----------
+# ===============================
+# Hyprland
+# ===============================
 if ! command -v Hyprland &>/dev/null; then
     echo -e "${BLUE}📦 Installing Hyprland...${NC}"
-    if [[ "$DISTRO" == "arch" ]]; then
-        yay -S --needed --noconfirm hyprland xdg-desktop-portal-hyprland
-    else
-        $PKG_INSTALL hyprland xdg-desktop-portal-hyprland
-    fi
+    [[ "$DISTRO" == "arch" ]] && yay -S --needed --noconfirm hyprland xdg-desktop-portal-hyprland \
+                             || $PKG_INSTALL hyprland xdg-desktop-portal-hyprland
 else
-    echo -e "${GREEN}✅ Hyprland already installed${NC}"
+    echo -e "${GREEN}✓ Hyprland already installed${NC}"
 fi
 
-# ---------- Desktop packages (skip if headless) ----------
+# ===============================
+# Desktop Packages
+# ===============================
 if [[ "$HEADLESS" == false ]]; then
-    echo ""
     echo -e "${PURPLE}📦 Desktop packages${NC}"
-
     if [[ "$DISTRO" == "arch" ]]; then
         yay -S --needed --noconfirm \
             swww waybar swaync rofi wofi kitty \
             grim slurp wl-clipboard cliphist \
             nwg-look adw-gtk-theme \
-            ttf-jetbrains-mono-nerd noto-fonts-emoji
+            ttf-jetbrains-mono-nerd \
+            ttf-geist-mono-nerd \
+            noto-fonts-emoji
     else
-        $PKG_INSTALL \
-            swww waybar swaync rofi kitty \
-            grim slurp wl-clipboard \
-            adw-gtk3-theme
+        $PKG_INSTALL swww waybar swaync rofi kitty grim slurp wl-clipboard adw-gtk3-theme
     fi
 else
     echo -e "${YELLOW}⚠️ Headless mode enabled — skipping UI packages${NC}"
 fi
 
-# ---------- Control Center deps ----------
-echo ""
+# ===============================
+# Python / GTK / Control Center deps
+# ===============================
 echo -e "${PURPLE}📦 Control Center dependencies${NC}"
-
 if [[ "$DISTRO" == "arch" ]]; then
-    $PKG_INSTALL python python-pip python-gobject gtk4 libadwaita
-    pip install --break-system-packages pillow
+    $PKG_INSTALL python python-pip python-gobject gtk4 libadwaita python-pytz
+    pip install --break-system-packages pillow psutil
 else
     $PKG_INSTALL python3 python3-pip python3-gobject gtk4 libadwaita
-    pip3 install pillow
+    pip3 install pillow psutil
 fi
 
-# ---------- User directories ----------
-echo ""
+# ===============================
+# User directories
+# ===============================
 echo -e "${BLUE}📁 Creating directories...${NC}"
-mkdir -p "$HOME/wallpapers"
-mkdir -p "$HOME/.config/hypr/scripts"
-mkdir -p "$HOME/.config/systemd/user"
+mkdir -p \
+    "$HOME/wallpapers" \
+    "$HOME/.local/bin" \
+    "$HOME/.config/hypr/scripts" \
+    "$HOME/.config/systemd/user"
 
-# ---------- Fix ~/.config ownership ----------
-echo ""
-echo -e "${BLUE}🛠️ Fixing ~/.config ownership...${NC}"
-if [ "$(stat -c '%U' "$HOME/.config")" != "$USER" ]; then
-    echo -e "${YELLOW}⚠️ ~/.config owned by $(stat -c '%U'), fixing...${NC}"
+# ===============================
+# Ownership fix
+# ===============================
+if [[ "$(stat -c '%U' "$HOME/.config")" != "$USER" ]]; then
     sudo chown -R "$USER:$USER" "$HOME/.config"
-else
-    echo -e "${GREEN}✅ ~/.config ownership OK${NC}"
 fi
 
-ls -ld "$HOME/.config" \
-       "$HOME/.config/systemd" \
-       "$HOME/.config/systemd/user"
+# ===============================
+# Wallpaper Slideshow Service
+# ===============================
+SERVICE="$HOME/.config/systemd/user/hypr-wallpaper-slideshow.service"
 
-# ---------- Install wallpaper daemon ----------
-echo ""
-echo -e "${BLUE}🖼️ Installing wallpaper slideshow service...${NC}"
-
-SERVICE_FILE="$HOME/.config/systemd/user/hypr-wallpaper-slideshow.service"
-
-cat > "$SERVICE_FILE" <<EOF
+cat > "$SERVICE" <<EOF
 [Unit]
-Description=Hyprland Wallpaper Slideshow (swww)
+Description=Hyprland Wallpaper Slideshow
 After=graphical-session.target
 
 [Service]
 ExecStart=%h/.config/hypr/scripts/wallpaper-slideshow.sh
 Restart=always
-RestartSec=2
 
 [Install]
 WantedBy=default.target
@@ -169,19 +206,20 @@ EOF
 systemctl --user daemon-reload
 systemctl --user enable hypr-wallpaper-slideshow.service
 
-echo -e "${GREEN}✅ User service installed${NC}"
-
-# ---------- Summary ----------
+# ===============================
+# Summary
+# ===============================
 echo ""
 echo -e "${PURPLE}════════════════════════════════════${NC}"
 echo -e "${PURPLE} INSTALLATION COMPLETE${NC}"
 echo -e "${PURPLE}════════════════════════════════════${NC}"
 echo ""
-echo -e "${GREEN}✅ Distro supported: $NAME${NC}"
+[[ "$FOUND_EXISTING" == true ]] && echo -e "${CYAN}📦 Backup created:${NC} $BACKUP_DIR"
 [[ "$HEADLESS" == true ]] && echo -e "${YELLOW}⚠️ Headless mode used${NC}"
-echo -e "${CYAN}Next:${NC}"
-echo "  • Reboot"
-echo "  • Login to Hyprland"
-echo "  • Run: hypr-control-center"
 echo ""
 echo -e "${GREEN}🎉 Done.${NC}"
+echo "Next:"
+echo "  • Reboot"
+echo "  • Login to Hyprland"
+echo "  • Run your control center"
+echo ""
