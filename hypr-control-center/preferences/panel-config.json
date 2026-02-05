@@ -1,9 +1,0 @@
-{
-    "margin_left": 500,
-    "margin_right": 300,
-    "module_widths": {
-        "hyprland/workspaces": 250,
-        "hyprland/window": 300,
-        "clock": 150
-    }
-}
