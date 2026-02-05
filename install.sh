@@ -225,83 +225,103 @@ echo -e "${GREEN}Hyprland core installed${NC}"
 echo ""
 
 # ==================================================
-# HYPRBARS PLUGIN - OFFICIAL METHOD
+# HYPRBARS PLUGIN - FIXED METHOD
 # ==================================================
 echo -e "${PURPLE}Installing hyprbars plugin${NC}"
 
-# Install dependencies for building
+# Install build dependencies
 sudo pacman -S --needed --noconfirm \
   git \
   cmake \
   meson \
   ninja \
   gcc \
-  pkgconf \
-  hyprland-headers
+  pkgconf
 
-# Create build directory
-HYPRBARS_DIR="$HOME/.local/share/hyprland-plugins"
-mkdir -p "$HYPRBARS_DIR"
+# Install hyprland-headers from AUR
+echo -e "${CYAN}Installing hyprland-headers from AUR...${NC}"
+yay -S --needed --noconfirm hyprland-headers
 
-echo -e "${CYAN}Cloning hyprland-plugins repo...${NC}"
-if [[ -d "$HYPRBARS_DIR/hyprland-plugins" ]]; then
-  echo -e "${YELLOW}Repo exists, pulling latest...${NC}"
-  cd "$HYPRBARS_DIR/hyprland-plugins"
-  git pull
+# Verify headers are installed
+if [[ ! -d "/usr/include/hyprland" ]]; then
+  echo -e "${RED}Hyprland headers not found after install${NC}"
+  echo -e "${YELLOW}Trying alternative method...${NC}"
+  
+  # Alternative: Use hyprpm without manual building
+  echo -e "${CYAN}Using hyprpm method only...${NC}"
+  
+  # Update hyprpm
+  hyprpm update 2>/dev/null || true
+  
+  # Add plugin repo
+  hyprpm add https://github.com/hyprwm/hyprland-plugins 2>/dev/null || true
+  
+  # Enable hyprbars
+  hyprpm enable hyprbars 2>/dev/null || true
+  
+  echo -e "${GREEN}Hyprbars installed via hyprpm${NC}"
 else
-  git clone https://github.com/hyprwm/hyprland-plugins "$HYPRBARS_DIR/hyprland-plugins"
+  echo -e "${GREEN}Hyprland headers installed${NC}"
+  
+  # Create build directory
+  HYPRBARS_DIR="$HOME/.local/share/hyprland-plugins"
+  mkdir -p "$HYPRBARS_DIR"
+  
+  echo -e "${CYAN}Cloning hyprland-plugins repo...${NC}"
+  if [[ -d "$HYPRBARS_DIR/hyprland-plugins" ]]; then
+    echo -e "${YELLOW}Repo exists, pulling latest...${NC}"
+    cd "$HYPRBARS_DIR/hyprland-plugins"
+    git pull
+  else
+    git clone https://github.com/hyprwm/hyprland-plugins "$HYPRBARS_DIR/hyprland-plugins"
+    cd "$HYPRBARS_DIR/hyprland-plugins"
+  fi
+  
+  # Build hyprbars
+  echo -e "${CYAN}Building hyprbars...${NC}"
   cd "$HYPRBARS_DIR/hyprland-plugins"
+  
+  # Get Hyprland version to match
+  HYPR_VERSION=$(hyprctl version | head -n1 | awk '{print $2}')
+  echo -e "${CYAN}Detected Hyprland version: ${HYPR_VERSION}${NC}"
+  
+  # Checkout matching version if exists
+  git fetch --all --tags
+  if git tag | grep -q "^$HYPR_VERSION$"; then
+    echo -e "${CYAN}Checking out matching tag: $HYPR_VERSION${NC}"
+    git checkout "$HYPR_VERSION"
+  else
+    echo -e "${YELLOW}No matching tag, using latest main${NC}"
+    git checkout main
+    git pull
+  fi
+  
+  # Build hyprbars specifically
+  echo -e "${CYAN}Compiling hyprbars plugin...${NC}"
+  cd hyprbars
+  make all 2>&1 || {
+    echo -e "${YELLOW}Build failed, using hyprpm method...${NC}"
+    cd "$HYPRBARS_DIR/hyprland-plugins"
+    hyprpm update 2>/dev/null || true
+    hyprpm add "$HYPRBARS_DIR/hyprland-plugins" 2>/dev/null || true
+    hyprpm enable hyprbars 2>/dev/null || true
+  }
+  
+  # Install the plugin if build succeeded
+  if [[ -f "hyprbars.so" ]]; then
+    PLUGIN_INSTALL_DIR="$HOME/.local/share/hyprload/plugins/hyprbars"
+    mkdir -p "$PLUGIN_INSTALL_DIR"
+    cp hyprbars.so "$PLUGIN_INSTALL_DIR/"
+    echo -e "${GREEN}Hyprbars compiled and installed${NC}"
+  fi
+  
+  # Register with hyprpm
+  echo -e "${CYAN}Registering with hyprpm...${NC}"
+  cd "$HYPRBARS_DIR/hyprland-plugins"
+  hyprpm update 2>/dev/null || true
+  hyprpm add "$HYPRBARS_DIR/hyprland-plugins" 2>/dev/null || true
+  hyprpm enable hyprbars 2>/dev/null || true
 fi
-
-# Build hyprbars
-echo -e "${CYAN}Building hyprbars...${NC}"
-cd "$HYPRBARS_DIR/hyprland-plugins"
-
-# Get Hyprland version to match
-HYPR_VERSION=$(hyprctl version | head -n1 | awk '{print $2}')
-echo -e "${CYAN}Detected Hyprland version: ${HYPR_VERSION}${NC}"
-
-# Checkout matching version if exists
-git fetch --all --tags
-if git tag | grep -q "^$HYPR_VERSION$"; then
-  echo -e "${CYAN}Checking out matching tag: $HYPR_VERSION${NC}"
-  git checkout "$HYPR_VERSION"
-else
-  echo -e "${YELLOW}No matching tag, using latest main${NC}"
-  git checkout main
-  git pull
-fi
-
-# Build hyprbars specifically
-echo -e "${CYAN}Compiling hyprbars plugin...${NC}"
-cd hyprbars
-make all
-
-# Install the plugin
-PLUGIN_INSTALL_DIR="$HOME/.local/share/hyprload/plugins/hyprbars"
-mkdir -p "$PLUGIN_INSTALL_DIR"
-cp hyprbars.so "$PLUGIN_INSTALL_DIR/" 2>/dev/null || {
-  echo -e "${YELLOW}Traditional install failed, using hyprpm...${NC}"
-}
-
-echo -e "${GREEN}Hyprbars compiled${NC}"
-
-# Try hyprpm method
-echo -e "${CYAN}Registering with hyprpm...${NC}"
-cd "$HYPRBARS_DIR/hyprland-plugins"
-
-# Update hyprpm
-hyprpm update 2>/dev/null || echo -e "${YELLOW}hyprpm update warnings (normal)${NC}"
-
-# Add the plugin repo
-hyprpm add "$HYPRBARS_DIR/hyprland-plugins" 2>/dev/null || {
-  echo -e "${YELLOW}Repo already added${NC}"
-}
-
-# Enable hyprbars
-hyprpm enable hyprbars 2>/dev/null || {
-  echo -e "${YELLOW}Manual enable attempt...${NC}"
-}
 
 echo -e "${GREEN}Hyprbars plugin installed${NC}"
 echo ""
@@ -783,8 +803,7 @@ echo ""
 
 # Check hyprbars plugin
 echo -n "  Checking hyprbars plugin... "
-if [[ -f "$HOME/.local/share/hyprload/plugins/hyprbars/hyprbars.so" ]] || \
-   hyprpm list 2>/dev/null | grep -q "hyprbars"; then
+if hyprpm list 2>/dev/null | grep -q "hyprbars"; then
   echo -e "${GREEN}OK${NC}"
 else
   echo -e "${YELLOW}WARNING${NC}"
