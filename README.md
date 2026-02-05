@@ -26,109 +26,160 @@
 
 ---
 
+## 📺 Video Showcase
+
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=QR6xMcTzfYA">
+    <img src="https://img.shields.io/badge/YouTube-Watch_Full_Demo-FF0000?logo=youtube&logoColor=white&style=for-the-badge" alt="YouTube Demo"/>
+  </a>
+</p>
+
+<p align="center">
+  <i>Watch the complete walkthrough, installation guide, and feature showcase!</i>
+</p>
+
+---
+
+## ⚠️ Important Notice
+
+> **🚧 CURRENTLY IN ALPHA DEVELOPMENT**
+> 
+> This project is actively being developed and refined. While the core functionality is stable and usable, you may encounter occasional bugs, breaking changes between updates, or features that are still being polished. Your feedback and patience are greatly appreciated!
+
+### 💬 Community & Support
+
+Found an issue? Have questions? Want to share your setup?
+
+<p align="center">
+  <a href="https://github.com/Gekinzen/zen_barebone_alpha_development/issues">
+    <img src="https://img.shields.io/badge/GitHub-Report_Issue-181717?logo=github&style=for-the-badge" alt="GitHub Issues"/>
+  </a>
+  <a href="https://discord.gg/7v7zfyr2">
+    <img src="https://img.shields.io/badge/Discord-Join_Community-5865F2?logo=discord&logoColor=white&style=for-the-badge" alt="Discord"/>
+  </a>
+</p>
+
+- **🐛 Bug Reports**: [Open an issue on GitHub](https://github.com/Gekinzen/zen_barebone_alpha_development/issues)
+- **💡 Feature Requests**: Share your ideas in Issues or Discord
+- **🤝 General Help**: Join our Discord server for real-time support
+- **📸 Showcase**: Post your customized setups in the Discord community!
+
+### 🎨 Share Your Creativity!
+
+One of the best features of Zen Barebone is the ability to create and share custom themes:
+
+✨ **Create unique themes** using the built-in Theme Switcher  
+📤 **Export your designs** as portable JSON files (one click!)  
+🤝 **Share with friends** or the wider community  
+🎭 **Show off your style** by posting screenshots on Discord  
+🔄 **Contribute back** by submitting your themes via pull requests  
+
+> 💡 **Pro Tip**: Custom theme presets are fully portable and easy to distribute. They're the perfect way to showcase your personal aesthetic or help others discover eye-catching configurations. Every export includes all color schemes, fonts, and styling—ready to import and use instantly!
+
+---
+
 ## Overview
 
-This is my personal Hyprland/Arch Linux dotfiles setup that I've been developing since December 2024. What started as a way to streamline my daily workflow for work and gaming has evolved into a comprehensive desktop environment with custom-built GUI tools, unified theming, and sane defaults.
+Zen Barebone Alpha is my personal Hyprland/Arch Linux desktop environment that I've been crafting since December 2024. What began as a simple workflow optimization for work and gaming has evolved into a comprehensive desktop ecosystem featuring custom-built GUI applications, unified theming architecture, and carefully tuned defaults.
 
-The focus is on **clean UI**, **performance**, and **making things work out of the box**. No bloat, no unnecessary complexity—just what I need for productive work and comfortable gaming.
+The philosophy centers on three core principles: **clean aesthetics**, **optimal performance**, and **plug-and-play functionality**. No unnecessary bloat, no overwhelming complexity—just a polished, efficient environment for productive work and immersive gaming.
 
 ---
 
 ## Features
 
 ### 🎛️ Hyprland Control Center
-A custom GTK4/Libadwaita settings application for managing your Hyprland desktop.
+A sophisticated GTK4/Libadwaita settings application providing centralized management of your Hyprland desktop environment.
 
 | Module | Description |
 |--------|-------------|
-| **Appearance** | General look and feel, gaps, borders, rounding |
-| **Panel** | Waybar configuration with drag-drop module management |
-| **Theming** | Global theming for Waybar, Rofi, Kitty, SwayNC, Hyprbars |
-| **Wallpaper** | SWWW integration with slideshow, pagination, folder browser |
-| **Workspaces** | Workspace behavior, persistent workspaces, icons |
-| **Widgets** | Desktop widgets management (clock, weather, system monitor) |
-| **Plugins** | Hyprpm plugin manager (Hyprbars, Hyprspace, etc.) |
-| **Animations** | Bezier curves, window animations, workspace transitions |
-| **Input Devices** | Keyboard, mouse, touchpad settings |
-| **Displays** | Monitor configuration, scaling, rotation |
-| **Keybinds** | Keyboard shortcuts management |
+| **Appearance** | Visual customization: gaps, borders, rounding, shadows |
+| **Panel** | Waybar module manager with intuitive drag-and-drop configuration |
+| **Theming** | Unified theme engine for Waybar, Rofi, Kitty, SwayNC, Hyprbars |
+| **Wallpaper** | SWWW integration with slideshow automation, pagination, folder browser |
+| **Workspaces** | Workspace behavior settings, persistent workspace configuration, custom icons |
+| **Widgets** | Desktop widget management (clock, weather, system monitor) |
+| **Plugins** | Hyprpm plugin manager (Hyprbars, Hyprspace, and more) |
+| **Animations** | Bezier curve editor, window animation controls, workspace transitions |
+| **Input Devices** | Keyboard, mouse, and touchpad configuration |
+| **Displays** | Monitor setup, scaling, rotation, positioning |
+| **Keybinds** | Comprehensive keyboard shortcut management |
 
 ### 🎨 Unified Theming System (13+ Themes)
-One-click theme switching across all applications:
-- **Waybar** - Custom color variables and detailed styling
-- **Rofi** - Matching launcher theme with direct color definitions
-- **Kitty** - Terminal colors (16-color palette)
-- **Start Menu** - Windows 11-style launcher with full theming
-- **Hyprbars** - Window decoration colors
+Seamless one-click theme switching across your entire desktop environment:
+- **Waybar** - Statusbar with custom color variables and detailed styling
+- **Rofi** - Application launcher with matching color definitions
+- **Kitty** - Terminal emulator with complete 16-color palettes
+- **Start Menu** - Windows 11-inspired launcher with full theme integration
+- **Hyprbars** - Window titlebar decoration colors
 - **SwayNC** - Notification center styling
-- **Desktop Widgets** - Clock, weather, system monitor
-- **Control Center** - Self-theming GTK4 app
+- **Desktop Widgets** - Clock, weather, and system monitor theming
+- **Control Center** - Self-theming GTK4 application interface
 
 ### 🖥️ Desktop Widgets
-GTK4 Layer Shell widgets that live on your desktop (behind all windows):
-- **Clock Widget** - Customizable time/date with dual timezone support
-- **Weather Widget** - Current conditions and 7-day forecast (auto-location detection)
-- **System Monitor** - CPU, GPU, RAM, and network stats with live graphs
-- **Draggable** - Click and drag to reposition, positions auto-saved
+Beautiful GTK4 Layer Shell widgets that integrate seamlessly with your desktop (positioned behind all windows):
+- **Clock Widget** - Customizable time/date display with dual timezone support
+- **Weather Widget** - Real-time conditions and 7-day forecast with automatic location detection
+- **System Monitor** - Live CPU, GPU, RAM, and network statistics with animated graphs
+- **Draggable Interface** - Click and drag to reposition anywhere, positions automatically saved
 
 ### 🎮 Start Menu
-Windows 11-style application launcher:
-- **Optimized Daemon** - Preload system for instant response (<100ms)
-- **Grid/List View** - Toggle between tile and list layouts
-- **Search** - Fast application search
-- **Themed** - Syncs with global theme system
-- **Power Menu** - Shutdown, restart, logout options
+Modern Windows 11-style application launcher with performance optimization:
+- **Daemon-based Preload** - Instant response times under 100ms
+- **Dual View Modes** - Toggle between grid tiles and compact list layouts
+- **Fast Search** - Real-time application filtering and search
+- **Theme Synchronized** - Automatically matches your global color scheme
+- **Integrated Power Menu** - Quick access to shutdown, restart, and logout
 
 ### 🔌 Plugin Management
-Hyprpm integration for Hyprland plugins:
-- **Hyprbars** - Window title bars with theming
-- **Hyprspace** - Workspace overview (MOD+TAB)
-- **One-click enable/disable** from Control Center
+Native Hyprpm integration for enhanced Hyprland functionality:
+- **Hyprbars** - Customizable window titlebars with theme support
+- **Hyprspace** - Workspace overview (accessible via MOD+TAB)
+- **One-Click Control** - Enable/disable plugins directly from Control Center
 
 ---
 
 ## Installation
 
 ### Prerequisites
-
 ```bash
-# Base packages
+# Core desktop environment packages
 sudo pacman -S hyprland waybar rofi kitty swaync
 
-# GTK4/Libadwaita development
+# GTK4/Libadwaita development libraries
 sudo pacman -S gtk4 libadwaita python-gobject gtk4-layer-shell
 
-# Utilities
+# Essential utilities
 sudo pacman -S jq playerctl pamixer brightnessctl
 
-# Fonts (pick your preferred Nerd Font)
+# Fonts (choose your preferred Nerd Font variant)
 yay -S ttf-jetbrains-mono-nerd
 ```
 
-### Quick Install
-
+### Quick Install (Recommended)
 ```bash
-# Clone the repository
+# Clone the repository to your home directory
 git clone https://github.com/Gekinzen/zen_barebone_alpha_development.git ~/Dotfiles
 
-# Run the installer
+# Navigate to the project directory
 cd ~/Dotfiles/zen_barebone_alpha_development
+
+# Run the automated installer
 ./install.sh
 ```
 
 ### Manual Installation
-
 ```bash
-# Copy configurations
+# Copy configuration files to their respective locations
 cp -r hypr ~/.config/
 cp -r waybar ~/.config/
 cp -r rofi ~/.config/
 cp -r kitty ~/.config/
 
-# Install Control Center
+# Install the Hyprland Control Center
 cp -r hyprland-control-center ~/.config/hypr-control-center
 
-# Set up widgets
+# Set up desktop widgets
 mkdir -p ~/.config/hypr-control-center/widgets
 cp widgets/* ~/.config/hypr-control-center/widgets/
 ```
@@ -138,49 +189,48 @@ cp widgets/* ~/.config/hypr-control-center/widgets/
 ## Components
 
 ### Directory Structure
-
 ```
 zen_barebone_alpha_development/
 ├── hypr/
-│   ├── hyprland.conf           # Main config (sources modules)
+│   ├── hyprland.conf           # Main configuration file (sources modules)
 │   ├── modules/
-│   │   ├── animations.conf     # Animation settings
-│   │   ├── keybinds.conf       # Keyboard shortcuts
-│   │   ├── windowrules.conf    # Window rules
-│   │   └── look_and_feel.conf  # Appearance settings
+│   │   ├── animations.conf     # Animation settings and bezier curves
+│   │   ├── keybinds.conf       # Keyboard shortcuts and bindings
+│   │   ├── windowrules.conf    # Window-specific rules and behaviors
+│   │   └── look_and_feel.conf  # Visual appearance settings
 │   ├── scripts/
-│   │   ├── start-widgets.sh    # Desktop widget launcher
+│   │   ├── start-widgets.sh    # Desktop widget launcher script
 │   │   └── ...
-│   └── colorscheme/            # Generated theme files
+│   └── colorscheme/            # Generated theme color files
 ├── waybar/
-│   ├── config.jsonc            # Waybar configuration
+│   ├── config.jsonc            # Waybar module configuration
 │   ├── style.css               # Main stylesheet
-│   └── colors/                 # Theme color files
+│   └── colors/                 # Theme-specific color definitions
 ├── rofi/
 │   ├── config.rasi
-│   └── shared/colors.rasi      # Theme colors
+│   └── shared/colors.rasi      # Theme color variables
 ├── kitty/
 │   ├── kitty.conf
-│   └── theme.conf              # Theme colors
+│   └── theme.conf              # Terminal color scheme
 ├── hyprland-control-center/
-│   ├── main.py                 # Entry point
+│   ├── main.py                 # Application entry point
 │   ├── src/
-│   │   ├── pages/              # Settings pages
-│   │   ├── theme_manager.py    # Theming engine
+│   │   ├── pages/              # Settings page modules
+│   │   ├── theme_manager.py    # Theme engine and synchronization
 │   │   └── ...
-│   └── widgets/                # Desktop widgets
+│   └── widgets/                # Desktop widget implementations
 └── assets/
-    └── icons/                  # Custom icons
+    └── icons/                  # Custom iconography
 ```
 
 ### Key Configuration Files
 
 | File | Purpose |
 |------|---------|
-| `hypr/hyprland.conf` | Main Hyprland configuration |
-| `waybar/config.jsonc` | Status bar modules and layout |
-| `~/.config/hypr-control-center/preferences/` | Control Center settings (JSON) |
-| `~/.config/hypr-control-center/theme.json` | Active theme configuration |
+| `hypr/hyprland.conf` | Main Hyprland compositor configuration |
+| `waybar/config.jsonc` | Status bar module layout and settings |
+| `~/.config/hypr-control-center/preferences/` | Control Center user preferences (JSON format) |
+| `~/.config/hypr-control-center/theme.json` | Active theme configuration and colors |
 
 ---
 
@@ -188,39 +238,38 @@ zen_barebone_alpha_development/
 
 ### Built-in Themes
 
-| Theme | Description | Accent |
-|-------|-------------|--------|
-| **One Dark** | Atom's iconic dark theme | Blue |
-| **Gruvbox Dark** | Retro groove colors | Yellow |
-| **Nord** | Arctic, north-bluish palette | Frost Blue |
-| **Tokyo Night Storm** | Futuristic Tokyo aesthetic | Purple |
-| **Catppuccin Mocha** | Soothing pastel theme | Mauve |
-| **Everforest Dark** | Nature-inspired greens | Green |
-| **Dracula** | Famous dark theme | Purple |
-| **Solarized Dark** | Ethan Schoonover's classic | Blue |
-| **Cyberpunk** | Neon futuristic | Pink/Cyan |
-| **Arc** | Modern flat design | Blue |
-| **Adapta** | Material Design inspired | Teal |
-| **Paper** | Light, clean aesthetic | Blue |
-| **Yousai** | Elegant light theme | Purple |
+| Theme | Description | Accent Color |
+|-------|-------------|--------------|
+| **One Dark** | Atom's iconic dark color scheme | Blue |
+| **Gruvbox Dark** | Retro-inspired warm palette | Yellow |
+| **Nord** | Arctic, north-bluish aesthetic | Frost Blue |
+| **Tokyo Night Storm** | Futuristic Tokyo-inspired dark theme | Purple |
+| **Catppuccin Mocha** | Soothing pastel color palette | Mauve |
+| **Everforest Dark** | Nature-inspired green tones | Green |
+| **Dracula** | Popular vibrant dark theme | Purple |
+| **Solarized Dark** | Ethan Schoonover's precision colors | Blue |
+| **Cyberpunk** | Neon-infused futuristic aesthetic | Pink/Cyan |
+| **Arc** | Modern flat design language | Blue |
+| **Adapta** | Material Design influenced | Teal |
+| **Paper** | Light, minimalist aesthetic | Blue |
+| **Yousai** | Elegant light theme variant | Purple |
 
 ### Creating Custom Themes
 
-1. Open Control Center → **Theme Switcher**
-2. Select a base theme
-3. Customize colors, fonts, and styling
-4. Click **Save As Custom**
-5. Give your theme a name
+1. Launch Control Center → Navigate to **Theme Switcher**
+2. Select a base theme as your starting point
+3. Customize colors, typography, and visual elements
+4. Click **Save As Custom** to preserve your creation
+5. Assign a memorable name to your theme
 
-### Export & Share Presets
+### Export & Share Custom Presets
 
-Your custom themes can be exported as JSON files and shared with others:
-
+Your personalized themes are stored as portable JSON files, perfect for sharing:
 ```bash
-# Themes are stored in:
+# Custom themes are automatically saved to:
 ~/.config/hypr-control-center/themes/custom/
 
-# Export format: my-theme.json
+# Standard export format: my-theme.json
 {
   "schema_version": "1.0",
   "theme": {
@@ -234,75 +283,72 @@ Your custom themes can be exported as JSON files and shared with others:
 }
 ```
 
-### Importing Themes
+### Importing Themes from Others
 
-1. Download a `.json` theme file
+1. Download a `.json` theme file from a friend or the community
 2. Open Control Center → **Theme Switcher**
-3. Click **Import**
-4. Select the file
-5. Theme is now available in your profile list
+3. Click the **Import** button
+4. Select the downloaded theme file
+5. Your new theme is now available in the theme selector!
 
 ---
 
 ## Presets
 
-The theming system supports **dynamic preset sharing**. All components (Waybar, Rofi, Kitty, widgets) sync automatically when you switch themes.
+The theming architecture supports **dynamic preset synchronization** across all desktop components. When you switch themes, every application updates automatically—no manual configuration required.
 
-### How It Works
-
+### How the System Works
 ```
-User selects theme
+User selects theme in Control Center
     ↓
-Control Center applies colors to:
-    ├── ~/.config/hypr/colorscheme/{theme}.css     (Waybar)
-    ├── ~/.config/rofi/shared/colors.rasi          (Rofi)
-    ├── ~/.config/kitty/theme.conf                 (Terminal)
-    └── Widget CSS variables                       (Desktop Widgets)
+Theme engine generates color definitions:
+    ├── ~/.config/hypr/colorscheme/{theme}.css     (Waybar styling)
+    ├── ~/.config/rofi/shared/colors.rasi          (Rofi launcher)
+    ├── ~/.config/kitty/theme.conf                 (Terminal colors)
+    └── Widget CSS variables                       (Desktop widgets)
     ↓
-Applications reload automatically
+Applications receive reload signals
     ↓
-Everything themed! ✨
+Complete desktop transformation! ✨
 ```
 
-### Signal-Based Sync
+### Signal-Based Synchronization
 
-Components listen for theme change signals:
-- **Waybar**: `pkill -SIGUSR2 waybar` or auto-restart
-- **Kitty**: `pkill -USR1 kitty`
-- **Widgets**: SIGUSR1/SIGUSR2 handlers for live updates
+Components utilize POSIX signals for instant theme updates without restarts:
+- **Waybar**: Receives `SIGUSR2` signal or performs automatic restart
+- **Kitty**: Listens for `USR1` signal for live color updates
+- **Widgets**: Handle `SIGUSR1`/`SIGUSR2` for real-time theme switching
 
 ---
 
 ## Usage
 
-### Starting the Control Center
-
+### Launching the Control Center
 ```bash
-# Run from anywhere
+# Execute from any directory
 python3 ~/.config/hypr-control-center/main.py
 
-# Or add to your keybinds (hypr/modules/keybinds.conf)
+# Or bind to a keyboard shortcut (edit hypr/modules/keybinds.conf)
 bind = $mainMod, I, exec, python3 ~/.config/hypr-control-center/main.py
 ```
 
-### Starting Desktop Widgets
-
+### Managing Desktop Widgets
 ```bash
-# Start all enabled widgets
+# Launch all enabled widgets at once
 ~/.config/hypr/scripts/start-widgets.sh
 
-# Individual widgets
+# Start individual widget components
 ~/.config/hypr/scripts/start-widgets.sh clock
 ~/.config/hypr/scripts/start-widgets.sh weather
 ~/.config/hypr/scripts/start-widgets.sh sysmon
 
-# Restart widgets
+# Restart all active widgets
 ~/.config/hypr/scripts/start-widgets.sh restart
 ```
 
-### Widget Positioning
+### Widget Positioning & Persistence
 
-Widgets are draggable! Just click and drag to reposition. Positions are saved to:
+Widgets feature intuitive drag-and-drop repositioning. Simply click any widget and drag it to your preferred location. All positions are automatically saved to:
 ```
 ~/.config/hypr-control-center/preferences/widgets.json
 ```
@@ -312,18 +358,18 @@ Widgets are draggable! Just click and drag to reposition. Positions are saved to
 ## Screenshots
 
 <details>
-<summary>Click to expand screenshots</summary>
+<summary>Click to expand screenshot gallery</summary>
 
-### Control Center
+### Hyprland Control Center
 ![Control Center](assets/screenshots/control-center.png)
 
-### Theme Switcher
+### Theme Switcher Interface
 ![Theme Switcher](assets/screenshots/themes.png)
 
-### Desktop Widgets
+### Desktop Widgets in Action
 ![Widgets](assets/screenshots/widgets.png)
 
-### Waybar Styles
+### Waybar Style Variations
 ![Waybar](assets/screenshots/waybar.png)
 
 </details>
@@ -334,54 +380,56 @@ Widgets are draggable! Just click and drag to reposition. Positions are saved to
 
 ### ✅ Completed Features
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Core Control Center | ✅ Done | GTK4/Libadwaita settings app |
-| Unified Theming System | ✅ Done | 11+ themes with live switching |
-| Desktop Widgets | ✅ Done | Clock, Weather, System Monitor with drag support |
-| Theme Export/Import | ✅ Done | JSON format, shareable presets |
-| More Built-in Themes | ✅ Done | One Dark, Gruvbox, Nord, Tokyo Night, Catppuccin, Everforest, Dracula, Solarized, Cyberpunk, Arc, Adapta, Paper, Yousai |
-| Plugin System (Hyprpm) | ✅ Done | Control Center page for Hyprbars, Hyprspace, etc. |
-| Wallpaper Manager | ✅ Done | SWWW integration with slideshow, pagination, folder selection |
-| Classic/Modern UI Toggle | ✅ Done | Floating cards design with transparency support |
+| Feature | Status | Implementation Notes |
+|---------|--------|---------------------|
+| Core Control Center | ✅ Complete | Full GTK4/Libadwaita settings application |
+| Unified Theming System | ✅ Complete | 13+ themes with instant synchronization |
+| Desktop Widgets | ✅ Complete | Clock, Weather, System Monitor with drag support |
+| Theme Export/Import | ✅ Complete | JSON format with full portability |
+| Extended Theme Library | ✅ Complete | One Dark, Gruvbox, Nord, Tokyo Night, Catppuccin, Everforest, Dracula, Solarized, Cyberpunk, Arc, Adapta, Paper, Yousai |
+| Plugin Management | ✅ Complete | Hyprpm integration with GUI controls |
+| Wallpaper Manager | ✅ Complete | SWWW with slideshow, pagination, folder browser |
+| UI Design System | ✅ Complete | Floating cards with transparency support |
 
-### 🚧 In Progress
+### 🚧 Planned Features
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Per-Workspace Theming | 🚧 Planned | Different themes per workspace |
-| More Widget Types | 🚧 Planned | Calendar, media player, quick settings |
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Per-Workspace Theming | 🚧 Roadmap | Different theme per virtual workspace |
+| Additional Widget Types | 🚧 Roadmap | Calendar, media player, quick settings panel |
 
-### Theme Targets (Auto-Synced)
+### Automatic Theme Synchronization
 
-When you switch themes, the following are automatically updated:
+When you switch themes, these components update automatically:
 
-| Component | Integration |
-|-----------|-------------|
-| **Waybar** | CSS color variables + style |
-| **Rofi** | colors.rasi with direct color definitions |
-| **Kitty Terminal** | theme.conf with 16-color palette |
-| **Start Menu** | Full CSS with grey2 text support |
-| **Hyprbars** | Title bar colors and styling |
-| **SwayNC** | Notification center theming |
-| **Desktop Widgets** | Clock, weather, system monitor |
-| **Control Center** | Self-theming with live reload |
+| Component | Integration Method |
+|-----------|-------------------|
+| **Waybar** | CSS color variables + complete stylesheet |
+| **Rofi** | Direct color definitions in colors.rasi |
+| **Kitty Terminal** | Full 16-color palette in theme.conf |
+| **Start Menu** | Complete CSS with typography support |
+| **Hyprbars** | Titlebar colors and decoration styling |
+| **SwayNC** | Notification center theme integration |
+| **Desktop Widgets** | Clock, weather, and system monitor styling |
+| **Control Center** | Self-theming with live interface updates |
 
 ---
 
 ## Contributing
 
-Contributions are welcome! Feel free to:
-- Report bugs
-- Suggest features
-- Submit pull requests
-- Share your custom themes
+Community contributions are welcomed and encouraged! Here's how you can help:
+
+- 🐛 **Report Bugs**: Document issues with reproduction steps
+- 💡 **Suggest Features**: Share your ideas for improvements
+- 🔧 **Submit Pull Requests**: Code contributions are always appreciated
+- 🎨 **Share Custom Themes**: Contribute your unique designs to the project
+- 📖 **Improve Documentation**: Help make the guides clearer
 
 ---
 
-## Support
+## Support the Project
 
-If this project helped your setup, workflow, or saved you a few hours of debugging, you can support its continued development:
+If Zen Barebone has enhanced your desktop experience, streamlined your workflow, or saved you valuable development time, consider supporting its continued growth:
 
 <p align="center">
   <a href="https://buymeacoffee.com/zenpy">
@@ -389,21 +437,25 @@ If this project helped your setup, workflow, or saved you a few hours of debuggi
   </a>
 </p>
 
+Your support helps maintain and expand this project. Every contribution, no matter the size, is genuinely appreciated! ☕
+
 ---
 
-## Credits
+## Credits & Acknowledgments
 
-- **[Hyprland](https://hyprland.org/)** - The amazing Wayland compositor
-- **[GTK4](https://gtk.org/)** / **[Libadwaita](https://gnome.pages.gitlab.gnome.org/libadwaita/)** - UI toolkit
-- **[Waybar](https://github.com/Alexays/Waybar)** - Status bar
-- **[Rofi](https://github.com/davatorium/rofi)** - Application launcher
-- The Linux ricing community for inspiration
+- **[Hyprland](https://hyprland.org/)** - The powerful and flexible Wayland compositor
+- **[GTK4](https://gtk.org/)** / **[Libadwaita](https://gnome.pages.gitlab.gnome.org/libadwaita/)** - Modern UI toolkit and design system
+- **[Waybar](https://github.com/Alexays/Waybar)** - Highly customizable Wayland status bar
+- **[Rofi](https://github.com/davatorium/rofi)** - Window switcher and application launcher
+- **The Linux Ricing Community** - For endless inspiration and knowledge sharing
 
 ---
 
 ## License
 
-MIT License - Feel free to use, modify, and share.
+This project is released under the **MIT License**.
+
+You're free to use, modify, distribute, and build upon this work. See the LICENSE file for complete terms.
 
 ---
 
