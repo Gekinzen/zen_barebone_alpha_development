@@ -2,11 +2,10 @@
 set -e
 
 # ==================================================
-# Zen Barebone Installer - Minimalist Edition
-# WITH WORKING HYPRBARS + WAYBAR FIX
+# Zen Barebone Installer - Complete Fixed Edition
+# WITH ALL FIXES + SMART WALLPAPER DETECTION
 # ==================================================
 
-# ---------- Colors ----------
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -15,7 +14,7 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-echo -e "${CYAN}Zen Barebone Installer${NC}"
+echo -e "${CYAN}Zen Barebone Installer - Complete Edition${NC}"
 echo "======================================"
 echo ""
 
@@ -111,7 +110,6 @@ echo ""
 # ==================================================
 echo -e "${PURPLE}Installing Python + GTK4 stack${NC}"
 
-# Core Python & GTK
 sudo pacman -S --needed --noconfirm \
   python \
   python-pip \
@@ -124,14 +122,12 @@ sudo pacman -S --needed --noconfirm \
   libadwaita \
   cairo
 
-# Python libraries (system-wide)
 echo -e "${BLUE}Installing Python dependencies...${NC}"
 pip install --break-system-packages --upgrade \
   pillow \
   psutil \
   pytz
 
-# Verify Cairo bindings
 echo -e "${CYAN}Verifying Cairo bindings...${NC}"
 if python -c "import cairo" 2>/dev/null; then
   echo -e "${GREEN}Cairo bindings working${NC}"
@@ -144,7 +140,7 @@ echo -e "${GREEN}Python stack complete${NC}"
 echo ""
 
 # ==================================================
-# GTK4 Layer Shell (CRITICAL for desktop widgets)
+# GTK4 Layer Shell
 # ==================================================
 echo -e "${PURPLE}Installing GTK4 Layer Shell...${NC}"
 yay -S --needed --noconfirm gtk4-layer-shell
@@ -153,7 +149,7 @@ echo -e "${GREEN}GTK4 Layer Shell installed${NC}"
 echo ""
 
 # ==================================================
-# ZSH SETUP (NO HANG - KITTY HANDLES SHELL)
+# ZSH SETUP
 # ==================================================
 echo -e "${PURPLE}Installing zsh${NC}"
 
@@ -164,13 +160,10 @@ sudo pacman -S --needed --noconfirm zsh zsh-completions
   exit 1
 }
 
-# Add zsh to shells if not already there
 grep -q "^/bin/zsh$" /etc/shells || echo "/bin/zsh" | sudo tee -a /etc/shells >/dev/null
 
 echo -e "${GREEN}Zsh installed${NC}"
-echo -e "${CYAN}Kitty will use zsh via config (no system shell change)${NC}"
 
-# Create basic .zshrc if it doesn't exist
 if [[ ! -f "$HOME/.zshrc" ]]; then
   cat > "$HOME/.zshrc" << 'EOF'
 # Basic zsh config
@@ -187,24 +180,22 @@ fi
 echo ""
 
 # ==================================================
-# KITTY SAFE MODE (FORCE BASH DURING INSTALL)
+# KITTY SAFE MODE
 # ==================================================
-echo -e "${PURPLE}Configuring Kitty (bootstrap mode)${NC}"
+echo -e "${PURPLE}Configuring Kitty${NC}"
 
 KITTY_CONF="$HOME/.config/kitty/kitty.conf"
 mkdir -p "$HOME/.config/kitty"
 
-# Backup existing config
 [[ -f "$KITTY_CONF" ]] && cp "$KITTY_CONF" "$KITTY_CONF.pre-install.bak"
 
-# Force bash temporarily
 if grep -q "^shell " "$KITTY_CONF" 2>/dev/null; then
   sed -i 's|^shell .*|shell /bin/bash|' "$KITTY_CONF"
 else
   echo "shell /bin/bash" >> "$KITTY_CONF"
 fi
 
-echo -e "${GREEN}Kitty using bash (temporary)${NC}"
+echo -e "${GREEN}Kitty configured${NC}"
 echo ""
 
 # ==================================================
@@ -225,11 +216,10 @@ echo -e "${GREEN}Hyprland core installed${NC}"
 echo ""
 
 # ==================================================
-# HYPRBARS PLUGIN - FIXED METHOD
+# HYPRBARS PLUGIN
 # ==================================================
 echo -e "${PURPLE}Installing hyprbars plugin${NC}"
 
-# Install build dependencies
 sudo pacman -S --needed --noconfirm \
   git \
   cmake \
@@ -238,92 +228,17 @@ sudo pacman -S --needed --noconfirm \
   gcc \
   pkgconf
 
-# Install hyprland-headers from AUR
 echo -e "${CYAN}Installing hyprland-headers from AUR...${NC}"
-yay -S --needed --noconfirm hyprland-headers
+yay -S --needed --noconfirm hyprland-headers || {
+  echo -e "${YELLOW}Warning: hyprland-headers install had issues${NC}"
+}
 
-# Verify headers are installed
-if [[ ! -d "/usr/include/hyprland" ]]; then
-  echo -e "${RED}Hyprland headers not found after install${NC}"
-  echo -e "${YELLOW}Trying alternative method...${NC}"
-  
-  # Alternative: Use hyprpm without manual building
-  echo -e "${CYAN}Using hyprpm method only...${NC}"
-  
-  # Update hyprpm
-  hyprpm update 2>/dev/null || true
-  
-  # Add plugin repo
-  hyprpm add https://github.com/hyprwm/hyprland-plugins 2>/dev/null || true
-  
-  # Enable hyprbars
-  hyprpm enable hyprbars 2>/dev/null || true
-  
-  echo -e "${GREEN}Hyprbars installed via hyprpm${NC}"
-else
-  echo -e "${GREEN}Hyprland headers installed${NC}"
-  
-  # Create build directory
-  HYPRBARS_DIR="$HOME/.local/share/hyprland-plugins"
-  mkdir -p "$HYPRBARS_DIR"
-  
-  echo -e "${CYAN}Cloning hyprland-plugins repo...${NC}"
-  if [[ -d "$HYPRBARS_DIR/hyprland-plugins" ]]; then
-    echo -e "${YELLOW}Repo exists, pulling latest...${NC}"
-    cd "$HYPRBARS_DIR/hyprland-plugins"
-    git pull
-  else
-    git clone https://github.com/hyprwm/hyprland-plugins "$HYPRBARS_DIR/hyprland-plugins"
-    cd "$HYPRBARS_DIR/hyprland-plugins"
-  fi
-  
-  # Build hyprbars
-  echo -e "${CYAN}Building hyprbars...${NC}"
-  cd "$HYPRBARS_DIR/hyprland-plugins"
-  
-  # Get Hyprland version to match
-  HYPR_VERSION=$(hyprctl version | head -n1 | awk '{print $2}')
-  echo -e "${CYAN}Detected Hyprland version: ${HYPR_VERSION}${NC}"
-  
-  # Checkout matching version if exists
-  git fetch --all --tags
-  if git tag | grep -q "^$HYPR_VERSION$"; then
-    echo -e "${CYAN}Checking out matching tag: $HYPR_VERSION${NC}"
-    git checkout "$HYPR_VERSION"
-  else
-    echo -e "${YELLOW}No matching tag, using latest main${NC}"
-    git checkout main
-    git pull
-  fi
-  
-  # Build hyprbars specifically
-  echo -e "${CYAN}Compiling hyprbars plugin...${NC}"
-  cd hyprbars
-  make all 2>&1 || {
-    echo -e "${YELLOW}Build failed, using hyprpm method...${NC}"
-    cd "$HYPRBARS_DIR/hyprland-plugins"
-    hyprpm update 2>/dev/null || true
-    hyprpm add "$HYPRBARS_DIR/hyprland-plugins" 2>/dev/null || true
-    hyprpm enable hyprbars 2>/dev/null || true
-  }
-  
-  # Install the plugin if build succeeded
-  if [[ -f "hyprbars.so" ]]; then
-    PLUGIN_INSTALL_DIR="$HOME/.local/share/hyprload/plugins/hyprbars"
-    mkdir -p "$PLUGIN_INSTALL_DIR"
-    cp hyprbars.so "$PLUGIN_INSTALL_DIR/"
-    echo -e "${GREEN}Hyprbars compiled and installed${NC}"
-  fi
-  
-  # Register with hyprpm
-  echo -e "${CYAN}Registering with hyprpm...${NC}"
-  cd "$HYPRBARS_DIR/hyprland-plugins"
-  hyprpm update 2>/dev/null || true
-  hyprpm add "$HYPRBARS_DIR/hyprland-plugins" 2>/dev/null || true
-  hyprpm enable hyprbars 2>/dev/null || true
-fi
+echo -e "${CYAN}Setting up hyprbars via hyprpm...${NC}"
+hyprpm update 2>/dev/null || true
+hyprpm add https://github.com/hyprwm/hyprland-plugins 2>/dev/null || true
+hyprpm enable hyprbars 2>/dev/null || true
 
-echo -e "${GREEN}Hyprbars plugin installed${NC}"
+echo -e "${GREEN}Hyprbars plugin setup complete${NC}"
 echo ""
 
 # ==================================================
@@ -369,6 +284,19 @@ echo -e "${GREEN}Desktop utilities installed${NC}"
 echo ""
 
 # ==================================================
+# Power Management (cpupower + tlp)
+# ==================================================
+echo -e "${PURPLE}Installing power management tools${NC}"
+
+sudo pacman -S --needed --noconfirm \
+  cpupower \
+  tlp \
+  tlp-rdw
+
+echo -e "${GREEN}Power management tools installed${NC}"
+echo ""
+
+# ==================================================
 # Theming & Appearance
 # ==================================================
 echo -e "${PURPLE}Installing theme tools${NC}"
@@ -395,7 +323,7 @@ echo -e "${GREEN}Gaming tools installed${NC}"
 echo ""
 
 # ==================================================
-# Fonts (CRITICAL for icons/UI)
+# Fonts
 # ==================================================
 echo -e "${PURPLE}Installing fonts${NC}"
 
@@ -408,7 +336,6 @@ yay -S --needed --noconfirm \
   noto-fonts-emoji \
   noto-fonts-cjk
 
-# Rebuild font cache
 echo -e "${CYAN}Rebuilding font cache...${NC}"
 fc-cache -fv >/dev/null 2>&1
 
@@ -416,7 +343,7 @@ echo -e "${GREEN}Fonts installed${NC}"
 echo ""
 
 # ==================================================
-# System Monitoring Tools (for widgets)
+# System Monitoring Tools
 # ==================================================
 echo -e "${PURPLE}Installing system monitoring tools${NC}"
 
@@ -447,30 +374,44 @@ echo -e "${GREEN}Directories created${NC}"
 echo ""
 
 # ==================================================
-# COPY WALLPAPERS FROM REPO TO USER HOME
+# SMART WALLPAPER DETECTION & COPY
 # ==================================================
-echo -e "${PURPLE}Copying wallpapers...${NC}"
+echo -e "${PURPLE}Setting up wallpapers...${NC}"
 
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
-WALLPAPER_SOURCE="$REPO_ROOT/images"
 
-if [[ -d "$WALLPAPER_SOURCE" ]]; then
-  echo -e "${CYAN}Found wallpapers in: $WALLPAPER_SOURCE${NC}"
-  
-  # Copy all wallpapers to user's home
-  cp -rv "$WALLPAPER_SOURCE"/* "$HOME/wallpapers/" 2>/dev/null || {
-    echo -e "${YELLOW}Warning: Could not copy all wallpapers${NC}"
-  }
-  
-  echo -e "${GREEN}Wallpapers copied to: $HOME/wallpapers${NC}"
-else
+# Try multiple possible wallpaper locations
+WALLPAPER_SOURCES=(
+  "$REPO_ROOT/wallpapers"
+  "$REPO_ROOT/images"
+  "$REPO_ROOT/.config/wallpapers"
+  "$REPO_ROOT/assets/wallpapers"
+)
+
+WALLPAPER_FOUND=false
+
+for SOURCE in "${WALLPAPER_SOURCES[@]}"; do
+  if [[ -d "$SOURCE" ]]; then
+    echo -e "${CYAN}Found wallpapers in: $SOURCE${NC}"
+    
+    # Copy all wallpapers
+    cp -rv "$SOURCE"/* "$HOME/wallpapers/" 2>/dev/null && {
+      WALLPAPER_FOUND=true
+      echo -e "${GREEN}Wallpapers copied to: $HOME/wallpapers${NC}"
+      break
+    }
+  fi
+done
+
+if [[ "$WALLPAPER_FOUND" == false ]]; then
   echo -e "${YELLOW}No wallpapers directory found in repo${NC}"
+  echo -e "${YELLOW}Checked: ${WALLPAPER_SOURCES[*]}${NC}"
 fi
 
 echo ""
 
 # ==================================================
-# DEPLOY CONFIGS (REPLACE MODE)
+# DEPLOY CONFIGS
 # ==================================================
 echo -e "${CYAN}Applying configs from repo${NC}"
 
@@ -496,29 +437,59 @@ echo -e "${GREEN}Configs applied${NC}"
 echo ""
 
 # ==================================================
-# FIX HYPRLAND CONFIG FOR HYPRBARS
+# FIX HYPRLAND CONFIG - REMOVE DEPRECATED RULES
 # ==================================================
-echo -e "${PURPLE}Fixing Hyprland config for hyprbars...${NC}"
+echo -e "${PURPLE}Fixing Hyprland config...${NC}"
 
 HYPR_CONF="$HOME/.config/hypr/hyprland.conf"
 
 if [[ -f "$HYPR_CONF" ]]; then
-  # Backup original
+  # Backup
   cp "$HYPR_CONF" "$HYPR_CONF.backup-$(date +%s)"
   
-  # Fix plugin syntax - replace old format with new
-  sed -i 's/^plugin {$/plugin:hyprbars {/' "$HYPR_CONF"
-  sed -i '/^plugin:hyprbars {/,/^}$/ s/hyprbars {//' "$HYPR_CONF"
-  
-  # Remove deprecated windowrule syntax
+  # Remove all deprecated windowrulev2 lines
   sed -i '/windowrulev2 = plugin:hyprbars:nobar/d' "$HYPR_CONF"
   
-  # Add noborder as replacement
-  if ! grep -q "windowrulev2 = noborder, fullscreen:1" "$HYPR_CONF"; then
+  # Fix plugin syntax if needed
+  sed -i 's/^plugin {$/plugin:hyprbars {/' "$HYPR_CONF"
+  
+  # Ensure correct hyprbars config exists
+  if ! grep -q "plugin:hyprbars {" "$HYPR_CONF"; then
     cat >> "$HYPR_CONF" << 'EOF'
 
 # ─────────────────────────────────────────────────────────────
-# HYPRBARS RULES (FIXED FOR LATEST HYPRLAND)
+# PLUGINS (CORRECTED SYNTAX)
+# ─────────────────────────────────────────────────────────────
+plugin:hyprbars {
+    bar_height = 28
+    bar_color = rgb(1a1b26)
+    col.text = rgb(c0caf5)
+
+    col.button_close = rgb(f38ba8)
+    col.button_minimize = rgb(f9e2af)
+    col.button_maximize = rgb(a6e3a1)
+
+    bar_text_size = 10
+    bar_text_font = Adwaita Sans
+    bar_text_align = center
+
+    bar_padding = 8
+    bar_button_padding = 10
+    bar_buttons_alignment = left
+
+    hyprbars-button = rgb(f38ba8), 17, , hyprctl dispatch killactive
+    hyprbars-button = rgb(f9e2af), 17, , ~/.config/hypr/scripts/waybar/hyprbars-minimize.sh
+    hyprbars-button = rgb(a6e3a1), 17, , hyprctl dispatch fullscreen 1
+}
+EOF
+  fi
+  
+  # Add correct window rules if not present
+  if ! grep -q "# HYPRBARS RULES (FIXED)" "$HYPR_CONF"; then
+    cat >> "$HYPR_CONF" << 'EOF'
+
+# ─────────────────────────────────────────────────────────────
+# HYPRBARS RULES (FIXED)
 # ─────────────────────────────────────────────────────────────
 windowrulev2 = noborder, fullscreen:1
 windowrulev2 = noborder, floating:1
@@ -535,13 +506,34 @@ fi
 echo ""
 
 # ==================================================
-# SET DEFAULT WALLPAPER WITH SWWW
+# SMART DEFAULT WALLPAPER DETECTION
 # ==================================================
 echo -e "${PURPLE}Setting default wallpaper...${NC}"
 
-DEFAULT_WALLPAPER="$HOME/wallpapers/anime-crescent-moon-over-forest-desktop-wallpaper.jpg"
+# Try to find the anime wallpaper
+POSSIBLE_WALLPAPERS=(
+  "$HOME/wallpapers/anime-crescent-moon-over-forest-desktop-wallpaper.jpg"
+  "$HOME/wallpapers/anime-crescent-moon-over-forest.jpg"
+  "$HOME/wallpapers/"*moon*.jpg
+  "$HOME/wallpapers/"*anime*.jpg
+)
 
-if [[ -f "$DEFAULT_WALLPAPER" ]]; then
+DEFAULT_WALLPAPER=""
+
+for WALLPAPER in "${POSSIBLE_WALLPAPERS[@]}"; do
+  if [[ -f "$WALLPAPER" ]]; then
+    DEFAULT_WALLPAPER="$WALLPAPER"
+    echo -e "${GREEN}Found wallpaper: $(basename "$WALLPAPER")${NC}"
+    break
+  fi
+done
+
+# If no specific wallpaper found, use first jpg in wallpapers dir
+if [[ -z "$DEFAULT_WALLPAPER" ]]; then
+  DEFAULT_WALLPAPER=$(find "$HOME/wallpapers" -type f \( -name "*.jpg" -o -name "*.png" \) | head -n1)
+fi
+
+if [[ -n "$DEFAULT_WALLPAPER" && -f "$DEFAULT_WALLPAPER" ]]; then
   # Create swww init script
   SWWW_SCRIPT="$HOME/.config/hypr/scripts/swww-init.sh"
   mkdir -p "$(dirname "$SWWW_SCRIPT")"
@@ -549,11 +541,14 @@ if [[ -f "$DEFAULT_WALLPAPER" ]]; then
   cat > "$SWWW_SCRIPT" << EOF
 #!/usr/bin/env bash
 
+# Kill existing swww daemon
+pkill swww-daemon
+
 # Initialize swww daemon
 swww-daemon &
 
 # Wait for daemon to be ready
-sleep 1
+sleep 2
 
 # Set wallpaper
 swww img "$DEFAULT_WALLPAPER" --transition-type fade --transition-duration 2
@@ -561,35 +556,32 @@ EOF
   
   chmod +x "$SWWW_SCRIPT"
   
-  echo -e "${GREEN}Default wallpaper set: anime-crescent-moon-over-forest-desktop-wallpaper.jpg${NC}"
-  echo -e "${CYAN}Wallpaper script created at: $SWWW_SCRIPT${NC}"
+  echo -e "${GREEN}Default wallpaper set: $(basename "$DEFAULT_WALLPAPER")${NC}"
   
-  # Update autostart if it exists
+  # Update autostart
   AUTOSTART_CONF="$HOME/.config/hypr/modules/autostart.conf"
   if [[ -f "$AUTOSTART_CONF" ]]; then
-    # Remove old wallpaper slideshow if exists
+    # Remove old wallpaper scripts
     sed -i '/wallpaper-slideshow/d' "$AUTOSTART_CONF"
+    sed -i '/swww-init/d' "$AUTOSTART_CONF"
     
-    # Add swww init if not exists
-    if ! grep -q "swww-init.sh" "$AUTOSTART_CONF"; then
-      echo "exec-once = ~/.config/hypr/scripts/swww-init.sh" >> "$AUTOSTART_CONF"
-      echo -e "${GREEN}Added swww-init to autostart${NC}"
-    fi
+    # Add new swww init
+    echo "exec-once = ~/.config/hypr/scripts/swww-init.sh" >> "$AUTOSTART_CONF"
+    echo -e "${GREEN}Added swww-init to autostart${NC}"
   fi
 else
-  echo -e "${YELLOW}Default wallpaper not found: $DEFAULT_WALLPAPER${NC}"
-  echo -e "${YELLOW}Wallpapers available in: $HOME/wallpapers${NC}"
+  echo -e "${YELLOW}No wallpaper found in ~/wallpapers${NC}"
 fi
 
 echo ""
 
 # ==================================================
-# Fix Waybar Desktop Portal Error
+# FIX WAYBAR DESKTOP PORTAL
 # ==================================================
 echo -e "${PURPLE}Fixing Waybar desktop portal...${NC}"
 
-# Create portal config
 mkdir -p "$HOME/.config/xdg-desktop-portal"
+
 cat > "$HOME/.config/xdg-desktop-portal/portals.conf" << 'EOF'
 [preferred]
 default=hyprland;gtk
@@ -599,13 +591,11 @@ org.freedesktop.impl.portal.Screenshot=hyprland
 org.freedesktop.impl.portal.Screencast=hyprland
 EOF
 
-# Create hyprland portal config
 cat > "$HOME/.config/xdg-desktop-portal/hyprland-portals.conf" << 'EOF'
 [preferred]
 default=hyprland;gtk
 EOF
 
-# Kill and restart portal
 killall xdg-desktop-portal-hyprland 2>/dev/null || true
 killall xdg-desktop-portal 2>/dev/null || true
 sleep 2
@@ -618,12 +608,9 @@ echo ""
 # ==================================================
 echo -e "${PURPLE}Switching Kitty to zsh${NC}"
 
-# Update Kitty config to use zsh
 if [[ -f "$KITTY_CONF" ]]; then
   sed -i 's|^shell .*|shell /bin/zsh|' "$KITTY_CONF"
   echo -e "${GREEN}Kitty will use zsh${NC}"
-else
-  echo -e "${YELLOW}Kitty config not found, will be created by rsync${NC}"
 fi
 
 echo ""
@@ -647,20 +634,18 @@ echo ""
 echo -e "${PURPLE}Enabling services${NC}"
 
 # PipeWire
-systemctl --user enable --now pipewire.service 2>/dev/null || \
-  echo -e "${YELLOW}Could not enable pipewire${NC}"
-systemctl --user enable --now pipewire-pulse.service 2>/dev/null || \
-  echo -e "${YELLOW}Could not enable pipewire-pulse${NC}"
-systemctl --user enable --now wireplumber.service 2>/dev/null || \
-  echo -e "${YELLOW}Could not enable wireplumber${NC}"
+systemctl --user enable --now pipewire.service 2>/dev/null || true
+systemctl --user enable --now pipewire-pulse.service 2>/dev/null || true
+systemctl --user enable --now wireplumber.service 2>/dev/null || true
 
 # Bluetooth
-sudo systemctl enable --now bluetooth.service 2>/dev/null || \
-  echo -e "${YELLOW}Could not enable bluetooth${NC}"
+sudo systemctl enable --now bluetooth.service 2>/dev/null || true
 
 # NetworkManager
-sudo systemctl enable --now NetworkManager.service 2>/dev/null || \
-  echo -e "${YELLOW}Could not enable NetworkManager${NC}"
+sudo systemctl enable --now NetworkManager.service 2>/dev/null || true
+
+# TLP (power management)
+sudo systemctl enable --now tlp.service 2>/dev/null || true
 
 echo -e "${GREEN}Services configured${NC}"
 echo ""
@@ -670,6 +655,7 @@ echo ""
 # ==================================================
 echo -e "${PURPLE}Creating Waybar launch script...${NC}"
 
+mkdir -p "$HOME/.config/waybar"
 cat > "$HOME/.config/waybar/launch.sh" << 'EOF'
 #!/usr/bin/env bash
 
@@ -698,7 +684,7 @@ if pgrep -x "Hyprland" > /dev/null; then
   hyprctl reload 2>/dev/null || echo -e "${YELLOW}Could not reload Hyprland${NC}"
   
   echo -e "${CYAN}Reloading hyprbars plugin...${NC}"
-  hyprpm reload -n 2>/dev/null || echo -e "${YELLOW}Could not reload plugins${NC}"
+  hyprpm reload -n 2>/dev/null || true
   
   echo -e "${CYAN}Starting portals...${NC}"
   /usr/lib/xdg-desktop-portal-hyprland &
@@ -706,7 +692,7 @@ if pgrep -x "Hyprland" > /dev/null; then
   /usr/lib/xdg-desktop-portal &
   disown
   
-  echo -e "${CYAN}Initializing swww and setting wallpaper...${NC}"
+  echo -e "${CYAN}Initializing wallpaper...${NC}"
   if [[ -f "$HOME/.config/hypr/scripts/swww-init.sh" ]]; then
     "$HOME/.config/hypr/scripts/swww-init.sh" &
     disown
@@ -731,99 +717,47 @@ echo ""
 
 VALIDATION_ERRORS=0
 
-# Check Python GTK bindings
-echo -n "  Checking GTK4 bindings... "
-if python -c "import gi; gi.require_version('Gtk', '4.0'); from gi.repository import Gtk" 2>/dev/null; then
-  echo -e "${GREEN}OK${NC}"
-else
-  echo -e "${RED}FAILED${NC}"
-  VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
-fi
+# Python checks
+echo -n "  GTK4 bindings... "
+python -c "import gi; gi.require_version('Gtk', '4.0'); from gi.repository import Gtk" 2>/dev/null && echo -e "${GREEN}OK${NC}" || { echo -e "${RED}FAILED${NC}"; ((VALIDATION_ERRORS++)); }
 
-# Check Libadwaita
-echo -n "  Checking Libadwaita... "
-if python -c "import gi; gi.require_version('Adw', '1'); from gi.repository import Adw" 2>/dev/null; then
-  echo -e "${GREEN}OK${NC}"
-else
-  echo -e "${RED}FAILED${NC}"
-  VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
-fi
+echo -n "  Libadwaita... "
+python -c "import gi; gi.require_version('Adw', '1'); from gi.repository import Adw" 2>/dev/null && echo -e "${GREEN}OK${NC}" || { echo -e "${RED}FAILED${NC}"; ((VALIDATION_ERRORS++)); }
 
-# Check Cairo
-echo -n "  Checking Cairo... "
-if python -c "import cairo" 2>/dev/null; then
-  echo -e "${GREEN}OK${NC}"
-else
-  echo -e "${RED}FAILED${NC}"
-  VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
-fi
+echo -n "  Cairo... "
+python -c "import cairo" 2>/dev/null && echo -e "${GREEN}OK${NC}" || { echo -e "${RED}FAILED${NC}"; ((VALIDATION_ERRORS++)); }
 
-# Check PIL/Pillow
-echo -n "  Checking Pillow... "
-if python -c "from PIL import Image" 2>/dev/null; then
-  echo -e "${GREEN}OK${NC}"
-else
-  echo -e "${RED}FAILED${NC}"
-  VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
-fi
+echo -n "  Pillow... "
+python -c "from PIL import Image" 2>/dev/null && echo -e "${GREEN}OK${NC}" || { echo -e "${RED}FAILED${NC}"; ((VALIDATION_ERRORS++)); }
 
-# Check psutil
-echo -n "  Checking psutil... "
-if python -c "import psutil" 2>/dev/null; then
-  echo -e "${GREEN}OK${NC}"
-else
-  echo -e "${RED}FAILED${NC}"
-  VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
-fi
+echo -n "  psutil... "
+python -c "import psutil" 2>/dev/null && echo -e "${GREEN}OK${NC}" || { echo -e "${RED}FAILED${NC}"; ((VALIDATION_ERRORS++)); }
 
-# Check pytz
-echo -n "  Checking pytz... "
-if python -c "import pytz" 2>/dev/null; then
-  echo -e "${GREEN}OK${NC}"
-else
-  echo -e "${RED}FAILED${NC}"
-  VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
-fi
+echo -n "  pytz... "
+python -c "import pytz" 2>/dev/null && echo -e "${GREEN}OK${NC}" || { echo -e "${RED}FAILED${NC}"; ((VALIDATION_ERRORS++)); }
 
 echo ""
 
-# Check essential commands
-echo -e "${CYAN}Checking essential commands:${NC}"
-for cmd in hyprctl hyprpm waybar rofi swaync swww kitty flameshot nwg-displays protonup-qt; do
+# Command checks
+echo -e "${CYAN}Essential commands:${NC}"
+for cmd in hyprctl hyprpm waybar rofi swaync swww kitty flameshot nwg-displays protonup-qt cpupower tlp; do
   echo -n "  $cmd... "
-  if command -v "$cmd" &>/dev/null; then
-    echo -e "${GREEN}OK${NC}"
-  else
-    echo -e "${RED}MISSING${NC}"
-    VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
-  fi
+  command -v "$cmd" &>/dev/null && echo -e "${GREEN}OK${NC}" || { echo -e "${RED}MISSING${NC}"; ((VALIDATION_ERRORS++)); }
 done
 
 echo ""
 
-# Check hyprbars plugin
-echo -n "  Checking hyprbars plugin... "
-if hyprpm list 2>/dev/null | grep -q "hyprbars"; then
-  echo -e "${GREEN}OK${NC}"
-else
-  echo -e "${YELLOW}WARNING${NC}"
-fi
+# Plugin check
+echo -n "  hyprbars plugin... "
+hyprpm list 2>/dev/null | grep -q "hyprbars" && echo -e "${GREEN}OK${NC}" || echo -e "${YELLOW}WARNING${NC}"
 
-# Check waybar process
-echo -n "  Checking Waybar running... "
-if pgrep -x waybar >/dev/null; then
-  echo -e "${GREEN}OK${NC}"
-else
-  echo -e "${YELLOW}NOT RUNNING${NC} (will start on next login)"
-fi
+# Waybar check
+echo -n "  Waybar running... "
+pgrep -x waybar >/dev/null && echo -e "${GREEN}OK${NC}" || echo -e "${YELLOW}NOT RUNNING${NC}"
 
-# Check wallpaper
-echo -n "  Checking default wallpaper... "
-if [[ -f "$HOME/wallpapers/anime-crescent-moon-over-forest-desktop-wallpaper.jpg" ]]; then
-  echo -e "${GREEN}OK${NC}"
-else
-  echo -e "${YELLOW}NOT FOUND${NC}"
-fi
+# Wallpaper check
+echo -n "  Default wallpaper... "
+[[ -n "$DEFAULT_WALLPAPER" && -f "$DEFAULT_WALLPAPER" ]] && echo -e "${GREEN}OK${NC}" || echo -e "${YELLOW}NOT SET${NC}"
 
 echo ""
 
@@ -849,35 +783,37 @@ echo ""
 echo -e "${GREEN}Zen Barebone installed successfully${NC}"
 echo ""
 echo -e "${CYAN}INSTALLED FEATURES:${NC}"
-echo "  - Hyprland with hyprbars plugin (custom window bars)"
+echo "  - Hyprland with hyprbars plugin"
 echo "  - Waybar with fixed desktop portal"
-echo "  - Thunar with thumbnails (ffmpegthumbnailer)"
+echo "  - Thunar with thumbnails"
 echo "  - Flameshot for screenshots"
 echo "  - nwg-displays for display management"
 echo "  - ProtonUp-Qt for gaming"
 echo "  - PipeWire audio system"
-echo "  - Default wallpaper: anime-crescent-moon-over-forest"
-echo "  - Wallpapers copied to: $HOME/wallpapers"
+echo "  - Power management (cpupower + tlp)"
+[[ -n "$DEFAULT_WALLPAPER" ]] && echo "  - Default wallpaper: $(basename "$DEFAULT_WALLPAPER")"
+echo "  - Wallpapers in: $HOME/wallpapers"
 echo ""
 echo -e "${CYAN}NEXT STEPS:${NC}"
-echo "  1. Log out and log back in (recommended)"
+echo "  1. Log out and log back in"
 echo "  2. Select Hyprland from your login manager"
 echo "  3. Everything should auto-start"
+echo ""
+echo -e "${CYAN}POWER MANAGEMENT SETUP (OPTIONAL):${NC}"
+echo "  Run the Hypr Control Center Power & Battery module to:"
+echo "  - Configure CPU governor"
+echo "  - Setup passwordless power management"
+echo "  - Or manually run: sudo pacman -S cpupower && sudo pacman -S tlp"
 echo ""
 echo -e "${CYAN}MANUAL CHECKS (if needed):${NC}"
 echo "  - Check hyprbars: hyprpm list"
 echo "  - Enable hyprbars: hyprpm enable hyprbars"
 echo "  - Restart waybar: ~/.config/waybar/launch.sh"
-echo "  - Set wallpaper: swww img ~/wallpapers/your-image.jpg"
-echo "  - View Hyprland logs: cat /tmp/hypr/\$(ls -t /tmp/hypr/ | head -n1)/hyprland.log"
-echo ""
-echo -e "${CYAN}OPTIONAL:${NC}"
-echo "  - Make zsh default shell: chsh -s /bin/zsh"
-echo "  - View system logs: journalctl -xe"
+echo "  - Change wallpaper: swww img ~/wallpapers/your-image.jpg"
 echo ""
 
 if [[ $VALIDATION_ERRORS -gt 0 ]]; then
-  echo -e "${YELLOW}Some validation checks failed. Try these fixes:${NC}"
+  echo -e "${YELLOW}Some checks failed. Try:${NC}"
   echo "   - pip install --break-system-packages --force-reinstall pygobject"
   echo "   - sudo pacman -S --needed python-gobject gtk4 libadwaita"
   echo "   - hyprpm update && hyprpm enable hyprbars"
@@ -886,3 +822,4 @@ fi
 
 echo -e "${PURPLE}========================================${NC}"
 echo ""
+```
