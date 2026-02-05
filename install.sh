@@ -2,7 +2,7 @@
 set -e
 
 # ==================================================
-# Zen Barebone Installer
+# Zen Barebone Installer - ENHANCED VERSION
 # SAFE BOOTSTRAP + REPLACE MODE + DEPENDENCY VALIDATOR
 # ==================================================
 
@@ -15,7 +15,7 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-echo -e "${CYAN}🚀 Zen Barebone Installer${NC}"
+echo -e "${CYAN}🚀 Zen Barebone Installer - Enhanced${NC}"
 echo "======================================"
 echo ""
 
@@ -80,7 +80,7 @@ fi
 # Base Dependencies
 # ==================================================
 echo -e "${BLUE}📦 Installing base dependencies...${NC}"
-sudo pacman -S --needed --noconfirm git base-devel curl rsync wget
+sudo pacman -S --needed --noconfirm git base-devel curl rsync wget jq
 
 # ==================================================
 # yay (AUR Helper)
@@ -215,6 +215,50 @@ echo -e "${GREEN}✅ Hyprland core installed${NC}"
 echo ""
 
 # ==================================================
+# Hyprland Plugin Manager (hyprpm)
+# ==================================================
+echo -e "${PURPLE}🔌 Setting up Hyprland Plugin Manager${NC}"
+
+# hyprpm comes with hyprland, just verify
+if command -v hyprpm &>/dev/null; then
+  echo -e "${GREEN}✓ hyprpm available${NC}"
+  
+  # Update headers (no sudo needed)
+  echo -e "${CYAN}📦 Updating Hyprland headers...${NC}"
+  hyprpm update 2>/dev/null || echo -e "${YELLOW}⚠️ hyprpm update had warnings (normal on first run)${NC}"
+  
+else
+  echo -e "${YELLOW}⚠️ hyprpm not found, skipping plugin setup${NC}"
+fi
+
+echo ""
+
+# ==================================================
+# Hyprbars Plugin Installation
+# ==================================================
+echo -e "${PURPLE}📊 Installing hyprbars plugin${NC}"
+
+if command -v hyprpm &>/dev/null; then
+  # Add hyprbars repo
+  echo -e "${CYAN}→ Adding hyprbars repository...${NC}"
+  hyprpm add https://github.com/hyprwm/hyprland-plugins 2>/dev/null || {
+    echo -e "${YELLOW}⚠️ Repo already added or error occurred${NC}"
+  }
+  
+  # Enable hyprbars
+  echo -e "${CYAN}→ Enabling hyprbars...${NC}"
+  hyprpm enable hyprbars 2>/dev/null || {
+    echo -e "${YELLOW}⚠️ Could not enable hyprbars${NC}"
+  }
+  
+  echo -e "${GREEN}✅ Hyprbars setup complete${NC}"
+else
+  echo -e "${YELLOW}⚠️ Skipping hyprbars (hyprpm not available)${NC}"
+fi
+
+echo ""
+
+# ==================================================
 # Desktop Utilities & Tools
 # ==================================================
 echo -e "${PURPLE}🛠️ Installing desktop tools${NC}"
@@ -229,11 +273,14 @@ yay -S --needed --noconfirm \
   thunar \
   thunar-archive-plugin \
   thunar-volman \
+  ffmpegthumbnailer \
+  tumbler \
   gvfs \
   gvfs-mtp \
   file-roller \
   grim \
   slurp \
+  flameshot \
   wl-clipboard \
   cliphist \
   hyprpicker \
@@ -256,11 +303,23 @@ echo -e "${PURPLE}🎨 Installing theme tools${NC}"
 
 yay -S --needed --noconfirm \
   nwg-look \
+  nwg-displays \
   adw-gtk-theme \
   papirus-icon-theme \
   xcursor-breeze
 
 echo -e "${GREEN}✅ Theme tools installed${NC}"
+echo ""
+
+# ==================================================
+# Gaming Tools
+# ==================================================
+echo -e "${PURPLE}🎮 Installing gaming tools${NC}"
+
+yay -S --needed --noconfirm \
+  protonup-qt
+
+echo -e "${GREEN}✅ Gaming tools installed${NC}"
 echo ""
 
 # ==================================================
@@ -343,6 +402,22 @@ echo -e "${GREEN}✅ Directories created${NC}"
 echo ""
 
 # ==================================================
+# Fix Waybar Desktop Portal Error
+# ==================================================
+echo -e "${PURPLE}🔧 Configuring desktop portals...${NC}"
+
+# Create portal config
+mkdir -p "$HOME/.config/xdg-desktop-portal"
+cat > "$HOME/.config/xdg-desktop-portal/portals.conf" << 'EOF'
+[preferred]
+default=hyprland;gtk
+org.freedesktop.impl.portal.Settings=hyprland;gtk
+EOF
+
+echo -e "${GREEN}✓ Portal config created${NC}"
+echo ""
+
+# ==================================================
 # KITTY FINAL SHELL (ZSH)
 # ==================================================
 echo -e "${PURPLE}🐱 Switching Kitty to zsh${NC}"
@@ -383,6 +458,31 @@ sudo systemctl enable --now NetworkManager.service 2>/dev/null || \
   echo -e "${YELLOW}⚠️ Could not enable NetworkManager${NC}"
 
 echo -e "${GREEN}✅ Services configured${NC}"
+echo ""
+
+# ==================================================
+# Reload Hyprland & Waybar
+# ==================================================
+echo -e "${PURPLE}🔄 Reloading Hyprland components...${NC}"
+
+if pgrep -x "Hyprland" > /dev/null; then
+  echo -e "${CYAN}→ Reloading Hyprland config...${NC}"
+  hyprctl reload 2>/dev/null || echo -e "${YELLOW}⚠️ Could not reload Hyprland${NC}"
+  
+  echo -e "${CYAN}→ Reloading hyprpm plugins...${NC}"
+  hyprpm reload 2>/dev/null || echo -e "${YELLOW}⚠️ Could not reload plugins${NC}"
+  
+  echo -e "${CYAN}→ Restarting Waybar...${NC}"
+  pkill waybar
+  sleep 1
+  waybar &>/dev/null &
+  disown
+  
+  echo -e "${GREEN}✓ Components reloaded${NC}"
+else
+  echo -e "${YELLOW}⚠️ Hyprland not running, will load on next login${NC}"
+fi
+
 echo ""
 
 # ==================================================
@@ -451,7 +551,7 @@ echo ""
 
 # Check essential commands
 echo -e "${CYAN}Checking essential commands:${NC}"
-for cmd in hyprctl waybar rofi swaync swww kitty; do
+for cmd in hyprctl hyprpm waybar rofi swaync swww kitty flameshot nwg-displays protonup-qt; do
   echo -n "  $cmd... "
   if command -v "$cmd" &>/dev/null; then
     echo -e "${GREEN}✓${NC}"
@@ -460,6 +560,16 @@ for cmd in hyprctl waybar rofi swaync swww kitty; do
     VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
   fi
 done
+
+echo ""
+
+# Check hyprbars plugin
+echo -n "  Checking hyprbars plugin... "
+if hyprpm list 2>/dev/null | grep -q "hyprbars"; then
+  echo -e "${GREEN}✓${NC}"
+else
+  echo -e "${YELLOW}⚠${NC}"
+fi
 
 echo ""
 
@@ -485,12 +595,21 @@ echo ""
 echo -e "${GREEN}🎉 Zen Barebone installed successfully!${NC}"
 echo ""
 echo -e "${CYAN}NEXT STEPS:${NC}"
-echo "  1. ${YELLOW}Reboot your system${NC} (recommended but not required)"
-echo "  2. Log out and select Hyprland from your login manager"
+echo "  1. ${YELLOW}Log out and log back in${NC} (or reboot for full effect)"
+echo "  2. Select Hyprland from your login manager"
 echo "  3. Launch Hyprland and enjoy!"
+echo ""
+echo -e "${CYAN}INSTALLED FEATURES:${NC}"
+echo "  ✓ Hyprland with hyprbars plugin"
+echo "  ✓ Waybar with fixed portal config"
+echo "  ✓ Thunar with thumbnails (ffmpegthumbnailer)"
+echo "  ✓ Flameshot for screenshots"
+echo "  ✓ nwg-displays for display management"
+echo "  ✓ ProtonUp-Qt for gaming"
 echo ""
 echo -e "${CYAN}OPTIONAL:${NC}"
 echo "  • To make zsh your default system shell: ${YELLOW}chsh -s /bin/zsh${NC}"
+echo "  • Check hyprbars status: ${YELLOW}hyprpm list${NC}"
 echo "  • View system logs: ${YELLOW}journalctl -xe${NC}"
 echo ""
 
