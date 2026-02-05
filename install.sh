@@ -3,7 +3,7 @@ set -e
 
 # ==================================================
 # Zen Barebone Installer
-# SAFE BOOTSTRAP + REPLACE MODE
+# SAFE BOOTSTRAP + REPLACE MODE + DEPENDENCY VALIDATOR
 # ==================================================
 
 # ---------- Colors ----------
@@ -30,9 +30,10 @@ else
 fi
 
 case "$ID" in
-  arch|endeavouros|cachyos) ;;
+  arch|endeavouros|cachyos|manjaro) ;;
   *)
     echo -e "${RED}❌ Unsupported distro: $ID${NC}"
+    echo "This installer is for Arch-based distributions only."
     exit 1
     ;;
 esac
@@ -79,76 +80,196 @@ fi
 # Base Dependencies
 # ==================================================
 echo -e "${BLUE}📦 Installing base dependencies...${NC}"
-sudo pacman -S --needed --noconfirm git base-devel curl rsync
+sudo pacman -S --needed --noconfirm git base-devel curl rsync wget
 
 # ==================================================
-# yay
+# yay (AUR Helper)
 # ==================================================
 if ! command -v yay &>/dev/null; then
   echo -e "${BLUE}📦 Installing yay...${NC}"
   git clone https://aur.archlinux.org/yay.git /tmp/yay
   (cd /tmp/yay && makepkg -si --noconfirm)
   rm -rf /tmp/yay
-fi
-
-# ==================================================
-# KITTY SAFE MODE (FORCE BASH)
-# ==================================================
-echo -e "${PURPLE}🐱 Kitty bootstrap mode (bash)${NC}"
-
-KITTY_CONF="$HOME/.config/kitty/kitty.conf"
-mkdir -p "$HOME/.config/kitty"
-
-[[ -f "$KITTY_CONF" ]] && cp "$KITTY_CONF" "$KITTY_CONF.pre-zsh.bak"
-
-if grep -q "^shell " "$KITTY_CONF" 2>/dev/null; then
-  sed -i 's|^shell .*|shell /bin/bash|' "$KITTY_CONF"
+  echo -e "${GREEN}✅ yay installed${NC}"
 else
-  echo "shell /bin/bash" >> "$KITTY_CONF"
+  echo -e "${GREEN}✓ yay already installed${NC}"
 fi
 
-echo -e "${GREEN}✓ Kitty forced to bash${NC}"
+# ==================================================
+# CRITICAL: Python + GTK4 + GObject Introspection
+# ==================================================
+echo -e "${PURPLE}🐍 Installing Python + GTK4 stack${NC}"
+
+# Core Python & GTK
+sudo pacman -S --needed --noconfirm \
+  python \
+  python-pip \
+  python-setuptools \
+  python-wheel \
+  python-gobject \
+  gobject-introspection \
+  gtk4 \
+  libadwaita \
+  cairo \
+  pycairo \
+  python-cairo
+
+# Python libraries (system-wide)
+echo -e "${BLUE}📦 Installing Python dependencies...${NC}"
+pip install --break-system-packages --upgrade \
+  pillow \
+  psutil \
+  pytz \
+  pycairo
+
+echo -e "${GREEN}✅ Python stack complete${NC}"
 echo ""
 
 # ==================================================
-# ZSH SETUP
+# GTK4 Layer Shell (CRITICAL for desktop widgets)
+# ==================================================
+echo -e "${PURPLE}🪟 Installing GTK4 Layer Shell...${NC}"
+yay -S --needed --noconfirm gtk4-layer-shell
+
+echo -e "${GREEN}✅ GTK4 Layer Shell installed${NC}"
+echo ""
+
+# ==================================================
+# ZSH SETUP (SAFE MODE)
 # ==================================================
 echo -e "${PURPLE}🐚 Installing & configuring zsh${NC}"
 
-sudo pacman -S --needed --noconfirm zsh
+sudo pacman -S --needed --noconfirm zsh zsh-completions
 
 [[ ! -x /bin/zsh ]] && {
   echo -e "${RED}❌ /bin/zsh missing${NC}"
   exit 1
 }
 
+# Add zsh to shells if not already there
 grep -q "^/bin/zsh$" /etc/shells || echo "/bin/zsh" | sudo tee -a /etc/shells >/dev/null
-chsh -s /bin/zsh "$USER" || true
 
-echo -e "${GREEN}✓ Zsh ready${NC}"
+# Change shell (won't take effect until reboot)
+chsh -s /bin/zsh "$USER" 2>/dev/null || echo -e "${YELLOW}⚠️ Shell change queued (needs reboot)${NC}"
+
+echo -e "${GREEN}✓ Zsh configured${NC}"
 echo ""
 
 # ==================================================
-# Desktop Packages (includes Thunar)
+# KITTY SAFE MODE (FORCE BASH DURING INSTALL)
 # ==================================================
-echo -e "${PURPLE}📦 Installing desktop packages${NC}"
+echo -e "${PURPLE}🐱 Kitty bootstrap mode (bash)${NC}"
+
+KITTY_CONF="$HOME/.config/kitty/kitty.conf"
+mkdir -p "$HOME/.config/kitty"
+
+# Backup existing config
+[[ -f "$KITTY_CONF" ]] && cp "$KITTY_CONF" "$KITTY_CONF.pre-zsh.bak"
+
+# Force bash temporarily
+if grep -q "^shell " "$KITTY_CONF" 2>/dev/null; then
+  sed -i 's|^shell .*|shell /bin/bash|' "$KITTY_CONF"
+else
+  echo "shell /bin/bash" >> "$KITTY_CONF"
+fi
+
+echo -e "${GREEN}✓ Kitty forced to bash (temporary)${NC}"
+echo ""
+
+# ==================================================
+# Hyprland + Wayland Ecosystem
+# ==================================================
+echo -e "${PURPLE}🪟 Installing Hyprland ecosystem${NC}"
+
 yay -S --needed --noconfirm \
-  hyprland xdg-desktop-portal-hyprland \
-  swww waybar swaync rofi wofi kitty thunar \
-  grim slurp wl-clipboard cliphist \
-  nwg-look adw-gtk-theme \
+  hyprland \
+  xdg-desktop-portal-hyprland \
+  xdg-desktop-portal-gtk \
+  qt5-wayland \
+  qt6-wayland \
+  polkit-kde-agent
+
+echo -e "${GREEN}✅ Hyprland core installed${NC}"
+
+# ==================================================
+# Desktop Utilities & Tools
+# ==================================================
+echo -e "${PURPLE}🛠️ Installing desktop tools${NC}"
+
+yay -S --needed --noconfirm \
+  swww \
+  waybar \
+  swaync \
+  rofi-wayland \
+  wofi \
+  kitty \
+  thunar \
+  thunar-archive-plugin \
+  thunar-volman \
+  gvfs \
+  gvfs-mtp \
+  file-roller \
+  grim \
+  slurp \
+  wl-clipboard \
+  cliphist \
+  hyprpicker \
+  brightnessctl \
+  playerctl \
+  pamixer \
+  bluez \
+  bluez-utils \
+  blueman \
+  networkmanager \
+  network-manager-applet
+
+echo -e "${GREEN}✅ Desktop utilities installed${NC}"
+
+# ==================================================
+# Theming & Appearance
+# ==================================================
+echo -e "${PURPLE}🎨 Installing theme tools${NC}"
+
+yay -S --needed --noconfirm \
+  nwg-look \
+  adw-gtk-theme \
+  papirus-icon-theme \
+  xcursor-breeze
+
+echo -e "${GREEN}✅ Theme tools installed${NC}"
+
+# ==================================================
+# Fonts (CRITICAL for icons/UI)
+# ==================================================
+echo -e "${PURPLE}🔤 Installing fonts${NC}"
+
+yay -S --needed --noconfirm \
   ttf-jetbrains-mono-nerd \
   ttf-geist-mono-nerd \
-  noto-fonts-emoji
+  ttf-fira-code \
+  ttf-font-awesome \
+  noto-fonts \
+  noto-fonts-emoji \
+  noto-fonts-cjk
+
+# Rebuild font cache
+fc-cache -fv
+
+echo -e "${GREEN}✅ Fonts installed${NC}"
 
 # ==================================================
-# Python / GTK deps
+# System Monitoring Tools (for widgets)
 # ==================================================
-echo -e "${PURPLE}📦 Installing Python + GTK deps${NC}"
+echo -e "${PURPLE}📊 Installing system monitoring tools${NC}"
+
 sudo pacman -S --needed --noconfirm \
-  python python-pip python-gobject gtk4 libadwaita python-pytz
+  btop \
+  htop \
+  lm_sensors \
+  acpi \
+  upower
 
-pip install --break-system-packages pillow psutil
+echo -e "${GREEN}✅ System tools installed${NC}"
 
 # ==================================================
 # DEPLOY CONFIGS (REPLACE MODE)
@@ -159,13 +280,14 @@ REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 CONFIG_SOURCE="$REPO_ROOT/.config"
 
 [[ ! -d "$CONFIG_SOURCE" ]] && {
-  echo -e "${RED}❌ Repo .config not found${NC}"
+  echo -e "${RED}❌ Repo .config not found at: $CONFIG_SOURCE${NC}"
   exit 1
 }
 
 mkdir -p "$HOME/.config"
 
 for dir in "$CONFIG_SOURCE"/*; do
+  [[ ! -d "$dir" ]] && continue
   name="$(basename "$dir")"
   echo -e "${BLUE}→ Installing:${NC} $name"
   rsync -av --delete "$dir/" "$HOME/.config/$name/"
@@ -175,42 +297,116 @@ echo -e "${GREEN}✅ Configs applied${NC}"
 echo ""
 
 # ==================================================
+# Create Essential Directories
+# ==================================================
+echo -e "${BLUE}📁 Creating directories...${NC}"
+
+mkdir -p \
+  "$HOME/wallpapers" \
+  "$HOME/.local/bin" \
+  "$HOME/.local/share/applications" \
+  "$HOME/.config/hypr/scripts" \
+  "$HOME/.config/systemd/user" \
+  "$HOME/.cache/waybar"
+
+echo -e "${GREEN}✅ Directories created${NC}"
+
+# ==================================================
 # KITTY FINAL SHELL (ZSH)
 # ==================================================
 echo -e "${PURPLE}🐱 Switching Kitty to zsh${NC}"
 sed -i 's|^shell .*|shell /bin/zsh|' "$KITTY_CONF"
-echo -e "${GREEN}✓ Kitty now uses zsh${NC}"
+echo -e "${GREEN}✓ Kitty will use zsh after reboot${NC}"
 echo ""
-
-# ==================================================
-# Directories
-# ==================================================
-mkdir -p \
-  "$HOME/wallpapers" \
-  "$HOME/.local/bin" \
-  "$HOME/.config/hypr/scripts" \
-  "$HOME/.config/systemd/user"
 
 # ==================================================
 # Ownership Fix
 # ==================================================
+echo -e "${BLUE}🔒 Fixing permissions...${NC}"
 [[ "$(stat -c '%U' "$HOME/.config")" != "$USER" ]] && \
   sudo chown -R "$USER:$USER" "$HOME/.config"
+[[ -d "$HOME/.local" ]] && sudo chown -R "$USER:$USER" "$HOME/.local"
+
+echo -e "${GREEN}✅ Permissions fixed${NC}"
+
+# ==================================================
+# Enable Services
+# ==================================================
+echo -e "${PURPLE}🔧 Enabling services${NC}"
+
+# Bluetooth
+sudo systemctl enable --now bluetooth.service || true
+
+# NetworkManager
+sudo systemctl enable --now NetworkManager.service || true
+
+echo -e "${GREEN}✅ Services enabled${NC}"
+
+# ==================================================
+# Validation Check
+# ==================================================
+echo -e "${CYAN}🔍 Validating installation...${NC}"
+
+VALIDATION_ERRORS=0
+
+# Check Python GTK bindings
+if ! python -c "import gi; gi.require_version('Gtk', '4.0'); from gi.repository import Gtk" 2>/dev/null; then
+  echo -e "${RED}❌ GTK4 Python bindings not working${NC}"
+  VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
+else
+  echo -e "${GREEN}✓ GTK4 bindings OK${NC}"
+fi
+
+# Check Libadwaita
+if ! python -c "import gi; gi.require_version('Adw', '1'); from gi.repository import Adw" 2>/dev/null; then
+  echo -e "${RED}❌ Libadwaita bindings not working${NC}"
+  VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
+else
+  echo -e "${GREEN}✓ Libadwaita bindings OK${NC}"
+fi
+
+# Check essential commands
+for cmd in hyprctl waybar rofi swaync swww; do
+  if ! command -v "$cmd" &>/dev/null; then
+    echo -e "${RED}❌ Missing command: $cmd${NC}"
+    VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
+  else
+    echo -e "${GREEN}✓ $cmd found${NC}"
+  fi
+done
+
+echo ""
 
 # ==================================================
 # DONE
 # ==================================================
 echo ""
 echo -e "${PURPLE}════════════════════════════════════${NC}"
-echo -e "${PURPLE} INSTALL COMPLETE${NC}"
+if [[ $VALIDATION_ERRORS -eq 0 ]]; then
+  echo -e "${GREEN}   ✅ INSTALL COMPLETE${NC}"
+else
+  echo -e "${YELLOW}   ⚠️ INSTALL COMPLETE (with warnings)${NC}"
+  echo -e "${YELLOW}   $VALIDATION_ERRORS validation error(s) detected${NC}"
+fi
 echo -e "${PURPLE}════════════════════════════════════${NC}"
 echo ""
 
 [[ "$FOUND" == true ]] && echo -e "${CYAN}📦 Backup:${NC} $BACKUP_DIR"
 
-echo -e "${GREEN}🎉 Zen Barebone installed safely.${NC}"
+echo -e "${GREEN}🎉 Zen Barebone installed!${NC}"
 echo ""
-echo "IMPORTANT:"
-echo "  • Reboot (shell switch needs it)"
-echo "  • Kitty will now launch correctly"
+echo "IMPORTANT NEXT STEPS:"
+echo "  1. ${YELLOW}REBOOT${NC} your system (required for shell change)"
+echo "  2. After reboot, Hyprland will be available in login manager"
+echo "  3. Launch Hyprland and run: ${CYAN}waybar & swaync &${NC}"
 echo ""
+echo "TROUBLESHOOTING:"
+echo "  • If GTK errors appear, run: ${CYAN}pip install --break-system-packages --upgrade pygobject${NC}"
+echo "  • For font issues, run: ${CYAN}fc-cache -fv${NC}"
+echo "  • View logs: ${CYAN}journalctl -xe${NC}"
+echo ""
+
+if [[ $VALIDATION_ERRORS -gt 0 ]]; then
+  echo -e "${YELLOW}⚠️ Please address validation errors above before rebooting${NC}"
+  echo ""
+fi
