@@ -107,20 +107,27 @@ sudo pacman -S --needed --noconfirm \
   python-setuptools \
   python-wheel \
   python-gobject \
+  python-cairo \
   gobject-introspection \
   gtk4 \
   libadwaita \
-  cairo \
-  pycairo \
-  python-cairo
+  cairo
 
 # Python libraries (system-wide)
 echo -e "${BLUE}📦 Installing Python dependencies...${NC}"
 pip install --break-system-packages --upgrade \
   pillow \
   psutil \
-  pytz \
-  pycairo
+  pytz
+
+# Verify Cairo bindings
+echo -e "${CYAN}🔍 Verifying Cairo bindings...${NC}"
+if python -c "import cairo" 2>/dev/null; then
+  echo -e "${GREEN}✓ Cairo bindings working${NC}"
+else
+  echo -e "${YELLOW}⚠️ Cairo bindings issue, installing from pip...${NC}"
+  pip install --break-system-packages pycairo
+fi
 
 echo -e "${GREEN}✅ Python stack complete${NC}"
 echo ""
@@ -363,6 +370,38 @@ if ! python -c "import gi; gi.require_version('Adw', '1'); from gi.repository im
   VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
 else
   echo -e "${GREEN}✓ Libadwaita bindings OK${NC}"
+fi
+
+# Check Cairo
+if ! python -c "import cairo" 2>/dev/null; then
+  echo -e "${RED}❌ Cairo bindings not working${NC}"
+  VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
+else
+  echo -e "${GREEN}✓ Cairo bindings OK${NC}"
+fi
+
+# Check PIL/Pillow
+if ! python -c "from PIL import Image" 2>/dev/null; then
+  echo -e "${RED}❌ Pillow not working${NC}"
+  VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
+else
+  echo -e "${GREEN}✓ Pillow OK${NC}"
+fi
+
+# Check psutil
+if ! python -c "import psutil" 2>/dev/null; then
+  echo -e "${RED}❌ psutil not working${NC}"
+  VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
+else
+  echo -e "${GREEN}✓ psutil OK${NC}"
+fi
+
+# Check pytz
+if ! python -c "import pytz" 2>/dev/null; then
+  echo -e "${RED}❌ pytz not working${NC}"
+  VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
+else
+  echo -e "${GREEN}✓ pytz OK${NC}"
 fi
 
 # Check essential commands
