@@ -165,7 +165,7 @@ grep -q "^/bin/zsh$" /etc/shells || echo "/bin/zsh" | sudo tee -a /etc/shells >/
 echo -e "${GREEN}Zsh installed${NC}"
 
 if [[ ! -f "$HOME/.zshrc" ]]; then
-  cat > "$HOME/.zshrc" << 'EOF'
+  cat > "$HOME/.zshrc" << 'ZSHRC_EOF'
 # Basic zsh config
 autoload -Uz compinit && compinit
 setopt HIST_IGNORE_DUPS
@@ -173,7 +173,7 @@ setopt HIST_FIND_NO_DUPS
 HISTSIZE=10000
 SAVEHIST=10000
 HISTFILE=~/.zsh_history
-EOF
+ZSHRC_EOF
   echo -e "${GREEN}Created basic .zshrc${NC}"
 fi
 
@@ -455,7 +455,7 @@ if [[ -f "$HYPR_CONF" ]]; then
   
   # Ensure correct hyprbars config exists
   if ! grep -q "plugin:hyprbars {" "$HYPR_CONF"; then
-    cat >> "$HYPR_CONF" << 'EOF'
+    cat >> "$HYPR_CONF" << 'HYPR_PLUGIN_EOF'
 
 # ─────────────────────────────────────────────────────────────
 # PLUGINS (CORRECTED SYNTAX)
@@ -481,12 +481,12 @@ plugin:hyprbars {
     hyprbars-button = rgb(f9e2af), 17, , ~/.config/hypr/scripts/waybar/hyprbars-minimize.sh
     hyprbars-button = rgb(a6e3a1), 17, , hyprctl dispatch fullscreen 1
 }
-EOF
+HYPR_PLUGIN_EOF
   fi
   
   # Add correct window rules if not present
   if ! grep -q "# HYPRBARS RULES (FIXED)" "$HYPR_CONF"; then
-    cat >> "$HYPR_CONF" << 'EOF'
+    cat >> "$HYPR_CONF" << 'HYPR_RULES_EOF'
 
 # ─────────────────────────────────────────────────────────────
 # HYPRBARS RULES (FIXED)
@@ -495,7 +495,7 @@ windowrulev2 = noborder, fullscreen:1
 windowrulev2 = noborder, floating:1
 windowrulev2 = noborder, title:^(Start Menu)$
 windowrulev2 = noborder, title:^(hypr-widget-)
-EOF
+HYPR_RULES_EOF
   fi
   
   echo -e "${GREEN}Hyprland config fixed${NC}"
@@ -514,9 +514,14 @@ echo -e "${PURPLE}Setting default wallpaper...${NC}"
 POSSIBLE_WALLPAPERS=(
   "$HOME/wallpapers/anime-crescent-moon-over-forest-desktop-wallpaper.jpg"
   "$HOME/wallpapers/anime-crescent-moon-over-forest.jpg"
-  "$HOME/wallpapers/"*moon*.jpg
-  "$HOME/wallpapers/"*anime*.jpg
 )
+
+# Add glob patterns
+shopt -s nullglob
+for pattern in "$HOME/wallpapers/"*moon*.jpg "$HOME/wallpapers/"*anime*.jpg; do
+  POSSIBLE_WALLPAPERS+=("$pattern")
+done
+shopt -u nullglob
 
 DEFAULT_WALLPAPER=""
 
@@ -538,7 +543,7 @@ if [[ -n "$DEFAULT_WALLPAPER" && -f "$DEFAULT_WALLPAPER" ]]; then
   SWWW_SCRIPT="$HOME/.config/hypr/scripts/swww-init.sh"
   mkdir -p "$(dirname "$SWWW_SCRIPT")"
   
-  cat > "$SWWW_SCRIPT" << EOF
+  cat > "$SWWW_SCRIPT" << SWWW_EOF
 #!/usr/bin/env bash
 
 # Kill existing swww daemon
@@ -552,7 +557,7 @@ sleep 2
 
 # Set wallpaper
 swww img "$DEFAULT_WALLPAPER" --transition-type fade --transition-duration 2
-EOF
+SWWW_EOF
   
   chmod +x "$SWWW_SCRIPT"
   
@@ -582,19 +587,19 @@ echo -e "${PURPLE}Fixing Waybar desktop portal...${NC}"
 
 mkdir -p "$HOME/.config/xdg-desktop-portal"
 
-cat > "$HOME/.config/xdg-desktop-portal/portals.conf" << 'EOF'
+cat > "$HOME/.config/xdg-desktop-portal/portals.conf" << 'PORTAL_CONF_EOF'
 [preferred]
 default=hyprland;gtk
 org.freedesktop.impl.portal.Settings=hyprland;gtk
 org.freedesktop.impl.portal.FileChooser=gtk
 org.freedesktop.impl.portal.Screenshot=hyprland
 org.freedesktop.impl.portal.Screencast=hyprland
-EOF
+PORTAL_CONF_EOF
 
-cat > "$HOME/.config/xdg-desktop-portal/hyprland-portals.conf" << 'EOF'
+cat > "$HOME/.config/xdg-desktop-portal/hyprland-portals.conf" << 'HYPR_PORTAL_EOF'
 [preferred]
 default=hyprland;gtk
-EOF
+HYPR_PORTAL_EOF
 
 killall xdg-desktop-portal-hyprland 2>/dev/null || true
 killall xdg-desktop-portal 2>/dev/null || true
@@ -656,7 +661,7 @@ echo ""
 echo -e "${PURPLE}Creating Waybar launch script...${NC}"
 
 mkdir -p "$HOME/.config/waybar"
-cat > "$HOME/.config/waybar/launch.sh" << 'EOF'
+cat > "$HOME/.config/waybar/launch.sh" << 'WAYBAR_LAUNCH_EOF'
 #!/usr/bin/env bash
 
 # Kill existing waybar instances
@@ -667,7 +672,7 @@ sleep 1
 
 # Restart waybar
 waybar &
-EOF
+WAYBAR_LAUNCH_EOF
 
 chmod +x "$HOME/.config/waybar/launch.sh"
 
@@ -822,4 +827,3 @@ fi
 
 echo -e "${PURPLE}========================================${NC}"
 echo ""
-```
