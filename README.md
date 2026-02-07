@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="demo/preview.png" alt="Zen Barebone Desktop Preview" width="950"/>
+  <img src="https://raw.githubusercontent.com/Gekinzen/zen_barebone_alpha_development/main/demo/desktoplooks.png" alt="Zen Barebone Desktop Preview" width="950"/>
 </p>
 
 <h1 align="center">Zen Barebone Alpha</h1>
@@ -10,14 +10,14 @@
 </p>
 
 <p align="center">
-  <a href="#overview">Overview</a> •
-  <a href="#features">Features</a> •
-  <a href="#live-demo">Live Demo</a> •
-  <a href="#installation">Installation</a> •
-  <a href="#architecture">Architecture</a> •
-  <a href="#theming">Theming</a> •
-  <a href="#roadmap">Roadmap</a> •
-  <a href="#contributing">Contributing</a>
+  <a href="#-overview">Overview</a> •
+  <a href="#-features">Features</a> •
+  <a href="#-live-demo">Live Demo</a> •
+  <a href="#-installation">Installation</a> •
+  <a href="#-architecture">Architecture</a> •
+  <a href="#-theming">Theming</a> •
+  <a href="#-roadmap">Roadmap</a> •
+  <a href="#-contributing">Contributing</a>
 </p>
 
 <p align="center">
@@ -47,30 +47,78 @@ Switch once — entire desktop updates.
 
 # 🎬 Live Demo
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Gekinzen/zen_barebone_alpha_development/main/demo/main.gif" alt="Zen Barebone Main Demo" width="850"/>
+</p>
+
+---
+
 ## 🎨 Theme Switching
 <p align="center">
-  <img src="demo/theme-switch.gif" width="850"/>
+  <img src="https://raw.githubusercontent.com/Gekinzen/zen_barebone_alpha_development/main/demo/theming.gif" alt="Theme Switching Demo" width="850"/>
+</p>
+
+---
+
+## 🖥 Desktop Looks
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Gekinzen/zen_barebone_alpha_development/main/demo/desktoplooks.png" alt="Desktop Looks" width="850"/>
 </p>
 
 ---
 
 ## 🚀 Dock in Action
 <p align="center">
-  <img src="demo/dock.gif" width="850"/>
+  <img src="https://raw.githubusercontent.com/Gekinzen/zen_barebone_alpha_development/main/demo/dock.png" alt="Dock Demo" width="850"/>
 </p>
 
 ---
 
-## 🖥 Widgets & Layout
+## 🎛 Panel Demo
 <p align="center">
-  <img src="demo/widgets.gif" width="850"/>
+  <img src="https://raw.githubusercontent.com/Gekinzen/zen_barebone_alpha_development/main/demo/paneldemo.gif" alt="Panel Demo" width="850"/>
+</p>
+
+---
+
+## 🖥 Wallpaper Switching
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Gekinzen/zen_barebone_alpha_development/main/demo/changewallpaper.gif" alt="Wallpaper Switching Demo" width="850"/>
 </p>
 
 ---
 
 ## 🎛 Control Center
 <p align="center">
-  <img src="demo/control-center.png" width="850"/>
+  <img src="https://raw.githubusercontent.com/Gekinzen/zen_barebone_alpha_development/main/demo/hyprcontrolcenter.png" alt="Hyprland Control Center" width="850"/>
+</p>
+
+---
+
+## 🎨 Appearance Settings
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Gekinzen/zen_barebone_alpha_development/main/demo/hyprlandappearance.png" alt="Hyprland Appearance Settings" width="850"/>
+</p>
+
+---
+
+## 🎞 Animation Editor
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Gekinzen/zen_barebone_alpha_development/main/demo/hyprcontrolcenteranimation.png" alt="Animation Editor" width="850"/>
+</p>
+
+---
+
+## ⚡ Power Profile
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Gekinzen/zen_barebone_alpha_development/main/demo/hyprcontrolcenter power profile.png" alt="Power Profile" width="850"/>
+</p>
+
+---
+
+## 🎨 Theming Engine
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Gekinzen/zen_barebone_alpha_development/main/demo/theming.png" alt="Theming Engine" width="850"/>
 </p>
 
 ---
