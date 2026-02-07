@@ -58,6 +58,17 @@ Switch once — entire desktop updates.
   <i>See theme switching, dock, widgets, control center and more — all in action.</i>
 </p>
 
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=rWz8_Hk6-0U">
+    <img src="https://img.youtube.com/vi/rWz8_Hk6-0U/maxresdefault.jpg" alt="I Built a Control Center for Hyprland — Arch Linux Dotfiles" width="850"/>
+  </a>
+</p>
+
+<p align="center">
+  <b>▶️ I Built a Control Center for Hyprland — Arch Linux Dotfiles (No Bloat)</b><br/>
+  <i>Deep dive into the control center, theming engine and full dotfiles workflow.</i>
+</p>
+
 ---
 
 <p align="center">
