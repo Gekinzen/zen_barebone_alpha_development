@@ -378,7 +378,20 @@ Consider starring the repository to support development and help others discover
 
 # ☕ Support
 
-https://buymeacoffee.com/zenpy
+If you find this project useful and want to support its development, any contribution is truly appreciated!
+
+<p align="center">
+  <a href="https://buymeacoffee.com/zenpy">
+    <img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black"/>
+  </a>
+</p>
+
+You can also support via crypto:
+
+| Currency | Address |
+|----------|---------|
+| **BTC** (Bitcoin) | `12Wo7KT9uqKzfZ15ZLugg7yyb3AfsmEVTc` |
+| **BCH** (Bitcoin Cash) | `1EBooTk9TuGBEn9bMkQoSs6yAjbCKd2TqQ` |
 
 ---
 
