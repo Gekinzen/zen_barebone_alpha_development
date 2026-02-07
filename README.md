@@ -48,6 +48,19 @@ Switch once — entire desktop updates.
 # 🎬 Live Demo
 
 <p align="center">
+  <a href="https://www.youtube.com/watch?v=QR6xMcTzfYA">
+    <img src="https://img.youtube.com/vi/QR6xMcTzfYA/maxresdefault.jpg" alt="Zen Barebone Alpha — Full Demo" width="850"/>
+  </a>
+</p>
+
+<p align="center">
+  <b>▶️ Watch the full demo on YouTube</b><br/>
+  <i>See theme switching, dock, widgets, control center and more — all in action.</i>
+</p>
+
+---
+
+<p align="center">
   <img src="https://raw.githubusercontent.com/Gekinzen/zen_barebone_alpha_development/main/demo/main.gif" alt="Zen Barebone Main Demo" width="850"/>
 </p>
 
