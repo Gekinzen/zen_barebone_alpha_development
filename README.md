@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/preview.png" alt="Zen Barebone Desktop Preview" width="900"/>
+  <img src="demo/preview.png" alt="Zen Barebone Desktop Preview" width="950"/>
 </p>
 
 <h1 align="center">Zen Barebone Alpha</h1>
@@ -12,6 +12,7 @@
 <p align="center">
   <a href="#overview">Overview</a> •
   <a href="#features">Features</a> •
+  <a href="#live-demo">Live Demo</a> •
   <a href="#installation">Installation</a> •
   <a href="#architecture">Architecture</a> •
   <a href="#theming">Theming</a> •
@@ -33,30 +34,44 @@
 
 Zen Barebone Alpha is not just a Hyprland configuration.
 
-It is a structured, modular desktop ecosystem built around three principles:
+It is a structured, modular desktop ecosystem built around:
 
 - ⚡ Performance-first configuration  
 - 🎨 Unified cross-application theming  
 - 🧩 GUI-driven customization without sacrificing power  
 
-What started as a personal workflow optimization evolved into a complete GTK4-powered Control Center, dynamic theme engine, desktop widget system, custom dock module, and plugin manager — all tightly integrated with Hyprland.
-
-No config chaos.  
-No theme mismatch.  
-No unnecessary complexity.
-
-Switch once. Everything updates.
+Everything is synchronized.  
+Switch once — entire desktop updates.
 
 ---
 
-# 🖥 Target Audience
+# 🎬 Live Demo
 
-Ideal for:
+## 🎨 Theme Switching
+<p align="center">
+  <img src="demo/theme-switch.gif" width="850"/>
+</p>
 
-- Arch Linux users running Hyprland  
-- Developers who want a clean but powerful setup  
-- Users who prefer GUI control without losing config-level flexibility  
-- Anyone who wants synchronized theming across their entire desktop  
+---
+
+## 🚀 Dock in Action
+<p align="center">
+  <img src="demo/dock.gif" width="850"/>
+</p>
+
+---
+
+## 🖥 Widgets & Layout
+<p align="center">
+  <img src="demo/widgets.gif" width="850"/>
+</p>
+
+---
+
+## 🎛 Control Center
+<p align="center">
+  <img src="demo/control-center.png" width="850"/>
+</p>
 
 ---
 
@@ -64,7 +79,7 @@ Ideal for:
 
 ## 🎛 Hyprland Control Center
 
-GTK4 / Libadwaita application providing centralized desktop management.
+GTK4 / Libadwaita powered desktop management application.
 
 Includes:
 
@@ -73,13 +88,12 @@ Includes:
 - Unified Theme Engine
 - Wallpaper manager (SWWW integration)
 - Workspace configuration
-- Plugin manager (Hyprpm integration)
 - Animation editor (Bezier curves)
-- Input device configuration
-- Display management
+- Input & display management
 - Keybind editor
-- Desktop Widgets manager
-- Custom Dock configuration
+- Widget manager
+- Dock configuration
+- Plugin manager (Hyprpm integration)
 
 ---
 
@@ -87,13 +101,13 @@ Includes:
 
 Fully integrated dock built specifically for Zen Barebone.
 
-- Dynamic app launching
-- Pinned applications
-- Active window indicators
-- Smooth hover animations
-- Theme engine integration
-- Layout and position customization
-- Lightweight and optimized for Hyprland
+- Dynamic app launching  
+- Pinned applications  
+- Active window indicators  
+- Smooth animations  
+- Full theme synchronization  
+- Position & layout customization  
+- Lightweight & optimized  
 
 Designed to complement Waybar — not replace it.
 
@@ -113,11 +127,11 @@ One-click synchronization across:
 - Dock  
 - Control Center  
 
-Included themes:
+Themes included:
 
 One Dark • Gruvbox • Nord • Tokyo Night • Catppuccin • Everforest • Dracula • Solarized • Cyberpunk • Arc • Adapta • Paper • Yousai
 
-All components update automatically on theme switch.
+Everything updates automatically.
 
 ---
 
@@ -125,48 +139,37 @@ All components update automatically on theme switch.
 
 GTK4 Layer Shell widgets positioned behind windows:
 
-- Clock (dual timezone support)
-- Weather (7-day forecast)
-- System Monitor (CPU, GPU, RAM, Network)
+- Clock  
+- Weather (7-day forecast)  
+- System Monitor (CPU, GPU, RAM, Network)  
 
 Features:
 
-- Drag-and-drop positioning
-- Automatic position saving
-- Fully synchronized theming
+- Drag-and-drop positioning  
+- Automatic persistence  
+- Theme synchronized  
 
 ---
 
 ## 🎮 Start Menu
 
-Modern launcher with:
+Modern launcher:
 
-- Fast open time
-- Grid and compact modes
-- Real-time search
-- Integrated power controls
-- Theme synchronization
-
----
-
-## 🔌 Plugin Management
-
-Native Hyprpm integration:
-
-- Hyprbars
-- Hyprspace
-- One-click enable/disable
-- GUI plugin control
+- Fast open time  
+- Grid & compact view  
+- Real-time search  
+- Integrated power controls  
+- Theme synchronized  
 
 ---
 
 # ⚡ Installation
 
-Zen Barebone provides an automated installer.
+Zen Barebone includes an automated installer.
 
 ---
 
-## 🔹 1. Clone Repository
+## 1️⃣ Clone Repository
 
 ```bash
 git clone https://github.com/Gekinzen/zen_barebone_alpha_development.git ~/Dotfiles
@@ -175,7 +178,7 @@ cd ~/Dotfiles/zen_barebone_alpha_development
 
 ---
 
-## 🔹 2. Make Installer Executable
+## 2️⃣ Make Installer Executable
 
 ```bash
 chmod +x install.sh
@@ -183,28 +186,28 @@ chmod +x install.sh
 
 ---
 
-## 🔹 3. Run Installer
+## 3️⃣ Run Installer
 
 ```bash
 ./install.sh
 ```
 
-The installer will:
+Installer will:
 
-- Copy configuration files into `~/.config`
+- Copy configs into `~/.config`
 - Install Control Center
 - Configure widgets
 - Install Dock module
-- Configure theme engine
-- Apply required permissions
+- Integrate theme engine
+- Apply necessary permissions
 
 ---
 
-## 🛑 Important
+## ⚠️ Recommended
 
-Recommended for fresh Hyprland setups.
+Use on a fresh Hyprland setup.
 
-If you have existing configs, back them up:
+Backup existing configs if needed:
 
 ```bash
 mv ~/.config/hypr ~/.config/hypr.backup
@@ -212,9 +215,7 @@ mv ~/.config/waybar ~/.config/waybar.backup
 mv ~/.config/rofi ~/.config/rofi.backup
 ```
 
-After installation:
-
-Log out and log back into Hyprland.
+Log out and log back in after install.
 
 ---
 
@@ -237,34 +238,16 @@ python3 ~/.config/hyprland-control-center/main.py
 
 ---
 
-# 🖥 First Launch
-
-Start widgets:
-
-```bash
-~/.config/hypr/scripts/start-widgets.sh
-```
-
-Open Control Center:
-
-```bash
-python3 ~/.config/hyprland-control-center/main.py
-```
-
-Switch themes and enjoy full synchronization.
-
----
-
 # 🏗 Architecture
 
-Zen Barebone follows a modular design:
+Modular design:
 
-- Hyprland sources separated modules
-- Theme engine generates synchronized config files
-- Applications listen for reload signals
-- Widgets use GTK4 Layer Shell
-- Preferences stored in structured JSON
-- Dock dynamically adapts to theme engine
+- Hyprland sources separated modules  
+- Theme engine generates synchronized configs  
+- Applications listen for reload signals  
+- Widgets use GTK4 Layer Shell  
+- Dock dynamically adapts to theme engine  
+- Preferences stored in structured JSON  
 
 Theme flow:
 
@@ -288,7 +271,7 @@ Custom themes stored at:
 ~/.config/hypr-control-center/themes/custom/
 ```
 
-Themes are portable JSON files.
+Portable JSON format.
 
 Import via Control Center → Theme Switcher → Import.
 
@@ -296,12 +279,10 @@ Import via Control Center → Theme Switcher → Import.
 
 # 🛣 Roadmap
 
-Planned:
-
-- Per-workspace theming
-- Additional widget types
-- Dock enhancements
-- Expanded plugin integrations
+- Per-workspace theming  
+- Additional widgets  
+- Dock enhancements  
+- Expanded plugin integrations  
 
 ---
 
@@ -309,11 +290,11 @@ Planned:
 
 You can help by:
 
-- Reporting bugs
-- Suggesting features
-- Submitting pull requests
-- Sharing custom themes
-- Improving documentation
+- Reporting bugs  
+- Suggesting features  
+- Submitting pull requests  
+- Sharing themes  
+- Improving documentation  
 
 ---
 
@@ -324,8 +305,6 @@ Consider starring the repository to support development and help others discover
 ---
 
 # ☕ Support
-
-If Zen Barebone improved your workflow:
 
 https://buymeacoffee.com/zenpy
 
