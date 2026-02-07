@@ -392,6 +392,7 @@ You can also support via crypto:
 |----------|---------|
 | **BTC** (Bitcoin) | `12Wo7KT9uqKzfZ15ZLugg7yyb3AfsmEVTc` |
 | **BCH** (Bitcoin Cash) | `1EBooTk9TuGBEn9bMkQoSs6yAjbCKd2TqQ` |
+| **SOL** (Solana) | `2FUpxNPHgAJ7r3VpRWxBJNMFoayoZWeFNV6tVsMPe5QR` |
 
 ---
 
