@@ -1,9 +1,12 @@
 {
   "preset_id": "classic",
   "custom": {
-    "workspaces": {
-      "active_width": 65
-    }
+    "preset": "classic",
+    "base": {
+      "bar_bg_color": "#BAC095",
+      "module_bg_color": "#3d4127"
+    },
+    "workspaces": {}
   },
-  "updated": "2026-02-04T10:05:38.445468"
+  "updated": "2026-02-07T23:02:16.497889"
 }

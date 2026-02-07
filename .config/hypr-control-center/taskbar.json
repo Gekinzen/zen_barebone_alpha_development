@@ -79,6 +79,14 @@
       "exec_cmd": "/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=lutris --file-forwarding net.lutris.Lutris @@u  @@",
       "desktop_file": "/var/lib/flatpak/exports/share/applications/net.lutris.Lutris.desktop",
       "wm_class": "lutris"
+    },
+    {
+      "app_id": "heroic",
+      "name": "Heroic Games Launcher",
+      "icon": "com.heroicgameslauncher.hgl",
+      "exec_cmd": "/usr/bin/flatpak run --branch=stable --arch=x86_64 --command=heroic-run --file-forwarding com.heroicgameslauncher.hgl @@u  @@",
+      "desktop_file": "/home/paul/.local/share/flatpak/exports/share/applications/com.heroicgameslauncher.hgl.desktop",
+      "wm_class": "heroic"
     }
   ]
 }

@@ -1,0 +1,19 @@
+{
+  "position": "bottom",
+  "visibility": "always",
+  "icon_size": 24,
+  "dock_padding": 8,
+  "dock_margin": 8,
+  "border_radius": 36,
+  "opacity": 0.73,
+  "autohide_delay_ms": 300,
+  "dock_thickness": 32,
+  "separator_enabled": true,
+  "show_running_indicators": true,
+  "centered": true,
+  "stretch": false,
+  "theme_sync": true,
+  "item_spacing": 4,
+  "item_padding": 6,
+  "waybar_collision": "stack"
+}

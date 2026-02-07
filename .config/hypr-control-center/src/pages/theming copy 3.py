@@ -1,7 +1,7 @@
 """
 ═══════════════════════════════════════════════════════════════════════════════
-THEMING MODULE - Hyprland Control Center v2.5.1 MODULAR
-Complete Theme Management with ALL v2.4.2 Features + Dock Widget Support
+THEMING MODULE - Hyprland Control Center v2.4.2 MODULAR
+Complete Theme Management with ALL v2.1 Features + Hyprbars + SwayNC Support
 ═══════════════════════════════════════════════════════════════════════════════
 
 Features:
@@ -16,8 +16,6 @@ Features:
 - SWAYNC SUPPORT: Auto-sync notification center colors (v2.4)
 - THEMED DROPDOWNS: bg3 background for popover, proper listview styling (v2.4.1)
 - AUTO-REFRESH DROPDOWN CSS: CSS updates when theme changes (v2.4.2)
-- DOCK WIDGET SUPPORT: Independent desktop dock with theming integration (v2.5)
-- FIX: current-theme.json written BEFORE dock reload for proper bg sync (v2.5.1)
 """
 import gi
 gi.require_version('Gtk', '4.0')
@@ -25,7 +23,6 @@ gi.require_version('Adw', '1')
 from gi.repository import Gtk, Gdk, Adw
 import sys
 import os
-import json
 from pathlib import Path
 
 # Add theming_modules to path
@@ -56,13 +53,6 @@ try:
         is_swaync_installed, build_swaync_section, sync_swaync_with_theme,
         apply_swaync_colorscheme, apply_swaync_settings
     )
-    # ═══════════════════════════════════════════════════════════════════════════
-    # DOCK WIDGET IMPORTS (v2.5)
-    # ═══════════════════════════════════════════════════════════════════════════
-    from theming_modules.dock_section import (
-        is_dock_installed, build_dock_section, sync_dock_with_theme,
-        apply_dock_settings, generate_dock_widget_css
-    )
 except ImportError:
     from .theming_modules.constants import *
     from .theming_modules.themes_data import BUILTIN_THEMES
@@ -84,41 +74,8 @@ except ImportError:
         is_swaync_installed, build_swaync_section, sync_swaync_with_theme,
         apply_swaync_colorscheme, apply_swaync_settings
     )
-    # ═══════════════════════════════════════════════════════════════════════════
-    # DOCK WIDGET IMPORTS - relative (v2.5)
-    # ═══════════════════════════════════════════════════════════════════════════
-    from .theming_modules.dock_section import (
-        is_dock_installed, build_dock_section, sync_dock_with_theme,
-        apply_dock_settings, generate_dock_widget_css
-    )
 
 _CSS_PROVIDER = None
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# v2.5.1 — Path for current-theme.json (dock reads colors from here)
-# ═══════════════════════════════════════════════════════════════════════════════
-_CONFIG_DIR = Path.home() / ".config/hypr-control-center"
-_CURRENT_THEME_FILE = _CONFIG_DIR / "current-theme.json"
-
-
-def _write_current_theme_colors(colors: dict):
-    """
-    v2.5.1 FIX: Write colors to current-theme.json so dock_widget.py can read them.
-    Must be called BEFORE any dock reload/restart.
-    """
-    try:
-        theme_data = {}
-        if _CURRENT_THEME_FILE.exists():
-            try:
-                theme_data = json.loads(_CURRENT_THEME_FILE.read_text())
-            except Exception:
-                theme_data = {}
-        theme_data["colors"] = colors
-        _CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        _CURRENT_THEME_FILE.write_text(json.dumps(theme_data, indent=2))
-    except Exception as e:
-        print(f"[theming] ⚠ Failed to write current-theme.json: {e}")
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # THEMED DROPDOWN CSS (v2.4.2) - bg3 popover background, auto-refresh on theme change
@@ -322,23 +279,10 @@ popover.themed-popover modelbutton:selected {{
 
 
 def _refresh_css_provider(colors: dict, window=None):
-    """
-    Refresh the CSS provider with new theme colors (v2.4.2)
-    
-    v2.5.1 PATCH: Write current-theme.json BEFORE generating dock CSS,
-    so dock_widget.py reads the correct colors when it reloads.
-    """
+    """Refresh the CSS provider with new theme colors (v2.4.2)"""
     global _CSS_PROVIDER
     
     ASSETS_DIR.mkdir(parents=True, exist_ok=True)
-    
-    # ═══════════════════════════════════════════════════════════════════════════
-    # v2.5.1 FIX: Write colors to current-theme.json FIRST
-    # dock_widget.py reads colors from this file on reload (SIGUSR2)
-    # This must happen BEFORE generate_dock_widget_css() and BEFORE any
-    # sync_dock_with_theme() call, otherwise dock picks up stale colors.
-    # ═══════════════════════════════════════════════════════════════════════════
-    _write_current_theme_colors(colors)
     
     # Generate CSS with themed dropdown styles
     base_css = generate_control_center_css(colors)
@@ -348,12 +292,6 @@ def _refresh_css_provider(colors: dict, window=None):
     CONTROL_CENTER_CSS.write_text(full_css)
     START_MENU_CSS.write_text(generate_start_menu_css(colors))
     PANEL_WIDGET_CSS.write_text(generate_panel_widget_css(colors))
-    
-    # ═══════════════════════════════════════════════════════════════════════════
-    # DOCK WIDGET CSS GENERATION (v2.5)
-    # ═══════════════════════════════════════════════════════════════════════════
-    DOCK_WIDGET_CSS = ASSETS_DIR / "dock-widget.css"
-    DOCK_WIDGET_CSS.write_text(generate_dock_widget_css(colors))
     
     display = Gdk.Display.get_default()
     if display:
@@ -412,7 +350,6 @@ def _refresh_ui(window, pm):
     
     # ═══════════════════════════════════════════════════════════════════════════
     # AUTO-REFRESH CSS ON THEME CHANGE (v2.4.2)
-    # v2.5.1: _refresh_css_provider now writes current-theme.json first
     # ═══════════════════════════════════════════════════════════════════════════
     _refresh_css_provider(colors, window)
     
@@ -443,12 +380,6 @@ def _refresh_ui(window, pm):
     
     # Sync swaync with new theme colors (v2.4)
     sync_swaync_with_theme(window, colors)
-    
-    # ═══════════════════════════════════════════════════════════════════════════
-    # SYNC DOCK WITH NEW THEME COLORS (v2.5)
-    # v2.5.1: current-theme.json already written by _refresh_css_provider above
-    # ═══════════════════════════════════════════════════════════════════════════
-    sync_dock_with_theme(window, colors)
 
 def _refresh_dropdown(window, pm):
     """Refresh theme dropdown"""
@@ -503,13 +434,6 @@ def _apply_theme(window, pm):
     if not theme.get("is_builtin", True):
         pm.update_custom_theme(theme.get("id"), data)
     
-    # ═══════════════════════════════════════════════════════════════════════════
-    # v2.5.1 FIX: Write current-theme.json BEFORE applying to any component
-    # This ensures dock (and any future component that reads this file)
-    # gets the correct colors when it reloads
-    # ═══════════════════════════════════════════════════════════════════════════
-    _write_current_theme_colors(window.current_theme_colors)
-    
     results = []
     if ThemeApplier.apply_waybar_colorscheme(data):
         results.append("Waybar"); ThemeApplier.reload_waybar()
@@ -531,15 +455,6 @@ def _apply_theme(window, pm):
         if apply_swaync_settings(window):
             results.append("SwayNC")
     
-    # ═══════════════════════════════════════════════════════════════════════════
-    # APPLY DOCK SETTINGS (v2.5) - sync colors + send SIGUSR2 for live reload
-    # v2.5.1: current-theme.json already written above, dock will read new colors
-    # ═══════════════════════════════════════════════════════════════════════════
-    if is_dock_installed():
-        sync_dock_with_theme(window, window.current_theme_colors)
-        if apply_dock_settings(window):
-            results.append("Dock")
-    
     # Reload Start Menu theme via SIGUSR2
     if _reload_start_menu():
         results.append("Start Menu")
@@ -560,7 +475,7 @@ def _reset_theme(window, pm):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def build_theming_page(window) -> Gtk.ScrolledWindow:
-    """Build the complete Theming page with ALL v2.4.2 features + Dock (v2.5)"""
+    """Build the complete Theming page with ALL v2.1 features + Hyprbars (v2.3) + SwayNC (v2.4)"""
     
     ensure_theme_initialized(window)
     
@@ -593,7 +508,7 @@ def build_theming_page(window) -> Gtk.ScrolledWindow:
     title.add_css_class("title-1"); title.set_xalign(0)
     main_box.append(title)
     
-    subtitle = Gtk.Label(label="Customize colors for Waybar, Rofi, Kitty, Hyprbars, SwayNC, Dock, and the Control Center")
+    subtitle = Gtk.Label(label="Customize colors for Waybar, Rofi, Kitty, Hyprbars, SwayNC, and the Control Center")
     subtitle.add_css_class("dim-label"); subtitle.set_xalign(0); subtitle.set_margin_bottom(24)
     main_box.append(subtitle)
     
@@ -660,7 +575,6 @@ def build_theming_page(window) -> Gtk.ScrolledWindow:
         window.current_theme_colors[key] = value
         
         # Auto-refresh CSS when colors change (v2.4.2)
-        # v2.5.1: _refresh_css_provider now writes current-theme.json first
         _refresh_css_provider(window.current_theme_colors, window)
         
         if hasattr(window, 'waybar_preview'): window.waybar_preview.update_colors(window.current_theme_colors)
@@ -672,11 +586,6 @@ def build_theming_page(window) -> Gtk.ScrolledWindow:
         
         # Sync swaync colors when theme colors change (v2.4)
         sync_swaync_with_theme(window, window.current_theme_colors)
-        
-        # ═══════════════════════════════════════════════════════════════════════
-        # SYNC DOCK COLORS WHEN THEME COLORS CHANGE (v2.5)
-        # ═══════════════════════════════════════════════════════════════════════
-        sync_dock_with_theme(window, window.current_theme_colors)
     
     # Backgrounds
     bg_label = Gtk.Label(label="Backgrounds"); bg_label.add_css_class("caption"); bg_label.add_css_class("dim-label")
@@ -761,15 +670,6 @@ def build_theming_page(window) -> Gtk.ScrolledWindow:
     start_content = build_start_menu_taskbar_section(window, colors)
     start_expander.set_child(start_content)
     main_box.append(start_expander)
-    
-    # ═══════════════════════════════════════════════════════════════════════════
-    # DOCK WIDGET SECTION (v2.5) - Shows if dock_widget.py is installed
-    # ═══════════════════════════════════════════════════════════════════════════
-    if is_dock_installed():
-        dock_expander = create_expander_with_icon("view-pin-symbolic", "Desktop Dock")
-        dock_content = build_dock_section(window, colors)
-        dock_expander.set_child(dock_content)
-        main_box.append(dock_expander)
     
     # ═══════════════════════════════════════════════════════════════════════════
     # HYPRBARS SECTION (v2.3) - Only shows if plugin is active
@@ -919,9 +819,6 @@ __all__ = [
     'apply_hyprbars_settings',
     # SwayNC exports (v2.4)
     'is_swaync_installed', 'sync_swaync_with_theme', 'apply_swaync_colorscheme',
-    # Dock exports (v2.5)
-    'is_dock_installed', 'sync_dock_with_theme', 'apply_dock_settings',
-    'generate_dock_widget_css',
     # CSS refresh (v2.4.2)
     '_refresh_css_provider',
 ]

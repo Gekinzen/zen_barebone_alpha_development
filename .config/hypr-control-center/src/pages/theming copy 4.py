@@ -1,6 +1,6 @@
 """
 ═══════════════════════════════════════════════════════════════════════════════
-THEMING MODULE - Hyprland Control Center v2.5.1 MODULAR
+THEMING MODULE - Hyprland Control Center v2.5.0 MODULAR
 Complete Theme Management with ALL v2.4.2 Features + Dock Widget Support
 ═══════════════════════════════════════════════════════════════════════════════
 
@@ -17,7 +17,6 @@ Features:
 - THEMED DROPDOWNS: bg3 background for popover, proper listview styling (v2.4.1)
 - AUTO-REFRESH DROPDOWN CSS: CSS updates when theme changes (v2.4.2)
 - DOCK WIDGET SUPPORT: Independent desktop dock with theming integration (v2.5)
-- FIX: current-theme.json written BEFORE dock reload for proper bg sync (v2.5.1)
 """
 import gi
 gi.require_version('Gtk', '4.0')
@@ -25,7 +24,6 @@ gi.require_version('Adw', '1')
 from gi.repository import Gtk, Gdk, Adw
 import sys
 import os
-import json
 from pathlib import Path
 
 # Add theming_modules to path
@@ -93,32 +91,6 @@ except ImportError:
     )
 
 _CSS_PROVIDER = None
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# v2.5.1 — Path for current-theme.json (dock reads colors from here)
-# ═══════════════════════════════════════════════════════════════════════════════
-_CONFIG_DIR = Path.home() / ".config/hypr-control-center"
-_CURRENT_THEME_FILE = _CONFIG_DIR / "current-theme.json"
-
-
-def _write_current_theme_colors(colors: dict):
-    """
-    v2.5.1 FIX: Write colors to current-theme.json so dock_widget.py can read them.
-    Must be called BEFORE any dock reload/restart.
-    """
-    try:
-        theme_data = {}
-        if _CURRENT_THEME_FILE.exists():
-            try:
-                theme_data = json.loads(_CURRENT_THEME_FILE.read_text())
-            except Exception:
-                theme_data = {}
-        theme_data["colors"] = colors
-        _CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        _CURRENT_THEME_FILE.write_text(json.dumps(theme_data, indent=2))
-    except Exception as e:
-        print(f"[theming] ⚠ Failed to write current-theme.json: {e}")
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # THEMED DROPDOWN CSS (v2.4.2) - bg3 popover background, auto-refresh on theme change
@@ -322,23 +294,10 @@ popover.themed-popover modelbutton:selected {{
 
 
 def _refresh_css_provider(colors: dict, window=None):
-    """
-    Refresh the CSS provider with new theme colors (v2.4.2)
-    
-    v2.5.1 PATCH: Write current-theme.json BEFORE generating dock CSS,
-    so dock_widget.py reads the correct colors when it reloads.
-    """
+    """Refresh the CSS provider with new theme colors (v2.4.2)"""
     global _CSS_PROVIDER
     
     ASSETS_DIR.mkdir(parents=True, exist_ok=True)
-    
-    # ═══════════════════════════════════════════════════════════════════════════
-    # v2.5.1 FIX: Write colors to current-theme.json FIRST
-    # dock_widget.py reads colors from this file on reload (SIGUSR2)
-    # This must happen BEFORE generate_dock_widget_css() and BEFORE any
-    # sync_dock_with_theme() call, otherwise dock picks up stale colors.
-    # ═══════════════════════════════════════════════════════════════════════════
-    _write_current_theme_colors(colors)
     
     # Generate CSS with themed dropdown styles
     base_css = generate_control_center_css(colors)
@@ -412,7 +371,6 @@ def _refresh_ui(window, pm):
     
     # ═══════════════════════════════════════════════════════════════════════════
     # AUTO-REFRESH CSS ON THEME CHANGE (v2.4.2)
-    # v2.5.1: _refresh_css_provider now writes current-theme.json first
     # ═══════════════════════════════════════════════════════════════════════════
     _refresh_css_provider(colors, window)
     
@@ -446,7 +404,6 @@ def _refresh_ui(window, pm):
     
     # ═══════════════════════════════════════════════════════════════════════════
     # SYNC DOCK WITH NEW THEME COLORS (v2.5)
-    # v2.5.1: current-theme.json already written by _refresh_css_provider above
     # ═══════════════════════════════════════════════════════════════════════════
     sync_dock_with_theme(window, colors)
 
@@ -503,13 +460,6 @@ def _apply_theme(window, pm):
     if not theme.get("is_builtin", True):
         pm.update_custom_theme(theme.get("id"), data)
     
-    # ═══════════════════════════════════════════════════════════════════════════
-    # v2.5.1 FIX: Write current-theme.json BEFORE applying to any component
-    # This ensures dock (and any future component that reads this file)
-    # gets the correct colors when it reloads
-    # ═══════════════════════════════════════════════════════════════════════════
-    _write_current_theme_colors(window.current_theme_colors)
-    
     results = []
     if ThemeApplier.apply_waybar_colorscheme(data):
         results.append("Waybar"); ThemeApplier.reload_waybar()
@@ -533,7 +483,6 @@ def _apply_theme(window, pm):
     
     # ═══════════════════════════════════════════════════════════════════════════
     # APPLY DOCK SETTINGS (v2.5) - sync colors + send SIGUSR2 for live reload
-    # v2.5.1: current-theme.json already written above, dock will read new colors
     # ═══════════════════════════════════════════════════════════════════════════
     if is_dock_installed():
         sync_dock_with_theme(window, window.current_theme_colors)
@@ -660,7 +609,6 @@ def build_theming_page(window) -> Gtk.ScrolledWindow:
         window.current_theme_colors[key] = value
         
         # Auto-refresh CSS when colors change (v2.4.2)
-        # v2.5.1: _refresh_css_provider now writes current-theme.json first
         _refresh_css_provider(window.current_theme_colors, window)
         
         if hasattr(window, 'waybar_preview'): window.waybar_preview.update_colors(window.current_theme_colors)
