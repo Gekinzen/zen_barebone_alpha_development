@@ -211,4 +211,4 @@ MIT
 
 ## Author
 
-**Paul Hansen Yuki** ([@Gekinzen](https://github.com/Gekinzen))
+**Zenpy* ([@Gekinzen](https://github.com/Gekinzen))
