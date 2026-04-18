@@ -42,6 +42,7 @@ Rectangle {
     signal toggleFullscreen()
 
     property bool isFullscreen: false
+    property bool hasBeenDragged: false  // v6.13: set true on drag to break anchors.centerIn
 
     color: ThemeService.alpha(ThemeService.bg0, 0.96)
     // v6.4: honor Theme.styleMode — rounded style gives 22, pill gives 16
@@ -107,7 +108,7 @@ Rectangle {
                 anchors.rightMargin: 14
                 spacing: 2
 
-                // Header
+                // Header — v6.13: also serves as drag handle for the panel
                 Item {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 48
@@ -116,20 +117,49 @@ Rectangle {
                         anchors.fill: parent
                         spacing: 10
 
-                        Text {
-                            text: "\uf013"  // gear
-                            font.family: "JetBrainsMono Nerd Font"
-                            font.pixelSize: 18
-                            color: ThemeService.blue
-                        }
-
-                        Text {
-                            text: "Settings"
-                            font.family: Theme.fontFamily
-                            font.pixelSize: 18
-                            font.weight: Font.DemiBold
-                            color: ThemeService.fg
+                        // v6.13: Drag handle — covers gear icon + "Settings" text only.
+                        // Close/maximize buttons are outside this Item so they stay clickable.
+                        Item {
                             Layout.fillWidth: true
+                            Layout.fillHeight: true
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 0
+                                spacing: 10
+
+                                Text {
+                                    text: "\uf013"  // gear
+                                    font.family: "JetBrainsMono Nerd Font"
+                                    font.pixelSize: 18
+                                    color: ThemeService.blue
+                                }
+
+                                Text {
+                                    text: "Settings"
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: 18
+                                    font.weight: Font.DemiBold
+                                    color: ThemeService.fg
+                                    Layout.fillWidth: true
+                                }
+                            }
+
+                            // Drag MouseArea — LAST child = highest input priority.
+                            // Covers the gear+Settings text area for dragging.
+                            // Sets hasBeenDragged=true on press to break anchors.centerIn
+                            // so drag.target can freely move the panel.
+                            MouseArea {
+                                anchors.fill: parent
+                                enabled: !root.isFullscreen
+                                cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                                drag.target: root
+                                drag.axis: Drag.XAndYAxis
+                                drag.minimumX: 0
+                                drag.minimumY: 0
+                                preventStealing: true
+                                onPressed: root.hasBeenDragged = true
+                            }
                         }
 
                         // Maximize / Restore button

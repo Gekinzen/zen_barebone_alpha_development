@@ -265,7 +265,9 @@ ShellRoot {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // SETTINGS WINDOW (no dim background, transparent click-to-close)
+    // SETTINGS WINDOW — draggable, no auto-close on click-outside
+    // v6.13: Panel stays open until explicitly closed (X btn / Super+,)
+    // Draggable via title bar (top 48px). No dim background.
     // ═══════════════════════════════════════════════════════════════
     Variants {
         model: Quickshell.screens
@@ -291,28 +293,36 @@ ShellRoot {
             exclusionMode: ExclusionMode.Ignore
             color: "transparent"
 
-            HyprlandFocusGrab {
-                active: settingsWindow.visible
-                windows: [settingsWindow]
-                onCleared: root.settingsVisible = false
-            }
+            // v6.13 fix: Removed HyprlandFocusGrab AND backdrop MouseArea.
+            // The panel no longer closes on click-outside — only via:
+            //   1. The X close button inside ZenSettings
+            //   2. Super+, toggle (same keybind that opens it)
+            //   3. Esc key
+            // This matches desktop app behavior (settings stays open until
+            // explicitly closed). Panel is also now draggable.
 
-            // Transparent click-outside (no dim) — disabled when fullscreen
-            MouseArea {
-                anchors.fill: parent
-                enabled: !root.settingsFullscreen
-                onClicked: root.settingsVisible = false
-            }
+            // v6.13: No backdrop MouseArea — panel doesn't close on click-outside
+            // and the backdrop was blocking drag events on the settings panel.
+            // Desktop clicks pass through the transparent PanelWindow naturally.
 
             ZenSettings {
-                anchors.centerIn: root.settingsFullscreen ? undefined : parent
-                anchors.fill: root.settingsFullscreen ? parent : undefined
+                id: zenSettingsPanel
                 width: root.settingsFullscreen ? parent.width : Math.min(1100, parent.width - 80)
                 height: root.settingsFullscreen ? parent.height : Math.min(740, parent.height - 80)
                 visible: settingsWindow.visible
                 isFullscreen: root.settingsFullscreen
                 onCloseRequested: root.settingsVisible = false
                 onToggleFullscreen: root.settingsFullscreen = !root.settingsFullscreen
+
+                // Center by default — anchors.centerIn is the most reliable
+                // centering method in QML. Gets cleared when drag starts
+                // (hasBeenDragged is set true by drag MouseArea inside ZenSettings).
+                anchors.centerIn: (!root.settingsFullscreen && !hasBeenDragged) ? parent : undefined
+                anchors.fill: root.settingsFullscreen ? parent : undefined
+
+                // Reset drag state when panel reopens or leaves fullscreen
+                onVisibleChanged: if (visible) hasBeenDragged = false
+                onIsFullscreenChanged: hasBeenDragged = false
             }
         }
     }
@@ -418,8 +428,10 @@ ShellRoot {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // DESKTOP WIDGETS — transparent overlay on BACKGROUND layer
-    // Shows clock, weather, system monitor behind all windows.
+    // DESKTOP WIDGETS — transparent overlay on BOTTOM layer
+    // v6.12 fix: Changed from Background → Bottom layer. Background
+    // sits BEHIND the wallpaper (swww/swaybg), making widgets invisible.
+    // Bottom sits above wallpaper but below all application windows.
     // Reads enable/disable from widgets-state.json (WidgetsPage).
     // v6.11b: "primary" = screens[0] (fixed monitor, not cursor-follow)
     // ═══════════════════════════════════════════════════════════════
@@ -439,7 +451,7 @@ ShellRoot {
             anchors.bottom: true
             anchors.left: true
             anchors.right: true
-            WlrLayershell.layer: WlrLayer.Background
+            WlrLayershell.layer: WlrLayer.Bottom
             WlrLayershell.namespace: "zen-shell-widgets"
             exclusionMode: ExclusionMode.Ignore
             color: "transparent"

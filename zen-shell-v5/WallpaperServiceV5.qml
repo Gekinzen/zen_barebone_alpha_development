@@ -74,7 +74,11 @@ Singleton {
     property int transitionFps: 60
 
     // ── Pagination (8 per page for 4-col × 2-row grid fit) ──
-    readonly property int wallpapersPerPage: 8
+    // v6.13: Dynamic page size — columns × 4 rows max, no 5th row spillover
+    // Columns are determined by WallpaperPicker grid width at runtime.
+    // Default 16 is safe for 4 cols × 4 rows. The picker can override
+    // this by setting wallpapersPerPage from its own column count.
+    property int wallpapersPerPage: 16
     property int currentPage: 0
 
     // ── Derived ──
@@ -125,6 +129,8 @@ Singleton {
 
     function applyState(text: string) {
         if (!text) return
+        // v6.13: Don't let FileView reload override a user action in progress
+        if (_saving) return
         try {
             const s = JSON.parse(text)
             if (s.localFolder) localFolder = s.localFolder
@@ -134,7 +140,17 @@ Singleton {
             if (s.slideshowInterval) slideshowInterval = s.slideshowInterval
             if (typeof s.randomTransition === "boolean") randomTransition = s.randomTransition
             if (s.source) source = s.source
-            console.log("[WallpaperV5] State loaded, folder:", localFolder)
+
+            // v6.13: Sync timer state from loaded config
+            if (slideshowEnabled && activeList.length > 0) {
+                slideshowTimer.interval = slideshowInterval * 1000
+                slideshowTimer.restart()
+            } else {
+                slideshowTimer.stop()
+            }
+
+            console.log("[WallpaperV5] State loaded, folder:", localFolder,
+                        "slideshow:", slideshowEnabled, "timer:", slideshowTimer.running)
         } catch (e) {
             console.error("[WallpaperV5] State parse error:", e)
         }
@@ -511,14 +527,31 @@ Singleton {
         id: slideshowTimer
         interval: root.slideshowInterval * 1000
         repeat: true
-        running: root.slideshowEnabled && root.activeList.length > 0
+        // v6.13: DO NOT use declarative `running:` binding here.
+        // The binding fights with explicit stop()/restart() calls
+        // because QML re-evaluates bindings after imperative changes.
+        // Timer is controlled ONLY by setSlideshow() imperatively.
+        running: false
         onTriggered: root.randomWallpaper()
     }
 
+    // v6.13: Guard — true while saveState() is writing to prevent
+    // FileView reload from overriding the in-memory state.
+    property bool _saving: false
+
     function setSlideshow(enabled: bool) {
         slideshowEnabled = enabled
+        if (!enabled) {
+            slideshowTimer.stop()
+        } else if (activeList.length > 0) {
+            slideshowTimer.restart()
+        }
+        _saving = true
         saveState()
-        console.log("[WallpaperV5] Slideshow:", enabled ? "ON" : "OFF")
+        // Clear saving guard after a short delay (let Process finish)
+        Qt.callLater(function() { _saving = false })
+        console.log("[WallpaperV5] Slideshow:", enabled ? "ON" : "OFF",
+                    "timer.running:", slideshowTimer.running)
     }
 
     function setSlideshowInterval(seconds: int) {

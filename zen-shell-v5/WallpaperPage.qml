@@ -191,6 +191,9 @@ ScrollView {
                 rowSpacing: 12
                 columnSpacing: 12
 
+                // v6.13: Enforce 4 rows max — set page size = columns × 4
+                Component.onCompleted: WallpaperServiceV5.wallpapersPerPage = 5 * 4
+
                 Repeater {
                     model: WallpaperServiceV5.pagedList
 

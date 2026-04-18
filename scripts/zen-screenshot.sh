@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# zen-screenshot.sh v6.11 — screenshot tool for Hyprland
+# zen-screenshot.sh v6.12 — screenshot tool for Hyprland
 #
 # Supports both grim+slurp AND flameshot with proper Wayland env.
 # Captures specific active monitor or all screens.
@@ -12,6 +12,9 @@
 #   zen-screenshot.sh allscreens   # all monitors combined → save
 #   zen-screenshot.sh flameshot    # force flameshot GUI
 #
+# v6.12 changes:
+#   - Flameshot GUI now opens on focused monitor (--region targeting)
+#   - Fixed: gui no longer spawns on wrong monitor in multi-display
 # v6.11 changes:
 #   - Flameshot specific display support via --region flag
 #   - Active monitor geometry detection for flameshot region
@@ -114,6 +117,22 @@ screenshot_grim() {
 # Method 2: flameshot (with proper Wayland env + display targeting)
 # ═══════════════════════════════════════════════════════════════
 screenshot_flameshot() {
+    # v6.12: Ensure flameshot config exists with Wayland-friendly settings
+    local FLAME_CONF="$HOME/.config/flameshot/flameshot.ini"
+    if [ ! -f "$FLAME_CONF" ]; then
+        mkdir -p "$HOME/.config/flameshot"
+        cat > "$FLAME_CONF" << 'EOF'
+[General]
+showStartupLaunchMessage=false
+saveAfterCopy=true
+savePath=/home/paul/Pictures/Screenshots
+showDesktopNotification=true
+disabledTrayIcon=true
+EOF
+        # Fix the savePath to use actual $HOME
+        sed -i "s|/home/paul|$HOME|g" "$FLAME_CONF"
+    fi
+
     # Ensure flameshot daemon is running with correct Wayland vars
     if ! pgrep -x flameshot >/dev/null 2>&1; then
         env XDG_CURRENT_DESKTOP=Hyprland \
@@ -136,7 +155,16 @@ screenshot_flameshot() {
             fi
             ;;
         region|flameshot)
-            flameshot gui
+            # v6.12 fix: Target flameshot GUI to the focused monitor.
+            # Without --region, flameshot opens on whatever monitor it
+            # defaults to (usually the first), not where your cursor is.
+            local GUI_GEOM
+            GUI_GEOM=$(get_active_monitor_geometry)
+            if [ -n "$GUI_GEOM" ]; then
+                flameshot gui --region "$GUI_GEOM"
+            else
+                flameshot gui
+            fi
             ;;
         clipboard)
             local GEOM

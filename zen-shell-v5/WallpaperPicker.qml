@@ -215,17 +215,21 @@ Rectangle {
             }
         }
 
-        // ── Thumbnail grid — v6.8.1: 4 columns max, no overflow ──
+        // ── Thumbnail grid — v6.13: strict 4-row cap, dynamic columns ──
         GridView {
             id: grid
             Layout.fillWidth: true
             Layout.fillHeight: true
-            // v6.8.1: Fixed column count — 4 per row, no spillover
+            // v6.13: Column count from available width, then cap page size to cols × 4
             readonly property int columns: Math.max(1, Math.floor(width / (root.thumbWidth + 8)))
             cellWidth: width / columns
             cellHeight: root.thumbHeight + 32
             clip: true
             model: WallpaperServiceV5.pagedList
+
+            // v6.13: Push columns × 4 back to service so pagedList slices correctly
+            onColumnsChanged: WallpaperServiceV5.wallpapersPerPage = columns * 4
+            Component.onCompleted: WallpaperServiceV5.wallpapersPerPage = columns * 4
 
             delegate: Rectangle {
                 required property var modelData

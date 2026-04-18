@@ -6,19 +6,33 @@ import Quickshell.Wayland
 import Quickshell.Hyprland
 
 /*
- * Taskbar.qml v6.9
+ * Taskbar.qml v6.12
+ *
+ * v6.12: Fixed context menu — removed HyprlandFocusGrab that killed
+ * popups before clicks could register. Added overflow auto-collapse
+ * with < > chevron scroll buttons when too many apps are open.
  *
  * v6.9: Fixed close — uses Toplevel.requestClose() (Quickshell Wayland API)
  * instead of .close() which silently fails. Also falls back to hyprctl
  * dispatch closewindow if requestClose isn't available.
- * Included in tarball now (was previously user-side only).
  *
  * Features: grouped apps, pinned apps persistence, window list popup,
- * context menu (pin/unpin, new window, close all), window count badge.
+ * context menu (pin/unpin, new window, close all), window count badge,
+ * overflow scroll with chevron indicators.
  */
 Rectangle {
     id: taskbarRoot
-    implicitWidth: taskbarRow.implicitWidth + 60
+
+    // v6.12: maxVisibleWidth caps how wide the taskbar can grow.
+    // Beyond this, chevron < > buttons appear and content scrolls.
+    readonly property int maxVisibleWidth: 440
+    readonly property int btnSize: 40
+    readonly property int btnSpacing: 4
+    readonly property int chevronWidth: 24
+    readonly property bool hasOverflow: taskbarRow.implicitWidth > maxVisibleWidth
+
+    // Clamp implicitWidth so bar doesn't stretch infinitely
+    implicitWidth: Math.min(taskbarRow.implicitWidth + 60, maxVisibleWidth + (hasOverflow ? chevronWidth * 2 + 16 : 0) + 24)
     height: 48
     radius: Theme.moduleRadius
     color: Theme.alpha(Theme.bg0, 0.9)
@@ -34,12 +48,18 @@ Rectangle {
     property string popupAppId: ""
     property string ctxAppId: ""
 
-    // Click outside any popup → close
-    HyprlandFocusGrab {
-        id: popupGrab
-        active: taskbarRoot.popupAppId !== "" || taskbarRoot.ctxAppId !== ""
-        windows: [barWindow]
-        onCleared: {
+    // v6.12 fix: Removed HyprlandFocusGrab — it was grabbing focus for
+    // barWindow only, but PopupWindow is a separate Wayland surface.
+    // Clicking the popup triggered onCleared → reset ctxAppId → popup
+    // vanished before the MouseArea inside could register the click.
+    // Now popups dismiss via their own click handlers + a global dismiss
+    // timer that fires on bar-level mouse events outside popup areas.
+
+    // Global dismiss: any left-click on bar background closes popups
+    MouseArea {
+        anchors.fill: parent
+        z: -1
+        onClicked: {
             taskbarRoot.popupAppId = ""
             taskbarRoot.ctxAppId = ""
         }
@@ -162,13 +182,61 @@ Rectangle {
         }
     }
 
+    // v6.12: Overflow-aware layout with chevron scroll buttons
+    property int scrollOffset: 0
+    readonly property int scrollStep: (btnSize + btnSpacing) * 2  // scroll 2 icons at a time
+    readonly property int maxScroll: Math.max(0, taskbarRow.implicitWidth - maxVisibleWidth)
+
+    // Clamp scroll when app list shrinks (e.g. windows close)
+    onMaxScrollChanged: {
+        if (scrollOffset > maxScroll) scrollOffset = maxScroll
+    }
+
     RowLayout {
-        id: taskbarRow
         anchors.centerIn: parent
         spacing: 4
 
-        Repeater {
-            model: taskbarRoot.appList
+        // ── Left chevron ──
+        Rectangle {
+            visible: taskbarRoot.hasOverflow && taskbarRoot.scrollOffset > 0
+            Layout.preferredWidth: taskbarRoot.chevronWidth
+            Layout.preferredHeight: 32
+            radius: 8
+            color: chevLeftMa.containsMouse ? Theme.bg3 : Theme.bg2
+            Text {
+                anchors.centerIn: parent
+                text: "\u276E"  // ❮
+                color: Theme.fg
+                font.pixelSize: 14
+                font.bold: true
+            }
+            MouseArea {
+                id: chevLeftMa
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                    taskbarRoot.scrollOffset = Math.max(0, taskbarRoot.scrollOffset - taskbarRoot.scrollStep)
+                }
+            }
+        }
+
+        // ── Clipped viewport ──
+        Item {
+            Layout.preferredWidth: taskbarRoot.hasOverflow ? taskbarRoot.maxVisibleWidth : taskbarRow.implicitWidth
+            Layout.preferredHeight: 44
+            clip: true
+
+            RowLayout {
+                id: taskbarRow
+                y: (parent.height - height) / 2
+                x: -taskbarRoot.scrollOffset
+                spacing: 4
+
+                Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+
+                Repeater {
+                    model: taskbarRoot.appList
 
             Rectangle {
                 id: appBtn
@@ -404,6 +472,33 @@ Rectangle {
                             }
                         }
                     }
+                }
+            }
+        }
+        }  // end RowLayout (taskbarRow)
+        }  // end Item (clip viewport)
+
+        // ── Right chevron ──
+        Rectangle {
+            visible: taskbarRoot.hasOverflow && taskbarRoot.scrollOffset < taskbarRoot.maxScroll
+            Layout.preferredWidth: taskbarRoot.chevronWidth
+            Layout.preferredHeight: 32
+            radius: 8
+            color: chevRightMa.containsMouse ? Theme.bg3 : Theme.bg2
+            Text {
+                anchors.centerIn: parent
+                text: "\u276F"  // ❯
+                color: Theme.fg
+                font.pixelSize: 14
+                font.bold: true
+            }
+            MouseArea {
+                id: chevRightMa
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                    taskbarRoot.scrollOffset = Math.min(taskbarRoot.maxScroll, taskbarRoot.scrollOffset + taskbarRoot.scrollStep)
                 }
             }
         }
