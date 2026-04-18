@@ -101,12 +101,16 @@ ScrollView {
                     border.width: 2
                     border.color: ThemeService.blue
 
-                    Text {
+                    // Theme color preview — 4 accent dots instead of broken icon
+                    Grid {
                         anchors.centerIn: parent
-                        text: ThemeService.currentIsBuiltin ? "\uf53f" : "\uf044"  // brush or pencil
-                        font.family: "JetBrainsMono Nerd Font"
-                        font.pixelSize: 26
-                        color: ThemeService.blue
+                        columns: 2
+                        spacing: 4
+
+                        Rectangle { width: 18; height: 18; radius: 4; color: ThemeService.blue }
+                        Rectangle { width: 18; height: 18; radius: 4; color: ThemeService.green }
+                        Rectangle { width: 18; height: 18; radius: 4; color: ThemeService.red }
+                        Rectangle { width: 18; height: 18; radius: 4; color: ThemeService.purple }
                     }
                 }
 

@@ -57,7 +57,7 @@ Item {
         RowLayout {
             spacing: 4
             Text {
-                text: "\uf233"  // memory icon
+                text: "\uefc5"  // memory icon
                 font.family: "JetBrainsMono Nerd Font"
                 font.pixelSize: 12
                 color: SystemMonitorService.usageColor(SystemMonitorService.ramPercent)

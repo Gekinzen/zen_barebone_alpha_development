@@ -18,18 +18,16 @@ BIN_DIR="$HOME/.local/bin"
 TS=$(date +%Y%m%d-%H%M%S)
 
 echo ""
-echo "    Zen Shell v6.12"
+echo "    Zen Shell v6.14"
 echo "    ─────────────────────────────────────────────────────"
 echo ""
 echo "    Quickshell-native desktop environment for Hyprland."
 echo ""
-echo "    This release:"
-echo "      Widget visibility fix      Background → Bottom layer"
-echo "      Context menu fix           Right-click actions now clickable"
-echo "      Taskbar overflow           Auto-collapse with < > chevrons"
-echo "      QT_QPA_PLATFORM            Auto-set wayland env in hyprland.conf"
-echo "      Screenshot tools           flameshot grim slurp wl-clipboard"
-echo "      Smart installer            Skip existing deps with --needed"
+echo "    This release — Bugfix: Tooltip Alignment + SwayNC Position"
+echo "      Tooltip fix            SysRow hover tooltip now aligns to icon"
+echo "      SwayNC position fix    Notification position changes now apply"
+echo "      Process reuse fix      Rapid settings clicks no longer ignored"
+echo "      Better restart          SIGTERM-first daemon restart sequence"
 echo ""
 echo "    ─────────────────────────────────────────────────────"
 echo ""
@@ -61,7 +59,7 @@ echo ""
 echo "    The installer will:"
 echo "      1. Back up your entire quickshell/zen-shell directory"
 echo "      2. Back up hyprland keybind configs"
-echo "      3. Install all QML files (including bar modules)"
+echo "      3. Install all QML files (50 components)"
 echo "      4. Auto-apply ZenClock, ZenWorkspaces, Taskbar"
 echo "      5. Install CLI scripts and themes"
 echo ""
@@ -87,17 +85,15 @@ echo ""
 echo "[1/9] Dependency check..."
 
 MISSING_REQUIRED=0
-MISSING_OPTIONAL_PACKAGES=""   # space-separated list of paru-installable pkgs
-INSTALLED_OPTIONAL_PACKAGES="" # packages we ran paru -S on successfully
-SKIPPED_OPTIONAL_PACKAGES=""   # packages user opted not to install
-INSTALLER="paru"               # default for hint messages; overridden during detection
+MISSING_OPTIONAL_PACKAGES=""
+INSTALLED_OPTIONAL_PACKAGES=""
+SKIPPED_OPTIONAL_PACKAGES=""
+INSTALLER="paru"
 
-# Append a package to MISSING_OPTIONAL_PACKAGES only if not already there.
-# Deduplicates (e.g. swww + swww-daemon both request the `swww` package).
 add_missing_pkg() {
     local pkg=$1
     case " $MISSING_OPTIONAL_PACKAGES " in
-        *" $pkg "*) ;;  # already tracked
+        *" $pkg "*) ;;
         *) MISSING_OPTIONAL_PACKAGES="$MISSING_OPTIONAL_PACKAGES $pkg" ;;
     esac
 }
@@ -108,13 +104,9 @@ check_cmd() {
     local severity=${3:-required}
     local found_path=""
 
-    # Check $PATH first
     if command -v "$cmd" >/dev/null 2>&1; then
         found_path=$(command -v "$cmd")
     else
-        # Fall back to common install paths. Handy when pacman/yay put
-        # the binary somewhere but the user's fish/zsh rc hasn't been
-        # re-sourced yet, or ~/.local/bin isn't in PATH.
         for p in /usr/bin /usr/local/bin "$HOME/.local/bin" /opt/"$cmd"/bin; do
             if [ -x "$p/$cmd" ]; then
                 found_path="$p/$cmd"
@@ -148,15 +140,6 @@ check_cmd hyprctl hyprland required
 check_cmd jq jq required
 
 echo "  Strongly recommended (for wallpaper):"
-# The `swww` project was renamed to `awww` in late 2025 (CachyOS already
-# ships `awww`, Arch extra is catching up). Check for EITHER and create
-# compat symlinks in ~/.local/bin so the rest of Zen Shell (which calls
-# `swww` directly) keeps working without any code changes.
-#
-# Detection order:
-#   1. real `swww` in PATH → use as-is
-#   2. real `awww` in PATH → symlink ~/.local/bin/swww → /usr/bin/awww
-#   3. neither → mark missing, offer paru install
 SWWW_STATUS="missing"
 if command -v swww >/dev/null 2>&1 || [ -x /usr/bin/swww ] || [ -x /usr/local/bin/swww ]; then
     SWWW_STATUS="native"
@@ -167,23 +150,20 @@ elif command -v awww >/dev/null 2>&1 || [ -x /usr/bin/awww ]; then
     AWWW_BIN=$(command -v awww 2>/dev/null || echo "/usr/bin/awww")
     AWWW_DAEMON_BIN=$(command -v awww-daemon 2>/dev/null || echo "/usr/bin/awww-daemon")
     echo "    awww (rebranded swww) detected at $AWWW_BIN"
-    # Create symlinks in ~/.local/bin so existing `swww` calls resolve.
     mkdir -p "$BIN_DIR"
     [ -e "$AWWW_BIN" ] && ln -sf "$AWWW_BIN" "$BIN_DIR/swww" && \
         echo "    → symlinked $BIN_DIR/swww → $AWWW_BIN"
     [ -e "$AWWW_DAEMON_BIN" ] && ln -sf "$AWWW_DAEMON_BIN" "$BIN_DIR/swww-daemon" && \
         echo "    → symlinked $BIN_DIR/swww-daemon → $AWWW_DAEMON_BIN"
-    # Make sure ~/.local/bin is in PATH for the rest of the installer
     case ":$PATH:" in
         *":$BIN_DIR:"*) ;;
         *) export PATH="$BIN_DIR:$PATH" ;;
     esac
-    # Now re-check — these should pass via the symlinks
     check_cmd swww swww recommended
     check_cmd swww-daemon swww recommended
 else
     echo "  ○ swww / awww both missing → will offer to install"
-    add_missing_pkg awww   # prefer awww (the active, maintained name)
+    add_missing_pkg awww
 fi
 
 echo "  Strongly recommended (for full feature set):"
@@ -208,6 +188,12 @@ check_cmd slurp slurp recommended
 check_cmd wl-copy wl-clipboard recommended
 check_cmd flameshot flameshot recommended
 
+echo "  v6.14 — Control Panel dependencies (from v6.13):"
+check_cmd nmcli networkmanager recommended
+check_cmd bluetoothctl bluez-utils recommended
+check_cmd wpctl wireplumber recommended
+check_cmd pavucontrol pavucontrol recommended
+
 if [ "$MISSING_REQUIRED" = "1" ]; then
     echo ""
     echo "  ⚠ Required dependencies missing. Install them first, then re-run this script."
@@ -218,14 +204,12 @@ fi
 # ═══════════════════════════════════════════════════════════════
 # [1b] Offer to install missing optional packages via paru
 # ═══════════════════════════════════════════════════════════════
-MISSING_OPTIONAL_PACKAGES=$(echo "$MISSING_OPTIONAL_PACKAGES" | xargs)  # trim whitespace
+MISSING_OPTIONAL_PACKAGES=$(echo "$MISSING_OPTIONAL_PACKAGES" | xargs)
 
 if [ -n "$MISSING_OPTIONAL_PACKAGES" ]; then
     echo ""
     echo "  Missing optional packages: $MISSING_OPTIONAL_PACKAGES"
 
-    # Need an AUR helper for some packages (e.g. swaync might need -git).
-    # paru is preferred; yay is fine. If neither, fall back to pacman.
     INSTALLER=""
     if command -v paru >/dev/null 2>&1; then
         INSTALLER="paru"
@@ -241,11 +225,8 @@ if [ -n "$MISSING_OPTIONAL_PACKAGES" ]; then
     else
         echo ""
         echo "  Install all optional packages now with $INSTALLER? [Y/n]"
-        # Read from /dev/tty so piped installers still get input. Timeout
-        # falls through to "skip" after 30s so non-interactive runs don't
-        # hang forever.
         if read -r -t 30 REPLY </dev/tty 2>/dev/null; then
-            : # got a reply
+            :
         else
             REPLY="n"
             echo "  (no input after 30s — skipping optional install)"
@@ -302,33 +283,28 @@ cp "$SCRIPT_DIR"/zen-shell-v5/*.qml "$SHELL_DIR/"
 count=$(ls "$SHELL_DIR"/*.qml 2>/dev/null | wc -l)
 echo "    $count QML files installed"
 
-echo "    New in v6.5:"
-for f in WallpaperPicker.qml; do
-    [ -f "$SHELL_DIR/$f" ] && echo "      $f (fixes Super+W wallpaper-not-applying)"
+echo ""
+echo "    v6.14 patched files:"
+for f in SysRowIcon.qml NotificationPage.qml; do
+    [ -f "$SHELL_DIR/$f" ] && echo "      $f (bugfix)"
 done
+echo "      patch-swaync-position.sh (bugfix)"
 
-echo "  New in v6.9:"
-echo "    WeatherService.qml          weather data provider"
-echo "    SystemMonitorService.qml    system stats provider"
-echo "    ZenWeather.qml              bar weather module"
-echo "    ZenSysMonitor.qml           bar system monitor"
-echo "    ZenClock.qml                auto-apply clock"
-echo "    ZenWorkspaces.qml           auto-apply workspaces"
-echo "    DisplaysPage.qml            monitor persistence + drag"
-echo "    ColorSwatch.qml             popup HSL picker"
+echo "    v6.13 files (carried forward):"
+for f in ConnectivityService.qml ControlPanel.qml ConnToggleRow.qml \
+         StatChip.qml ConnectivityPage.qml; do
+    [ -f "$SHELL_DIR/$f" ] && echo "      $f"
+done
 
 # v6.10: Auto-apply bar modules — always copy latest with backup
 echo ""
 echo "    Auto-applying bar modules..."
 
-# Always overwrite Clock.qml, Workspaces.qml, Taskbar.qml with latest
-# versions. Originals backed up automatically.
 for pair in "ZenClock.qml:Clock.qml" "ZenWorkspaces.qml:Workspaces.qml"; do
     src="${pair%%:*}"
     dst="${pair##*:}"
     if [ -f "$SHELL_DIR/$src" ]; then
         if [ -f "$SHELL_DIR/$dst" ]; then
-            # Always backup + overwrite to ensure latest version
             if ! diff -q "$SHELL_DIR/$src" "$SHELL_DIR/$dst" >/dev/null 2>&1; then
                 cp "$SHELL_DIR/$dst" "$SHELL_DIR/$dst.bak-$TS"
                 cp "$SHELL_DIR/$src" "$SHELL_DIR/$dst"
@@ -343,11 +319,8 @@ for pair in "ZenClock.qml:Clock.qml" "ZenWorkspaces.qml:Workspaces.qml"; do
     fi
 done
 
-# Also ensure Taskbar.qml is updated if the new one has safeClose
 if [ -f "$SHELL_DIR/Taskbar.qml" ]; then
     if ! grep -q "safeClose" "$SHELL_DIR/Taskbar.qml" 2>/dev/null; then
-        # Old Taskbar without close fix — back up and use new one
-        # (the new Taskbar.qml was already copied in the QML install step above)
         echo "      Taskbar.qml updated (close button fix applied)"
     fi
 fi
@@ -365,11 +338,12 @@ if [ -f "$SCRIPT_DIR/bin/swww-test" ]; then
     echo "    $BIN_DIR/swww-test"
 fi
 
-# v6.5/v6.6 scripts from scripts/
+# v6.5/v6.6+ scripts from scripts/
 if [ -d "$SCRIPT_DIR/scripts" ]; then
     for script in fix-monitor-scale.sh blueman-toggle.sh btm-toggle.sh \
                   wifi-toggle.sh termrun.sh regen-terminal-themes.sh \
-                  regen-swaync-theme.sh zen-screenshot.sh; do
+                  regen-swaync-theme.sh zen-screenshot.sh \
+                  patch-swaync-position.sh; do
         src="$SCRIPT_DIR/scripts/$script"
         if [ -f "$src" ]; then
             cp "$src" "$BIN_DIR/$script"
@@ -400,11 +374,11 @@ if [ -f "$SCRIPT_DIR/hypr-config/binds.conf" ]; then
 fi
 if [ -f "$SCRIPT_DIR/hypr-config/keybinds-update.conf" ]; then
     cp "$SCRIPT_DIR/hypr-config/keybinds-update.conf" "$SHELL_DIR/config/keybinds-update.conf"
-    echo "    keybinds-update.conf"
+    echo "    keybinds-update.conf (v6.14: carried from v6.13)"
 fi
 if [ -f "$SCRIPT_DIR/hypr-config/hyprland-layer-rules.conf" ]; then
     cp "$SCRIPT_DIR/hypr-config/hyprland-layer-rules.conf" "$SHELL_DIR/config/hyprland-layer-rules.conf"
-    echo "    hyprland-layer-rules.conf"
+    echo "    hyprland-layer-rules.conf (v6.14: carried from v6.13)"
 fi
 
 HCONF="$HYPR_DIR/hyprland.conf"
@@ -462,26 +436,18 @@ fi
 echo ""
 echo "[8/9] First-run tasks..."
 
-# All first-run tasks run with a timeout so a misbehaving daemon spawn
-# (e.g. swaync-client --reload-css blocking) can never hang the installer.
-# `timeout 10s` kills the subprocess after 10s, exit code 124 = timeout,
-# which we swallow with `|| echo "(timed out)"`.
-
-# Fix invalid monitor scales (Hyprland only accepts specific fractions)
 if [ -x "$BIN_DIR/fix-monitor-scale.sh" ] && [ -f "$HYPR_DIR/modules/monitors.conf" ]; then
     echo "    Running fix-monitor-scale.sh..."
     timeout 10s "$BIN_DIR/fix-monitor-scale.sh" 2>&1 | sed 's/^/    /' \
         || echo "    (skipped or timed out)"
 fi
 
-# Generate theme-aware Alacritty + fuzzel configs from current theme
 if [ -x "$BIN_DIR/regen-terminal-themes.sh" ] && [ -f "$GTK_DIR/current-theme.json" ]; then
     echo "    Running regen-terminal-themes.sh..."
     timeout 10s "$BIN_DIR/regen-terminal-themes.sh" 2>&1 | sed 's/^/    /' \
         || echo "    (skipped or timed out)"
 fi
 
-# v6.6: Generate theme-aware SwayNC CSS + restart daemon
 if [ -x "$BIN_DIR/regen-swaync-theme.sh" ] && [ -f "$GTK_DIR/current-theme.json" ]; then
     echo "    Running regen-swaync-theme.sh..."
     timeout 10s "$BIN_DIR/regen-swaync-theme.sh" 2>&1 | sed 's/^/    /' \
@@ -497,7 +463,7 @@ pkill -9 qs 2>/dev/null || true
 sleep 0.5
 rm -rf "/run/user/$(id -u)/quickshell/by-id"/* 2>/dev/null
 
-# Start swww daemon — use setsid for clean detach from installer
+# Start swww daemon
 if command -v swww >/dev/null 2>&1; then
     if ! swww query > /dev/null 2>&1; then
         if command -v swww-daemon >/dev/null 2>&1; then
@@ -515,7 +481,7 @@ if command -v swww >/dev/null 2>&1; then
     fi
 fi
 
-# Start Zen Shell — already uses setsid + disown, good
+# Start Zen Shell
 setsid qs -c zen-shell > /tmp/zen-shell.log 2>&1 < /dev/null & disown
 echo "    Started qs -c zen-shell (log: /tmp/zen-shell.log)"
 
@@ -530,9 +496,6 @@ sleep 1
 # ═══════════════════════════════════════════════════════════════
 # FINAL STATUS BANNER
 # ═══════════════════════════════════════════════════════════════
-# Count what actually landed on disk so the user knows concretely
-# what was installed — not just "complete" but "X QML, Y scripts,
-# Z themes, swww daemon running, shell PID alive."
 
 INSTALLED_QML_COUNT=$(ls -1 "$SHELL_DIR"/*.qml 2>/dev/null | wc -l)
 INSTALLED_SCRIPTS_COUNT=$(ls -1 "$BIN_DIR"/*.sh 2>/dev/null | wc -l)
@@ -549,7 +512,7 @@ pgrep -x swaync >/dev/null 2>&1 && SWAYNC_ALIVE="yes"
 echo ""
 echo "╔═══════════════════════════════════════════════════════════════╗"
 echo "║                                                               ║"
-echo "║            🎉  ZEN SHELL v6.12 INSTALLED SUCCESSFULLY  🎉      ║"
+echo "║            🎉  ZEN SHELL v6.14 INSTALLED SUCCESSFULLY  🎉      ║"
 echo "║                                                               ║"
 echo "╚═══════════════════════════════════════════════════════════════╝"
 echo ""
@@ -568,37 +531,36 @@ if [ -n "$SKIPPED_OPTIONAL_PACKAGES" ]; then
     echo "      → rerun: $INSTALLER -S $SKIPPED_OPTIONAL_PACKAGES"
 fi
 echo ""
-echo "  ── New in v6.12 ──"
-echo "      Desktop widgets now visible (Bottom layer instead of Background)"
-echo "      Taskbar right-click menu actions work (pin/unpin/close)"
-echo "      Taskbar auto-collapses with < > scroll on overflow"
-echo "      QT_QPA_PLATFORM=wayland auto-injected into hyprland.conf"
-echo "      Screenshot tools installed: flameshot grim slurp wl-clipboard"
+echo "  ── Fixed in v6.14 ──"
+echo "      Tooltip alignment    SysRow icons → tooltip now pops up above the icon"
+echo "      SwayNC position      Settings → Notifications → position actually applies"
+echo "      Process reuse        Rapid clicks no longer silently ignored"
+echo "      Daemon restart       SIGTERM first, SIGKILL fallback, verify before start"
 echo ""
-echo "  ── Keybinds (from hypr-config/binds.conf) ──"
+echo "  ── Keybinds ──"
+echo "    Super+C      → Control Panel (quick settings)"
 echo "    Super+,      → Settings window"
 echo "    Super+W      → Wallpaper picker"
 echo "    Super+A      → Start menu"
+echo "    Super+/      → Keybind cheatsheet"
 echo ""
-echo "  ── Quick test ──"
-echo "      Change volume → notification should appear themed"
-echo "      Super+, → Themes → select any → everything repaints live"
-echo "      Super+W → click thumbnail → wallpaper applies in ~1s"
-echo ""
-echo "  ── Bind your new scripts in ~/.config/hypr/modules/binds.conf ──"
-echo '    bind = SUPER, B,      exec, ~/.local/bin/blueman-toggle.sh'
-echo '    bind = SUPER, T,      exec, ~/.local/bin/btm-toggle.sh'
-echo '    bind = SUPER, N,      exec, ~/.local/bin/wifi-toggle.sh'
-echo '    bind = SUPER, RETURN, exec, ~/.local/bin/termrun.sh'
+echo "  ── Quick test (v6.14 fixes) ──"
+echo "    1. Expand SysRow ❮ → hover each icon"
+echo "       → tooltip should appear DIRECTLY ABOVE the hovered icon"
+echo "    2. Super+, → Settings → Notifications"
+echo "       → click bottom-right → test notification appears bottom-right"
+echo "       → check: cat /tmp/zen-swaync-position.log"
 echo ""
 echo "  ── Diagnostics if something's wrong ──"
-echo "    tail -30 /tmp/zen-shell.log           # shell stderr"
-echo "    tail -30 /tmp/zen-swaync-regen.log    # swaync regen log"
-echo "    tail -30 /tmp/zen-theme-regen.log     # terminal theme regen log"
-echo "    swww-test                             # wallpaper pipeline diagnostic"
+echo "    tail -30 /tmp/zen-shell.log              # shell stderr"
+echo "    cat /tmp/zen-swaync-position.log         # swaync patch debug"
+echo "    grep positionX ~/.config/swaync/config.json  # verify config"
+echo "    wpctl status                             # PipeWire check"
+echo "    nmcli radio wifi                         # WiFi check"
+echo "    bluetoothctl show                        # BT check"
 echo ""
 echo "═══════════════════════════════════════════════════════════════"
-echo "  ✅  All done. Enjoy Zen Shell v6.12, pre."
+echo "  ✅  All done. Enjoy Zen Shell v6.14, pre."
 echo "═══════════════════════════════════════════════════════════════"
 echo ""
 

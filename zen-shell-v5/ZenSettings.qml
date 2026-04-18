@@ -63,15 +63,18 @@ Rectangle {
         { id: "general",     label: "General",            icon: "\uf0c9" },  // bars
         { id: "decoration",  label: "Decoration",         icon: "\uf1fc" },  // paintbrush
         { id: "animations",  label: "Animations",         icon: "\uf021" },  // refresh
-        { id: "themes",      label: "Themes",             icon: "\uf53f" },  // paint-brush
+        { id: "themes",      label: "Themes",             icon: "\udb80\udd0e" },  // palette 󰔎
         { header: "INPUT & DISPLAY" },
         { id: "displays",    label: "Displays",           icon: "\uf26c" },  // tv
         { id: "panel",       label: "Panel",              icon: "\uf03a" },  // list
         { id: "barmodules",  label: "Bar Modules",        icon: "\uf017" },  // clock
+        { id: "sysrow",     label: "System Tray",        icon: "\uf2db" },  // cpu chip
+        { header: "CONNECTIVITY" },
+        { id: "connectivity", label: "Sound & Network",   icon: "\uf1eb" },  // wifi
+        { id: "notifications", label: "Notifications",    icon: "\uf0f3" },  // bell
         { header: "OTHER" },
         { id: "widgets",     label: "Desktop Widgets",    icon: "\uf1b2" },  // cube
-        { id: "wallpaper",   label: "Wallpaper",          icon: "\uf03e" },  // image
-        { id: "appearance",  label: "Appearance (legacy)", icon: "\uf1fc" }
+        { id: "wallpaper",   label: "Wallpaper",          icon: "\uf03e" }   // image
     ]
 
     // Fullscreen-aware sidebar width
@@ -363,17 +366,19 @@ Rectangle {
 
                     currentIndex: {
                         switch (root.currentPage) {
-                            case "general":    return 0
-                            case "decoration": return 1
-                            case "animations": return 2
-                            case "themes":     return 3
-                            case "displays":   return 4
-                            case "panel":      return 5
-                            case "barmodules": return 6
-                            case "widgets":    return 7
-                            case "wallpaper":  return 8
-                            case "appearance": return 9
-                            default:           return 0
+                            case "general":       return 0
+                            case "decoration":    return 1
+                            case "animations":    return 2
+                            case "themes":        return 3
+                            case "displays":      return 4
+                            case "panel":         return 5
+                            case "barmodules":    return 6
+                            case "sysrow":        return 7
+                            case "connectivity":  return 8
+                            case "notifications": return 9
+                            case "widgets":       return 10
+                            case "wallpaper":     return 11
+                            default:              return 0
                         }
                     }
 
@@ -384,9 +389,11 @@ Rectangle {
                     DisplaysPage { }
                     PanelPage { }
                     BarModulesPage { }
+                    SysRowPage { }
+                    ConnectivityPage { }
+                    NotificationPage { }
                     WidgetsPage { }
                     WallpaperPage { }
-                    AppearancePage { }
                 }
             }
         }

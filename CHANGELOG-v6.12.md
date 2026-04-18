@@ -3,172 +3,145 @@
 **Target:** Hyprland 0.54+ / CachyOS / Arch Linux
 **Quickshell:** QML-based shell (Zen Shell beta)
 
----
+## v6.12 — Widget Visibility Fix + Context Menu Fix + Taskbar Overflow + Hyprland 0.54 Compat
 
-## v6.12 — Fixes + Settings Draggable + Wallpaper Slideshow + Hyprland 0.54
+### v6.12b — Priority 1 Quick Fixes
+
+**Wallpaper grid 5th row spillover — Fixed.**
+`wallpapersPerPage` was hardcoded to 8. With wider windows (5+ columns),
+only 2 rows showed — but on narrower windows or when the picker shrinks,
+items spilled into a 5th row. Now dynamic: `columns × 4` rows max.
+The picker pushes its column count back to `WallpaperServiceV5` on
+resize so the paged list always slices to exactly 4 rows.
+
+**Settings panel exits on internal click — Fixed.**
+Same root cause as the v6.12 taskbar context menu fix: `HyprlandFocusGrab`
+with `windows: [settingsWindow]` killed the panel when clicking any
+dropdown, color picker, or popup inside ZenSettings (those are separate
+Wayland surfaces not in the grab list). Removed the `HyprlandFocusGrab`.
+Click-outside dismiss now handled solely by the transparent backdrop
+`MouseArea` which sits behind ZenSettings.
+
+**Flameshot bind — toggle mode.**
+`Super+Alt+F12` now uses `pkill flameshot || flameshot gui` — kills
+flameshot if running, starts GUI if not. Updated in both `binds.conf`
+and `keybinds-update.conf`.
+
+**`togglesplit` bind — dwindle comment restored.**
+`Super+J` dispatches `togglesplit` (dwindle layout splitter). Added
+`# dwindle` comment for clarity alongside `pseudo`.
 
 ### Desktop Widgets Not Showing — Fixed
 
-**Root cause:** `WlrLayershell.layer` was `WlrLayer.Background` — the
-Background layer sits *behind* the wallpaper (swww/swaybg/awww), so
-widgets rendered but were completely hidden underneath.
+**Root cause:** `WlrLayershell.layer` was set to `WlrLayer.Background`.
+The Background layer sits *behind* the wallpaper (swww/swaybg/awww),
+so widgets were rendering but completely hidden underneath.
 
-**Fix:** Changed to `WlrLayer.Bottom` in `shell.qml`. Bottom layer sits
-above wallpaper but below all application windows.
+**Fix:** Changed to `WlrLayer.Bottom` in `shell.qml`. The Bottom layer
+sits above the wallpaper but below all application windows — exactly
+where desktop widgets should live.
 
-### Taskbar Right-Click Menu (Pin/Unpin/Close) — Fixed
+### Hyprland Config Error: layerrule:noanim — Fixed
 
-**Root cause:** `HyprlandFocusGrab` with `windows: [barWindow]` — the
-`PopupWindow` context menu is a separate Wayland surface not in the grab
-list. Clicking any menu item triggered `onCleared` → reset `ctxAppId`
-→ popup vanished before `MouseArea.onClicked` could register.
+**Root cause:** `noanim` is not a valid `layerrule` property — it only
+exists for `windowrulev2`. The invalid rule caused config parse errors
+on every Hyprland reload.
 
-**Fix:** Removed `HyprlandFocusGrab`. Replaced with background
-`MouseArea` (z: -1) for bar-level click-outside dismiss. All context
-menu items (Pin, Unpin, New Window, Close All) now work.
+**Fix:** Removed the invalid `noanim` layerrule entirely. Widgets don't
+need animation suppression at the layer level.
+
+### Flameshot GUI Opens on Wrong Monitor — Fixed
+
+**Root cause:** `flameshot gui` (Super+Alt+F12) launched without any
+display targeting, so flameshot defaulted to the first monitor instead
+of the focused one. On multi-monitor setups (e.g. ultrawide + portrait),
+the GUI would appear on the wrong screen.
+
+**Fix:** `zen-screenshot.sh` now passes `--region WxH+X+Y` to
+`flameshot gui` using the focused monitor's geometry from
+`hyprctl monitors -j`. Also added `windowrulev2` rules for flameshot:
+`noanim`, `float`, `pin`, `stayfocused`, `suppressevent fullscreen`.
+Auto-creates `~/.config/flameshot/flameshot.ini` with Wayland defaults
+on first run.
+
+### Taskbar Right-Click Menu — Fixed
+
+**Root cause:** `HyprlandFocusGrab` in `Taskbar.qml` was set with
+`windows: [barWindow]`. But `PopupWindow` (context menu) is a separate
+Wayland surface not included in that list. When clicking any menu item
+(Pin, Unpin, New Window, Close All), the focus grab detected a click
+outside its window list → fired `onCleared` → reset `ctxAppId = ""` →
+popup vanished *before* the `MouseArea.onClicked` inside could register.
+
+**Fix:** Removed `HyprlandFocusGrab` entirely. Replaced with a
+background `MouseArea` (z: -1) on the taskbar root that dismisses
+popups when clicking the bar background. Context menu items now have
+full click-through — Pin, Unpin, New Window, Close All all work.
 
 ### Taskbar Overflow Auto-Collapse
 
-When too many apps are open (pinned + running > ~10), taskbar caps
-width at 440px and shows `❮` / `❯` chevron scroll buttons.
+When too many apps are open (pinned + running > ~10), the taskbar now
+caps its width at 440px and shows `❮` / `❯` chevron scroll buttons.
 
-- Smooth animated scroll (200ms OutCubic), 2 icons per step
-- Left/right chevrons auto-hide at scroll boundaries
-- `clip: true` viewport, scroll offset auto-clamps on window close
-- Minimalist — no scrollbar, just subtle chevron pills
-
-### Settings Panel — No Auto-Close on Click Outside
-
-**Root cause:** `HyprlandFocusGrab` + backdrop `MouseArea` both closed
-the panel when clicking dropdowns, color pickers, popups, or anywhere
-outside the panel.
-
-**Fix:** Removed BOTH. Panel now stays open until explicitly closed via:
-1. ✕ close button
-2. Super+, toggle (same keybind that opens it)
-3. Esc key
-
-### Settings Panel — Draggable
-
-Settings panel is now draggable by the sidebar header ("⚙ Settings"
-text area). Drag handle covers the gear icon + title only — close ✕
-and maximize buttons remain independently clickable.
-
-- Uses `drag.target: root` with `preventStealing: true`
-- `hasBeenDragged` flag breaks `anchors.centerIn` on first drag
-- Resets to centered on every reopen or fullscreen toggle
-- Disabled during fullscreen mode
-
-### Settings Panel — Always Centered on Open
-
-**Root cause:** Previous imperative centering (`_centerSelf()`) used
-`settingsWindow.width` which was 0 before compositor sizing, or used
-`modelData.width` which gave wrong values on multi-monitor.
-
-**Fix:** Uses `anchors.centerIn: parent` (QML's native centering) with
-a conditional ternary that breaks the anchor when drag starts:
-```qml
-anchors.centerIn: (!fullscreen && !hasBeenDragged) ? parent : undefined
-```
-Bulletproof — works on any screen size, any resolution, any monitor.
-
-### Wallpaper Grid — Strict 4-Row Cap
-
-**Root cause:** `wallpapersPerPage` was hardcoded to 8 in
-`WallpaperServiceV5.qml`. With 5 columns in Settings → Wallpaper,
-items spilled into a 5th row.
-
-**Fix:** Both `WallpaperPicker.qml` (Super+W popup) and
-`WallpaperPage.qml` (Settings → Wallpaper) now set
-`wallpapersPerPage = columns × 4` on load. WallpaperPage uses
-`5 × 4 = 20` items max (exactly 4 rows of 5). WallpaperPicker
-dynamically adjusts based on its own column count.
-
-### Wallpaper Slideshow Toggle — Actually Stops Now
-
-**Root cause (triple bug):**
-1. **Declarative `running:` binding** — timer had
-   `running: root.slideshowEnabled && ...` which QML re-evaluated
-   after `stop()`, potentially restarting the timer before the
-   property change propagated.
-2. **FileView reload race** — `FileView` with `blockLoading: false`
-   auto-reloads when the state file changes. `saveState()` writes
-   the file → FileView detects → `applyState()` fires → could read
-   stale state and re-enable slideshow.
-3. **Timer not synced on login** — `applyState()` set
-   `slideshowEnabled` but never started/stopped the timer.
-
-**Fix:**
-- Removed declarative `running:` binding — timer starts as
-  `running: false`, controlled only imperatively via `.stop()` /
-  `.restart()` in `setSlideshow()`
-- Added `_saving` guard — `applyState()` returns immediately while
-  `saveState()` is writing, preventing race condition
-- `applyState()` now explicitly calls `slideshowTimer.restart()` or
-  `.stop()` based on loaded state, so logout/login preserves the
-  toggle correctly
-
-### Flameshot GUI — Opens on Focused Monitor
-
-**Root cause:** `flameshot gui` launched without display targeting,
-defaulting to the first monitor instead of the focused one.
-
-**Fix:** `zen-screenshot.sh` now passes `--region WxH+X+Y` to
-`flameshot gui` using focused monitor geometry from
-`hyprctl monitors -j`. Added Hyprland 0.54 window rules for
-flameshot: `float`, `no_anim`, `pin`, `stay_focused`.
-
-### Flameshot Bind — Toggle Mode
-
-`Super+Alt+F12` now uses `pkill flameshot || flameshot gui` — kills
-if running, starts GUI if not. Updated in both `binds.conf` and
-`keybinds-update.conf`.
-
-### Hyprland 0.54 Syntax Migration
-
-Rewrote `hyprland-layer-rules.conf` entirely. All `windowrulev2`
-(deprecated) and old `layerrule { }` block syntax converted to new
-0.54 anonymous one-liner format:
-
-```
-# OLD (errors on 0.54):
-windowrulev2 = float, title:^(flameshot)
-layerrule { name = x  match:namespace = y  blur = true }
-
-# NEW:
-windowrule = float true, match:title ^(flameshot)
-layerrule = blur on, ignore_alpha 0.5, match:namespace zen-shell-bar
-```
+- Smooth animated scroll (200ms OutCubic) stepping 2 icons per click
+- Left chevron hidden when at start, right hidden when at end
+- `clip: true` viewport hides overflowed icons cleanly
+- Scroll offset auto-clamps when windows close (app list shrinks)
+- Minimalist look preserved — no scrollbar, just subtle chevron pills
 
 ### QT_QPA_PLATFORM Environment Variable
 
-Installer auto-injects `env = QT_QPA_PLATFORM,wayland` into
-`~/.config/hypr/hyprland.conf` if not already present.
+Installer now auto-injects `env = QT_QPA_PLATFORM,wayland` into
+`~/.config/hypr/hyprland.conf` if not already present. Skips if the
+env is already set.
 
-### Keybind Notes
+### Screenshot Dependencies
 
-| Keybind | Action |
-|---|---|
-| Super+, | Toggle settings panel |
-| Super+/ or Super+F2 | Keybind cheatsheet popup |
-| Super+Alt+F12 | Toggle flameshot GUI |
-| Super+J | Toggle split direction (dwindle) |
-| Super+P | Pseudo-tile (dwindle) |
+`flameshot`, `grim`, `slurp`, and `wl-clipboard` are checked as
+recommended dependencies. Already existing packages are skipped
+via `--needed` flag on the package manager call (paru/yay/pacman).
 
-**Note:** `Super+J` (togglesplit) and `Super+P` (pseudo) require
-`general { layout = dwindle }` in hyprland.conf. Check with:
-`hyprctl getoption general:layout`
+### Hyprland 0.54 Syntax Migration
 
----
+**Root cause:** Hyprland 0.53+ completely overhauled both `windowrule`
+and `layerrule` syntax. `windowrulev2` is fully deprecated (errors on
+0.54). Old `layerrule { name = ... }` block syntax with separate
+`match:namespace =` lines also produces errors.
+
+**Fix:** Rewrote `hyprland-layer-rules.conf` entirely using the new
+0.54 anonymous one-liner syntax:
+
+```
+# OLD (deprecated, errors on 0.54):
+layerrule {
+    name = zen-bar-blur
+    match:namespace = zen-shell-bar
+    blur = true
+    ignore_alpha = 0.5
+}
+windowrulev2 = float, title:^(flameshot)
+
+# NEW (Hyprland 0.54+):
+layerrule = blur on, ignore_alpha 0.5, match:namespace zen-shell-bar
+windowrule = float true, match:title ^(flameshot)
+```
+
+All 5 layerrules and 5 windowrules converted. Zero config errors on
+`hyprctl reload`.
+
+### Installer Updates
+
+- Version banner updated to v6.12
+- Success banner shows v6.12
+- `--needed` flag on `paru -S` / `yay -S` ensures existing deps skip
+- `env = QT_QPA_PLATFORM,wayland` auto-added to hyprland.conf
 
 ## Modified Files
 
-- zen-shell-v5/shell.qml (WlrLayer fix, settings draggable + centered, no auto-close)
-- zen-shell-v5/ZenSettings.qml (drag handle on sidebar header, hasBeenDragged property)
-- zen-shell-v5/Taskbar.qml (HyprlandFocusGrab removed, overflow chevrons)
+- zen-shell-v5/shell.qml (WlrLayer fix, settings HyprlandFocusGrab removed)
+- zen-shell-v5/Taskbar.qml (HyprlandFocusGrab removed, overflow added)
 - zen-shell-v5/WallpaperPicker.qml (dynamic 4-row cap via columns × 4)
-- zen-shell-v5/WallpaperPage.qml (enforces 5 × 4 = 20 items per page)
-- zen-shell-v5/WallpaperServiceV5.qml (slideshow timer fix, _saving guard, wallpapersPerPage writable)
+- zen-shell-v5/WallpaperServiceV5.qml (wallpapersPerPage now writable)
 - hypr-config/hyprland-layer-rules.conf (Hyprland 0.54 syntax, flameshot windowrule)
 - hypr-config/binds.conf (flameshot toggle, dwindle comments)
 - hypr-config/keybinds-update.conf (flameshot toggle)
@@ -186,42 +159,22 @@ Existing quickshell process is killed automatically before restart.
 
 ## Test Checklist
 
-**Desktop Widgets**
-- [ ] Widgets visible on login (clock, weather, sysmon)
-- [ ] Widgets above wallpaper, below windows
-
-**Taskbar**
-- [ ] Right-click → context menu → Pin/Unpin/Close all work
-- [ ] 12+ apps → ❯ chevron appears → scrolls → ❮ scrolls back
-- [ ] Close windows → chevrons disappear when no overflow
-
-**Settings Panel**
-- [ ] Super+, → opens centered on screen
-- [ ] Click outside panel → panel stays open (no auto-close)
-- [ ] Grab "⚙ Settings" text → drag panel around screen
-- [ ] Reopen → panel centers again (drag position resets)
-- [ ] ✕ button works in both windowed and fullscreen mode
-- [ ] Esc closes panel
-- [ ] Super+, closes panel (toggle)
-
-**Wallpaper**
-- [ ] Settings → Wallpaper → exactly 4 rows of thumbnails
-- [ ] Super+W → WallpaperPicker → 4 rows max
-- [ ] Toggle slideshow OFF → wallpapers stop immediately
-- [ ] Close settings → wallpapers stay stopped
-- [ ] Logout → login → wallpapers still stopped
-- [ ] Toggle slideshow ON → cycling resumes
-- [ ] Check log: `tail -f /tmp/zen-shell.log | grep WallpaperV5`
-
-**Flameshot & Screenshots**
-- [ ] Super+Alt+F12 → flameshot GUI on focused monitor
-- [ ] Super+Alt+F12 again → kills flameshot (toggle)
-- [ ] Super+F12 → grim region select on focused monitor
-
-**Hyprland Config**
-- [ ] `hyprctl reload` → no red error bar
-- [ ] hyprland.conf has `env = QT_QPA_PLATFORM,wayland`
-
-**Keybinds**
-- [ ] Super+/ → cheatsheet popup shows all current binds
-- [ ] Super+J → togglesplit works (requires dwindle layout)
+- [ ] Desktop widgets visible on login (clock, weather, sysmon)
+- [ ] Widgets show above wallpaper, below windows
+- [ ] Right-click taskbar icon → context menu appears
+- [ ] Click "Pin to taskbar" → app pins, menu closes
+- [ ] Click "Unpin" → app unpins, menu closes
+- [ ] Click "New window" → new window launches, menu closes
+- [ ] Click "Close" / "Close all" → windows close, menu closes
+- [ ] Open 12+ apps → taskbar shows ❯ chevron on right
+- [ ] Click ❯ → taskbar scrolls smoothly to reveal hidden icons
+- [ ] Click ❮ → taskbar scrolls back
+- [ ] Close windows until <10 → chevrons disappear, normal layout
+- [ ] hyprland.conf has `env = QT_QPA_PLATFORM,wayland` after install
+- [ ] Existing deps not re-downloaded on install (--needed)
+- [ ] No regressions: drag widgets, settings, wallpaper picker, themes
+- [ ] No Hyprland config errors on reload (check `hyprctl reload`)
+- [ ] Super+Alt+F12 → flameshot GUI opens on focused monitor
+- [ ] Flameshot GUI works on ultrawide when cursor is on ultrawide
+- [ ] Flameshot GUI works on portrait monitor when cursor is there
+- [ ] Super+F12 → grim region select works on focused monitor

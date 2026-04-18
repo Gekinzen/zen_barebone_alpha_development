@@ -23,6 +23,8 @@ ShellRoot {
     property bool settingsVisible: false
     property bool settingsFullscreen: false
     property bool keybindCheatsheetVisible: false
+    property bool controlPanelVisible: false
+    property bool calendarVisible: false
 
     property bool powerConfirmVisible: false
     property string powerAction: ""
@@ -59,7 +61,10 @@ ShellRoot {
         function reloadThemeFromFile() { ThemeService.reload() }
         function refreshThemeList() { ThemeService.refreshThemeList() }
 
-        function toggleControlCenter() { console.log("[zen] Control center (Phase 4)") }
+        function toggleControlCenter() { root.controlPanelVisible = !root.controlPanelVisible }
+        function closeControlCenter() { root.controlPanelVisible = false }
+        function toggleCalendar() { root.calendarVisible = !root.calendarVisible }
+        function closeCalendar() { root.calendarVisible = false }
         function toggleKeybindCheatsheet() { root.keybindCheatsheetVisible = !root.keybindCheatsheetVisible }
         function reloadTheme(schemeName: string) { Theme.loadScheme(schemeName) }
         function cycleTheme() { Theme.cycleTheme() }
@@ -380,6 +385,120 @@ ShellRoot {
 
                 onConfirmed: root.powerConfirmVisible = false
                 onCancelled: root.powerConfirmVisible = false
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // CONTROL PANEL — Quick Settings popup (Super+C)
+    // v6.13: Draggable, no auto-close, expand arrow for details.
+    // Real system icons — WiFi/BT/Audio from ConnectivityService,
+    // CPU/GPU/RAM from SystemMonitorService.
+    // ═══════════════════════════════════════════════════════════════
+    Variants {
+        model: Quickshell.screens
+
+        PanelWindow {
+            id: controlPanelWindow
+            required property var modelData
+            screen: modelData
+
+            property bool isFocusedMonitor: {
+                if (!Hyprland.focusedMonitor) return Quickshell.screens[0] === modelData
+                return Hyprland.focusedMonitor.name === modelData.name
+            }
+
+            visible: root.controlPanelVisible && isFocusedMonitor
+
+            anchors.top: true
+            anchors.bottom: true
+            anchors.left: true
+            anchors.right: true
+            WlrLayershell.layer: WlrLayer.Overlay
+            WlrLayershell.namespace: "zen-shell-controlpanel"
+            exclusionMode: ExclusionMode.Ignore
+            color: "transparent"
+
+            // v6.13: No HyprlandFocusGrab, no backdrop.
+            // Same pattern as Settings — panel stays open until
+            // explicitly closed via ✕, Esc, or Super+C toggle.
+
+            ControlPanel {
+                id: controlPanelInstance
+                visible: controlPanelWindow.visible
+                onCloseRequested: root.controlPanelVisible = false
+
+                // Center by default, break anchor on drag
+                anchors.centerIn: (!hasBeenDragged) ? parent : undefined
+
+                onVisibleChanged: if (visible) {
+                    hasBeenDragged = false
+                    expanded = false
+                }
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // SYSROW TOOLTIP — v6.14: REMOVED
+    // Tooltip is now a PopupWindow inside each SysRowIcon.qml,
+    // using anchor.item (same as Taskbar.qml). No manual coordinate
+    // math needed — Quickshell handles positioning automatically.
+    // Old PanelWindow approach broke in floating/island bar modes.
+    // ═══════════════════════════════════════════════════════════════
+
+    // ═══════════════════════════════════════════════════════════════
+    // CALENDAR — Click clock in bar to toggle
+    // v6.13: Separate overlay window so calendar renders above bar
+    // without PanelWindow clipping. Positioned bottom-right, just
+    // above the bar.
+    // ═══════════════════════════════════════════════════════════════
+    Variants {
+        model: Quickshell.screens
+
+        PanelWindow {
+            id: calendarWindow
+            required property var modelData
+            screen: modelData
+
+            property bool isFocusedMonitor: {
+                if (!Hyprland.focusedMonitor) return Quickshell.screens[0] === modelData
+                return Hyprland.focusedMonitor.name === modelData.name
+            }
+
+            visible: root.calendarVisible && isFocusedMonitor
+
+            anchors.bottom: true
+            anchors.right: true
+            WlrLayershell.layer: WlrLayer.Overlay
+            WlrLayershell.namespace: "zen-shell-calendar"
+            exclusionMode: ExclusionMode.Ignore
+            color: "transparent"
+
+            implicitWidth: 300
+            implicitHeight: 340
+
+            margins.bottom: PanelState.barHeight + 12 + PanelState.panelMarginBottom
+            margins.right: 12
+
+            HyprlandFocusGrab {
+                active: calendarWindow.visible
+                windows: [calendarWindow]
+                onCleared: root.calendarVisible = false
+            }
+
+            ZenCalendar {
+                anchors.fill: parent
+                visible: calendarWindow.visible
+
+                onVisibleChanged: {
+                    if (visible) {
+                        viewYear = new Date().getFullYear()
+                        viewMonth = new Date().getMonth()
+                    }
+                }
+
+                onCloseRequested: root.calendarVisible = false
             }
         }
     }
