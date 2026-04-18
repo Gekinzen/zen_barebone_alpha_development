@@ -4,7 +4,25 @@
 
 Zen Shell (formerly "Zenith") is a complete desktop shell built entirely in QML using [Quickshell](https://github.com/quickshell-mirror/quickshell) — replacing the previous mixed stack of GTK4/Libadwaita, Python, C++, and Waybar with a unified, lightweight QML architecture.
 
-![Zen Shell Desktop](https://raw.githubusercontent.com/Gekinzen/zen_barebone_alpha_development/main/preview.png)
+---
+
+## 🎬 Demo
+
+[![Zen Shell Demo](https://img.youtube.com/vi/YQxrh5_naMQ/maxresdefault.jpg)](https://www.youtube.com/watch?v=YQxrh5_naMQ)
+
+▶️ **[Watch the full demo on YouTube](https://www.youtube.com/watch?v=YQxrh5_naMQ)**
+
+---
+
+## 📸 Screenshots
+
+![Zen Shell — Bar + Desktop Widgets + System Tray](images/sample1.png)
+
+![Zen Shell — Settings + Control Panel](images/sample2.png)
+
+![Zen Shell — Themes + Wallpaper Picker](images/sample3.png)
+
+---
 
 ## Current Release — Beta v12.6.14
 
