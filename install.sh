@@ -72,23 +72,47 @@ echo "    ───────────────────────�
 echo ""
 echo "    Quickshell-native desktop environment for Hyprland."
 echo ""
-echo "    v6.15.14 hotfix — Auto-install polish"
-echo "      Generic helper script       zs-restart.sh no longer has any"
-echo "                                   hardcoded user references in"
-echo "                                   comments — fully dynamic via \$HOME"
-echo "                                   and \$USER, works for any Linux"
-echo "                                   user on any system."
-echo "      Script robustness           Added pre-flight checks: verifies"
-echo "                                   quickshell binary exists in PATH"
-echo "                                   and Zen Shell config dir is present"
-echo "                                   before attempting kill + respawn."
-echo "                                   Improved diagnostic logging in"
-echo "                                   /tmp/zs-restart.log."
-echo "      Auto cleanup on upgrade     install.sh now removes stale"
+echo "    v6.15.15 — Complete inventory + smart hardware detection"
+echo ""
+echo "      Smart hardware detection    Auto-detects multi-GPU topology"
+echo "                                   (iGPU + dGPU, Optimus, NVIDIA,"
+echo "                                   AMD, Intel) and writes env vars"
+echo "                                   to ~/.config/hypr/modules/"
+echo "                                   hardware.conf with AQ_DRM_DEVICES"
+echo "                                   set to the correct primary node."
+echo "                                   Never overwritten on upgrade."
+echo ""
+echo "      Complete script inventory   3 scripts that were missing from"
+echo "                                   prior tarballs, now shipped:"
+echo "                                     - openrgb-autoload.sh"
+echo "                                     - openrgb-wrapper.sh"
+echo "                                     - zen-screenshot-capture.sh"
+echo ""
+echo "      Complete hypr modules       3 hypr config modules now"
+echo "                                   shipped to ~/.config/hypr/modules/"
+echo "                                   with preserve-if-exists logic:"
+echo "                                     - animations.conf"
+echo "                                     - autostart.conf"
+echo "                                     - look_and_feel.conf"
+echo ""
+echo "      Source auto-wired           hyprland.conf gets source = lines"
+echo "                                   auto-appended for all 4 modules"
+echo "                                   (hardware/animations/autostart/"
+echo "                                   look_and_feel) when missing."
+echo ""
+echo "    v6.15.14 — Ship 12 QML files missing from prior tarballs"
+echo "      Fresh-install fix           v6.15 → v6.15.13 tarballs shipped"
+echo "                                   only 56 of 68 QML files. Fresh"
+echo "                                   installs crashed with errors like"
+echo "                                   'PowerConfirmDialog is not a type'"
+echo ""
+echo "    v6.15.13 — Install automation polish"
+echo "      Generic helper script       zs-restart.sh fully dynamic via"
+echo "                                   \$HOME and \$USER, no hardcoded"
+echo "                                   paths."
+echo "      Auto cleanup on upgrade     install.sh removes stale"
 echo "                                   ~/.local/bin/zen-shell-nuclear-"
-echo "                                   restart.sh left by v6.15.11 so"
-echo "                                   upgraders don't end up with both"
-echo "                                   scripts."
+echo "                                   restart.sh from v6.15.11."
 echo ""
 echo "    v6.15.12 hotfix — Fix nuclear restart self-suicide bug"
 echo "      Script renamed              zs-restart.sh (no 'zen-shell' in"
@@ -267,6 +291,206 @@ if [ "$EXISTING_INSTALL" -eq 1 ]; then
         echo ""
     fi
 fi
+
+# ═══════════════════════════════════════════════════════════════
+# [0.5/9] Smart hardware detection (v6.15.15+)
+# ═══════════════════════════════════════════════════════════════
+# Detects GPU topology, display server, and CPU vendor. Sets env
+# variables that get baked into the user's Hyprland config so that:
+#   - Multi-GPU systems (e.g. RTX 3060 + Ryzen iGPU, Intel + NVIDIA
+#     Optimus laptops) render Hyprland on the right GPU
+#   - Pure AMD / Intel / NVIDIA single-GPU systems get the lean path
+#   - VRR + hardware cursor settings suit the detected panels
+#
+# What we DETECT, not what we DECIDE:
+#   - We never force a GPU on the user. We set AQ_DRM_DEVICES / env
+#     vars with the detected primary render node as a hint.
+#   - User can override everything via ~/.config/hypr/modules/
+#     hardware.conf (we only WRITE this file if it doesn't exist).
+
+echo ""
+echo "    Hardware detection"
+echo ""
+
+# ── GPU enumeration via lspci ──────────────────────────────────
+GPU_COUNT=0
+GPU_VENDORS=""
+GPU_NAMES=""
+if command -v lspci >/dev/null 2>&1; then
+    # VGA compatible controller OR 3D controller (discrete) OR Display controller
+    GPU_LIST=$(lspci -nn 2>/dev/null | grep -E 'VGA compatible controller|3D controller|Display controller' || true)
+    if [ -n "$GPU_LIST" ]; then
+        GPU_COUNT=$(echo "$GPU_LIST" | wc -l)
+        while IFS= read -r line; do
+            if echo "$line" | grep -iq nvidia;            then GPU_VENDORS="$GPU_VENDORS NVIDIA"
+            elif echo "$line" | grep -iq 'amd\|advanced micro devices\|ati'; then GPU_VENDORS="$GPU_VENDORS AMD"
+            elif echo "$line" | grep -iq intel;           then GPU_VENDORS="$GPU_VENDORS Intel"
+            else                                               GPU_VENDORS="$GPU_VENDORS Unknown"
+            fi
+            # Extract the chipset name (after the colon, before brackets)
+            chip=$(echo "$line" | sed -E 's/.*: (.*) \[.*/\1/' | cut -c1-50)
+            GPU_NAMES="${GPU_NAMES}|${chip}"
+        done <<< "$GPU_LIST"
+    fi
+fi
+
+# Normalize vendors list
+GPU_VENDORS=$(echo "$GPU_VENDORS" | tr ' ' '\n' | sort -u | grep -v '^$' | tr '\n' ' ' | sed 's/ $//')
+
+# ── DRM render nodes (preferred modern detection) ───────────────
+DRM_NODES=""
+PRIMARY_NODE=""
+if [ -d /dev/dri ]; then
+    for node in /dev/dri/card[0-9]*; do
+        [ -e "$node" ] || continue
+        if [ -z "$DRM_NODES" ]; then
+            DRM_NODES="$node"
+        else
+            DRM_NODES="$DRM_NODES:$node"
+        fi
+    done
+    # Pick primary: if NVIDIA + (AMD|Intel), prefer the discrete NVIDIA
+    # Most users with a discrete GPU want Hyprland rendering on it.
+    if echo "$GPU_VENDORS" | grep -q NVIDIA; then
+        # Try to find the NVIDIA card specifically
+        for node in /dev/dri/card[0-9]*; do
+            [ -e "$node" ] || continue
+            udev_vendor=$(udevadm info --query=property --name="$node" 2>/dev/null | grep ID_VENDOR_FROM_DATABASE | cut -d= -f2)
+            if echo "$udev_vendor" | grep -iq nvidia; then
+                PRIMARY_NODE="$node"
+                break
+            fi
+        done
+    fi
+    # Otherwise just pick card0
+    [ -z "$PRIMARY_NODE" ] && PRIMARY_NODE="/dev/dri/card0"
+fi
+
+# ── CPU vendor (for possible kernel param hints) ────────────────
+CPU_VENDOR=""
+if [ -r /proc/cpuinfo ]; then
+    CPU_VENDOR=$(grep -m1 '^vendor_id' /proc/cpuinfo | awk '{print $3}')
+fi
+
+# ── Session type ───────────────────────────────────────────────
+SESSION_TYPE="${XDG_SESSION_TYPE:-unknown}"
+
+# ── Report detection results ────────────────────────────────────
+if [ "$GPU_COUNT" -eq 0 ]; then
+    echo "    GPU: none detected (install lspci via 'pciutils')"
+elif [ "$GPU_COUNT" -eq 1 ]; then
+    echo "    GPU: single — $GPU_VENDORS"
+    [ -n "$PRIMARY_NODE" ] && echo "      render node: $PRIMARY_NODE"
+else
+    echo "    GPU: multi (${GPU_COUNT}) — $GPU_VENDORS"
+    [ -n "$PRIMARY_NODE" ] && echo "      primary render node: $PRIMARY_NODE"
+    [ -n "$DRM_NODES" ] && echo "      all nodes (priority order): $DRM_NODES"
+    echo "      → Hyprland will render on primary; dmabuf from others"
+fi
+echo "    CPU: ${CPU_VENDOR:-unknown}"
+echo "    Session: $SESSION_TYPE"
+echo ""
+
+# ── NVIDIA-specific warnings ───────────────────────────────────
+if echo "$GPU_VENDORS" | grep -q NVIDIA; then
+    if [ ! -r /sys/module/nvidia_drm/parameters/modeset ]; then
+        echo "    ⚠ NVIDIA detected but nvidia_drm not loaded. Hyprland needs:"
+        echo "      nvidia_drm.modeset=1 in your kernel cmdline"
+        echo "      (edit /etc/default/grub or your bootloader config)"
+        echo ""
+    elif [ "$(cat /sys/module/nvidia_drm/parameters/modeset 2>/dev/null)" != "Y" ]; then
+        echo "    ⚠ nvidia_drm.modeset is NOT enabled. Hyprland will flicker/crash."
+        echo "      Set nvidia_drm.modeset=1 in kernel cmdline and reboot."
+        echo ""
+    fi
+fi
+
+# ── Write hardware.conf (preserve-if-exists) ───────────────────
+HW_CONF="$HYPR_DIR/modules/hardware.conf"
+if [ -f "$HW_CONF" ]; then
+    echo "    ${HW_CONF/$HOME/~} already exists — preserved"
+else
+    mkdir -p "$HYPR_DIR/modules"
+    {
+        echo "# ─────────────────────────────────────────────────────────────"
+        echo "# Zen Shell — hardware.conf"
+        echo "# Auto-generated by install.sh on $(date -Iseconds)"
+        echo "# Edit freely. Reinstall will NOT overwrite this file."
+        echo "# ─────────────────────────────────────────────────────────────"
+        echo ""
+        echo "# Detected:"
+        echo "#   GPU count:   $GPU_COUNT"
+        echo "#   GPU vendors: $GPU_VENDORS"
+        echo "#   Primary:     ${PRIMARY_NODE:-unknown}"
+        echo "#   CPU vendor:  ${CPU_VENDOR:-unknown}"
+        echo ""
+
+        # ── Multi-GPU rendering (Aquamarine) ───────────────────
+        if [ "$GPU_COUNT" -gt 1 ] && [ -n "$DRM_NODES" ]; then
+            echo "# Multi-GPU rendering path — Hyprland on primary, DMA-BUF import"
+            echo "# from secondary nodes. Fixes laptops with iGPU + dGPU where the"
+            echo "# display is wired to one GPU but the other handles rendering."
+            # Build priority list with PRIMARY_NODE first
+            ordered="$PRIMARY_NODE"
+            for n in $(echo "$DRM_NODES" | tr ':' ' '); do
+                [ "$n" = "$PRIMARY_NODE" ] && continue
+                ordered="$ordered:$n"
+            done
+            echo "env = AQ_DRM_DEVICES,$ordered"
+            echo ""
+        fi
+
+        # ── NVIDIA-specific env (only when NVIDIA present) ─────
+        if echo "$GPU_VENDORS" | grep -q NVIDIA; then
+            echo "# NVIDIA — required for Wayland rendering on proprietary driver"
+            echo "env = LIBVA_DRIVER_NAME,nvidia"
+            echo "env = __GLX_VENDOR_LIBRARY_NAME,nvidia"
+            echo "env = GBM_BACKEND,nvidia-drm"
+            echo "# Hardware cursor can tear on some NVIDIA generations"
+            echo "cursor {"
+            echo "    no_hardware_cursors = true"
+            echo "}"
+            echo ""
+        fi
+
+        # ── Intel-specific hints ──────────────────────────────
+        if echo "$GPU_VENDORS" | grep -q Intel; then
+            echo "# Intel — iHD driver for modern Intel, i965 for older"
+            echo "env = LIBVA_DRIVER_NAME,iHD"
+            echo ""
+        fi
+
+        # ── AMD-specific hints ────────────────────────────────
+        if echo "$GPU_VENDORS" | grep -q AMD && ! echo "$GPU_VENDORS" | grep -q NVIDIA; then
+            echo "# AMD — RADV is the upstream Vulkan driver"
+            echo "env = AMD_VULKAN_ICD,RADV"
+            echo "env = RADV_PERFTEST,aco"
+            echo ""
+        fi
+
+        # ── Universal env ─────────────────────────────────────
+        echo "# Universal — Wayland session variables"
+        echo "env = XDG_CURRENT_DESKTOP,Hyprland"
+        echo "env = XDG_SESSION_TYPE,wayland"
+        echo "env = XDG_SESSION_DESKTOP,Hyprland"
+        echo "env = QT_QPA_PLATFORM,wayland;xcb"
+        echo "env = QT_WAYLAND_DISABLE_WINDOWDECORATION,1"
+        echo "env = GDK_BACKEND,wayland,x11"
+        echo "env = MOZ_ENABLE_WAYLAND,1"
+        echo "env = CLUTTER_BACKEND,wayland"
+        echo ""
+
+        # ── VRR (applies if supported) ────────────────────────
+        echo "# Variable Refresh Rate — 2 = fullscreen apps only (safe default)"
+        echo "# Set to 1 for always-on, 0 to disable."
+        echo "misc {"
+        echo "    vrr = 2"
+        echo "}"
+    } > "$HW_CONF"
+    echo "    Wrote: ${HW_CONF/$HOME/~}"
+    echo "      (edit to customize GPU / env / VRR — reinstall won't overwrite)"
+fi
+echo ""
 
 read -rp "    Proceed with installation? [Y/n] " proceed_ans
 if [ "${proceed_ans,,}" = "n" ]; then
@@ -561,20 +785,46 @@ echo "[6/9] Hyprland configs..."
     cp "$SCRIPT_DIR/hypr-config/hyprland-layer-rules.conf" "$SHELL_DIR/config/hyprland-layer-rules.conf" && \
     echo "    hyprland-layer-rules.conf (v6.15: carried from v6.14)"
 
+# ─────────────────────────────────────────────────────────────────
+# v6.15.15: animations.conf / autostart.conf / look_and_feel.conf
+# These are USER-CUSTOMIZABLE — install default only if missing.
+# ─────────────────────────────────────────────────────────────────
+for mod in animations.conf autostart.conf look_and_feel.conf; do
+    src="$SCRIPT_DIR/hypr-config/$mod"
+    dst="$HYPR_DIR/modules/$mod"
+    if [ -f "$src" ]; then
+        if [ -f "$dst" ]; then
+            echo "    $mod (already exists — preserved)"
+        else
+            cp "$src" "$dst"
+            echo "    $mod (installed default)"
+        fi
+    fi
+done
+
 HCONF="$HYPR_DIR/hyprland.conf"
 if [ -f "$HCONF" ]; then
     added=0
+    grep -q "modules/hardware.conf" "$HCONF" || {
+        printf '\n# ── Added by Zen Shell installer (hardware detection) ──\nsource = ~/.config/hypr/modules/hardware.conf\n' >> "$HCONF"
+        added=$((added+1)); }
     grep -q "modules/binds.conf" "$HCONF" || {
         printf '\n# ── Added by Zen Shell installer ──\nsource = ~/.config/hypr/modules/binds.conf\n' >> "$HCONF"
+        added=$((added+1)); }
+    grep -q "modules/animations.conf" "$HCONF" || {
+        echo "source = ~/.config/hypr/modules/animations.conf" >> "$HCONF"
+        added=$((added+1)); }
+    grep -q "modules/autostart.conf" "$HCONF" || {
+        echo "source = ~/.config/hypr/modules/autostart.conf" >> "$HCONF"
+        added=$((added+1)); }
+    grep -q "modules/look_and_feel.conf" "$HCONF" || {
+        echo "source = ~/.config/hypr/modules/look_and_feel.conf" >> "$HCONF"
         added=$((added+1)); }
     grep -q "keybinds-update.conf" "$HCONF" || {
         echo "source = ~/.config/quickshell/zen-shell/config/keybinds-update.conf" >> "$HCONF"
         added=$((added+1)); }
     grep -q "hyprland-layer-rules.conf" "$HCONF" || {
         echo "source = ~/.config/quickshell/zen-shell/config/hyprland-layer-rules.conf" >> "$HCONF"
-        added=$((added+1)); }
-    grep -q "QT_QPA_PLATFORM" "$HCONF" || {
-        printf '\nenv = QT_QPA_PLATFORM,wayland\n' >> "$HCONF"
         added=$((added+1)); }
     [ $added -gt 0 ] \
         && echo "    Added $added line(s) to hyprland.conf" \
