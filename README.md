@@ -27,6 +27,16 @@
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/github/last-commit/Gekinzen/zen_barebone_alpha_development?style=flat-square&label=last%20commit&color=1a1a1a&labelColor=0a0a0a"/>
+  &nbsp;
+  <img src="https://img.shields.io/github/issues/Gekinzen/zen_barebone_alpha_development?style=flat-square&color=1a1a1a&labelColor=0a0a0a"/>
+  &nbsp;
+  <img src="https://img.shields.io/github/stars/Gekinzen/zen_barebone_alpha_development?style=flat-square&color=1a1a1a&labelColor=0a0a0a"/>
+  &nbsp;
+  <img src="https://img.shields.io/github/forks/Gekinzen/zen_barebone_alpha_development?style=flat-square&color=1a1a1a&labelColor=0a0a0a"/>
+</p>
+
+<p align="center">
   <a href="#overview">Overview</a>
   &nbsp;·&nbsp;
   <a href="#demos">Demos</a>
@@ -44,6 +54,8 @@
   <a href="#wallpapers">Wallpapers</a>
   &nbsp;·&nbsp;
   <a href="#changelogs">Changelogs</a>
+  &nbsp;·&nbsp;
+  <a href="#faq">FAQ</a>
   &nbsp;·&nbsp;
   <a href="#legacy-archive--2025-alpha">Archive</a>
   &nbsp;·&nbsp;
@@ -67,34 +79,52 @@ It is not just a Hyprland configuration. It is a structured, modular desktop eco
 <table align="center">
 <tr>
 <td align="center" width="33%">
-<img src="https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/bolt/default/24px.svg" width="20"/>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://api.iconify.design/material-symbols/bolt.svg?color=white&height=28">
+  <img src="https://api.iconify.design/material-symbols/bolt.svg?color=black&height=28" width="28" height="28" alt=""/>
+</picture>
 <br/><b>Performance-first</b>
 <br/><sub>Lean QML runtime</sub>
 </td>
 <td align="center" width="33%">
-<img src="https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/palette/default/24px.svg" width="20"/>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://api.iconify.design/material-symbols/palette-outline.svg?color=white&height=28">
+  <img src="https://api.iconify.design/material-symbols/palette-outline.svg?color=black&height=28" width="28" height="28" alt=""/>
+</picture>
 <br/><b>Unified theming</b>
 <br/><sub>One switch, whole desktop</sub>
 </td>
 <td align="center" width="33%">
-<img src="https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/tune/default/24px.svg" width="20"/>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://api.iconify.design/material-symbols/tune.svg?color=white&height=28">
+  <img src="https://api.iconify.design/material-symbols/tune.svg?color=black&height=28" width="28" height="28" alt=""/>
+</picture>
 <br/><b>GUI-driven</b>
 <br/><sub>No config files required</sub>
 </td>
 </tr>
 <tr>
 <td align="center">
-<img src="https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/graphic_eq/default/24px.svg" width="20"/>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://api.iconify.design/material-symbols/graphic-eq.svg?color=white&height=28">
+  <img src="https://api.iconify.design/material-symbols/graphic-eq.svg?color=black&height=28" width="28" height="28" alt=""/>
+</picture>
 <br/><b>Music Strings</b>
 <br/><sub>Audio-reactive bezier — v6.15</sub>
 </td>
 <td align="center">
-<img src="https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/screenshot_region/default/24px.svg" width="20"/>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://api.iconify.design/material-symbols/screenshot-region.svg?color=white&height=28">
+  <img src="https://api.iconify.design/material-symbols/screenshot-region.svg?color=black&height=28" width="28" height="28" alt=""/>
+</picture>
 <br/><b>Screenshot Ropes</b>
 <br/><sub>Physics overlay — v6.15</sub>
 </td>
 <td align="center">
-<img src="https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/sync/default/24px.svg" width="20"/>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://api.iconify.design/material-symbols/sync.svg?color=white&height=28">
+  <img src="https://api.iconify.design/material-symbols/sync.svg?color=black&height=28" width="28" height="28" alt=""/>
+</picture>
 <br/><b>State-synchronized</b>
 <br/><sub>Change one, update all</sub>
 </td>
@@ -624,6 +654,38 @@ git sparse-checkout set wallpapers
 
 <br/>
 
+## FAQ
+
+<br/>
+
+**Is this a Hyprland dotfiles repo I can copy?**
+
+No. Zen Shell is a complete desktop shell — a unified QML application that takes over the bar, settings, control panel, notifications, screenshots, and desktop widgets. You install it; it runs as a first-class shell alongside Hyprland.
+
+<br/>
+
+**Can I try it without uninstalling my current desktop?**
+
+Yes. `./install.sh --bootstrap` is designed for KDE / GNOME / COSMIC users — it adds Hyprland as a session option without touching your display manager or current DE. Log out, pick Hyprland from the session menu, and switch back anytime.
+
+<br/>
+
+**Do I need to edit config files?**
+
+No. Thirteen settings pages cover every configurable option, with live preview. Changes persist to JSON automatically — no manual editing, no restart.
+
+<br/>
+
+**Which distros work?**
+
+Primary support is Arch-based distros (Arch, CachyOS, EndeavourOS, Manjaro). Other distros will work if you have **Hyprland 0.54+** and **Quickshell 0.2.1+** available, but the installer's package detection assumes `paru` / `yay` / `pacman`. On non-Arch distros, install the [Dependencies](#dependencies) manually first, then run `./install.sh` (without `--bootstrap`).
+
+<br/>
+
+---
+
+<br/>
+
 ## Credits
 
 ### Inspired By
@@ -806,13 +868,22 @@ Open an issue on [GitHub](https://github.com/Gekinzen/zen_barebone_alpha_develop
 
 ## Support
 
-If you find this project useful and want to support its development, any contribution is truly appreciated.
+Zen Shell is developed independently, in personal time — late nights, after client work, from a small apartment in the Philippines. If it has helped you, or you just appreciate the craft, a coffee goes a long way. Literally. It's what keeps the commits flowing at 2 AM.
 
 <p align="center">
   <a href="https://buymeacoffee.com/zenpy">
-    <img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-0a0a0a?style=for-the-badge&logo=buy-me-a-coffee&logoColor=white"/>
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffffff?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black"/>
+      <img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-0a0a0a?style=for-the-badge&logo=buy-me-a-coffee&logoColor=white" alt="Buy me a coffee"/>
+    </picture>
   </a>
 </p>
+
+<p align="center">
+  <sub>Every coffee funds one more feature, one more bugfix, one more late-night commit.</sub>
+</p>
+
+<br/>
 
 You can also support via crypto:
 
@@ -828,20 +899,8 @@ You can also support via crypto:
 
 <br/>
 
-## Star the Project
-
-If Zen Shell resonates with you, a star helps others discover it and keeps this project moving forward.
-
-<br/>
-
----
-
-<br/>
-
-## License
-
 <p align="center">
-  <b>MIT</b> &nbsp;·&nbsp; Free to use, fork, and make your own.
+  <b>MIT</b> &nbsp;·&nbsp; Free to use, fork, and make your own. &nbsp;·&nbsp; Star the project if it resonates with you.
 </p>
 
 <br/>
