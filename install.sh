@@ -11,58 +11,166 @@ BIN_DIR="$HOME/.local/bin"
 TS=$(date +%Y%m%d-%H%M%S)
 
 # ═══════════════════════════════════════════════════════════════
-# Flag parsing — --bootstrap runs bootstrap.sh first
+# Flag parsing — --bootstrap / --no-bootstrap / --help
 # ═══════════════════════════════════════════════════════════════
-DO_BOOTSTRAP=0
+# By default (v6.15.15+), install.sh AUTO-DETECTS whether bootstrap
+# is needed based on whether the critical dependencies are present.
+# The --bootstrap flag FORCES bootstrap to run. The --no-bootstrap
+# flag skips the check even if deps are missing (advanced users).
+DO_BOOTSTRAP=auto        # auto | force | skip
 for arg in "$@"; do
     case "$arg" in
-        --bootstrap|-b)
-            DO_BOOTSTRAP=1
-            ;;
+        --bootstrap|-b)    DO_BOOTSTRAP=force ;;
+        --no-bootstrap)    DO_BOOTSTRAP=skip ;;
         --help|-h)
             cat <<EOF
 Usage: install.sh [OPTIONS]
 
+One command, smart by default:
+  ./install.sh          — auto-detects what's needed and does the right thing.
+                          Runs bootstrap automatically if Hyprland / Quickshell
+                          / critical deps are missing. If everything's there,
+                          installs Zen Shell directly.
+
 OPTIONS:
-  --bootstrap, -b   Run bootstrap.sh first (installs Hyprland +
-                    Quickshell + all system deps via paru/yay).
-                    Use on fresh Arch-based laptops (KDE/GNOME/COSMIC).
-  --help, -h        Show this help.
+  --bootstrap, -b       Force bootstrap.sh to run first (reinstalls
+                        all system deps even if already present).
+  --no-bootstrap        Skip auto-detection — go straight to Zen Shell
+                        install even if deps are missing. Advanced users
+                        who manage their own Hyprland/Quickshell installs.
+  --help, -h            Show this help.
 
 EXAMPLES:
-  # Fresh laptop, no Hyprland yet:
-  ./install.sh --bootstrap
-
-  # Laptop already running Hyprland:
-  ./install.sh
+  ./install.sh                      # The smart default — works everywhere
+  ./install.sh --bootstrap          # Force a full reinstall of system deps
+  ./install.sh --no-bootstrap       # Skip auto-bootstrap (custom setups)
 EOF
             exit 0
             ;;
     esac
 done
 
-if [ "$DO_BOOTSTRAP" = "1" ]; then
-    if [ -f "$SCRIPT_DIR/bootstrap.sh" ]; then
-        echo ""
-        echo "    ── Running bootstrap.sh first ──"
-        echo ""
-        bash "$SCRIPT_DIR/bootstrap.sh" || {
-            echo ""
-            echo "    Bootstrap failed or was cancelled. Aborting install.sh."
-            exit 1
-        }
-        echo ""
-        echo "    ── Bootstrap complete — exiting install.sh ──"
-        echo ""
-        echo "    To finish setup:"
-        echo "      1. Logout → login screen"
-        echo "      2. Pick 'Hyprland' session"
-        echo "      3. Once in Hyprland, re-run:  ./install.sh  (without --bootstrap)"
-        echo ""
-        exit 0
-    else
+# ═══════════════════════════════════════════════════════════════
+# Critical dependency auto-detection (v6.15.15+)
+# ═══════════════════════════════════════════════════════════════
+# Zen Shell needs these to actually run. Anything missing triggers
+# auto-bootstrap (with user confirmation). The list is intentionally
+# minimal — just the things without which the shell literally cannot
+# function. Optional deps (cava, flameshot, alacritty, etc.) are
+# handled later in the full dependency check where the user can
+# pick-and-choose.
+CRITICAL_DEPS=(
+    hyprland       # the compositor itself
+    hyprctl        # Hyprland's CLI — scripts use it
+    quickshell     # the QML runtime that runs Zen Shell
+    jq             # JSON tooling used by multiple scripts
+    grim           # screenshot backend
+    slurp          # region selector for screenshots
+    wl-copy        # clipboard (from wl-clipboard package)
+    swww           # wallpaper daemon (OR swww-daemon)
+    cava           # audio visualizer for music strings
+    playerctl      # MPRIS control for music module
+    notify-send    # for install-time + runtime notifications (libnotify)
+)
+
+detect_critical_deps() {
+    MISSING_CRITICAL=()
+    for dep in "${CRITICAL_DEPS[@]}"; do
+        # Special case: swww can be satisfied by swww-daemon OR awww
+        if [ "$dep" = "swww" ]; then
+            command -v swww >/dev/null 2>&1 && continue
+            command -v swww-daemon >/dev/null 2>&1 && continue
+            command -v awww >/dev/null 2>&1 && continue
+            MISSING_CRITICAL+=("$dep")
+            continue
+        fi
+        if ! command -v "$dep" >/dev/null 2>&1; then
+            MISSING_CRITICAL+=("$dep")
+        fi
+    done
+}
+
+run_bootstrap() {
+    if [ ! -f "$SCRIPT_DIR/bootstrap.sh" ]; then
         echo "    ✗ bootstrap.sh not found next to install.sh"
+        echo "      The full release tarball includes bootstrap.sh — you may"
+        echo "      have extracted an incomplete archive. Re-download the full"
+        echo "      zen-shell-v6.15.15-complete.tar.gz."
         exit 1
+    fi
+    echo ""
+    echo "    ── Running bootstrap.sh first ──"
+    echo ""
+    bash "$SCRIPT_DIR/bootstrap.sh" || {
+        echo ""
+        echo "    ✗ Bootstrap failed or was cancelled. Aborting install.sh."
+        exit 1
+    }
+    echo ""
+    echo "    ── Bootstrap complete ──"
+    echo ""
+}
+
+# ── Decide whether to bootstrap ──────────────────────────────────
+if [ "$DO_BOOTSTRAP" = "force" ]; then
+    echo ""
+    echo "    --bootstrap specified — running bootstrap.sh unconditionally"
+    run_bootstrap
+elif [ "$DO_BOOTSTRAP" = "skip" ]; then
+    echo ""
+    echo "    --no-bootstrap specified — skipping auto-detection"
+else
+    # Auto mode — detect missing critical deps
+    detect_critical_deps
+    if [ ${#MISSING_CRITICAL[@]} -gt 0 ]; then
+        echo ""
+        echo "    ── Dependency check ──"
+        echo ""
+        echo "    Zen Shell needs these but they're not on your system:"
+        for dep in "${MISSING_CRITICAL[@]}"; do
+            echo "      ✗ $dep"
+        done
+        echo ""
+        echo "    This looks like a fresh install. Running bootstrap.sh will"
+        echo "    install these + other system dependencies via paru/yay/pacman,"
+        echo "    set up Hyprland, register a Wayland session, and configure"
+        echo "    the audio/bluetooth/network stack. Safe to run alongside"
+        echo "    KDE/GNOME/COSMIC — does not touch your display manager or"
+        echo "    change your default session."
+        echo ""
+        printf "    Run bootstrap.sh now? [Y/n] "
+        if read -r -t 60 BS_REPLY </dev/tty 2>/dev/null; then :; else
+            BS_REPLY="y"; echo "(no input — defaulting to yes)"
+        fi
+        case "${BS_REPLY:-y}" in
+            [nN]*)
+                echo ""
+                echo "    Skipping bootstrap. The install will likely fail at"
+                echo "    the dependency check below. To install the missing"
+                echo "    packages manually:"
+                echo ""
+                echo "      paru -S ${MISSING_CRITICAL[*]}"
+                echo ""
+                echo "    Then re-run ./install.sh"
+                echo ""
+                ;;
+            *)
+                run_bootstrap
+                # Re-check after bootstrap ran — confirm success
+                detect_critical_deps
+                if [ ${#MISSING_CRITICAL[@]} -gt 0 ]; then
+                    echo "    ⚠ Still missing after bootstrap: ${MISSING_CRITICAL[*]}"
+                    echo "      The install will continue but may fail at dep check."
+                    echo ""
+                else
+                    echo "    ✓ All critical dependencies now present. Continuing..."
+                    echo ""
+                fi
+                ;;
+        esac
+    else
+        # All critical deps already present — nothing to say, proceed silently
+        :
     fi
 fi
 
@@ -72,7 +180,15 @@ echo "    ───────────────────────�
 echo ""
 echo "    Quickshell-native desktop environment for Hyprland."
 echo ""
-echo "    v6.15.15 — Complete inventory + smart hardware detection"
+echo "    v6.15.15 — Smart one-command install + hardware detection"
+echo ""
+echo "      Auto-bootstrap              install.sh detects missing critical"
+echo "                                   deps (Hyprland, Quickshell, grim,"
+echo "                                   slurp, wl-copy, swww, cava,"
+echo "                                   playerctl, jq, notify-send) and"
+echo "                                   auto-runs bootstrap.sh if needed."
+echo "                                   Single './install.sh' works on both"
+echo "                                   fresh laptops and existing setups."
 echo ""
 echo "      Smart hardware detection    Auto-detects multi-GPU topology"
 echo "                                   (iGPU + dGPU, Optimus, NVIDIA,"
@@ -236,9 +352,9 @@ echo "      SIGTERM-first restart     Clean daemon restart sequence"
 echo ""
 echo "    ─────────────────────────────────────────────────────"
 echo ""
-echo "    Fresh Arch-based laptop without Hyprland?"
-echo "       → Run: ./install.sh --bootstrap"
-echo "       (installs Hyprland + Quickshell + all deps — safe alongside KDE/GNOME/COSMIC)"
+echo "    Smart mode (default): auto-detects missing Hyprland/Quickshell"
+echo "    and runs bootstrap automatically if needed. Safe alongside"
+echo "    KDE, GNOME, or COSMIC."
 echo ""
 
 # ═══════════════════════════════════════════════════════════════
@@ -375,20 +491,87 @@ fi
 # ── Session type ───────────────────────────────────────────────
 SESSION_TYPE="${XDG_SESSION_TYPE:-unknown}"
 
+# ── Display Manager detection (for Wayland compat warning) ─────
+DM_NAME=""
+for dm in gdm sddm lightdm lxdm greetd tuigreet ly entrance; do
+    if systemctl is-active --quiet "$dm" 2>/dev/null || \
+       systemctl is-active --quiet "${dm}.service" 2>/dev/null; then
+        DM_NAME="$dm"; break
+    fi
+done
+[ -z "$DM_NAME" ] && pgrep -l gdm sddm lightdm greetd ly 2>/dev/null | head -1 | awk '{print $2}' | grep -q . && \
+    DM_NAME="$(pgrep -l gdm sddm lightdm greetd ly 2>/dev/null | head -1 | awk '{print $2}')"
+
+# ── Connected monitors (via DRM sysfs — works without X/Wayland) ─
+MONITOR_COUNT=0
+MONITOR_NAMES=""
+if [ -d /sys/class/drm ]; then
+    for card_dir in /sys/class/drm/card*-*; do
+        [ -d "$card_dir" ] || continue
+        status_file="$card_dir/status"
+        [ -r "$status_file" ] || continue
+        if [ "$(cat "$status_file" 2>/dev/null)" = "connected" ]; then
+            MONITOR_COUNT=$((MONITOR_COUNT+1))
+            mon=$(basename "$card_dir" | sed 's/^card[0-9]*-//')
+            MONITOR_NAMES="$MONITOR_NAMES $mon"
+        fi
+    done
+fi
+MONITOR_NAMES=$(echo "$MONITOR_NAMES" | sed 's/^ //')
+
+# ── Touchpad / keyboard detection (via libinput or /proc/bus/input) ─
+HAS_TOUCHPAD=0
+if command -v libinput >/dev/null 2>&1; then
+    libinput list-devices 2>/dev/null | grep -iq "touchpad\|trackpad" && HAS_TOUCHPAD=1
+elif [ -r /proc/bus/input/devices ]; then
+    grep -iq "touchpad\|trackpad" /proc/bus/input/devices 2>/dev/null && HAS_TOUCHPAD=1
+fi
+
+# ── Chassis type (laptop vs desktop, useful for power profile) ──
+CHASSIS_TYPE="unknown"
+if [ -r /sys/class/dmi/id/chassis_type ]; then
+    ct=$(cat /sys/class/dmi/id/chassis_type 2>/dev/null)
+    case "$ct" in
+        8|9|10|11|14) CHASSIS_TYPE="laptop" ;;
+        3|4|5|6|7)    CHASSIS_TYPE="desktop" ;;
+        *)            CHASSIS_TYPE="other" ;;
+    esac
+fi
+
+# ── NVIDIA driver version (for explicit-sync flag) ──────────────
+NVIDIA_DRIVER_VER=""
+if [ -r /proc/driver/nvidia/version ]; then
+    NVIDIA_DRIVER_VER=$(grep -oE 'Kernel Module\s+[0-9]+\.[0-9]+' /proc/driver/nvidia/version 2>/dev/null | awk '{print $NF}')
+fi
+
 # ── Report detection results ────────────────────────────────────
 if [ "$GPU_COUNT" -eq 0 ]; then
     echo "    GPU: none detected (install lspci via 'pciutils')"
 elif [ "$GPU_COUNT" -eq 1 ]; then
     echo "    GPU: single — $GPU_VENDORS"
+    [ -n "$GPU_NAMES" ] && echo "      chipset: $(echo "$GPU_NAMES" | sed 's/^|//')"
     [ -n "$PRIMARY_NODE" ] && echo "      render node: $PRIMARY_NODE"
 else
     echo "    GPU: multi (${GPU_COUNT}) — $GPU_VENDORS"
+    [ -n "$GPU_NAMES" ] && {
+        echo "      chipsets:"
+        echo "$GPU_NAMES" | tr '|' '\n' | grep -v '^$' | sed 's/^/        - /'
+    }
     [ -n "$PRIMARY_NODE" ] && echo "      primary render node: $PRIMARY_NODE"
     [ -n "$DRM_NODES" ] && echo "      all nodes (priority order): $DRM_NODES"
     echo "      → Hyprland will render on primary; dmabuf from others"
 fi
 echo "    CPU: ${CPU_VENDOR:-unknown}"
+echo "    Chassis: $CHASSIS_TYPE"
 echo "    Session: $SESSION_TYPE"
+echo "    Display manager: ${DM_NAME:-none running}"
+if [ "$MONITOR_COUNT" -gt 0 ]; then
+    echo "    Monitors connected: $MONITOR_COUNT ($MONITOR_NAMES)"
+else
+    echo "    Monitors connected: unknown (will detect at Hyprland start)"
+fi
+[ "$HAS_TOUCHPAD" = "1" ] && echo "    Touchpad: present (natural scroll + tap-to-click will be enabled)"
+[ -n "$NVIDIA_DRIVER_VER" ] && echo "    NVIDIA driver: $NVIDIA_DRIVER_VER"
 echo ""
 
 # ── NVIDIA-specific warnings ───────────────────────────────────
@@ -403,6 +586,15 @@ if echo "$GPU_VENDORS" | grep -q NVIDIA; then
         echo "      Set nvidia_drm.modeset=1 in kernel cmdline and reboot."
         echo ""
     fi
+fi
+
+# ── Display manager compat warning ──────────────────────────────
+if [ "$DM_NAME" = "lightdm" ] || [ "$DM_NAME" = "lxdm" ]; then
+    echo "    ⚠ $DM_NAME may not offer a Hyprland Wayland session entry."
+    echo "      SDDM or GDM are recommended for Hyprland. To install SDDM:"
+    echo "        sudo pacman -S sddm"
+    echo "        sudo systemctl disable $DM_NAME; sudo systemctl enable sddm"
+    echo ""
 fi
 
 # ── Write hardware.conf (preserve-if-exists) ───────────────────
@@ -446,6 +638,23 @@ else
             echo "env = LIBVA_DRIVER_NAME,nvidia"
             echo "env = __GLX_VENDOR_LIBRARY_NAME,nvidia"
             echo "env = GBM_BACKEND,nvidia-drm"
+            echo "env = __NV_PRIME_RENDER_OFFLOAD,1"
+            echo "env = __VK_LAYER_NV_optimus,NVIDIA_only"
+
+            # Explicit-sync for NVIDIA driver 555+
+            if [ -n "$NVIDIA_DRIVER_VER" ]; then
+                nv_major=$(echo "$NVIDIA_DRIVER_VER" | cut -d. -f1)
+                if [ "${nv_major:-0}" -ge 555 ] 2>/dev/null; then
+                    echo ""
+                    echo "# NVIDIA driver $NVIDIA_DRIVER_VER — explicit-sync (555+)"
+                    echo "render {"
+                    echo "    explicit_sync = 2"
+                    echo "    explicit_sync_kms = 2"
+                    echo "}"
+                fi
+            fi
+
+            echo ""
             echo "# Hardware cursor can tear on some NVIDIA generations"
             echo "cursor {"
             echo "    no_hardware_cursors = true"
@@ -765,9 +974,67 @@ fi
 
 if ! echo "$PATH" | grep -q "$BIN_DIR"; then
     echo ""
-    echo "  ⚠ $BIN_DIR not in PATH. Add to ~/.config/fish/config.fish or ~/.bashrc:"
-    echo "     fish: fish_add_path ~/.local/bin"
-    echo "     bash: export PATH=\"\$HOME/.local/bin:\$PATH\""
+    echo "  $BIN_DIR not in PATH — auto-configuring..."
+
+    # Detect user's login shell from /etc/passwd
+    USER_SHELL=$(getent passwd "$USER" 2>/dev/null | cut -d: -f7)
+    USER_SHELL_NAME=$(basename "${USER_SHELL:-/bin/bash}")
+
+    # Pick the right rc file
+    PATH_ADDED=0
+    case "$USER_SHELL_NAME" in
+        fish)
+            FISH_CONF="$HOME/.config/fish/config.fish"
+            mkdir -p "$(dirname "$FISH_CONF")"
+            touch "$FISH_CONF"
+            if ! grep -q "\.local/bin" "$FISH_CONF" 2>/dev/null; then
+                echo "" >> "$FISH_CONF"
+                echo "# Added by Zen Shell installer" >> "$FISH_CONF"
+                echo "fish_add_path ~/.local/bin" >> "$FISH_CONF"
+                echo "      → added 'fish_add_path ~/.local/bin' to ~/.config/fish/config.fish"
+                PATH_ADDED=1
+            fi
+            ;;
+        zsh)
+            ZSH_CONF="$HOME/.zshrc"
+            touch "$ZSH_CONF"
+            if ! grep -q "\.local/bin" "$ZSH_CONF" 2>/dev/null; then
+                echo "" >> "$ZSH_CONF"
+                echo "# Added by Zen Shell installer" >> "$ZSH_CONF"
+                echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$ZSH_CONF"
+                echo "      → added PATH export to ~/.zshrc"
+                PATH_ADDED=1
+            fi
+            ;;
+        bash|sh)
+            BASH_CONF="$HOME/.bashrc"
+            touch "$BASH_CONF"
+            if ! grep -q "\.local/bin" "$BASH_CONF" 2>/dev/null; then
+                echo "" >> "$BASH_CONF"
+                echo "# Added by Zen Shell installer" >> "$BASH_CONF"
+                echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$BASH_CONF"
+                echo "      → added PATH export to ~/.bashrc"
+                PATH_ADDED=1
+            fi
+            ;;
+        *)
+            echo "  ⚠ Unknown shell: $USER_SHELL_NAME. Add this manually:"
+            echo "     export PATH=\"\$HOME/.local/bin:\$PATH\""
+            ;;
+    esac
+
+    # Always add to ~/.profile too (for non-interactive + login shells)
+    PROFILE="$HOME/.profile"
+    touch "$PROFILE"
+    if ! grep -q "\.local/bin" "$PROFILE" 2>/dev/null; then
+        echo "" >> "$PROFILE"
+        echo "# Added by Zen Shell installer" >> "$PROFILE"
+        echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$PROFILE"
+        [ "$PATH_ADDED" = "0" ] && echo "      → added PATH export to ~/.profile"
+    fi
+
+    echo "      Re-login or source the file to apply. Current session:"
+    echo "        export PATH=\"\$HOME/.local/bin:\$PATH\""
 fi
 
 # ═══════════════════════════════════════════════════════════════
@@ -863,6 +1130,64 @@ echo "[8/9] First-run tasks..."
     echo "    regen-swaync-theme.sh..."
     timeout 10s "$BIN_DIR/regen-swaync-theme.sh" 2>&1 | sed 's/^/    /' || true
 }
+
+# ═══════════════════════════════════════════════════════════════
+# [8.5/9] QML integrity smoke test (v6.15.15+)
+# ═══════════════════════════════════════════════════════════════
+# Catches missing QML type references BEFORE quickshell crashes on
+# load. Would have prevented the v6.15.13 PowerConfirmDialog bug and
+# the v6.15.14 Theme/Clock/MusicWidget chain.
+#
+# How it works:
+#   1. For each local *.qml file, grep for component names that look
+#      like Zen Shell-local types (PascalCase starting at column 0
+#      or after whitespace).
+#   2. Check that every referenced name has a corresponding .qml
+#      file in $SHELL_DIR.
+#   3. Report anything missing — doesn't abort the install (user may
+#      be intentionally customizing), just prints a warning.
+echo ""
+echo "[8.5/9] QML integrity check..."
+MISSING_TYPES=""
+if [ -d "$SHELL_DIR" ]; then
+    # Build a set of provided type names (bare file stems)
+    PROVIDED=$(ls "$SHELL_DIR"/*.qml 2>/dev/null | xargs -n1 basename | sed 's/\.qml$//' | sort -u)
+
+    # Scan shell.qml + Bar.qml (the two files most likely to instantiate other components)
+    # for  ComponentName { ... }  patterns that look like local types
+    for scan_file in "$SHELL_DIR/shell.qml" "$SHELL_DIR/Bar.qml"; do
+        [ -f "$scan_file" ] || continue
+        # Extract PascalCase identifiers followed by {  (likely component instantiations)
+        # Filter out known Quickshell / QtQuick builtins
+        REFS=$(grep -oE '^\s*[A-Z][a-zA-Z0-9_]*\s*\{' "$scan_file" 2>/dev/null \
+               | sed 's/\s*{$//' | sed 's/^\s*//' | sort -u \
+               | grep -vE '^(Item|Rectangle|Row|Column|Grid|RowLayout|ColumnLayout|GridLayout|StackLayout|Text|Image|MouseArea|Loader|Repeater|Timer|Process|Binding|Connections|Behavior|NumberAnimation|PropertyAnimation|SequentialAnimation|ParallelAnimation|State|Transition|PathAnimation|PathView|ListView|GridView|TableView|ScrollView|Flickable|Popup|ApplicationWindow|Window|PanelWindow|FloatingWindow|PopupWindow|ShellRoot|IpcHandler|Variants|LayerSurface|ExclusiveZone|WlrLayer|Scope|Component|QtObject|Package|SystemTrayItem|Socket|FileView|Quickshell|Hyprland|Keys|Anchors|Margins|AnchorChanges|PropertyChanges|StateGroup|PathLine|PathQuad|PathCubic|Path|Gradient|GradientStop|Canvas|ShaderEffect|ShaderEffectSource|Flow|Pane|Control|TextInput|TextEdit|TextField|TextArea|Button|CheckBox|RadioButton|Slider|SpinBox|ComboBox|ProgressBar|ScrollBar|Switch|Label|GroupBox|Menu|MenuItem|ToolTip|Dialog|DialogButtonBox|BusyIndicator|Frame|ToolBar|TabBar|TabButton|StackView|Page|PageIndicator|Drawer|Action|ActionGroup)$')
+
+        for ref in $REFS; do
+            if ! echo "$PROVIDED" | grep -qx "$ref"; then
+                # Double-check it's not in any sub-directory
+                if ! find "$SHELL_DIR" -maxdepth 2 -name "${ref}.qml" 2>/dev/null | grep -q .; then
+                    MISSING_TYPES="$MISSING_TYPES $ref"
+                fi
+            fi
+        done
+    done
+
+    MISSING_TYPES=$(echo "$MISSING_TYPES" | tr ' ' '\n' | sort -u | grep -v '^$' | tr '\n' ' ')
+
+    if [ -z "$MISSING_TYPES" ]; then
+        echo "    ✓ All QML types referenced by shell.qml / Bar.qml resolve to local .qml files"
+    else
+        echo "  ⚠ References to types without matching .qml file(s):"
+        for t in $MISSING_TYPES; do
+            echo "      - $t  (expected: $SHELL_DIR/${t}.qml)"
+        done
+        echo ""
+        echo "    This is usually fine if you've customized shell.qml with external types."
+        echo "    If you haven't, the missing file is probably from an incomplete package."
+        echo "    Run: $INSTALLER -S --needed quickshell-git  # to ensure latest Quickshell"
+    fi
+fi
 
 # ═══════════════════════════════════════════════════════════════
 # [9/9] Restart
