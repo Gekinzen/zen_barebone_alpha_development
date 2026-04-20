@@ -1,301 +1,402 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Gekinzen/zen_barebone_alpha_development/main/demo/desktoplooks.png" alt="Zen Shell Desktop Preview" width="950"/>
+  <img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_15_3_demo_2026/sample1.png" alt="Zen Shell — v6.15.13" width="960"/>
 </p>
 
-<h1 align="center">Zen Shell</h1>
+<h1 align="center" style="letter-spacing:-0.02em;">Zen&nbsp;Shell</h1>
 
 <p align="center">
-  <b>A Quickshell-native desktop environment for Hyprland.</b><br/>
+  <sub><b>A QUICKSHELL-NATIVE DESKTOP ENVIRONMENT FOR HYPRLAND</b></sub>
+</p>
+
+<p align="center">
   <i>Control everything. Theme everything. Break nothing.</i>
 </p>
 
 <p align="center">
-  <a href="#-overview">Overview</a> •
-  <a href="#-live-demo">Demo</a> •
-  <a href="#-screenshots">Screenshots</a> •
-  <a href="#-whats-new">What's New</a> •
-  <a href="#-features">Features</a> •
-  <a href="#-installation">Install</a> •
-  <a href="#-architecture">Architecture</a> •
-  <a href="#-changelogs">Changelogs</a> •
-  <a href="#-credits">Credits</a>
+  <img src="https://img.shields.io/badge/v6.15.13-0a0a0a?style=flat-square"/>
+  &nbsp;
+  <img src="https://img.shields.io/badge/Arch%20Linux-1a1a1a?style=flat-square&logo=arch-linux&logoColor=white"/>
+  &nbsp;
+  <img src="https://img.shields.io/badge/Hyprland%200.54%2B-1a1a1a?style=flat-square&logo=wayland&logoColor=white"/>
+  &nbsp;
+  <img src="https://img.shields.io/badge/Quickshell%20QML-1a1a1a?style=flat-square"/>
+  &nbsp;
+  <img src="https://img.shields.io/badge/Beta-1a1a1a?style=flat-square"/>
+  &nbsp;
+  <img src="https://img.shields.io/badge/MIT-1a1a1a?style=flat-square"/>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-v6.15.13-brightgreen"/>
-  <img src="https://img.shields.io/badge/Arch-Linux-1793D1?logo=arch-linux&logoColor=white"/>
-  <img src="https://img.shields.io/badge/Hyprland-0.54+-58E1FF?logo=wayland&logoColor=white"/>
-  <img src="https://img.shields.io/badge/Quickshell-QML-4A86CF"/>
-  <img src="https://img.shields.io/badge/Status-Beta-orange"/>
-  <img src="https://img.shields.io/badge/License-MIT-green"/>
+  <a href="#overview">Overview</a>
+  &nbsp;·&nbsp;
+  <a href="#demos">Demos</a>
+  &nbsp;·&nbsp;
+  <a href="#showcase">Showcase</a>
+  &nbsp;·&nbsp;
+  <a href="#whats-new-in-v615x">What's New</a>
+  &nbsp;·&nbsp;
+  <a href="#features">Features</a>
+  &nbsp;·&nbsp;
+  <a href="#quick-start">Install</a>
+  &nbsp;·&nbsp;
+  <a href="#architecture">Architecture</a>
+  &nbsp;·&nbsp;
+  <a href="#wallpapers">Wallpapers</a>
+  &nbsp;·&nbsp;
+  <a href="#changelogs">Changelogs</a>
+  &nbsp;·&nbsp;
+  <a href="#legacy-archive--2025-alpha">Archive</a>
+  &nbsp;·&nbsp;
+  <a href="#credits">Credits</a>
 </p>
 
----
-
-# 🚀 Overview
-
-**Zen Shell** (formerly "Zenith" / "Zen Barebone Alpha") is a complete
-desktop shell built entirely in QML using
-[Quickshell](https://github.com/quickshell-mirror/quickshell) —
-replacing the previous mixed stack of GTK4/Libadwaita, Python, C++,
-and Waybar with a unified, lightweight QML architecture.
-
-It is not just a Hyprland configuration.
-It is a structured, modular desktop ecosystem built around:
-
-- ⚡ Performance-first configuration
-- 🎨 Unified cross-application theming
-- 🧩 GUI-driven customization without sacrificing power
-- 🎵 Audio-reactive music visualizer (new in v6.15)
-- 📸 Physics-simulated screenshot rope overlay (new in v6.15)
-
-Everything is synchronized.
-Switch one setting — the entire desktop updates.
-
-> **The legacy Python/GTK4 alpha is preserved at
-> [`zen-alpha-deprecated-0.52/`](https://github.com/Gekinzen/zen_barebone_alpha_development/tree/zen-alpha-deprecated-0.52)**
-> for historical reference. Active development targets the QML rewrite
-> shipped in this branch.
+<br/>
 
 ---
 
-# 🎬 Live Demo
+<br/>
+
+## Overview
+
+**Zen Shell** (formerly *Zenith* / *Zen Barebone Alpha*) is a complete desktop shell built entirely in QML using [Quickshell](https://github.com/quickshell-mirror/quickshell) — replacing the previous mixed stack of GTK4/Libadwaita, Python, C++, and Waybar with a unified, lightweight QML architecture.
+
+It is not just a Hyprland configuration. It is a structured, modular desktop ecosystem built around:
+
+<br/>
+
+<table align="center">
+<tr>
+<td align="center" width="33%">
+<img src="https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/bolt/default/24px.svg" width="20"/>
+<br/><b>Performance-first</b>
+<br/><sub>Lean QML runtime</sub>
+</td>
+<td align="center" width="33%">
+<img src="https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/palette/default/24px.svg" width="20"/>
+<br/><b>Unified theming</b>
+<br/><sub>One switch, whole desktop</sub>
+</td>
+<td align="center" width="33%">
+<img src="https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/tune/default/24px.svg" width="20"/>
+<br/><b>GUI-driven</b>
+<br/><sub>No config files required</sub>
+</td>
+</tr>
+<tr>
+<td align="center">
+<img src="https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/graphic_eq/default/24px.svg" width="20"/>
+<br/><b>Music Strings</b>
+<br/><sub>Audio-reactive bezier — v6.15</sub>
+</td>
+<td align="center">
+<img src="https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/screenshot_region/default/24px.svg" width="20"/>
+<br/><b>Screenshot Ropes</b>
+<br/><sub>Physics overlay — v6.15</sub>
+</td>
+<td align="center">
+<img src="https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/sync/default/24px.svg" width="20"/>
+<br/><b>State-synchronized</b>
+<br/><sub>Change one, update all</sub>
+</td>
+</tr>
+</table>
+
+<br/>
+
+> The legacy Python/GTK4 alpha is preserved at [`zen-alpha-deprecated-0.52/`](https://github.com/Gekinzen/zen_barebone_alpha_development/tree/zen-alpha-deprecated-0.52) for historical reference. Active development targets the QML rewrite shipped in this branch.
+
+<br/>
+
+---
+
+<br/>
+
+## Demos
 
 <p align="center">
-  <a href="https://www.youtube.com/watch?v=YQxrh5_naMQ">
-    <img src="https://img.youtube.com/vi/YQxrh5_naMQ/maxresdefault.jpg" alt="Zen Shell — Full Demo" width="850"/>
+  <a href="https://www.youtube.com/watch?v=dNwGRBhA97g">
+    <img src="https://img.youtube.com/vi/dNwGRBhA97g/maxresdefault.jpg" alt="Zen Shell v6.15.13 — Full Tour" width="880"/>
   </a>
 </p>
 
 <p align="center">
-  <b>▶️ Watch the full Zen Shell demo on YouTube</b><br/>
-  <i>Theme switching, panel modes, system tray, control panel,
-  desktop widgets, and more — all in action.</i>
+  <sub>CURRENT RELEASE</sub><br/>
+  <b>Zen Shell v6.15.13 — Full Tour</b><br/>
+  <i>Strings music module, screenshot ropes, settings, and the complete desktop experience.</i>
+</p>
+
+<br/>
+
+<table align="center">
+<tr>
+<td align="center" width="50%">
+<a href="https://www.youtube.com/watch?v=YQxrh5_naMQ">
+  <img src="https://img.youtube.com/vi/YQxrh5_naMQ/maxresdefault.jpg" alt="Zen Shell v6.14" width="420"/>
+</a>
+<br/>
+<sub>PREVIOUS SERIES</sub>
+<br/>
+<b>Zen Shell v6.14</b>
+<br/>
+<i>Theme switching, panel modes, control center.</i>
+</td>
+<td align="center" width="50%">
+<a href="https://www.youtube.com/watch?v=ao89J3DEqiA">
+  <img src="https://img.youtube.com/vi/ao89J3DEqiA/maxresdefault.jpg" alt="Zen Shell v6.10 — QML Foundations" width="420"/>
+</a>
+<br/>
+<sub>QML FOUNDATIONS</sub>
+<br/>
+<b>Zen Shell v6.10</b>
+<br/>
+<i>The fresh QML rewrite — where the new stack began.</i>
+</td>
+</tr>
+</table>
+
+<br/>
+
+---
+
+<br/>
+
+## Showcase
+
+<p align="center">
+  <i>Zen Shell v6.15.13 — captured on Hyprland 0.54, Quickshell 0.2.1.</i>
+</p>
+
+<br/>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_15_3_demo_2026/sample2.png" alt="Desktop preview" width="920"/>
+</p>
+
+<br/>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_15_3_demo_2026/sample3.png" alt="Desktop preview" width="920"/>
+</p>
+
+<br/>
+
+### Adaptive theming
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_15_3_demo_2026/zen_shell_01_adaptive_theming.gif" alt="Adaptive theming" width="920"/>
 </p>
 
 <p align="center">
-  <a href="https://www.youtube.com/watch?v=rWz8_Hk6-0U">
-    <img src="https://img.youtube.com/vi/rWz8_Hk6-0U/maxresdefault.jpg" alt="I Built a Control Center for Hyprland" width="850"/>
+  <sub>One palette. Every surface — bar, settings, control panel, notifications, terminal, launcher.</sub>
+</p>
+
+<br/>
+
+### Settings tour
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_15_3_demo_2026/zen_shell_02_settings_tour.gif" alt="Settings tour" width="920"/>
+</p>
+
+<p align="center">
+  <sub>Thirteen pages of live-preview configuration. No config files. No restart.</sub>
+</p>
+
+<br/>
+
+### Screenshot module · ultrawide
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_15_3_demo_2026/zen_shell_03_screenshot_module_ultrawide.gif" alt="Screenshot module on ultrawide" width="920"/>
+</p>
+
+<p align="center">
+  <sub>Region selection with physics-draped ropes. Clipboard-backed paste, reliable on the first try.</sub>
+</p>
+
+<br/>
+
+<p align="center">
+  <a href="https://github.com/Gekinzen/images-demo/raw/main/zen_6_15_3_demo_2026/zen_shell_v6.15.13_showcase.mp4">
+    <img src="https://img.shields.io/badge/Download%20MP4%20Showcase-0a0a0a?style=for-the-badge" alt="Download MP4 showcase"/>
   </a>
 </p>
 
-<p align="center">
-  <b>▶️ I Built a Control Center for Hyprland — Arch Linux Dotfiles</b><br/>
-  <i>Deep dive into the control center, theming engine, and dotfiles
-  workflow.</i>
-</p>
+<br/>
 
 ---
 
-# 📸 Screenshots
+<br/>
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Gekinzen/zen_barebone_alpha_development/main/demo/main.gif" alt="Zen Shell Main Demo" width="850"/>
-</p>
+## What's New in v6.15.x
 
-## 🎨 Theme Switching
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Gekinzen/zen_barebone_alpha_development/main/demo/theming.gif" alt="Theme Switching" width="850"/>
-</p>
+The v6.15 series was a large feature release followed by a long tail of hardening patches (v6.15.1 → v6.15.13). Summary of everything added relative to v6.14.2:
 
-## 🖥 Desktop Looks
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Gekinzen/zen_barebone_alpha_development/main/demo/desktoplooks.png" alt="Desktop Looks" width="850"/>
-</p>
+<br/>
 
-## 🚀 Dock / Taskbar
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Gekinzen/zen_barebone_alpha_development/main/demo/dock.png" alt="Dock" width="850"/>
-</p>
+### Music Strings Module
 
-## 🎛 Panel Modes
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Gekinzen/zen_barebone_alpha_development/main/demo/paneldemo.gif" alt="Panel Modes" width="850"/>
-</p>
+An audio-reactive bezier visualizer that replaces the music module in the bar when enabled via **Settings → General → Strings**. Beat data comes from `cava`, track metadata from `playerctl`. Hovering the strings shows an Artist — Title tooltip. Curves bow freely above and below the bar slot via a dedicated `WlrLayer.Overlay` panel window.
 
-## 🖼 Wallpaper Picker
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Gekinzen/zen_barebone_alpha_development/main/demo/changewallpaper.gif" alt="Wallpaper Switching" width="850"/>
-</p>
+### Screenshot Ropes
 
-## 🎛 Control Panel
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Gekinzen/zen_barebone_alpha_development/main/demo/hyprcontrolcenter.png" alt="Control Panel" width="850"/>
-</p>
+`Super+Shift+S` opens a region-screenshot overlay with physics-simulated ropes draped from the screen corners. Drag to select a region; the toolbar appears with copy / save / annotate actions. The copy path is `wl-copy`-backed with `setsid` detachment so clipboard ownership survives the helper script exiting. Pasting into any app produces the JPEG immediately.
 
-## 🎨 Settings / Appearance
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Gekinzen/zen_barebone_alpha_development/main/demo/hyprlandappearance.png" alt="Settings - Appearance" width="850"/>
-</p>
+### Complete SettingsStateV2 Coverage
 
-## 🎞 Animation Editor
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Gekinzen/zen_barebone_alpha_development/main/demo/hyprcontrolcenteranimation.png" alt="Animation Editor" width="850"/>
-</p>
+The previous implementation of `applyToHyprland()` was missing roughly 20 Hyprland keywords (all snap properties, most blur/shadow secondaries, `dim_special`). These are now all persisted correctly — no more "snap gaps reset when I change themes" surprises.
 
-## 🎨 Theme Engine
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Gekinzen/zen_barebone_alpha_development/main/demo/theming.png" alt="Theme Engine" width="850"/>
-</p>
+### Robust Layout Handling
 
-> *Music-string visualizer and screenshot-rope GIFs will be added as
-> soon as new recordings are captured on v6.15.13.*
+Eight iterative improvements for music-string positioning across panel mode transitions (Fullwidth ↔ Floating ↔ Island), culminating in:
 
----
+- `QQuickLayout.forceLayout()` — synchronous layout passes during transitions eliminate Qt's async RowLayout propagation issue
+- `zs-restart.sh` — a selective shell respawn helper for the one corner case (Float/FW → Island) that even `forceLayout()` couldn't solve from the QML layer
 
-# ✨ What's New in v6.15.x
+### Bootstrap Flag
 
-The v6.15 series was a large feature release followed by a long tail
-of hardening patches (v6.15.1 → v6.15.13). Summary of everything
-added relative to v6.14.2:
+`./install.sh --bootstrap` now supports fresh Arch-based laptops (safe to run on systems currently running KDE, GNOME, or COSMIC — does **not** touch the display manager, does **not** change the default session, does **not** remove any existing DE). Installs Hyprland + Quickshell + all dependencies in four tiers and creates a Wayland session entry so Hyprland becomes selectable from the existing login screen.
 
-### 🎵 Music Strings Module
-An audio-reactive bezier visualizer that replaces the music module
-in the bar when enabled via **Settings → General → Strings**. Beat
-data comes from `cava`, track metadata from `playerctl`. Hovering
-the strings shows an Artist — Title tooltip. Curves bow freely above
-and below the bar slot via a dedicated `WlrLayer.Overlay` panel
-window.
+### Hyprland 0.54+ Syntax Compatibility
 
-### 📸 Screenshot Ropes
-`Super+Shift+S` opens a region-screenshot overlay with physics-
-simulated ropes draped from the screen corners. Drag to select a
-region; the toolbar appears with copy / save / annotate actions.
-The copy path is `wl-copy`-backed with `setsid` detachment so
-clipboard ownership survives the helper script exiting. Pasting into
-any app produces the JPEG immediately.
-
-### 🛠 Complete SettingsStateV2 Coverage
-The previous implementation of `applyToHyprland()` was missing
-roughly 20 Hyprland keywords (all snap properties, most blur/shadow
-secondaries, `dim_special`). These are now all persisted correctly
-— no more "snap gaps reset when I change themes" surprises.
-
-### 🛡 Robust Layout Handling
-Eight iterative improvements for music-string positioning across
-panel mode transitions (Fullwidth ↔ Floating ↔ Island), culminating
-in:
-
-- `QQuickLayout.forceLayout()` — synchronous layout passes during
-  transitions eliminate Qt's async RowLayout propagation issue
-- `zs-restart.sh` — a selective shell respawn helper for the one
-  corner case (Float/FW → Island) that even `forceLayout()` couldn't
-  solve from the QML layer
-
-### 🚀 Bootstrap Flag
-`./install.sh --bootstrap` now supports fresh Arch-based laptops
-(safe to run on systems currently running KDE, GNOME, or COSMIC —
-does NOT touch the display manager, does NOT change the default
-session, does NOT remove any existing DE). Installs Hyprland +
-Quickshell + all dependencies in four tiers and creates a Wayland
-session entry so Hyprland becomes selectable from the existing
-login screen.
-
-### 🎯 Hyprland 0.54+ Syntax Compatibility
 All bundled configs updated to the new syntax:
+
 - `windowrulev2` → `windowrule = prop val, match:key regex`
 - `layerrule = blur, ns` → `layerrule = blur on, match:namespace ns`
 - `layerrule = noanim` → `layerrule = no_anim on, match:namespace ns`
 - Trailing commas removed from all `bind = ...` lines
 
-Full per-patch details are in
-[`CHANGELOG-v6.15.x.md`](CHANGELOG-v6.15.x.md) (consolidated) or the
-individual `CHANGELOG-v6.15.<n>.md` files.
+Full per-patch details are in [`CHANGELOG-v6.15.x.md`](CHANGELOG-v6.15.x.md) (consolidated) or the individual `CHANGELOG-v6.15.<n>.md` files.
+
+<br/>
 
 ---
 
-# ✨ Features
+<br/>
 
-## 🎵 Music Strings (v6.15+)
+## Features
+
+<br/>
+
+### Music Strings &nbsp;·&nbsp; v6.15+
+
 *New in this series.* Audio-reactive bezier curve visualizer.
+
 - Replaces the music module when enabled
 - `cava` drives the beat amplitude
 - `playerctl` drives artist/title tooltip
-- Floating overlay panel — curves bow above and below the bar slot
-  without being clipped by the bar's layer-shell surface
-- Color modes: theme (auto blue → purple), synced (follows accent),
-  custom (two color pickers)
+- Floating overlay panel — curves bow above and below the bar slot without being clipped by the bar's layer-shell surface
+- Color modes: theme (auto blue → purple), synced (follows accent), custom (two color pickers)
 - Loading placeholder with pulsing dot while the bar layout settles
 - Toggleable and fully configurable in **Settings → General → Strings**
 
-## 📸 Screenshot Rope Overlay (v6.15+)
-*New in this series.* `Super+Shift+S` → region screenshot with
-physics-draped rope ornaments.
+<br/>
+
+### Screenshot Rope Overlay &nbsp;·&nbsp; v6.15+
+
+*New in this series.* `Super+Shift+S` → region screenshot with physics-draped rope ornaments.
+
 - 10-segment ropes with tuned gravity / inertia / spring force
 - `grim` + `slurp` primary with `flameshot` fallback
-- `wl-copy` integration with `setsid` detachment — paste works
-  reliably on the first try
+- `wl-copy` integration with `setsid` detachment — paste works reliably on the first try
 - Multi-monitor: rope appears on the monitor where the cursor is
 - Toggleable in **Settings → General → Strings → Screenshot ropes**
 
-## 🎛 Control Panel (Super+C)
+<br/>
+
+### Control Panel &nbsp;·&nbsp; Super+C
+
 - PipeWire volume sliders
 - WiFi / Bluetooth / LAN toggle switches
 - CPU / GPU / RAM live stats
 - Expand arrow for network list + BT devices
 - Draggable panel
 
-## 🖥 System Tray (SysRow)
+<br/>
+
+### System Tray &nbsp;·&nbsp; SysRow
+
 - Waybar-style expandable tray with `❮` arrow
 - 6 modules: Sound, CPU, RAM, Temp, Network, Bluetooth
 - Icon + bargraph or icon + text display modes
 - Per-module visibility and color customization
 - PopupWindow tooltips anchored above each icon
 
-## 🖼 Desktop Widgets
+<br/>
+
+### Desktop Widgets
+
 - **Clock** — 120px bold, gradient glow, multi-timezone array
-- **Weather** — emoji icons, 7-day forecast, Open-Meteo (no API key)
+- **Weather** — icon-led, 7-day forecast, Open-Meteo (no API key)
 - **System Monitor** — CPU/GPU/RAM/Network with Canvas sparklines
 - All draggable with per-monitor position persistence
 
-## 🎚 Bar / Panel
+<br/>
+
+### Bar / Panel
+
 - 3 modes: **Full-width**, **Floating**, **Island**
-- Drag-reorder modules between left/center/right zones
-- 11 modules: start, taskbar, workspaces, window title, music,
-  sysrow, tray, notifications, clock, weather, sysmonitor
+- Drag-reorder modules between left / center / right zones
+- 11 modules: start, taskbar, workspaces, window title, music, sysrow, tray, notifications, clock, weather, sysmonitor
 - Adjustable: height, opacity, radius, border, background override
 - Display target: all monitors / primary / specific monitor
 
-## ⚙ Settings App (Zen Settings)
-Pages: General, Decoration, Animations, Themes, Displays, Panel,
-Bar Modules, System Tray, Sound & Network, Notifications, Desktop
-Widgets, Wallpaper.
+<br/>
+
+### Settings App &nbsp;·&nbsp; Zen Settings
+
+Pages: General, Decoration, Animations, Themes, Displays, Panel, Bar Modules, System Tray, Sound & Network, Notifications, Desktop Widgets, Wallpaper.
+
 - Live preview for all changes
 - Persists to JSON
 - Revert buttons on every section
 
-## 🎨 Unified Theming System
-17 built-in themes auto-synchronize across Quickshell bar, Settings
-app, Control Panel, SwayNC notifications, Alacritty terminal, and
-Fuzzel launcher.
+<br/>
 
-One Dark • Gruvbox • Nord • Tokyo Night • Catppuccin Mocha • Dracula
-• Solarized Dark • Everforest Dark • Cyberpunk • Lovelace • Yousai
-• Arc • Adapta • Navy • Black • Paper • Adapta
+### Unified Theming System
+
+17 built-in themes auto-synchronize across Quickshell bar, Settings app, Control Panel, SwayNC notifications, Alacritty terminal, and Fuzzel launcher.
+
+<p align="center">
+  <sub>One Dark · Gruvbox · Nord · Tokyo Night · Catppuccin Mocha · Dracula · Solarized Dark · Everforest Dark · Cyberpunk · Lovelace · Yousai · Arc · Adapta · Navy · Black · Paper</sub>
+</p>
 
 - Custom theme palette editor
-- Rice export/import (save full desktop config as a JSON file)
+- Rice export / import (save full desktop config as a JSON file)
 
-## 🚀 Start Menu (Super+A)
+<br/>
+
+### Start Menu &nbsp;·&nbsp; Super+A
+
 - Win11-style with pinned apps + alphabetical all-apps
 - Real-time search
 - Right-click context menu
 - Integrated power controls
 
-## 🖼 Wallpaper
+<br/>
+
+### Wallpaper
+
 - `swww`-powered engine with transition effects
 - Visual picker with thumbnails (`Super+W`)
 - Random wallpaper (`Super+Shift+W`)
 
-## ⌨️ Keybind Cheatsheet (Super+/)
+<br/>
+
+### Keybind Cheatsheet &nbsp;·&nbsp; Super+/
+
 - Reads live from Hyprland config
 - 8 color-coded categories
 
+<br/>
+
 ---
 
-# 🎯 Quick Start
+<br/>
 
-## Fresh Arch-based laptop (KDE / GNOME / COSMIC safe)
+## Quick Start
+
+### Fresh Arch-based laptop &nbsp;·&nbsp; KDE / GNOME / COSMIC safe
 
 ```bash
 git clone https://github.com/Gekinzen/zen_barebone_alpha_development.git
@@ -312,45 +413,46 @@ chmod +x install.sh
 ./install.sh --bootstrap
 ```
 
-The `--bootstrap` flag installs Hyprland, Quickshell, and all
-dependencies without touching your current desktop environment.
-You can log out, select Hyprland from your login screen's session
-picker, and switch back to your previous DE any time.
+The `--bootstrap` flag installs Hyprland, Quickshell, and all dependencies without touching your current desktop environment. You can log out, select Hyprland from your login screen's session picker, and switch back to your previous DE any time.
 
-## Hyprland already installed
+### Hyprland already installed
 
 ```bash
 git clone https://github.com/Gekinzen/zen_barebone_alpha_development.git
 cd zen_barebone_alpha_development
 
-# Check out the latest release (either approach works):
 git fetch --tags
 git checkout v6.15.13         # pin to exact release
 #   — or —
-git checkout main             # always the latest commit (may contain
-                              #   in-progress work)
+git checkout main             # always the latest commit
 
 chmod +x install.sh
 ./install.sh
 ```
 
-## Backup first (recommended)
+### Backup first &nbsp;·&nbsp; recommended
 
 ```bash
 mv ~/.config/hypr      ~/.config/hypr.backup      2>/dev/null || true
 mv ~/.config/quickshell ~/.config/quickshell.backup 2>/dev/null || true
 ```
 
+<br/>
+
 ---
 
-# 📦 Dependencies
+<br/>
 
-**Required:**
+## Dependencies
+
+**Required**
+
 - [Quickshell](https://github.com/quickshell-mirror/quickshell) 0.2.1+ — QML shell framework
 - [Hyprland](https://hyprland.org/) 0.54+ — Wayland compositor
 - `jq` — JSON processor
 
-**Recommended (most auto-installed by `--bootstrap`):**
+**Recommended** &nbsp;·&nbsp; most auto-installed by `--bootstrap`
+
 - `swww` — wallpaper daemon
 - `grim`, `slurp`, `wl-clipboard` — screenshots
 - `flameshot` — screenshot GUI fallback
@@ -365,12 +467,15 @@ mv ~/.config/quickshell ~/.config/quickshell.backup 2>/dev/null || true
 - `blueman`, `networkmanager`, `wireplumber`, `pavucontrol`
 - `zenity` — dialogs
 
-The installer auto-detects missing packages and offers to install
-via `paru` > `yay` > `pacman`.
+The installer auto-detects missing packages and offers to install via `paru` > `yay` > `pacman`.
+
+<br/>
 
 ---
 
-# 🏗 Architecture
+<br/>
+
+## Architecture
 
 ```
 ~/.config/quickshell/zen-shell/
@@ -432,9 +537,13 @@ stringsWindow (WlrLayer.Overlay, namespace zen-shell-strings)
         ↑ 60px overflow above/below so curves bow freely
 ```
 
+<br/>
+
 ---
 
-# ⌨️ Keybinds
+<br/>
+
+## Keybinds
 
 | Keybind | Action |
 |---|---|
@@ -444,7 +553,7 @@ stringsWindow (WlrLayer.Overlay, namespace zen-shell-strings)
 | `Super + W` | Wallpaper Picker |
 | `Super + Shift + W` | Random Wallpaper |
 | `Super + /` | Keybind Cheatsheet |
-| **`Super + Shift + S`** | **Screenshot rope overlay (v6.15+)** |
+| **`Super + Shift + S`** | **Screenshot rope overlay** &nbsp;·&nbsp; v6.15+ |
 | `Super + Alt + S` | Toggle bar style (round ↔ pill) |
 | Clock click | Calendar popup |
 | `Super + T` | Terminal |
@@ -461,12 +570,39 @@ stringsWindow (WlrLayer.Overlay, namespace zen-shell-strings)
 | `Super + Ctrl + F12` | Screenshot: all screens |
 | `Super + Alt + F12` | Flameshot GUI |
 
+<br/>
+
 ---
 
-# 📝 Changelogs
+<br/>
 
-- **[v6.15.x consolidated](CHANGELOG-v6.15.x.md)** — Overall
-  summary of the entire v6.15 series
+## Wallpapers
+
+A curated wallpaper set ships with the installer. You can also browse and download the full collection directly from the image repository.
+
+<p align="center">
+  <a href="https://github.com/Gekinzen/images-demo/tree/main/wallpapers">
+    <img src="https://img.shields.io/badge/Browse%20Wallpaper%20Collection-0a0a0a?style=for-the-badge" alt="Browse wallpaper collection"/>
+  </a>
+</p>
+
+```bash
+# Clone just the wallpapers folder
+git clone --depth=1 --filter=blob:none --sparse \
+  https://github.com/Gekinzen/images-demo.git
+cd images-demo
+git sparse-checkout set wallpapers
+```
+
+<br/>
+
+---
+
+<br/>
+
+## Changelogs
+
+- **[v6.15.x consolidated](CHANGELOG-v6.15.x.md)** — overall summary of the entire v6.15 series
 - [v6.15.13 — Install automation polish (current)](CHANGELOG-v6.15.13.md)
 - [v6.15.12 — Nuclear restart self-suicide fix](CHANGELOG-v6.15.12.md)
 - [v6.15.11 — Nuclear respawn command correction](CHANGELOG-v6.15.11.md)
@@ -482,100 +618,96 @@ stringsWindow (WlrLayer.Overlay, namespace zen-shell-strings)
 - [v6.15.1 — Screenshot clipboard + rope physics](CHANGELOG-v6.15.1.md)
 - [v6.15 — Music module → ZenStrings + screenshot ropes](CHANGELOG-v6.15.md)
 
+<br/>
+
 ---
 
-# 🙏 Credits
+<br/>
 
-## Inspired By
+## Credits
 
-The **Music Strings visualizer** and the **Screenshot Rope overlay**
-in v6.15+ are heavily inspired by
-[flickowoa's Zephyr dotfiles](https://github.com/flickowoa/dotfiles/tree/hyprland-zephyr)
-([demo video](https://www.youtube.com/watch?v=7Miis9I25q4)).
+### Inspired By
 
-The original Zephyr dotfiles provided the initial concept and physics
-tuning reference (10-segment ropes, short segment length for natural
-catenary drape, softer gravity/damping values). Zen Shell's
-implementation builds on that foundation with:
+The **Music Strings visualizer** and the **Screenshot Rope overlay** in v6.15+ are heavily inspired by [flickowoa's Zephyr dotfiles](https://github.com/flickowoa/dotfiles/tree/hyprland-zephyr) ([demo video](https://www.youtube.com/watch?v=7Miis9I25q4)).
+
+The original Zephyr dotfiles provided the initial concept and physics tuning reference (10-segment ropes, short segment length for natural catenary drape, softer gravity/damping values). Zen Shell's implementation builds on that foundation with:
 
 - Full QML-native integration — no external Python daemons or helpers
-- Clipboard-integrated screenshot capture (paste works reliably on
-  the first try via `setsid`-detached `wl-copy`)
-- String module toggle integrated with Zen Shell's Settings app
-  (can be enabled/disabled in **General → Strings** without editing
-  any config files)
-- Beat data from `cava` driving the bezier curve amplitude in
-  real-time
-- Multi-monitor awareness for both the strings and the screenshot
-  ropes
+- Clipboard-integrated screenshot capture (paste works reliably on the first try via `setsid`-detached `wl-copy`)
+- String module toggle integrated with Zen Shell's Settings app (can be enabled/disabled in **General → Strings** without editing any config files)
+- Beat data from `cava` driving the bezier curve amplitude in real-time
+- Multi-monitor awareness for both the strings and the screenshot ropes
 - Panel-mode-aware positioning (Fullwidth / Floating / Island)
 
-Huge thanks to **[flickowoa](https://github.com/flickowoa)** for the
-original design language.
+Huge thanks to **[flickowoa](https://github.com/flickowoa)** for the original design language.
 
-## Built With
+### Built With
 
-- **[Quickshell](https://github.com/quickshell-mirror/quickshell)** —
-  the QML shell framework this entire project is built on
+- **[Quickshell](https://github.com/quickshell-mirror/quickshell)** — the QML shell framework this entire project is built on
 - **[Hyprland](https://hyprland.org/)** — the Wayland compositor
 - **Qt 6 / QML** — declarative UI + runtime
 
----
-
-# 🌐 Platform
-
-- **OS:** Arch Linux / CachyOS
-- **Compositor:** Hyprland 0.54+
-- **Shell Framework:** Quickshell
-- **Language:** QML / JavaScript
-- **Hardware tested:** AMD Ryzen 9 5950X + RX 6800 XT, 128GB RAM
+<br/>
 
 ---
 
-# 🛣 Roadmap
+<br/>
 
-Zen Shell is actively developed. This is a personal project I enjoy
-working on and learn a lot from — so expect continuous iteration
-rather than a "finished" state.
+## Platform
 
-## 🎯 Next phase (in progress)
+<p align="center">
+  <b>Arch Linux / CachyOS</b>
+  &nbsp;·&nbsp;
+  <b>Hyprland 0.54+</b>
+  &nbsp;·&nbsp;
+  <b>Quickshell</b>
+  &nbsp;·&nbsp;
+  <b>QML / JavaScript</b>
+</p>
 
-Reimplementing features from the legacy Python/GTK4 alpha (now
-preserved at
-[`zen-alpha-deprecated-0.52/`](https://github.com/Gekinzen/zen_barebone_alpha_development/tree/zen-alpha-deprecated-0.52))
-as native QML modules in Zen Shell:
+<p align="center">
+  <sub>Reference hardware: AMD Ryzen 9 5950X &nbsp;·&nbsp; RX 6800 XT &nbsp;·&nbsp; 128&nbsp;GB RAM</sub>
+</p>
 
-- [ ] **Start Menu logo customization** — let users swap the Arch
-      logo button for their own image / SVG via Settings → Panel →
-      Start Button
-- [ ] **Notification volume OSD** — on-screen overlay that pops up
-      briefly when the user changes volume (keyboard media keys /
-      wpctl), synced with the current theme
-- [ ] **Alt+Tab window switcher** — in-QML window-switcher overlay
-      with app icon + title preview, replacing Hyprland's default
-      cycle-next binding
-- [ ] **Import user photo** — personalize the Start Menu header with
-      a user avatar (file picker + automatic crop to circle)
+<br/>
+
+---
+
+<br/>
+
+## Roadmap
+
+Zen Shell is actively developed. This is a personal project I enjoy working on and learn a lot from — so expect continuous iteration rather than a "finished" state.
+
+### Next phase &nbsp;·&nbsp; in progress
+
+Reimplementing features from the legacy Python/GTK4 alpha (now preserved at [`zen-alpha-deprecated-0.52/`](https://github.com/Gekinzen/zen_barebone_alpha_development/tree/zen-alpha-deprecated-0.52)) as native QML modules in Zen Shell:
+
+- [ ] **Start Menu logo customization** — swap the Arch logo for a custom image / SVG via Settings → Panel → Start Button
+- [ ] **Notification volume OSD** — on-screen overlay that pops up briefly when volume changes (keyboard media keys / wpctl), synced with the current theme
+- [ ] **Alt+Tab window switcher** — in-QML window-switcher overlay with app icon + title preview, replacing Hyprland's default cycle-next binding
+- [ ] **Import user photo** — personalize the Start Menu header with a user avatar (file picker + automatic crop to circle)
 - [ ] **Other fixes** — ongoing polish from real-world usage
 
-## Longer-term ideas
+### Longer-term ideas
 
-- [ ] Integrate WiFi/BT logic directly in `ConnectivityPage` (connect /
-      disconnect / forget networks, BT pairing) — replacing the
-      current `nmtui` / `blueman-manager` shell-outs
+- [ ] Integrate WiFi/BT logic directly in `ConnectivityPage` (connect / disconnect / forget networks, BT pairing) — replacing the current `nmtui` / `blueman-manager` shell-outs
 - [ ] Media player widget — MPRIS in bar + Control Panel
 - [ ] Notification history — SwayNC notification log viewer
 - [ ] App drawer grid — grid view option for Start Menu all-apps
-- [ ] Multi-monitor widget placement — per-monitor desktop widget
-      positions
+- [ ] Multi-monitor widget placement — per-monitor desktop widget positions
 - [ ] Theme import from URL
 - [ ] Bar auto-hide — hide bar on fullscreen or after timeout
 - [ ] Lock screen — QML lock with clock + wallpaper blur
 - [ ] More OSD overlays — brightness, keyboard layout, caps lock
 
+<br/>
+
 ---
 
-# 🤝 Contributing
+<br/>
+
+## Contributing
 
 You can help by:
 
@@ -585,46 +717,135 @@ You can help by:
 - Sharing themes
 - Improving documentation
 
-Open an issue on
-[GitHub](https://github.com/Gekinzen/zen_barebone_alpha_development/issues)
-or jump straight to a PR.
+Open an issue on [GitHub](https://github.com/Gekinzen/zen_barebone_alpha_development/issues) or jump straight to a PR.
+
+<br/>
 
 ---
 
-# ⭐ If You Like This Project
+<br/>
 
-Consider starring the repository to support development and help
-others discover it.
+## Legacy Archive &nbsp;·&nbsp; 2025 Alpha
+
+<p align="center">
+  <sub>HISTORICAL REFERENCE</sub><br/>
+  <b>Zen Barebone Alpha — Hyprland 0.52 era</b><br/>
+  <i>The original Python / GTK4 / Waybar stack, preserved for posterity before the full QML rewrite shipped in v6.10+.</i>
+</p>
+
+<br/>
+
+> These assets were captured on **Hyprland 0.52** and document the pre-Quickshell lineage of the project. Current Zen Shell runs on **Hyprland 0.54+** with a unified QML architecture — see the [Showcase](#showcase) above for the latest look. The deprecated source is preserved at [`zen-alpha-deprecated-0.52/`](https://github.com/Gekinzen/zen_barebone_alpha_development/tree/zen-alpha-deprecated-0.52).
+
+<br/>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/main.gif" alt="Alpha main demo" width="880"/>
+</p>
+
+<br/>
+
+<table align="center">
+<tr>
+<td align="center" width="50%">
+<img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/theming.gif" alt="Alpha theme switching" width="420"/>
+<br/><sub>Theme switching</sub>
+</td>
+<td align="center" width="50%">
+<img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/changewallpaper.gif" alt="Alpha wallpaper picker" width="420"/>
+<br/><sub>Wallpaper picker</sub>
+</td>
+</tr>
+<tr>
+<td align="center">
+<img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/paneldemo.gif" alt="Alpha panel modes" width="420"/>
+<br/><sub>Panel modes</sub>
+</td>
+<td align="center">
+<img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/desktoplooks.png" alt="Alpha desktop looks" width="420"/>
+<br/><sub>Desktop looks</sub>
+</td>
+</tr>
+<tr>
+<td align="center">
+<img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/dock.png" alt="Alpha dock" width="420"/>
+<br/><sub>Dock / taskbar</sub>
+</td>
+<td align="center">
+<img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/hyprcontrolcenter.png" alt="Alpha control center" width="420"/>
+<br/><sub>Control center</sub>
+</td>
+</tr>
+<tr>
+<td align="center">
+<img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/hyprcontrolcenteranimation.png" alt="Alpha animation editor" width="420"/>
+<br/><sub>Animation editor</sub>
+</td>
+<td align="center">
+<img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/hyprcontrolcenter%20power%20profile.png" alt="Alpha power profile" width="420"/>
+<br/><sub>Power profile</sub>
+</td>
+</tr>
+<tr>
+<td align="center">
+<img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/hyprlandappearance.png" alt="Alpha appearance settings" width="420"/>
+<br/><sub>Appearance settings</sub>
+</td>
+<td align="center">
+<img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/theming.png" alt="Alpha theme engine" width="420"/>
+<br/><sub>Theme engine</sub>
+</td>
+</tr>
+</table>
+
+<br/>
 
 ---
 
-# ☕ Support
+<br/>
 
-If you find this project useful and want to support its development,
-any contribution is truly appreciated!
+## Support
+
+If you find this project useful and want to support its development, any contribution is truly appreciated.
 
 <p align="center">
   <a href="https://buymeacoffee.com/zenpy">
-    <img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black"/>
+    <img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-0a0a0a?style=for-the-badge&logo=buy-me-a-coffee&logoColor=white"/>
   </a>
 </p>
 
 You can also support via crypto:
 
 | Currency | Address |
-|----------|---------|
-| **BTC** (Bitcoin) | `12Wo7KT9uqKzfZ15ZLugg7yyb3AfsmEVTc` |
-| **BCH** (Bitcoin Cash) | `1EBooTk9TuGBEn9bMkQoSs6yAjbCKd2TqQ` |
-| **SOL** (Solana) | `2FUpxNPHgAJ7r3VpRWxBJNMFoayoZWeFNV6tVsMPe5QR` |
+|---|---|
+| **BTC** &nbsp;·&nbsp; Bitcoin | `12Wo7KT9uqKzfZ15ZLugg7yyb3AfsmEVTc` |
+| **BCH** &nbsp;·&nbsp; Bitcoin Cash | `1EBooTk9TuGBEn9bMkQoSs6yAjbCKd2TqQ` |
+| **SOL** &nbsp;·&nbsp; Solana | `2FUpxNPHgAJ7r3VpRWxBJNMFoayoZWeFNV6tVsMPe5QR` |
+
+<br/>
 
 ---
 
-# 📜 License
+<br/>
 
-MIT License
+## Star the Project
+
+If Zen Shell resonates with you, a star helps others discover it and keeps this project moving forward.
+
+<br/>
 
 ---
+
+<br/>
+
+## License
 
 <p align="center">
-Made with ❤️ by <a href="https://github.com/Gekinzen">Zenpy</a>
+  <b>MIT</b> &nbsp;·&nbsp; Free to use, fork, and make your own.
+</p>
+
+<br/>
+
+<p align="center">
+  <sub>Designed and built by <a href="https://github.com/Gekinzen">Zenpy</a> &nbsp;·&nbsp; Antipolo, Philippines</sub>
 </p>
