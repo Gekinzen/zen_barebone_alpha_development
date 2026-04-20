@@ -1,0 +1,25 @@
+{
+  "id": "everforest-dark",
+  "name": "Everforest Dark",
+  "description": "Nature inspired green theme",
+  "is_builtin": true,
+  "version": "1.0",
+  "colors": {
+    "bg0": "#2d353b",
+    "bg1": "#343f44",
+    "bg2": "#3d484d",
+    "bg3": "#475258",
+    "bg4": "#4f585e",
+    "fg": "#d3c6aa",
+    "grey0": "#7a8478",
+    "grey1": "#859289",
+    "grey2": "#9da9a0",
+    "red": "#e67e80",
+    "orange": "#e69875",
+    "yellow": "#dbbc7f",
+    "green": "#a7c080",
+    "aqua": "#83c092",
+    "blue": "#7fbbb3",
+    "purple": "#d699b6"
+  }
+}

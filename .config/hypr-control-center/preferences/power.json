@@ -1,6 +1,0 @@
-{
-  "profile": "powersave",
-  "auto": false,
-  "cleanup_enabled": true,
-  "cleanup_interval": 300
-}
