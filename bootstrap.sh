@@ -385,8 +385,10 @@ bind = SUPER SHIFT, 5, movetoworkspace, 5
 bindm = SUPER, mouse:272, movewindow
 bindm = SUPER, mouse:273, resizewindow
 
-# Start Zen Shell on login (after install.sh has been run)
-exec-once = qs -c zen-shell
+# Note: Zen Shell startup is handled by autostart.conf (sourced by
+# install.sh-managed hyprland.conf appender). DO NOT add a manual
+# 'exec-once = quickshell ...' line here — it would cause a double
+# launch when autostart.conf is sourced.
 EOF
     echo "    ${C_GRN}✓${C_END} $HYPR_CONF written"
 fi

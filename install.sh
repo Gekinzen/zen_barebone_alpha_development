@@ -1069,33 +1069,121 @@ for mod in animations.conf autostart.conf look_and_feel.conf; do
     fi
 done
 
+# ─────────────────────────────────────────────────────────────────
+# v6.15.15: hyprland.conf — canonical template install
+# ─────────────────────────────────────────────────────────────────
+# Strategy:
+#   - We ship a canonical hyprland.conf.template that has the EXACT
+#     source = lines and env vars Zen Shell expects.
+#   - On fresh install (no existing hyprland.conf), drop the template
+#     in place verbatim.
+#   - On upgrade (existing hyprland.conf), back up to .bak-$TS, then
+#     install the canonical template — but ONLY if the user explicitly
+#     opts in. By default we just append missing source = lines (the
+#     old behavior) so existing user customizations survive.
+#   - In both cases, dedupe stray 'exec-once = quickshell|qs ... zen-shell'
+#     lines that pre-bootstrap-fix versions might have left behind
+#     (autostart.conf already handles quickshell startup; having it in
+#     hyprland.conf too causes a double-launch).
+
 HCONF="$HYPR_DIR/hyprland.conf"
-if [ -f "$HCONF" ]; then
-    added=0
-    grep -q "modules/hardware.conf" "$HCONF" || {
-        printf '\n# ── Added by Zen Shell installer (hardware detection) ──\nsource = ~/.config/hypr/modules/hardware.conf\n' >> "$HCONF"
-        added=$((added+1)); }
-    grep -q "modules/binds.conf" "$HCONF" || {
-        printf '\n# ── Added by Zen Shell installer ──\nsource = ~/.config/hypr/modules/binds.conf\n' >> "$HCONF"
-        added=$((added+1)); }
-    grep -q "modules/animations.conf" "$HCONF" || {
-        echo "source = ~/.config/hypr/modules/animations.conf" >> "$HCONF"
-        added=$((added+1)); }
-    grep -q "modules/autostart.conf" "$HCONF" || {
-        echo "source = ~/.config/hypr/modules/autostart.conf" >> "$HCONF"
-        added=$((added+1)); }
-    grep -q "modules/look_and_feel.conf" "$HCONF" || {
-        echo "source = ~/.config/hypr/modules/look_and_feel.conf" >> "$HCONF"
-        added=$((added+1)); }
-    grep -q "keybinds-update.conf" "$HCONF" || {
-        echo "source = ~/.config/quickshell/zen-shell/config/keybinds-update.conf" >> "$HCONF"
-        added=$((added+1)); }
-    grep -q "hyprland-layer-rules.conf" "$HCONF" || {
-        echo "source = ~/.config/quickshell/zen-shell/config/hyprland-layer-rules.conf" >> "$HCONF"
-        added=$((added+1)); }
-    [ $added -gt 0 ] \
-        && echo "    Added $added line(s) to hyprland.conf" \
-        || echo "    hyprland.conf already up to date"
+TEMPLATE="$SCRIPT_DIR/hypr-config/hyprland.conf.template"
+
+# Helper: dedupe quickshell/qs exec-once lines from a hyprland.conf
+# (autostart.conf is the single source of truth for quickshell startup)
+dedupe_quickshell_execonce() {
+    local f="$1"
+    if grep -qE "^[[:space:]]*exec-once[[:space:]]*=.*\b(quickshell|qs)\b.*\bzen-shell\b" "$f" 2>/dev/null; then
+        # Found stray exec-once for quickshell — back up + remove
+        cp "$f" "$f.dedupe-bak-$TS"
+        sed -i -E "/^[[:space:]]*exec-once[[:space:]]*=.*\b(quickshell|qs)\b.*\bzen-shell\b/d" "$f"
+        echo "    Removed stray 'exec-once = quickshell ... zen-shell' from hyprland.conf"
+        echo "      (autostart.conf is the canonical source — backup at $f.dedupe-bak-$TS)"
+        return 0
+    fi
+    return 1
+}
+
+if [ -f "$TEMPLATE" ]; then
+    if [ ! -f "$HCONF" ]; then
+        # Fresh install — drop the canonical template directly
+        mkdir -p "$HYPR_DIR"
+        cp "$TEMPLATE" "$HCONF"
+        echo "    hyprland.conf — installed canonical template (fresh install)"
+    else
+        # Existing hyprland.conf — preserve, just append missing source
+        # lines + dedupe quickshell exec-once
+        added=0
+
+        # First, dedupe any double quickshell launches
+        dedupe_quickshell_execonce "$HCONF" && added=$((added+1))
+
+        # Append missing source lines (idempotent via grep -q guards)
+        grep -q "modules/hardware.conf" "$HCONF" || {
+            printf '\n# ── Added by Zen Shell installer (hardware detection) ──\nsource = ~/.config/hypr/modules/hardware.conf\n' >> "$HCONF"
+            added=$((added+1)); }
+        grep -q "modules/binds.conf" "$HCONF" || {
+            printf '\n# ── Added by Zen Shell installer ──\nsource = ~/.config/hypr/modules/binds.conf\n' >> "$HCONF"
+            added=$((added+1)); }
+        grep -q "modules/autostart.conf" "$HCONF" || {
+            echo "source = ~/.config/hypr/modules/autostart.conf" >> "$HCONF"
+            added=$((added+1)); }
+        grep -q "modules/look_and_feel.conf" "$HCONF" || {
+            echo "source = ~/.config/hypr/modules/look_and_feel.conf" >> "$HCONF"
+            added=$((added+1)); }
+        grep -q "keybinds-update.conf" "$HCONF" || {
+            echo "source = ~/.config/quickshell/zen-shell/config/keybinds-update.conf" >> "$HCONF"
+            added=$((added+1)); }
+        grep -q "hyprland-layer-rules.conf" "$HCONF" || {
+            echo "source = ~/.config/quickshell/zen-shell/config/hyprland-layer-rules.conf" >> "$HCONF"
+            added=$((added+1)); }
+
+        # NOTE: animations.conf is intentionally NOT auto-sourced.
+        # The canonical look_and_feel.conf has its own animations block.
+        # Users who want the standalone animations.conf module can add
+        # the source line manually:
+        #   source = ~/.config/hypr/modules/animations.conf
+
+        if [ $added -gt 0 ]; then
+            echo "    Added $added line(s) to hyprland.conf"
+        else
+            echo "    hyprland.conf already up to date"
+        fi
+
+        # Offer to install canonical template if user wants a clean reset
+        echo ""
+        echo "    Tip: To replace your hyprland.conf with the canonical Zen Shell"
+        echo "         template (your version backed up to .bak-$TS), run:"
+        echo "           cp ${HCONF/$HOME/~}{,.bak-$TS}"
+        echo "           cp $SCRIPT_DIR/hypr-config/hyprland.conf.template $HCONF"
+    fi
+else
+    echo "  ⚠ hyprland.conf.template not found — falling back to source = appender"
+    if [ -f "$HCONF" ]; then
+        added=0
+        dedupe_quickshell_execonce "$HCONF" && added=$((added+1))
+        grep -q "modules/hardware.conf" "$HCONF" || {
+            printf '\n# ── Added by Zen Shell installer ──\nsource = ~/.config/hypr/modules/hardware.conf\n' >> "$HCONF"
+            added=$((added+1)); }
+        grep -q "modules/binds.conf" "$HCONF" || {
+            echo "source = ~/.config/hypr/modules/binds.conf" >> "$HCONF"
+            added=$((added+1)); }
+        grep -q "modules/autostart.conf" "$HCONF" || {
+            echo "source = ~/.config/hypr/modules/autostart.conf" >> "$HCONF"
+            added=$((added+1)); }
+        grep -q "modules/look_and_feel.conf" "$HCONF" || {
+            echo "source = ~/.config/hypr/modules/look_and_feel.conf" >> "$HCONF"
+            added=$((added+1)); }
+        grep -q "keybinds-update.conf" "$HCONF" || {
+            echo "source = ~/.config/quickshell/zen-shell/config/keybinds-update.conf" >> "$HCONF"
+            added=$((added+1)); }
+        grep -q "hyprland-layer-rules.conf" "$HCONF" || {
+            echo "source = ~/.config/quickshell/zen-shell/config/hyprland-layer-rules.conf" >> "$HCONF"
+            added=$((added+1)); }
+        [ $added -gt 0 ] \
+            && echo "    Added $added line(s) to hyprland.conf" \
+            || echo "    hyprland.conf already up to date"
+    fi
 fi
 
 # ═══════════════════════════════════════════════════════════════
