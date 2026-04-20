@@ -33,6 +33,7 @@ ScrollView {
         if (layout[zone].indexOf(module) === -1) {
             layout[zone].push(module)
             Theme.barLayout = layout
+            PanelState.saveState()
         }
     }
 
@@ -42,6 +43,7 @@ ScrollView {
         if (idx !== -1) {
             layout[zone].splice(idx, 1)
             Theme.barLayout = layout
+            PanelState.saveState()
         }
     }
 
@@ -59,6 +61,7 @@ ScrollView {
         list[idx] = tmp
         layout[zone] = list
         Theme.barLayout = layout
+        PanelState.saveState()
     }
 
     function moveToCenter() {
@@ -68,6 +71,7 @@ ScrollView {
             "center": ["start", "workspaces", "window", "clock"],
             "right": []
         }
+        PanelState.saveState()
     }
 
     function resetDefaults() {
@@ -417,7 +421,7 @@ ScrollView {
                     width: 140
                     model: ["Round", "Pill"]
                     currentIndex: Theme.styleMode === "round" ? 0 : 1
-                    onActivated: Theme.styleMode = (currentIndex === 0) ? "round" : "pill"
+                    onActivated: { Theme.styleMode = (currentIndex === 0) ? "round" : "pill"; PanelState.saveState() }
                 }
             }
 
@@ -429,7 +433,7 @@ ScrollView {
                         width: 200
                         from: 0.2; to: 1.0; stepSize: 0.05
                         value: Theme.barOpacity
-                        onValueChanged: Theme.barOpacity = value
+                        onValueChanged: { Theme.barOpacity = value; PanelState.saveState() }
                     }
                     Text {
                         text: Math.round(Theme.barOpacity * 100) + "%"
@@ -449,7 +453,7 @@ ScrollView {
                         width: 200
                         from: 0; to: 30; stepSize: 1
                         value: Theme.barRadius
-                        onValueChanged: Theme.barRadius = Math.round(value)
+                        onValueChanged: { Theme.barRadius = Math.round(value); PanelState.saveState() }
                     }
                     Text {
                         text: Theme.barRadius + "px"

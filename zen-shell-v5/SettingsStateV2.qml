@@ -292,7 +292,8 @@ Singleton {
         id: stateFile
         path: root.statePath
         blockLoading: false
-        onLoaded: root.loadFromJson(this.text())
+        // v6.15.1: onLoaded moved to Connections block below for
+        // apply-to-Hyprland logic. Do not load here.
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -447,11 +448,114 @@ Singleton {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // INIT
+    // APPLY SAVED STATE TO HYPRLAND
+    // v6.15.1: Called after loadFromJson to push saved values back
+    // to Hyprland. Without this, Hyprland uses defaults from
+    // hyprland.conf and the user's saved settings are ignored.
     // ─────────────────────────────────────────────────────────────
+    function applyToHyprland() {
+        // v6.15.6: Expanded to cover the FULL set of V2 properties.
+        // Previously this function only wrote ~24 keywords — omitting the
+        // 4 snap.* keywords and ~10 blur/shadow secondary keywords. On
+        // startup / after theme reload, those omitted properties silently
+        // reverted to whatever hyprland.conf (or hyprctl defaults) had,
+        // wiping the user's configured snap:window_gap / snap:monitor_gap
+        // / snap:respect_gaps values + secondary blur/shadow tuning.
+        //
+        // Paul reported this specifically for snap gaps resetting after
+        // theme changes. Theme change doesn't directly touch Hyprland,
+        // but shell reload chains can cause SettingsStateV2 to re-apply,
+        // and the omitted properties were never re-asserted — first time
+        // they get written was never, so Hyprland kept its config defaults.
+        var batch = ""
+            + "keyword general:gaps_in " + gapsIn + ";"
+            + "keyword general:gaps_out " + gapsOut + ";"
+            + "keyword general:border_size " + borderSize + ";"
+            + "keyword general:resize_on_border " + (resizeOnBorder ? "true" : "false") + ";"
+            + "keyword general:extend_border_grab_area " + extendBorderGrabArea + ";"
+            + "keyword general:hover_icon_on_border " + (hoverIconOnBorder ? "true" : "false") + ";"
+            + "keyword general:col.active_border " + hexToHyprRgba(activeBorderColor) + ";"
+            + "keyword general:col.inactive_border " + hexToHyprRgba(inactiveBorderColor) + ";"
+            + "keyword general:layout " + layout + ";"
+            + "keyword general:allow_tearing " + (allowTearing ? "true" : "false") + ";"
+            // v6.15.6: snap.* — previously missing, the whole reason
+            // snap_window_gap / snap_monitor_gap / snap_respect_gaps
+            // "disappeared" after theme reload.
+            + "keyword general:snap:enabled " + (snapEnabled ? "true" : "false") + ";"
+            + "keyword general:snap:window_gap " + snapWindowGap + ";"
+            + "keyword general:snap:monitor_gap " + snapMonitorGap + ";"
+            + "keyword general:snap:border_overlap " + snapBorderOverlap + ";"
+            + "keyword general:snap:respect_gaps " + (snapRespectGaps ? "true" : "false") + ";"
+            // decoration
+            + "keyword decoration:rounding " + rounding + ";"
+            + "keyword decoration:rounding_power " + roundingPower + ";"
+            + "keyword decoration:active_opacity " + activeOpacity + ";"
+            + "keyword decoration:inactive_opacity " + inactiveOpacity + ";"
+            + "keyword decoration:fullscreen_opacity " + fullscreenOpacity + ";"
+            + "keyword decoration:dim_inactive " + (dimInactive ? "true" : "false") + ";"
+            + "keyword decoration:dim_strength " + dimStrength + ";"
+            + "keyword decoration:dim_special " + dimSpecial + ";"
+            // v6.15.6: blur.* — added missing secondary properties
+            + "keyword decoration:blur:enabled " + (blurEnabled ? "true" : "false") + ";"
+            + "keyword decoration:blur:size " + blurSize + ";"
+            + "keyword decoration:blur:passes " + blurPasses + ";"
+            + "keyword decoration:blur:ignore_opacity " + (blurIgnoreOpacity ? "true" : "false") + ";"
+            + "keyword decoration:blur:new_optimizations " + (blurNewOptimizations ? "true" : "false") + ";"
+            + "keyword decoration:blur:xray " + (blurXray ? "true" : "false") + ";"
+            + "keyword decoration:blur:noise " + blurNoise + ";"
+            + "keyword decoration:blur:contrast " + blurContrast + ";"
+            + "keyword decoration:blur:brightness " + blurBrightness + ";"
+            + "keyword decoration:blur:vibrancy " + blurVibrancy + ";"
+            + "keyword decoration:blur:vibrancy_darkness " + blurVibrancyDarkness + ";"
+            + "keyword decoration:blur:special " + (blurSpecial ? "true" : "false") + ";"
+            + "keyword decoration:blur:popups " + (blurPopups ? "true" : "false") + ";"
+            // v6.15.6: shadow.* — added missing secondary properties
+            + "keyword decoration:shadow:enabled " + (shadowEnabled ? "true" : "false") + ";"
+            + "keyword decoration:shadow:range " + shadowRange + ";"
+            + "keyword decoration:shadow:render_power " + shadowRenderPower + ";"
+            + "keyword decoration:shadow:ignore_window " + (shadowIgnoreWindow ? "true" : "false") + ";"
+            + "keyword decoration:shadow:offset " + shadowOffset + ";"
+            + "keyword decoration:shadow:scale " + shadowScale + ";"
+            + "keyword decoration:shadow:color " + hexToHyprRgba(shadowColor) + ";"
+            + "keyword decoration:shadow:color_inactive " + hexToHyprRgba(shadowColorInactive)
+
+        hyprProc.command = ["hyprctl", "--batch", batch]
+        hyprProc.running = true
+        console.log("[SettingsStateV2] Applied full state to Hyprland (v6.15.6 expanded batch)")
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // INIT
+    // v6.15.1: If we have saved JSON, load it and push values TO
+    // Hyprland. Only read FROM Hyprland on first run (no JSON).
+    // Previous bug: readFromHyprland() always ran and overwrote
+    // saved JSON values with Hyprland defaults from hyprland.conf.
+    // ─────────────────────────────────────────────────────────────
+
+    property bool _jsonLoaded: false
 
     Component.onCompleted: {
         stateFile.reload()
-        Qt.callLater(readFromHyprland)
+    }
+
+    // FileView.onLoaded fires after stateFile.reload() — check if
+    // JSON had actual data. If yes → apply to Hyprland. If empty
+    // (first run) → read current Hyprland values as seed.
+    Connections {
+        target: stateFile
+        function onLoaded() {
+            const text = stateFile.text()
+            if (text && text.trim().length > 2) {
+                root.loadFromJson(text)
+                root._jsonLoaded = true
+                // Push saved values to Hyprland so they take effect
+                Qt.callLater(root.applyToHyprland)
+            } else {
+                // First run — no saved state, read from Hyprland
+                root._jsonLoaded = false
+                Qt.callLater(root.readFromHyprland)
+            }
+            root.initialized = true
+        }
     }
 }

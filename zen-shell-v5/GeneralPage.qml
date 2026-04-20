@@ -412,6 +412,155 @@ ScrollView {
             }
         }
 
+        // ═════════════════════════════════════════════════════════
+        // STRINGS — v6.15 (music module toggle)
+        // Kapag enabled, yung music widget sa bar ay magiging ZenStrings.
+        // Static line kapag walang music, animated kapag may nagpaplay.
+        // ═════════════════════════════════════════════════════════
+        HMSection {
+            title: "Strings"
+            subtitle: "Replaces the music module in your bar with an audio-reactive string. Animates via cava when music plays."
+
+            HMRow {
+                label: "Enable strings"
+                description: "Music module → string (requires 'music' in your bar layout)"
+                Switch {
+                    checked: ZenStringsState.enabled
+                    onToggled: {
+                        ZenStringsState.enabled = checked
+                        ZenStringsState.markDirty()
+                    }
+                }
+            }
+
+            HMRow {
+                visible: ZenStringsState.enabled
+                separator: true
+                label: "Stroke width"
+                description: "Thickness of string lines"
+                NumericStepper {
+                    from: 1; to: 10; stepSize: 0.5; suffix: "px"
+                    value: ZenStringsState.strokeWidth
+                    onValueEdited: v => { ZenStringsState.strokeWidth = v; ZenStringsState.markDirty() }
+                }
+            }
+
+            HMRow {
+                visible: ZenStringsState.enabled
+                label: "String length"
+                description: "Width of string — 0 = auto (fills music slot)"
+                NumericStepper {
+                    from: 0; to: 800; stepSize: 20; suffix: "px"
+                    value: ZenStringsState.stringLength
+                    onValueEdited: v => { ZenStringsState.stringLength = Math.round(v); ZenStringsState.markDirty() }
+                }
+            }
+
+            HMRow {
+                visible: ZenStringsState.enabled
+                label: "Curve height"
+                description: "Beat bow amplitude — higher = more dramatic. Does not affect string position (default: 60)"
+                NumericStepper {
+                    from: 10; to: 200; stepSize: 5; suffix: "px"
+                    value: ZenStringsState.curveHeight
+                    onValueEdited: v => { ZenStringsState.curveHeight = Math.round(v); ZenStringsState.markDirty() }
+                }
+            }
+
+            HMRow {
+                visible: ZenStringsState.enabled
+                label: "Vertical padding"
+                description: "Overflow space above/below bar slot — 0 = auto (matches curve height)"
+                NumericStepper {
+                    from: 0; to: 300; stepSize: 5; suffix: "px"
+                    value: ZenStringsState.verticalPadding
+                    onValueEdited: v => { ZenStringsState.verticalPadding = Math.round(v); ZenStringsState.markDirty() }
+                }
+            }
+
+            HMRow {
+                visible: ZenStringsState.enabled
+                separator: true
+                label: "Glow"
+                description: "Soft glow around string lines"
+                Switch {
+                    checked: ZenStringsState.glowEnabled
+                    onToggled: { ZenStringsState.glowEnabled = checked; ZenStringsState.markDirty() }
+                }
+            }
+
+            HMRow {
+                visible: ZenStringsState.enabled
+                separator: true
+                label: "Color"
+                description: "Theme = auto accent · Synced = pick color keys · Custom = hex"
+                ComboBox {
+                    width: 140
+                    model: ["theme", "synced", "custom"]
+                    currentIndex: {
+                        if (ZenStringsState.colorMode === "synced") return 1
+                        if (ZenStringsState.colorMode === "custom") return 2
+                        return 0
+                    }
+                    onActivated: {
+                        ZenStringsState.colorMode = model[currentIndex]
+                        ZenStringsState.markDirty()
+                    }
+                }
+            }
+
+            HMRow {
+                visible: ZenStringsState.enabled && ZenStringsState.colorMode === "synced"
+                label: "Start color"
+                ComboBox {
+                    width: 120
+                    model: ["blue", "purple", "red", "orange", "yellow", "green", "aqua", "fg", "grey0"]
+                    currentIndex: { var i = model.indexOf(ZenStringsState.syncedColor1Key); return i >= 0 ? i : 0 }
+                    onActivated: { ZenStringsState.syncedColor1Key = model[currentIndex]; ZenStringsState.markDirty() }
+                }
+            }
+
+            HMRow {
+                visible: ZenStringsState.enabled && ZenStringsState.colorMode === "synced"
+                label: "End color"
+                ComboBox {
+                    width: 120
+                    model: ["purple", "blue", "red", "orange", "yellow", "green", "aqua", "fg", "grey0"]
+                    currentIndex: { var i = model.indexOf(ZenStringsState.syncedColor2Key); return i >= 0 ? i : 0 }
+                    onActivated: { ZenStringsState.syncedColor2Key = model[currentIndex]; ZenStringsState.markDirty() }
+                }
+            }
+
+            HMRow {
+                visible: ZenStringsState.enabled && ZenStringsState.colorMode === "custom"
+                label: "Start color"
+                ColorSwatch {
+                    value: ZenStringsState.customColor1
+                    onValueEdited: hex => { ZenStringsState.customColor1 = hex; ZenStringsState.markDirty() }
+                }
+            }
+
+            HMRow {
+                visible: ZenStringsState.enabled && ZenStringsState.colorMode === "custom"
+                label: "End color"
+                ColorSwatch {
+                    value: ZenStringsState.customColor2
+                    onValueEdited: hex => { ZenStringsState.customColor2 = hex; ZenStringsState.markDirty() }
+                }
+            }
+
+            HMRow {
+                visible: ZenStringsState.enabled
+                separator: true
+                label: "Screenshot ropes"
+                description: "Physics rope overlay during region screenshot"
+                Switch {
+                    checked: ZenStringsState.screenshotRopeEnabled
+                    onToggled: { ZenStringsState.screenshotRopeEnabled = checked; ZenStringsState.markDirty() }
+                }
+            }
+        }
+
         // Footer
         PageFooter {
             description: "Auto-saves • reads current Hyprland values on open"

@@ -118,7 +118,14 @@ Singleton {
             workspaceDotActive: workspaceDotActive,
             workspaceDotInactive: workspaceDotInactive,
             workspaceFontActive: workspaceFontActive,
-            workspaceFontInactive: workspaceFontInactive
+            workspaceFontInactive: workspaceFontInactive,
+            // v6.15.1: Theme properties that live on Theme object but
+            // need to persist across restarts. Without this, barLayout
+            // resets to theme defaults on every restart.
+            barLayout: Theme.barLayout,
+            barOpacity: Theme.barOpacity,
+            barRadius: Theme.barRadius,
+            styleMode: Theme.styleMode
         }
         const json = JSON.stringify(state, null, 2)
         stateSaver.command = ["bash", "-c",
@@ -154,6 +161,11 @@ Singleton {
             if (typeof s.workspaceDotInactive === "number") workspaceDotInactive = s.workspaceDotInactive
             if (typeof s.workspaceFontActive === "number") workspaceFontActive = s.workspaceFontActive
             if (typeof s.workspaceFontInactive === "number") workspaceFontInactive = s.workspaceFontInactive
+            // v6.15.1: Restore Theme properties that need to survive restart
+            if (s.barLayout && typeof s.barLayout === "object") Theme.barLayout = s.barLayout
+            if (typeof s.barOpacity === "number") Theme.barOpacity = s.barOpacity
+            if (typeof s.barRadius === "number") Theme.barRadius = s.barRadius
+            if (s.styleMode) Theme.styleMode = s.styleMode
         } catch (e) {
             console.error("[PanelState] Parse error:", e)
         }
