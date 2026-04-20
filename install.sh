@@ -67,12 +67,12 @@ if [ "$DO_BOOTSTRAP" = "1" ]; then
 fi
 
 echo ""
-echo "    Zen Shell v6.15.13"
+echo "    Zen Shell v6.15.14"
 echo "    ─────────────────────────────────────────────────────"
 echo ""
 echo "    Quickshell-native desktop environment for Hyprland."
 echo ""
-echo "    v6.15.13 hotfix — Auto-install polish"
+echo "    v6.15.14 hotfix — Auto-install polish"
 echo "      Generic helper script       zs-restart.sh no longer has any"
 echo "                                   hardcoded user references in"
 echo "                                   comments — fully dynamic via \$HOME"
@@ -527,7 +527,7 @@ done
     echo "    $BIN_DIR/swww-test"
 
 # ═══════════════════════════════════════════════════════════════
-# v6.15.13: Clean up stale helper from pre-v6.15.12 installs
+# v6.15.14: Clean up stale helper from pre-v6.15.12 installs
 # ═══════════════════════════════════════════════════════════════
 # v6.15.11 installed ~/.local/bin/zen-shell-nuclear-restart.sh which
 # had the self-suicide pkill bug (script's own path contained
@@ -653,7 +653,7 @@ PCTL_OK="no";      command -v playerctl >/dev/null 2>&1 && PCTL_OK="yes"
 echo ""
 echo "╔═══════════════════════════════════════════════════════════════╗"
 echo "║                                                               ║"
-echo "║         🎉  ZEN SHELL v6.15.13 INSTALLED SUCCESSFULLY  🎉      ║"
+echo "║         🎉  ZEN SHELL v6.15.14 INSTALLED SUCCESSFULLY  🎉      ║"
 echo "║                                                               ║"
 echo "╚═══════════════════════════════════════════════════════════════╝"
 echo ""
