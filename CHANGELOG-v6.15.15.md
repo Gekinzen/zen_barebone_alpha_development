@@ -4,10 +4,54 @@
 **Base:** v6.15.14 (QML complete, but scripts + hypr modules + hardware-specific env still missing)
 
 **Scope:** Third-pass packaging fix that also makes the installer
-smart about multi-GPU systems. Everything shipped is now real content
-from a working production install — no stubs, no placeholders.
+**truly one-command smart**. Auto-detects missing dependencies and
+auto-runs bootstrap when needed. Auto-detects GPU topology and
+writes hardware.conf tailored to the machine. Everything shipped is
+real content from a working production install — no stubs, no
+placeholders.
 
 No QML changes. All 68 QML files identical to v6.15.14.
+
+---
+
+## New — One-command smart install
+
+`./install.sh` is now genuinely one-size-fits-all. No more `--bootstrap`
+flag required. The installer:
+
+1. **Auto-detects missing critical dependencies** — the 11 things without
+   which Zen Shell cannot function:
+   - `hyprland`, `hyprctl` (compositor + CLI)
+   - `quickshell` (QML runtime)
+   - `jq` (JSON tooling)
+   - `grim`, `slurp`, `wl-copy` (screenshot + clipboard)
+   - `swww` or `swww-daemon` or `awww` (wallpaper)
+   - `cava` (audio visualizer for music strings)
+   - `playerctl` (MPRIS for music module)
+   - `notify-send` (runtime notifications)
+
+2. **Auto-runs bootstrap.sh** if any of these are missing, with user
+   confirmation (`[Y/n]` prompt, defaults to yes after 60s timeout).
+
+3. **Proceeds straight to install** if everything's already there —
+   no interruption, no prompts.
+
+### Flag reference
+
+| Flag | Behavior |
+|---|---|
+| (none) | **Smart default** — auto-detect, prompt to bootstrap if needed |
+| `--bootstrap` / `-b` | Force bootstrap to run even if deps present (full reinstall) |
+| `--no-bootstrap` | Skip auto-detection (for custom setups managing their own Hyprland) |
+| `--help` / `-h` | Show usage |
+
+### Migration from old behavior
+
+| Old command | New equivalent |
+|---|---|
+| `./install.sh --bootstrap` on fresh laptop | `./install.sh` (auto-prompts to bootstrap) |
+| `./install.sh` on existing setup | `./install.sh` (unchanged — proceeds directly) |
+| Force reinstall of system deps | `./install.sh --bootstrap` (still works) |
 
 ---
 
