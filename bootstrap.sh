@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════════
-# Zen Shell v6.15.13 — Bootstrap
+# Zen Shell v6.15.14 — Bootstrap
 # ═══════════════════════════════════════════════════════════════
 # Installs Hyprland + Quickshell + all Zen Shell dependencies on a
 # fresh Arch-based system (Arch, CachyOS, EndeavourOS, Manjaro).
@@ -33,7 +33,7 @@ else
 fi
 
 echo ""
-echo "    Zen Shell v6.15.13 — Bootstrap"
+echo "    Zen Shell v6.15.14 — Bootstrap"
 echo "    ─────────────────────────────────────────────────────"
 echo ""
 echo "    Installs Hyprland + Quickshell + all Zen Shell deps"
