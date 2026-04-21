@@ -679,25 +679,52 @@ The **Music Strings** and **Screenshot Rope** visualizers are heavily inspired b
 
 ## Roadmap
 
-### v6.16.2 · in progress
+### v6.16.x — Three phases to stable
 
-- [ ] Start Menu fuzzy finder
-- [ ] Start Menu logo customization
-- [ ] Right-click pin/unpin prompts
-- [ ] Theme-synced rounded corners
-- [ ] Wallpaper repo integration in Settings
-- [ ] Hover calendar + click-to-open (native QML)
+> **Naming convention:** Beta branches always carry the `beta-v12.` prefix. When a phase reaches stable, the prefix is stripped and the branch promotes to `main` as `v6.x.x.x`. Current beta is `beta-v12.6.16.1.11` — still beta because **v6.16.2** is the final phase before official release.
+
+| Phase | Status | Focus |
+|---|---|---|
+| **v6.16.0** | ✅ Shipped | Panel · Power · Notifications · Lid Fix |
+| **v6.16.1** | 🟡 Beta (`beta-v12.6.16.1.11`) | Widgets · GPU Smart Switching |
+| **v6.16.2** | 🔜 Next (final phase) | StartMenu · Wallpaper · Calendar |
+
+#### v6.16.0 — Panel, Power, Notifications, Lid Fix · *shipped*
+
+- Battery module in `Bar.qml` (icon / text / bar mode)
+- Battery warnings: 30% warning, 10% critical → swaync
+- Volume change → swaync notifications
+- Power profiles: Saver / Balanced / Performance (persisted, notify)
+- Lid-close fix (Hyprland monitor config)
+- All settings persisted via `SettingsStateV2`
+
+#### v6.16.1 — Widgets + GPU Smart Switching · *current beta*
+
+- DesktopWidgets: multi-GPU auto-detect + tabs / show-all
+- Multi-CPU same treatment
+- btop button on the upper-right
+- GPU switching service (integrated / dedicated, auto / manual gaming detection)
+- All swaync notifications wired up
+
+#### v6.16.2 — StartMenu, Wallpaper, Calendar · *final phase before official*
+
+- Fuzzy finder search in StartMenu
+- Logo image settings + auto-fit
+- Right-click pin / unpin prompts
+- Theme sync + proper rounded corners (taskbar, startmenu, popups)
+- Wallpaper repo integration (`Gekinzen/images-demo`) + default wallpaper
+- Hover calendar + click-to-open (native QML — theme-synced, not hyprclock)
 
 ### Longer-term
 
-- [ ] Media player widget (MPRIS)
-- [ ] WiFi/BT connect/pair directly in ConnectivityPage
-- [ ] Notification history viewer
-- [ ] App drawer grid view
-- [ ] Bar auto-hide (fullscreen / timeout)
-- [ ] QML lock screen
-- [ ] Alt+Tab window switcher overlay
-- [ ] Multi-monitor per-widget placement
+- Media player widget (MPRIS)
+- WiFi/BT connect/pair directly in ConnectivityPage
+- Notification history viewer
+- App drawer grid view
+- Bar auto-hide (fullscreen / timeout)
+- QML lock screen
+- Alt+Tab window switcher overlay
+- Multi-monitor per-widget placement
 
 <br/>
 
