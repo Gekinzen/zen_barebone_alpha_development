@@ -98,6 +98,42 @@ Singleton {
     property string shadowColor: "#1a1a1aee"
     property string shadowColorInactive: "#1a1a1aee"
 
+    // ═════════════════════════════════════════════════════════════
+    // v6.16.0 — BATTERY + POWER PROFILE
+    // ═════════════════════════════════════════════════════════════
+    // Battery bar module display style:
+    //   "icon" → Nerd Font glyph (default)
+    //   "text" → "87%" text
+    //   "bar"  → mini progress bar
+    property string batteryDisplayMode: "icon"
+
+    // Notification thresholds (exposed so power users can tune)
+    property int batteryWarnThreshold: 30
+    property int batteryCriticalThreshold: 10
+
+    // Last-known system power profile ("power-saver" | "balanced" | "performance").
+    // PowerProfileService reads this on startup (via ~/.local/bin/zen-power-profile-restore.sh)
+    // and re-applies it to powerprofilesctl, so the user's choice survives reboot.
+    property string powerProfile: "balanced"
+
+    // v6.16.1: Gaming Boost persistence. When gamingBoostActive=true on
+    // shell restart, PowerProfileService re-applies boost state on init.
+    // gamingBoostPreProfile stores what was active before boost so we
+    // can restore it on toggle-off.
+    property bool gamingBoostActive: false
+    property string gamingBoostPreProfile: "balanced"
+
+    // v6.16.1: GPU Switcher mode. Values: "auto" | "integrated" |
+    // "dedicated" | "auto-gaming". GPUSwitcherService writes the
+    // corresponding env vars to ~/.config/environment.d/zen-gpu.conf.
+    property string gpuMode: "auto"
+
+    // Lid-close behavior (laptops):
+    //   "mirror" → duplicate to external when lid closes (default)
+    //   "keep"   → keep internal display on even with lid closed
+    //   "off"    → disable internal display when lid closes (default hyprland behavior)
+    property string lidCloseBehavior: "mirror"
+
     // ── Flags ──
     property bool initialized: false
     property bool dirty: false
@@ -217,6 +253,18 @@ Singleton {
                 shadowIgnoreWindow: shadowIgnoreWindow,
                 shadowOffset: shadowOffset, shadowScale: shadowScale,
                 shadowColor: shadowColor, shadowColorInactive: shadowColorInactive
+            },
+            // v6.16.0 — battery + power profile + lid behavior
+            // v6.16.1 — + gaming boost persistence
+            system: {
+                batteryDisplayMode: batteryDisplayMode,
+                batteryWarnThreshold: batteryWarnThreshold,
+                batteryCriticalThreshold: batteryCriticalThreshold,
+                powerProfile: powerProfile,
+                gamingBoostActive: gamingBoostActive,
+                gamingBoostPreProfile: gamingBoostPreProfile,
+                gpuMode: gpuMode,
+                lidCloseBehavior: lidCloseBehavior
             }
         }
         const json = JSON.stringify(state, null, 2)
@@ -281,6 +329,18 @@ Singleton {
             if (d.shadowScale !== undefined) shadowScale = d.shadowScale
             if (d.shadowColor) shadowColor = d.shadowColor
             if (d.shadowColorInactive) shadowColorInactive = d.shadowColorInactive
+
+            // v6.16.0 — system block (battery + power profile + lid)
+            // v6.16.1 — + gaming boost persistence
+            const sys = s.system || {}
+            if (sys.batteryDisplayMode) batteryDisplayMode = sys.batteryDisplayMode
+            if (typeof sys.batteryWarnThreshold === "number") batteryWarnThreshold = sys.batteryWarnThreshold
+            if (typeof sys.batteryCriticalThreshold === "number") batteryCriticalThreshold = sys.batteryCriticalThreshold
+            if (sys.powerProfile) powerProfile = sys.powerProfile
+            if (typeof sys.gamingBoostActive === "boolean") gamingBoostActive = sys.gamingBoostActive
+            if (sys.gamingBoostPreProfile) gamingBoostPreProfile = sys.gamingBoostPreProfile
+            if (sys.gpuMode) gpuMode = sys.gpuMode
+            if (sys.lidCloseBehavior) lidCloseBehavior = sys.lidCloseBehavior
 
             console.log("[SettingsStateV2] Loaded from JSON")
         } catch(e) {

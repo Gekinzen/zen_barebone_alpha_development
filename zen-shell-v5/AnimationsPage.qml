@@ -80,7 +80,19 @@ ScrollView {
         writeProc.running = true
     }
 
-    Process { id: writeProc; running: false }
+    // v6.16.1.6: After `hyprctl reload`, Hyprland re-parses ~/.config/hypr/hyprland.conf
+    // from scratch, which WIPES all runtime-applied keyword values from SettingsStateV2
+    // (gaps, borders, rounding, blur, etc. reset to hyprland.conf defaults). Settings
+    // appeared to "come back" only when the user opened Themes page because that re-
+    // triggers applyToHyprland(). Fix: after reload completes, immediately re-push
+    // SettingsStateV2's saved values so the user sees their configured state preserved.
+    Process { id: writeProc; running: false
+        onExited: (exitCode) => {
+            if (typeof SettingsStateV2 !== "undefined" && exitCode === 0) {
+                Qt.callLater(SettingsStateV2.applyToHyprland)
+            }
+        }
+    }
 
     ColumnLayout {
         width: root.availableWidth - 48

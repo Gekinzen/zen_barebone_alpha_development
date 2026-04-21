@@ -42,10 +42,12 @@ Singleton {
     property real workspaceRadius: styleMode === "round" ? 20 : 26
 
     // ── Bar layout config ──
+    // v6.16.0: battery added to right row. Hides itself on desktops
+    // (SystemMonitorService.batteryPresent === false).
     property var barLayout: ({
         "left": ["start", "taskbar"],
         "center": ["workspaces", "window"],
-        "right": ["music", "sysrow", "tray", "notifications", "clock"]
+        "right": ["music", "sysrow", "tray", "battery", "notifications", "clock"]
     })
 
     // ── Theme schemes ──

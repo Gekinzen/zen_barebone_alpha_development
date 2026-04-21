@@ -42,7 +42,12 @@ Singleton {
     property string lastUpdated: ""
 
     // ── Emoji icon for desktop widget (separate from nerd font for bar) ──
-    property string emojiIcon: "🌡️"
+    // v6.16.1.5: Default was "🌡️" (thermometer) which renders as a huge
+    // red thermometer when weather hasn't loaded yet — looked out of place
+    // on the weather widget. Changed to "🌤️" (partly sunny) which is a
+    // sensible neutral-pleasant default. Overwritten by wmoEmoji() as
+    // soon as the first fetch completes.
+    property string emojiIcon: "🌤️"
 
     // ── WMO weather code → emoji mapping (for desktop widgets) ──
     function wmoEmoji(code) {

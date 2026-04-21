@@ -180,6 +180,45 @@ echo "    ───────────────────────�
 echo ""
 echo "    Quickshell-native desktop environment for Hyprland."
 echo ""
+echo "    v6.16.1.11 — Battery, Power Profiles, Volume Notifications, Lid Fix"
+echo ""
+echo "      Battery bar module          New 'battery' module (icon / text /"
+echo "                                   progress-bar modes, auto-hides on"
+echo "                                   desktops). Swaync notifications at"
+echo "                                   30% warning and 10% critical with"
+echo "                                   hysteresis. Settings in new Battery"
+echo "                                   & Power page."
+echo ""
+echo "      SysRow battery icon         Battery also appears in the System"
+echo "                                   Tray expandable row alongside"
+echo "                                   CPU/RAM/Network/BT. Toggle via"
+echo "                                   Settings → System Tray → Visible"
+echo "                                   Modules → Battery. Click → opens"
+echo "                                   Control Panel."
+echo ""
+echo "      Power profiles              Power Saver / Balanced / Performance"
+echo "                                   switching via powerprofilesctl."
+echo "                                   Quick-access pills in Control Panel"
+echo "                                   (Super+C). Choice persists across"
+echo "                                   reboots via zen-power-profile-"
+echo "                                   restore.sh (autostart hook)."
+echo ""
+echo "      Gaming Boost                One-tap toggle in Control Panel."
+echo "                                   Performance profile + disables blur,"
+echo "                                   inactive dimming, animations. Saves"
+echo "                                   previous profile and restores on"
+echo "                                   toggle-off. Survives shell restarts."
+echo ""
+echo "      Volume + brightness notify  All XF86 volume/mute/brightness"
+echo "                                   keys now show swaync notifications"
+echo "                                   with progress bars via"
+echo "                                   zen-volume-notify.sh."
+echo ""
+echo "      Lid close fix               New lid-behavior.conf module."
+echo "                                   Fixes 'external monitor goes black"
+echo "                                   when I close the lid' bug. Modes:"
+echo "                                   mirror / keep internal / off."
+echo ""
 echo "    v6.15.15 — Smart one-command install + hardware detection"
 echo ""
 echo "      Auto-bootstrap              install.sh detects missing critical"
@@ -941,7 +980,9 @@ for script in \
     wifi-toggle.sh termrun.sh regen-terminal-themes.sh \
     regen-swaync-theme.sh zen-screenshot.sh \
     patch-swaync-position.sh zen-cava.sh \
-    zs-restart.sh
+    zs-restart.sh \
+    zen-volume-notify.sh zen-power-profile-restore.sh zen-lid-handler.sh \
+    zen-game-watcher.sh prime-run
 do
     src="$SCRIPT_DIR/scripts/$script"
     if [ -f "$src" ]; then
@@ -1054,9 +1095,10 @@ echo "[6/9] Hyprland configs..."
 
 # ─────────────────────────────────────────────────────────────────
 # v6.15.15: animations.conf / autostart.conf / look_and_feel.conf
+# v6.16.0 : + lid-behavior.conf
 # These are USER-CUSTOMIZABLE — install default only if missing.
 # ─────────────────────────────────────────────────────────────────
-for mod in animations.conf autostart.conf look_and_feel.conf; do
+for mod in animations.conf autostart.conf look_and_feel.conf lid-behavior.conf; do
     src="$SCRIPT_DIR/hypr-config/$mod"
     dst="$HYPR_DIR/modules/$mod"
     if [ -f "$src" ]; then
@@ -1131,6 +1173,10 @@ if [ -f "$TEMPLATE" ]; then
         grep -q "modules/look_and_feel.conf" "$HCONF" || {
             echo "source = ~/.config/hypr/modules/look_and_feel.conf" >> "$HCONF"
             added=$((added+1)); }
+        # v6.16.0: lid-behavior module (bindl rules for switch:on:Lid)
+        grep -q "modules/lid-behavior.conf" "$HCONF" || {
+            echo "source = ~/.config/hypr/modules/lid-behavior.conf" >> "$HCONF"
+            added=$((added+1)); }
         grep -q "keybinds-update.conf" "$HCONF" || {
             echo "source = ~/.config/quickshell/zen-shell/config/keybinds-update.conf" >> "$HCONF"
             added=$((added+1)); }
@@ -1173,6 +1219,10 @@ else
             added=$((added+1)); }
         grep -q "modules/look_and_feel.conf" "$HCONF" || {
             echo "source = ~/.config/hypr/modules/look_and_feel.conf" >> "$HCONF"
+            added=$((added+1)); }
+        # v6.16.0: lid-behavior module
+        grep -q "modules/lid-behavior.conf" "$HCONF" || {
+            echo "source = ~/.config/hypr/modules/lid-behavior.conf" >> "$HCONF"
             added=$((added+1)); }
         grep -q "keybinds-update.conf" "$HCONF" || {
             echo "source = ~/.config/quickshell/zen-shell/config/keybinds-update.conf" >> "$HCONF"

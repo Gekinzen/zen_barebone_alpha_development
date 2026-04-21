@@ -35,9 +35,21 @@ ScrollView {
     // v6.11: Widget display
     property string widgetDisplay: "primary"   // "primary" | "all"
 
-    // v6.11: Color mode
+    // v6.11: Color mode (TEXT color)
     property string colorMode: "default"
     property string customColor: "#ffffff"
+
+    // v6.16.1.5: Widget background color mode (per widget: weather, sysmon)
+    //   "default" → hardcoded near-black Qt.rgba(0.11, 0.11, 0.118, 0.92)
+    //   "theme"   → ThemeService.alpha(ThemeService.bg0, 0.88)
+    //   "custom"  → user-picked color at bgCustomColor with custom opacity
+    // Clock widget is transparent and unaffected by these settings.
+    property string weatherBgMode: "default"
+    property string weatherBgCustomColor: "#1c1c1e"
+    property real   weatherBgOpacity: 0.92
+    property string sysmonBgMode: "default"
+    property string sysmonBgCustomColor: "#1c1c1e"
+    property real   sysmonBgOpacity: 0.92
 
     // Positions (read from state, edited via drag)
     property real posClockX: 40
@@ -107,7 +119,10 @@ ScrollView {
                 sysmonX: posSysmonX, sysmonY: posSysmonY
             },
             colorMode: colorMode,
-            customColor: customColor
+            customColor: customColor,
+            // v6.16.1.5: per-widget background colors
+            weatherBg: { mode: weatherBgMode, color: weatherBgCustomColor, opacity: weatherBgOpacity },
+            sysmonBg:  { mode: sysmonBgMode,  color: sysmonBgCustomColor,  opacity: sysmonBgOpacity }
         }
         stateSaver.command = ["bash", "-c", "mkdir -p '" + configDir + "' && cat > '" + statePath + "' << 'ZENEOF'\n" + JSON.stringify(state, null, 2) + "\nZENEOF"]
         stateSaver.running = true
@@ -146,6 +161,18 @@ ScrollView {
                 }
                 if (s.colorMode) root.colorMode = s.colorMode
                 if (s.customColor) root.customColor = s.customColor
+
+                // v6.16.1.5: per-widget backgrounds
+                if (s.weatherBg) {
+                    if (s.weatherBg.mode) root.weatherBgMode = s.weatherBg.mode
+                    if (s.weatherBg.color) root.weatherBgCustomColor = s.weatherBg.color
+                    if (typeof s.weatherBg.opacity === "number") root.weatherBgOpacity = s.weatherBg.opacity
+                }
+                if (s.sysmonBg) {
+                    if (s.sysmonBg.mode) root.sysmonBgMode = s.sysmonBg.mode
+                    if (s.sysmonBg.color) root.sysmonBgCustomColor = s.sysmonBg.color
+                    if (typeof s.sysmonBg.opacity === "number") root.sysmonBgOpacity = s.sysmonBg.opacity
+                }
             } catch (e) {}
         }
     }
@@ -209,6 +236,193 @@ ScrollView {
         }
 
         // ═══════════════════════════════════════════════════════
+        // v6.16.1.5: WIDGET BACKGROUNDS
+        // Per-widget background color + opacity (weather, sysmon).
+        // Three modes:
+        //   Default — the original hardcoded dark Qt.rgba(0.11, 0.11, 0.118, 0.92)
+        //   Theme   — ThemeService.bg0 with configurable opacity
+        //   Custom  — user-picked color with custom opacity
+        // Clock widget has a transparent bg and isn't affected.
+        // ═══════════════════════════════════════════════════════
+        HMSection {
+            title: "Weather Widget Background"
+            subtitle: "Background color + opacity for the weather overlay"
+
+            HMRow { label: "Mode"; description: "Default / Theme-synced / Custom color"; icon: "\uf53f"; separator: true
+                ComboBox {
+                    width: root.dropdownWidth
+                    model: ["Default (Dark)", "Theme (Auto-sync)", "Custom Color"]
+                    readonly property var ids: ["default", "theme", "custom"]
+                    currentIndex: {
+                        const idx = ids.indexOf(root.weatherBgMode)
+                        return idx >= 0 ? idx : 0
+                    }
+                    onActivated: { root.weatherBgMode = ids[currentIndex]; root.saveState() }
+                }
+            }
+
+            HMRow {
+                label: "Custom Color"
+                description: "Tap a color to apply"
+                icon: "\uf1fc"
+                separator: true
+                visible: root.weatherBgMode === "custom"
+                RowLayout { spacing: 4
+                    Repeater {
+                        model: ["#1c1c1e", "#2c2c2e", "#3a3a3c", "#1a3a4a",
+                                "#2d4a2d", "#4a2d2d", "#4a3a2d", "#3a2d4a",
+                                "#5A4F42", "#1e2030"]
+                        delegate: Rectangle {
+                            required property string modelData
+                            Layout.preferredWidth: 24; Layout.preferredHeight: 24; radius: 6
+                            color: modelData
+                            border.width: root.weatherBgCustomColor === modelData ? 3 : 1
+                            border.color: root.weatherBgCustomColor === modelData
+                                ? ThemeService.fg
+                                : ThemeService.alpha(ThemeService.fg, 0.3)
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: { root.weatherBgCustomColor = modelData; root.saveState() }
+                            }
+                        }
+                    }
+                }
+            }
+
+            HMRow {
+                label: "Theme Preview"
+                description: "Current theme background + opacity"
+                icon: "\uf1fc"
+                separator: true
+                visible: root.weatherBgMode === "theme"
+                RowLayout { spacing: 8
+                    Rectangle {
+                        width: 40; height: 24; radius: 4
+                        color: ThemeService.alpha(ThemeService.bg0, root.weatherBgOpacity)
+                        border.width: 1
+                        border.color: ThemeService.alpha(ThemeService.fg, 0.3)
+                    }
+                    Text {
+                        text: (root.weatherBgOpacity * 100).toFixed(0) + "%"
+                        font.family: Theme.fontFamily; font.pixelSize: 11
+                        color: ThemeService.grey0
+                    }
+                }
+            }
+
+            HMRow {
+                label: "Opacity"
+                description: "Transparency of the background (50%–100%)"
+                icon: "\uf042"
+                visible: root.weatherBgMode !== "default"
+                RowLayout { spacing: 8
+                    Slider {
+                        width: 160
+                        from: 0.5; to: 1.0; stepSize: 0.05
+                        value: root.weatherBgOpacity
+                        onMoved: { root.weatherBgOpacity = value; root.saveState() }
+                    }
+                    Text {
+                        text: (root.weatherBgOpacity * 100).toFixed(0) + "%"
+                        font.family: Theme.fontFamily; font.pixelSize: 12
+                        color: ThemeService.fg
+                        Layout.preferredWidth: 44
+                    }
+                }
+            }
+        }
+
+        HMSection {
+            title: "System Monitor Widget Background"
+            subtitle: "Background color + opacity for the sysmon overlay"
+
+            HMRow { label: "Mode"; description: "Default / Theme-synced / Custom color"; icon: "\uf53f"; separator: true
+                ComboBox {
+                    width: root.dropdownWidth
+                    model: ["Default (Dark)", "Theme (Auto-sync)", "Custom Color"]
+                    readonly property var ids: ["default", "theme", "custom"]
+                    currentIndex: {
+                        const idx = ids.indexOf(root.sysmonBgMode)
+                        return idx >= 0 ? idx : 0
+                    }
+                    onActivated: { root.sysmonBgMode = ids[currentIndex]; root.saveState() }
+                }
+            }
+
+            HMRow {
+                label: "Custom Color"
+                description: "Tap a color to apply"
+                icon: "\uf1fc"
+                separator: true
+                visible: root.sysmonBgMode === "custom"
+                RowLayout { spacing: 4
+                    Repeater {
+                        model: ["#1c1c1e", "#2c2c2e", "#3a3a3c", "#1a3a4a",
+                                "#2d4a2d", "#4a2d2d", "#4a3a2d", "#3a2d4a",
+                                "#5A4F42", "#1e2030"]
+                        delegate: Rectangle {
+                            required property string modelData
+                            Layout.preferredWidth: 24; Layout.preferredHeight: 24; radius: 6
+                            color: modelData
+                            border.width: root.sysmonBgCustomColor === modelData ? 3 : 1
+                            border.color: root.sysmonBgCustomColor === modelData
+                                ? ThemeService.fg
+                                : ThemeService.alpha(ThemeService.fg, 0.3)
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: { root.sysmonBgCustomColor = modelData; root.saveState() }
+                            }
+                        }
+                    }
+                }
+            }
+
+            HMRow {
+                label: "Theme Preview"
+                description: "Current theme background + opacity"
+                icon: "\uf1fc"
+                separator: true
+                visible: root.sysmonBgMode === "theme"
+                RowLayout { spacing: 8
+                    Rectangle {
+                        width: 40; height: 24; radius: 4
+                        color: ThemeService.alpha(ThemeService.bg0, root.sysmonBgOpacity)
+                        border.width: 1
+                        border.color: ThemeService.alpha(ThemeService.fg, 0.3)
+                    }
+                    Text {
+                        text: (root.sysmonBgOpacity * 100).toFixed(0) + "%"
+                        font.family: Theme.fontFamily; font.pixelSize: 11
+                        color: ThemeService.grey0
+                    }
+                }
+            }
+
+            HMRow {
+                label: "Opacity"
+                description: "Transparency of the background (50%–100%)"
+                icon: "\uf042"
+                visible: root.sysmonBgMode !== "default"
+                RowLayout { spacing: 8
+                    Slider {
+                        width: 160
+                        from: 0.5; to: 1.0; stepSize: 0.05
+                        value: root.sysmonBgOpacity
+                        onMoved: { root.sysmonBgOpacity = value; root.saveState() }
+                    }
+                    Text {
+                        text: (root.sysmonBgOpacity * 100).toFixed(0) + "%"
+                        font.family: Theme.fontFamily; font.pixelSize: 12
+                        color: ThemeService.fg
+                        Layout.preferredWidth: 44
+                    }
+                }
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════
         // CLOCKS — Array-based, each clock independently configured
         // ═══════════════════════════════════════════════════════
         Repeater {
@@ -220,9 +434,9 @@ ScrollView {
                 subtitle: index === 0 ? "Main desktop clock overlay" : "Additional timezone clock"
 
                 HMRow { label: "Enable"; description: "Show this clock on desktop"; icon: "\uf017"; separator: true
-                    Rectangle { width: 50; height: 26; radius: 13; color: modelData.enabled ? ThemeService.blue : ThemeService.alpha(ThemeService.fg, 0.15); Behavior on color { ColorAnimation { duration: 150 } }
-                        Rectangle { width: 22; height: 22; radius: 11; x: modelData.enabled ? parent.width - 24 : 2; y: 2; color: "#ffffff"; Behavior on x { NumberAnimation { duration: 150 } } }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.updateClock(index, "enabled", !modelData.enabled) }
+                    HMSwitch {
+                        checked: modelData.enabled
+                        onToggled: root.updateClock(index, "enabled", !modelData.enabled)
                     }
                 }
                 HMRow { label: "Timezone"; description: modelData.label || "Select timezone"; icon: "\uf0ac"; separator: true
@@ -232,9 +446,9 @@ ScrollView {
                     }
                 }
                 HMRow { label: "24-hour format"; description: "14:30 vs 2:30 PM"; icon: "\uf073"
-                    Rectangle { width: 50; height: 26; radius: 13; color: modelData.format24h ? ThemeService.blue : ThemeService.alpha(ThemeService.fg, 0.15); Behavior on color { ColorAnimation { duration: 150 } }
-                        Rectangle { width: 22; height: 22; radius: 11; x: modelData.format24h ? parent.width - 24 : 2; y: 2; color: "#ffffff"; Behavior on x { NumberAnimation { duration: 150 } } }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.updateClock(index, "format24h", !modelData.format24h) }
+                    HMSwitch {
+                        checked: modelData.format24h
+                        onToggled: root.updateClock(index, "format24h", !modelData.format24h)
                     }
                 }
             }
@@ -245,9 +459,9 @@ ScrollView {
         // ═══════════════════════════════════════════════════════
         HMSection { title: "Weather Widget"; subtitle: "Desktop weather overlay + bar module data"
             HMRow { label: "Enable"; description: "Show weather on desktop"; icon: "\uf0c2"; separator: true
-                Rectangle { width: 50; height: 26; radius: 13; color: root.weatherEnabled ? ThemeService.blue : ThemeService.alpha(ThemeService.fg, 0.15); Behavior on color { ColorAnimation { duration: 150 } }
-                    Rectangle { width: 22; height: 22; radius: 11; x: root.weatherEnabled ? parent.width - 24 : 2; y: 2; color: "#ffffff"; Behavior on x { NumberAnimation { duration: 150 } } }
-                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.weatherEnabled = !root.weatherEnabled; root.saveState() } }
+                HMSwitch {
+                    checked: root.weatherEnabled
+                    onToggled: { root.weatherEnabled = !root.weatherEnabled; root.saveState() }
                 }
             }
             HMRow { label: "Location mode"; description: "Auto-detect or manual"; icon: "\uf3c5"; separator: true
@@ -282,9 +496,9 @@ ScrollView {
         // ═══════════════════════════════════════════════════════
         HMSection { title: "System Monitor Widget"; subtitle: "CPU, GPU, RAM, Network overlay with sparkline graphs"
             HMRow { label: "Enable"; description: "Show system stats on desktop"; icon: "\uf080"
-                Rectangle { width: 50; height: 26; radius: 13; color: root.sysmonEnabled ? ThemeService.blue : ThemeService.alpha(ThemeService.fg, 0.15); Behavior on color { ColorAnimation { duration: 150 } }
-                    Rectangle { width: 22; height: 22; radius: 11; x: root.sysmonEnabled ? parent.width - 24 : 2; y: 2; color: "#ffffff"; Behavior on x { NumberAnimation { duration: 150 } } }
-                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.sysmonEnabled = !root.sysmonEnabled; root.saveState() } }
+                HMSwitch {
+                    checked: root.sysmonEnabled
+                    onToggled: { root.sysmonEnabled = !root.sysmonEnabled; root.saveState() }
                 }
             }
             HMRow { label: "Live stats"; description: "Current system status"; icon: "\uf2db"

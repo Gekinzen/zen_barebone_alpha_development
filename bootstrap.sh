@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════════
-# Zen Shell v6.15.14 — Bootstrap
+# Zen Shell v6.16.1.11 — Bootstrap
 # ═══════════════════════════════════════════════════════════════
 # Installs Hyprland + Quickshell + all Zen Shell dependencies on a
 # fresh Arch-based system (Arch, CachyOS, EndeavourOS, Manjaro).
@@ -33,7 +33,7 @@ else
 fi
 
 echo ""
-echo "    Zen Shell v6.15.14 — Bootstrap"
+echo "    Zen Shell v6.16.1.11 — Bootstrap"
 echo "    ─────────────────────────────────────────────────────"
 echo ""
 echo "    Installs Hyprland + Quickshell + all Zen Shell deps"
@@ -219,6 +219,13 @@ TIER_ZEN=(
     libnotify
     nwg-displays
     nwg-look
+    # v6.16.0 — power profile switching + brightness control for
+    # laptops. power-profiles-daemon is safe on desktops too; it
+    # just reports "balanced" as the only profile when no battery
+    # is present, so the service is a no-op. brightnessctl is used
+    # by zen-volume-notify.sh for XF86MonBrightness* keys.
+    power-profiles-daemon
+    brightnessctl
 )
 
 # Tier 4 — Fonts + icons (Zen Shell design tokens)

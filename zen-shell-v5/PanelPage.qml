@@ -328,7 +328,7 @@ ScrollView {
 
             SettingRow {
                 label: "Enable Border"
-                Switch {
+                HMSwitch {
                     checked: PanelState.borderEnabled
                     onToggled: PanelState.setBorder(checked, PanelState.borderWidth, PanelState.borderColor)
                 }

@@ -97,6 +97,9 @@ Singleton {
 
     function saveState() {
         const state = {
+            // v6.16.0: version stamp used by applyState migration checks.
+            // Bump this when introducing a non-idempotent data migration.
+            saveVersion: "6.16.0",
             panelMode: panelMode,
             barHeight: barHeight,
             borderEnabled: borderEnabled,
@@ -162,7 +165,34 @@ Singleton {
             if (typeof s.workspaceFontActive === "number") workspaceFontActive = s.workspaceFontActive
             if (typeof s.workspaceFontInactive === "number") workspaceFontInactive = s.workspaceFontInactive
             // v6.15.1: Restore Theme properties that need to survive restart
-            if (s.barLayout && typeof s.barLayout === "object") Theme.barLayout = s.barLayout
+            if (s.barLayout && typeof s.barLayout === "object") {
+                // v6.16.0 MIGRATION: inject "battery" into right row if the
+                // saved layout predates v6.16.0. Without this, upgraders
+                // never see the battery module — their existing panel-state.json
+                // overrides the new Theme.qml default that has "battery" in it.
+                //
+                // Insert position: before "notifications" if present (natural
+                // spot next to tray/clock), else append to end of right row.
+                // Migration is idempotent (checks for existing "battery") and
+                // self-stamps with saveVersion so it only runs once per save.
+                var _layout = s.barLayout
+                var _savedVer = s.saveVersion || ""
+                var _needsBatt = !_savedVer || _savedVer < "6.16.0"
+                if (_needsBatt && _layout.right && _layout.right.indexOf("battery") < 0) {
+                    var _right = _layout.right.slice()
+                    var _notifIdx = _right.indexOf("notifications")
+                    if (_notifIdx >= 0) {
+                        _right.splice(_notifIdx, 0, "battery")
+                    } else {
+                        _right.push("battery")
+                    }
+                    _layout.right = _right
+                    console.log("[PanelState] v6.16.0 migration: injected 'battery' into barLayout.right")
+                    // Persist immediately so this runs only once
+                    Qt.callLater(root.saveState)
+                }
+                Theme.barLayout = _layout
+            }
             if (typeof s.barOpacity === "number") Theme.barOpacity = s.barOpacity
             if (typeof s.barRadius === "number") Theme.barRadius = s.barRadius
             if (s.styleMode) Theme.styleMode = s.styleMode

@@ -144,7 +144,7 @@ ScrollView {
 
             SettingRow {
                 label: "Enable Blur"
-                Switch {
+                HMSwitch {
                     checked: SettingsState.blurEnabled
                     onToggled: {
                         SettingsState.blurEnabled = checked

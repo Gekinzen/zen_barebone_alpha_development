@@ -3,7 +3,13 @@ import QtQuick.Layouts
 import Quickshell.Io
 
 /*
- * SysRow v6.13 — Waybar-style expandable system tray
+ * SysRow v6.16.0 — Waybar-style expandable system tray
+ *
+ * v6.16.0: + Battery icon. Double-gated: shows only when
+ *   SystemMonitorService.batteryPresent === true AND
+ *   SysRowState.showBattery === true. On desktops, batteryPresent
+ *   is false so the toggle has no visible effect (graceful).
+ *   Click opens Control Panel (has the Power Profile section).
  *
  * Exact waybar icon mapping:
  *   CPU:    \uf2db (U+F2DB) → "format": " {icon}"
@@ -12,6 +18,7 @@ import Quickshell.Io
  *   Sound:  \uf028 (U+F028) → "format": " {icon}"
  *   Network: 󰤯󰤟󰤢󰤥󰤨 (5-tier signal) / 󰈀 (ethernet) / 󰤮 (disconnected)
  *   BT:     \uf293 (U+F293) →  /  disabled /  connected
+ *   Battery (v6.16.0): \uf240..\uf244 (5 levels) + \uf0e7 bolt charging
  *
  * Bar-graph glyphs: ▁▂▃▄▅▆▇█ (same as waybar format-icons)
  *
@@ -310,6 +317,69 @@ Item {
             Behavior on opacity { NumberAnimation { duration: 200 } }
         }
 
+        // ═══════════════════════════════════════════════
+        // BATTERY (v6.16.0) —  (U+F240-F244) based on capacity
+        // Only visible on laptops AND when SysRowState.showBattery is on.
+        // Double-gated: batteryPresent (hardware) + showBattery (user pref).
+        // Click → opens Control Panel (same as tray Battery module).
+        // ═══════════════════════════════════════════════
+        SysRowIcon {
+            visible: sysRoot.expanded
+                     && SysRowState.showBattery
+                     && SystemMonitorService.batteryPresent
+            opacity: sysRoot.expanded ? 1 : 0
+            icon: {
+                const cap = SystemMonitorService.batteryCapacity
+                const charging = SystemMonitorService.batteryCharging
+                // Icon glyph (nf-fa-battery_*) — u+f240..f244
+                let glyph
+                if      (cap >= 90) glyph = "\uf240"   // battery-full
+                else if (cap >= 65) glyph = "\uf241"   // battery-three-quarters
+                else if (cap >= 40) glyph = "\uf242"   // battery-half
+                else if (cap >= 15) glyph = "\uf243"   // battery-quarter
+                else                glyph = "\uf244"   // battery-empty
+                // Charging prefix — bolt
+                const prefix = charging ? "\uf0e7 " : ""
+                return sysRoot.fmtModule(
+                    prefix + glyph,
+                    sysRoot.barGlyph(cap),
+                    cap + "%"
+                )
+            }
+            tipTitle: "Battery: " + SystemMonitorService.batteryCapacity + "%"
+                      + (SystemMonitorService.batteryCharging ? " (charging)" : "")
+            tipDetail: {
+                let s = "Status: " + SystemMonitorService.batteryStatus
+                if (SystemMonitorService.batteryTimeRemaining.length > 0) {
+                    s += "\n" + SystemMonitorService.batteryTimeRemaining
+                }
+                if (SystemMonitorService.batteryPowerDraw > 0) {
+                    s += "\nPower: " + SystemMonitorService.batteryPowerDraw.toFixed(1) + "W"
+                }
+                // Append current power profile if available
+                if (typeof PowerProfileService !== "undefined" && PowerProfileService.available) {
+                    s += "\nProfile: " + PowerProfileService.profileLabel(PowerProfileService.currentProfile)
+                }
+                return s
+            }
+            iconColor: SysRowState.resolveColor(
+                SysRowState.batteryColor,
+                // Auto color by capacity + charging state
+                SystemMonitorService.batteryCharging ? ThemeService.green
+                    : (SystemMonitorService.batteryCapacity <= 10 ? ThemeService.red
+                    : (SystemMonitorService.batteryCapacity <= 30 ? ThemeService.orange
+                    : (SystemMonitorService.batteryCapacity <= 50 ? ThemeService.yellow
+                    : ThemeService.fg)))
+            )
+            onClicked: {
+                // Open Control Panel (Super+C) — has Power Profile section
+                batteryProc.command = ["bash", "-c",
+                    "qs -c zen-shell ipc call zen toggleControlCenter"]
+                batteryProc.running = true
+            }
+            Behavior on opacity { NumberAnimation { duration: 200 } }
+        }
+
         // ── End separator (waybar custom/endpoint) ──
         Text {
             visible: sysRoot.expanded
@@ -327,4 +397,5 @@ Item {
     Process { id: btmProc; running: false }
     Process { id: wifiProc; running: false }
     Process { id: btProc; running: false }
+    Process { id: batteryProc; running: false }   // v6.16.0
 }

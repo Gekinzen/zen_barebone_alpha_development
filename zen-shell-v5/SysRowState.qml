@@ -30,6 +30,11 @@ Singleton {
     property bool showTemp: true
     property bool showNetwork: true
     property bool showBluetooth: true
+    // v6.16.0: battery toggle — only meaningful on laptops, but the
+    // toggle persists on desktops too (the module will simply auto-hide
+    // when SystemMonitorService.batteryPresent === false regardless of
+    // this flag). Default true so laptops get it out-of-box.
+    property bool showBattery: true
 
     // ── Display mode: "icon" (icon + bargraph) or "text" (label + value) ──
     property string displayMode: "icon"   // "icon" | "text"
@@ -41,6 +46,8 @@ Singleton {
     property string soundColor: ""
     property string networkColor: ""
     property string btColor: ""
+    // v6.16.0: battery color override (empty = auto from capacity)
+    property string batteryColor: ""
 
     // ── Collapse delay (ms) ──
     property int collapseDelay: 800
@@ -85,6 +92,7 @@ Singleton {
             showTemp: showTemp,
             showNetwork: showNetwork,
             showBluetooth: showBluetooth,
+            showBattery: showBattery,           // v6.16.0
             displayMode: displayMode,
             cpuColor: cpuColor,
             ramColor: ramColor,
@@ -92,6 +100,7 @@ Singleton {
             soundColor: soundColor,
             networkColor: networkColor,
             btColor: btColor,
+            batteryColor: batteryColor,         // v6.16.0
             collapseDelay: collapseDelay,
             arrowCollapsed: arrowCollapsed,
             arrowExpanded: arrowExpanded
@@ -114,6 +123,7 @@ Singleton {
             if (typeof s.showTemp === "boolean") showTemp = s.showTemp
             if (typeof s.showNetwork === "boolean") showNetwork = s.showNetwork
             if (typeof s.showBluetooth === "boolean") showBluetooth = s.showBluetooth
+            if (typeof s.showBattery === "boolean") showBattery = s.showBattery   // v6.16.0
             if (s.displayMode) displayMode = s.displayMode
             if (s.cpuColor !== undefined) cpuColor = s.cpuColor
             if (s.ramColor !== undefined) ramColor = s.ramColor
@@ -121,6 +131,7 @@ Singleton {
             if (s.soundColor !== undefined) soundColor = s.soundColor
             if (s.networkColor !== undefined) networkColor = s.networkColor
             if (s.btColor !== undefined) btColor = s.btColor
+            if (s.batteryColor !== undefined) batteryColor = s.batteryColor       // v6.16.0
             if (typeof s.collapseDelay === "number") collapseDelay = s.collapseDelay
             if (s.arrowCollapsed) arrowCollapsed = s.arrowCollapsed
             if (s.arrowExpanded) arrowExpanded = s.arrowExpanded
@@ -182,6 +193,7 @@ Singleton {
                 showTemp: showTemp,
                 showNetwork: showNetwork,
                 showBluetooth: showBluetooth,
+                showBattery: showBattery,          // v6.16.0
                 displayMode: displayMode,
                 cpuColor: cpuColor,
                 ramColor: ramColor,
@@ -189,6 +201,7 @@ Singleton {
                 soundColor: soundColor,
                 networkColor: networkColor,
                 btColor: btColor,
+                batteryColor: batteryColor,        // v6.16.0
                 collapseDelay: collapseDelay
             },
             themeId: ThemeService.themeId,
@@ -267,6 +280,7 @@ Singleton {
         showTemp = true
         showNetwork = true
         showBluetooth = true
+        showBattery = true             // v6.16.0
         displayMode = "icon"
         cpuColor = ""
         ramColor = ""
@@ -274,6 +288,7 @@ Singleton {
         soundColor = ""
         networkColor = ""
         btColor = ""
+        batteryColor = ""              // v6.16.0
         collapseDelay = 800
         arrowCollapsed = "❮"
         arrowExpanded = "❯"

@@ -1075,9 +1075,29 @@ ShellRoot {
             exclusionMode: ExclusionMode.Ignore
             color: "transparent"
 
-            // v6.13: No HyprlandFocusGrab, no backdrop.
-            // Same pattern as Settings — panel stays open until
-            // explicitly closed via ✕, Esc, or Super+C toggle.
+            // v6.16.0.2: Added click-outside-to-close backdrop.
+            // Without this, the whole screen was blocked because the
+            // PanelWindow spans top/bottom/left/right as an Overlay.
+            // Paul reported not being able to click desktop until he
+            // pressed ✕.
+            //
+            // Pattern: a MouseArea below the ControlPanel instance in
+            // z-order. ControlPanel + its children handle their own
+            // clicks first (natural QML stacking — later siblings are
+            // above earlier ones). Any click that reaches this area is
+            // by definition outside ControlPanel → close.
+            //
+            // Right-click also closes (match macOS Control Center UX).
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                enabled: controlPanelWindow.visible
+                onPressed: {
+                    // Reaching this handler means click missed all
+                    // child MouseAreas inside ControlPanel → outside
+                    root.controlPanelVisible = false
+                }
+            }
 
             ControlPanel {
                 id: controlPanelInstance

@@ -253,26 +253,11 @@ Item {
                         label: "Wi-Fi"
                         description: "Enable or disable wireless networking"
 
-                        Rectangle {
-                            width: 42; height: 22; radius: 11
-                            color: ConnectivityService.wifiEnabled
-                                   ? ThemeService.alpha(ThemeService.green, 0.85)
-                                   : ThemeService.alpha(ThemeService.fg, 0.15)
-
-                            Behavior on color { ColorAnimation { duration: 150 } }
-
-                            Rectangle {
-                                width: 18; height: 18; radius: 9
-                                color: ThemeService.fg; y: 2
-                                x: ConnectivityService.wifiEnabled ? parent.width - width - 2 : 2
-                                Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                            }
-
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: ConnectivityService.toggleWifi()
-                            }
+                        HMSwitch {
+                            compact: true
+                            activeColor: ThemeService.alpha(ThemeService.green, 0.85)
+                            checked: ConnectivityService.wifiEnabled
+                            onToggled: ConnectivityService.toggleWifi()
                         }
                     }
 
@@ -332,26 +317,11 @@ Item {
                         label: "Bluetooth"
                         description: "Enable or disable Bluetooth"
 
-                        Rectangle {
-                            width: 42; height: 22; radius: 11
-                            color: ConnectivityService.btPowered
-                                   ? ThemeService.alpha(ThemeService.blue, 0.85)
-                                   : ThemeService.alpha(ThemeService.fg, 0.15)
-
-                            Behavior on color { ColorAnimation { duration: 150 } }
-
-                            Rectangle {
-                                width: 18; height: 18; radius: 9
-                                color: ThemeService.fg; y: 2
-                                x: ConnectivityService.btPowered ? parent.width - width - 2 : 2
-                                Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                            }
-
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: ConnectivityService.toggleBluetooth()
-                            }
+                        HMSwitch {
+                            compact: true
+                            activeColor: ThemeService.alpha(ThemeService.blue, 0.85)
+                            checked: ConnectivityService.btPowered
+                            onToggled: ConnectivityService.toggleBluetooth()
                         }
                     }
 
