@@ -1,0 +1,25 @@
+{
+  "id": "yousai",
+  "name": "Yousai",
+  "description": "Warm cream Japanese theme",
+  "is_builtin": true,
+  "version": "1.0",
+  "colors": {
+    "bg0": "#f5e7de",
+    "bg1": "#ebdcd2",
+    "bg2": "#e0d0c5",
+    "bg3": "#d5c4b8",
+    "bg4": "#cab8ab",
+    "fg": "#34302d",
+    "grey0": "#8a8078",
+    "grey1": "#6a625a",
+    "grey2": "#4a443e",
+    "red": "#b23636",
+    "orange": "#d97742",
+    "yellow": "#c49a3d",
+    "green": "#6a8c3a",
+    "aqua": "#3a8c7a",
+    "blue": "#4a7a9c",
+    "purple": "#8a4a8c"
+  }
+}

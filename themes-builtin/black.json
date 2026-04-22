@@ -1,0 +1,25 @@
+{
+  "id": "black",
+  "name": "Black",
+  "description": "Pure black OLED theme",
+  "is_builtin": true,
+  "version": "1.0",
+  "colors": {
+    "bg0": "#000000",
+    "bg1": "#101010",
+    "bg2": "#1a1a1a",
+    "bg3": "#252525",
+    "bg4": "#303030",
+    "fg": "#ffffff",
+    "grey0": "#505050",
+    "grey1": "#707070",
+    "grey2": "#909090",
+    "red": "#e06b74",
+    "orange": "#d19a66",
+    "yellow": "#e5c07b",
+    "green": "#98c379",
+    "aqua": "#56b6c2",
+    "blue": "#62aeef",
+    "purple": "#c678dd"
+  }
+}

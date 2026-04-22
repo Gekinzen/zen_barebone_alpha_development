@@ -1,0 +1,321 @@
+#!/usr/bin/env bash
+# swww-test — Zen Shell diagnostic tool for swww wallpaper daemon
+#
+# Walks through every step of the wallpaper pipeline and reports per-step
+# results. Use this when "nag-change ng wallpaper pero hindi nag-reflect".
+#
+# Usage:
+#   swww-test                    # full diagnostic + all transitions test
+#   swww-test --quick            # just daemon check + one apply
+#   swww-test --image PATH       # test with specific wallpaper
+#   swww-test --transition TYPE  # test single transition only
+#   swww-test --kill             # kill all swww processes (reset)
+#   swww-test --log              # tail the Zen Shell swww log
+#   swww-test --help
+#
+# Exit codes: 0 OK, 1 daemon fail, 2 apply fail, 127 swww not installed
+
+set -u
+
+# ─── Colors ───
+if [ -t 1 ]; then
+    C_RED=$'\033[31m'
+    C_GRN=$'\033[32m'
+    C_YEL=$'\033[33m'
+    C_BLU=$'\033[34m'
+    C_MAG=$'\033[35m'
+    C_CYN=$'\033[36m'
+    C_BLD=$'\033[1m'
+    C_DIM=$'\033[2m'
+    C_RST=$'\033[0m'
+else
+    C_RED="" C_GRN="" C_YEL="" C_BLU="" C_MAG="" C_CYN="" C_BLD="" C_DIM="" C_RST=""
+fi
+
+ok()    { echo "  ${C_GRN}✓${C_RST} $*"; }
+fail()  { echo "  ${C_RED}✗${C_RST} $*"; }
+warn()  { echo "  ${C_YEL}⚠${C_RST} $*"; }
+info()  { echo "  ${C_BLU}›${C_RST} $*"; }
+hdr()   { echo ""; echo "${C_BLD}${C_CYN}═══ $* ═══${C_RST}"; }
+dim()   { echo "  ${C_DIM}$*${C_RST}"; }
+
+# ─── Paths ───
+ZEN_CFG="$HOME/.config/quickshell/zen-shell"
+ZEN_CACHE="$HOME/.cache/zen-shell"
+WP_STATE="$ZEN_CFG/wallpaper-v5.json"
+SWWW_STATE="$ZEN_CFG/swww-state.json"
+SWWW_LOG="$ZEN_CACHE/swww.log"
+WP_DIR_DEFAULT="$HOME/Pictures/Wallpapers"
+
+# ─── Parse args ───
+MODE="full"
+IMAGE=""
+SINGLE_TRANS=""
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --quick)          MODE="quick"; shift ;;
+        --kill)           MODE="kill"; shift ;;
+        --log)            MODE="log"; shift ;;
+        --image)          IMAGE="$2"; shift 2 ;;
+        --transition)     SINGLE_TRANS="$2"; shift 2 ;;
+        -h|--help)
+            sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+            exit 0
+            ;;
+        *)
+            fail "Unknown arg: $1"; exit 2 ;;
+    esac
+done
+
+# ─── Mode: --kill ───
+if [ "$MODE" = "kill" ]; then
+    hdr "Killing all swww processes"
+    pkill -9 swww-daemon 2>/dev/null && ok "killed swww-daemon" || dim "swww-daemon not running"
+    pkill -9 swww 2>/dev/null && ok "killed swww client processes" || true
+    rm -f /tmp/swww* 2>/dev/null && ok "cleaned /tmp/swww*" || true
+    echo ""
+    info "Reset complete. Run 'swww-test' again to restart daemon + verify."
+    exit 0
+fi
+
+# ─── Mode: --log ───
+if [ "$MODE" = "log" ]; then
+    hdr "Tailing Zen Shell swww log"
+    if [ -f "$SWWW_LOG" ]; then
+        info "Log: $SWWW_LOG"
+        echo ""
+        tail -n 60 "$SWWW_LOG"
+    else
+        warn "No log file yet at $SWWW_LOG"
+        dim "Apply a wallpaper from Zen Shell first, then try again."
+    fi
+    exit 0
+fi
+
+# ─── Step 1: binary detection ───
+hdr "1. swww binary detection"
+
+# The `swww` project was renamed to `awww` in late 2025. CachyOS already
+# ships `awww`. Support either — if `awww` found, use its binary + create
+# symlinks via install.sh (or user can do: ln -sf /usr/bin/awww ~/.local/bin/swww).
+SWWW_BIN=""
+BIN_NAME="swww"
+if command -v swww > /dev/null 2>&1; then
+    SWWW_BIN=$(command -v swww)
+elif [ -x /usr/bin/swww ]; then
+    SWWW_BIN=/usr/bin/swww
+elif [ -x /usr/local/bin/swww ]; then
+    SWWW_BIN=/usr/local/bin/swww
+elif [ -x "$HOME/.local/bin/swww" ]; then
+    SWWW_BIN="$HOME/.local/bin/swww"
+elif [ -x /opt/swww/bin/swww ]; then
+    SWWW_BIN=/opt/swww/bin/swww
+# Rebranded awww fallback
+elif command -v awww > /dev/null 2>&1; then
+    SWWW_BIN=$(command -v awww)
+    BIN_NAME="awww"
+elif [ -x /usr/bin/awww ]; then
+    SWWW_BIN=/usr/bin/awww
+    BIN_NAME="awww"
+fi
+
+if [ -z "$SWWW_BIN" ]; then
+    fail "neither swww nor awww binary found"
+    info "Searched: \$PATH, /usr/bin, /usr/local/bin, ~/.local/bin, /opt/swww/bin"
+    info "Install with: ${C_BLD}paru -S awww${C_RST} (rebranded from swww)"
+    info "Or for old name:  ${C_BLD}paru -S swww${C_RST}"
+    info "Already installed? Try: ${C_BLD}which awww${C_RST} or ${C_BLD}pacman -Ql awww | grep bin${C_RST}"
+    exit 127
+fi
+
+if [ "$BIN_NAME" = "awww" ]; then
+    ok "awww (rebranded swww) found: $SWWW_BIN"
+    # Create swww alias for the rest of this script
+    swww() { "$SWWW_BIN" "$@"; }
+else
+    ok "swww found: $SWWW_BIN"
+fi
+
+# Add its dir to PATH for this script so 'swww ...' calls work
+case ":$PATH:" in
+    *":$(dirname "$SWWW_BIN"):"*) ;;
+    *) export PATH="$(dirname "$SWWW_BIN"):$PATH" ;;
+esac
+
+SWWW_VER=$("$SWWW_BIN" --version 2>/dev/null | head -n1 | awk '{print $NF}')
+info "version: $SWWW_VER"
+
+# Also try finding swww-daemon / awww-daemon in the same locations
+SWWW_DAEMON_BIN=""
+if command -v swww-daemon > /dev/null 2>&1; then
+    SWWW_DAEMON_BIN=$(command -v swww-daemon)
+elif [ -x "$(dirname "$SWWW_BIN")/swww-daemon" ]; then
+    SWWW_DAEMON_BIN="$(dirname "$SWWW_BIN")/swww-daemon"
+elif command -v awww-daemon > /dev/null 2>&1; then
+    SWWW_DAEMON_BIN=$(command -v awww-daemon)
+elif [ -x "$(dirname "$SWWW_BIN")/awww-daemon" ]; then
+    SWWW_DAEMON_BIN="$(dirname "$SWWW_BIN")/awww-daemon"
+fi
+
+if [ -n "$SWWW_DAEMON_BIN" ]; then
+    ok "daemon found (modern binary): $SWWW_DAEMON_BIN"
+    DAEMON_MODE="swww-daemon"
+else
+    warn "daemon binary not found — will fall back to legacy '$BIN_NAME init'"
+    DAEMON_MODE="swww-init-legacy"
+fi
+
+# ─── Step 2: daemon status ───
+hdr "2. Daemon status"
+
+if swww query > /dev/null 2>&1; then
+    ok "daemon alive — query responds"
+    OUTPUTS=$(swww query 2>/dev/null)
+    echo "$OUTPUTS" | while IFS= read -r line; do
+        dim "$line"
+    done
+else
+    warn "daemon not responding — will try to start it"
+    if [ "$DAEMON_MODE" = "swww-daemon" ]; then
+        info "spawning: nohup swww-daemon &"
+        nohup swww-daemon > /dev/null 2>&1 &
+    else
+        info "spawning: swww init (legacy)"
+        swww init > /dev/null 2>&1 &
+    fi
+
+    for i in $(seq 1 20); do
+        if swww query > /dev/null 2>&1; then
+            ok "daemon came up after ${i}x 0.25s"
+            break
+        fi
+        sleep 0.25
+    done
+
+    if ! swww query > /dev/null 2>&1; then
+        fail "daemon still not responding after 5s timeout"
+        info "Try ${C_BLD}swww-test --kill${C_RST} then retry."
+        info "Or check: ${C_BLD}pgrep -a swww${C_RST}"
+        exit 1
+    fi
+fi
+
+# ─── Mode: --quick ───
+if [ "$MODE" = "quick" ]; then
+    hdr "Quick mode — daemon OK, done"
+    exit 0
+fi
+
+# ─── Step 3: wallpaper folder scan ───
+hdr "3. Wallpaper folder scan"
+
+WP_DIR="$WP_DIR_DEFAULT"
+if [ -f "$WP_STATE" ]; then
+    FOLDER_FROM_STATE=$(grep -oP '"localFolder"\s*:\s*"\K[^"]+' "$WP_STATE" 2>/dev/null)
+    if [ -n "$FOLDER_FROM_STATE" ]; then
+        WP_DIR="$FOLDER_FROM_STATE"
+        info "from zen-shell state: $WP_DIR"
+    fi
+fi
+
+if [ ! -d "$WP_DIR" ]; then
+    warn "folder does not exist: $WP_DIR"
+    mkdir -p "$WP_DIR" && ok "created" || { fail "mkdir failed"; exit 2; }
+fi
+
+WP_COUNT=$(find "$WP_DIR" -maxdepth 2 -type f \
+    \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' -o -iname '*.bmp' \) \
+    2>/dev/null | wc -l)
+
+if [ "$WP_COUNT" -eq 0 ]; then
+    warn "no wallpapers found in $WP_DIR"
+    info "Drop some .jpg/.png files in there."
+    if [ -z "$IMAGE" ]; then
+        exit 2
+    fi
+fi
+ok "found $WP_COUNT wallpaper(s) in $WP_DIR"
+
+# Pick image for testing
+if [ -z "$IMAGE" ]; then
+    IMAGE=$(find "$WP_DIR" -maxdepth 2 -type f \
+        \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) \
+        2>/dev/null | shuf -n 1)
+    info "picked random: $(basename "$IMAGE")"
+else
+    if [ ! -f "$IMAGE" ]; then
+        fail "image not found: $IMAGE"
+        exit 2
+    fi
+    info "using provided: $(basename "$IMAGE")"
+fi
+
+# ─── Step 4: apply wallpaper ───
+hdr "4. Apply wallpaper"
+
+if [ -n "$SINGLE_TRANS" ]; then
+    TRANSITIONS=("$SINGLE_TRANS")
+else
+    TRANSITIONS=(fade wipe grow outer wave)
+fi
+
+FAIL_COUNT=0
+for t in "${TRANSITIONS[@]}"; do
+    printf "  ${C_BLU}›${C_RST} transition ${C_MAG}%-6s${C_RST} ... " "$t"
+    OUT=$(swww img "$IMAGE" \
+        --transition-type "$t" \
+        --transition-duration 1.0 \
+        --transition-fps 60 2>&1)
+    RC=$?
+    if [ $RC -eq 0 ]; then
+        echo "${C_GRN}OK${C_RST}"
+    else
+        echo "${C_RED}FAIL${C_RST} (rc=$RC)"
+        dim "$OUT"
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+    fi
+    sleep 1.2
+done
+
+# ─── Step 5: final state ───
+hdr "5. Final state"
+
+if CURRENT=$(swww query 2>/dev/null); then
+    echo "$CURRENT" | while IFS= read -r line; do
+        dim "$line"
+    done
+fi
+
+# ─── Step 6: zen-shell state files ───
+hdr "6. Zen Shell state files"
+
+if [ -f "$WP_STATE" ]; then
+    ok "wallpaper-v5.json: $WP_STATE"
+    dim "  $(stat -c '%y  %s bytes' "$WP_STATE")"
+else
+    warn "wallpaper-v5.json not found (Zen Shell hasn't saved yet?)"
+fi
+
+if [ -f "$SWWW_STATE" ]; then
+    ok "swww-state.json: $SWWW_STATE"
+    dim "  $(stat -c '%y  %s bytes' "$SWWW_STATE")"
+else
+    warn "swww-state.json not found (run Zen Shell v6.2+ first to generate it)"
+fi
+
+if [ -f "$SWWW_LOG" ]; then
+    LOG_LINES=$(wc -l < "$SWWW_LOG")
+    ok "swww log: $SWWW_LOG ($LOG_LINES lines)"
+    info "view with: ${C_BLD}swww-test --log${C_RST}"
+fi
+
+# ─── Summary ───
+echo ""
+if [ $FAIL_COUNT -eq 0 ]; then
+    echo "${C_GRN}${C_BLD}✓ All transitions applied successfully${C_RST}"
+    exit 0
+else
+    echo "${C_RED}${C_BLD}✗ $FAIL_COUNT transition(s) failed${C_RST}"
+    exit 2
+fi
