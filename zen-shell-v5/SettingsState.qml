@@ -5,13 +5,54 @@ import Quickshell.Io
 import QtQuick
 
 /*
- * SettingsState — Central persistence for all settings pages
+ * SettingsState — Central persistence for the older Appearance page.
  *
  * On init: reads current Hyprland values via `hyprctl getoption -j`
+ *          ONLY if no saved JSON exists (v6.16.3.2.1 fix — see below).
  * On change: writes to ~/.config/quickshell/zen-shell/settings-state.json
- * On restart: loads from JSON (values survive restarts)
+ * On restart: loads from JSON (values survive restarts).
  *
  * Each page binds to these properties instead of local ones.
+ *
+ * ════════════════════════════════════════════════════════════════
+ * v6.16.3.2.1 — Init bug fix (gap-wipe regression)
+ * ────────────────────────────────────────────────────────────────
+ * Symptom Paul reported on 2026-04-22:
+ *   "kapag nag change ako ng [mouse sensitivity] values nawawla
+ *    yun current settings ko sa gap naging default ganun"
+ *
+ * Root cause:
+ *   Component.onCompleted previously did:
+ *       stateFile.reload()
+ *       Qt.callLater(readFromHyprland)   ← unconditional
+ *
+ *   That second call always queried `hyprctl getoption general:gaps_in`
+ *   (and friends) and OVERWROTE the user's saved values with whatever
+ *   Hyprland was currently reporting. If anything had triggered a
+ *   `hyprctl reload` in between (theme change, animation preset, lid
+ *   handler, hypridle restart, etc.), Hyprland's effective values
+ *   would have already reverted to the hyprland.conf defaults — and
+ *   `readFromHyprland` would dutifully save those defaults BACK to
+ *   the user's JSON. Cosmetic trigger looked like "mouse sensitivity
+ *   wiped my gaps" but really it was: anything that re-instantiated
+ *   the SettingsState singleton after a reload.
+ *
+ *   SettingsStateV2 already had this fix (v6.15.6). V1 (this file)
+ *   was missed because at the time AppearancePage was scheduled to
+ *   migrate to V2 — that migration never happened, so V1 stayed
+ *   buggy in production.
+ *
+ * Fix (porting V2's pattern):
+ *   - Move the readFromHyprland call from Component.onCompleted into
+ *     stateFile.onLoaded
+ *   - Inside onLoaded: if JSON has actual data, loadFromJson + push
+ *     state TO Hyprland (defensive). If JSON is empty / missing
+ *     (genuine first run), THEN read FROM Hyprland as the seed.
+ *
+ * Wala tayong binawasan — every property, every function, every
+ * existing call signature is preserved. Only the init-time order
+ * of operations changed.
+ * ════════════════════════════════════════════════════════════════
  */
 Singleton {
     id: root
@@ -35,6 +76,8 @@ Singleton {
     // ── Flags ──
     property bool initialized: false
     property bool dirty: false
+    // v6.16.3.2.1: tracks whether saved JSON had actual data
+    property bool _jsonLoaded: false
 
     // ── Debounced save ──
     Timer {
@@ -129,15 +172,61 @@ Singleton {
         }
     }
 
+    // v6.16.3.2.1: Defensive push of saved values back to Hyprland.
+    // Called from stateFile.onLoaded once JSON has been parsed.
+    // Mirror of SettingsStateV2.applyToHyprland() but scoped to V1's
+    // smaller set of properties.
+    function applyToHyprland() {
+        const batch = ""
+            + "keyword general:gaps_in " + gapsIn + ";"
+            + "keyword general:gaps_out " + gapsOut + ";"
+            + "keyword general:border_size " + borderSize + ";"
+            + "keyword decoration:rounding " + rounding + ";"
+            + "keyword decoration:active_opacity " + activeOpacity.toFixed(2) + ";"
+            + "keyword decoration:inactive_opacity " + inactiveOpacity.toFixed(2) + ";"
+            + "keyword decoration:blur:enabled " + (blurEnabled ? "true" : "false") + ";"
+            + "keyword decoration:blur:size " + blurSize + ";"
+            + "keyword decoration:blur:passes " + blurPasses
+        hyprProc.command = ["hyprctl", "--batch", batch]
+        hyprProc.running = true
+        console.log("[SettingsState] Applied saved state to Hyprland (v6.16.3.2.1)")
+    }
+
     FileView {
         id: stateFile
         path: root.statePath
         blockLoading: false
-        onLoaded: root.loadFromJson(this.text())
+        // v6.16.3.2.1: removed inline onLoaded — moved to Connections
+        // block below for the apply-vs-read decision tree.
+    }
+
+    // v6.16.3.2.1: After stateFile loads, decide:
+    //   - If JSON had content → loadFromJson + push to Hyprland
+    //   - If JSON empty/missing → readFromHyprland as seed
+    Connections {
+        target: stateFile
+        function onLoaded() {
+            const text = stateFile.text()
+            if (text && text.trim().length > 2) {
+                root.loadFromJson(text)
+                root._jsonLoaded = true
+                // Push saved values to Hyprland so they take effect even
+                // if hyprland.conf has different defaults or a recent
+                // `hyprctl reload` reset live state.
+                Qt.callLater(root.applyToHyprland)
+                root.initialized = true
+            } else {
+                // Genuine first run — no saved state. Read whatever
+                // Hyprland is currently using as our seed values.
+                root._jsonLoaded = false
+                Qt.callLater(root.readFromHyprland)
+            }
+        }
     }
 
     // ─────────────────────────────────────────────────────────────
-    // READ CURRENT VALUES from Hyprland on init
+    // READ CURRENT VALUES from Hyprland
+    // (only called on genuine first run — see Connections above)
     // ─────────────────────────────────────────────────────────────
 
     function readFromHyprland() {
@@ -175,8 +264,8 @@ Singleton {
                     if (d.blur_passes && d.blur_passes.int !== undefined) root.blurPasses = d.blur_passes.int
 
                     root.initialized = true
-                    root.saveState()  // Persist hyprland current state
-                    console.log("[SettingsState] Read from Hyprland: gaps=" + root.gapsIn + "/" + root.gapsOut)
+                    root.saveState()  // Persist Hyprland current state as our new seed
+                    console.log("[SettingsState] Seeded from Hyprland: gaps=" + root.gapsIn + "/" + root.gapsOut)
                 } catch(e) {
                     console.log("[SettingsState] hyprctl read fallback (not in Hyprland?)")
                     root.initialized = true
@@ -209,12 +298,13 @@ Singleton {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // INIT
+    // INIT (v6.16.3.2.1 — simplified)
+    // The Connections{target:stateFile} block above now handles the
+    // apply-vs-read decision. Component.onCompleted just kicks the
+    // file load.
     // ─────────────────────────────────────────────────────────────
 
     Component.onCompleted: {
         stateFile.reload()
-        // After JSON load, also try reading live Hyprland values
-        Qt.callLater(readFromHyprland)
     }
 }

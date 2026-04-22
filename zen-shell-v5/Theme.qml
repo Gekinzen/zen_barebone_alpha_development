@@ -44,10 +44,17 @@ Singleton {
     // ── Bar layout config ──
     // v6.16.0: battery added to right row. Hides itself on desktops
     // (SystemMonitorService.batteryPresent === false).
+    // v6.16.3.4: powerbadge added between battery and notifications.
+    // Hides itself when neither powerprofilesctl nor multi-GPU is
+    // available, so it's invisible on systems where it'd be useless.
+    // EXISTING USERS: this only affects fresh installs. If you have
+    // a saved ~/.config/quickshell/bar-layout.json it overrides this
+    // default. Add "powerbadge" to that file's right array if you
+    // want the badge on an existing install.
     property var barLayout: ({
         "left": ["start", "taskbar"],
         "center": ["workspaces", "window"],
-        "right": ["music", "sysrow", "tray", "battery", "notifications", "clock"]
+        "right": ["music", "sysrow", "tray", "battery", "powerbadge", "notifications", "clock"]
     })
 
     // ── Theme schemes ──

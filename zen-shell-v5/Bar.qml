@@ -103,6 +103,10 @@ Rectangle {
     Component { id: cSysMonitor;  ZenSysMonitor {} }
     // v6.16.0: Battery module (hides itself on desktops)
     Component { id: cBattery;     Battery {} }
+    // v6.16.3.4: Power profile + GPU mode badge.
+    // Hides itself when neither powerprofilesctl nor multi-GPU
+    // detection succeeds (single-GPU desktop with no PPD = invisible).
+    Component { id: cPowerBadge;  PowerBadge {} }
 
     // v6.15: music slot — toggles between MusicWidget and MusicStrings
     // musicSlotLocalX / musicSlotLocalWidth: bar-local coordinates of the
@@ -545,6 +549,8 @@ Rectangle {
             case "weather":       return cWeather
             case "sysmonitor":    return cSysMonitor
             case "battery":       return cBattery
+            // v6.16.3.4: power profile + GPU mode badge
+            case "powerbadge":    return cPowerBadge
         }
         console.warn("[Bar] Unknown module:", name)
         return null

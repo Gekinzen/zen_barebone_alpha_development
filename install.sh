@@ -718,6 +718,14 @@ echo "  v6.15 — Strings music module:"
 check_cmd cava cava
 check_cmd playerctl playerctl
 
+# v6.16.3.2.1 — Lock screen + idle daemon (recommended for laptops)
+# These power the smart lid behavior, the auto-lock cascade, and
+# the wallpaper-synced lock screen. install-v6.16.3.2-overlay.sh
+# also auto-installs them if you didn't pick them here.
+echo "  v6.16.3.2 — Lock screen + idle (laptop-recommended):"
+check_cmd hyprlock hyprlock
+check_cmd hypridle hypridle
+
 if [ "$MISSING_REQUIRED" = "1" ]; then
     echo ""
     echo "  ⚠ Missing required deps."
@@ -861,6 +869,7 @@ for script in \
     patch-swaync-position.sh zen-cava.sh \
     zs-restart.sh \
     zen-volume-notify.sh zen-power-profile-restore.sh zen-lid-handler.sh \
+    zen-resume-handler.sh zen-lock.sh zen-bar-add-powerbadge.sh \
     zen-game-watcher.sh prime-run
 do
     src="$SCRIPT_DIR/scripts/$script"
@@ -1335,13 +1344,131 @@ fi
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════════
-# v6.16.2.3.7: SINGLE CANONICAL LAUNCH — refuse to spawn if any survive
-#
-# This is now the ONLY place in install.sh that spawns a zen-shell
-# instance. Step [9/9] is kill-only. The kill loop here is a final
-# defense-in-depth guard — should already be empty after step [9/9].
+# v6.16.3 STACK — idempotent apply of smart-lid + wake + lock changes
+# ───────────────────────────────────────────────────────────────────────
+# Replaces the standalone install-v6.16.3.2.1-overlay.sh. Runs on every
+# `./install.sh` invocation so the v6.16.3 files are always in sync with
+# the tarball. Individual phases are idempotent — re-running is cheap.
 # ═══════════════════════════════════════════════════════════════════════
-echo "  ── Launch (v6.16.2.3.7 — single instance) ──"
+echo ""
+echo "  ── v6.16.3 stack (smart lid + wake recovery + lock redesign) ──"
+
+# Phase A — lock screen + idle daemon deps
+# Added in v6.16.3.2.1: auto-detect + offer paru/yay/pacman install for
+# hyprlock + hypridle. Earlier optional-deps loop above already covered
+# this during the fresh-install flow; we still check here in case user
+# answered "n" to that prompt but changed their mind, OR is running a
+# re-install after initial setup.
+V6163_NEED=()
+command -v hyprlock >/dev/null 2>&1 || V6163_NEED+=(hyprlock)
+command -v hypridle >/dev/null 2>&1 || V6163_NEED+=(hypridle)
+if [ ${#V6163_NEED[@]} -gt 0 ]; then
+    echo "    hyprlock/hypridle missing: ${V6163_NEED[*]}"
+    V6163_INSTALLER=""
+    if command -v paru >/dev/null 2>&1; then V6163_INSTALLER="paru"
+    elif command -v yay >/dev/null 2>&1; then V6163_INSTALLER="yay"
+    elif command -v pacman >/dev/null 2>&1; then V6163_INSTALLER="sudo pacman"
+    fi
+    if [ -n "$V6163_INSTALLER" ]; then
+        printf '    Install with `%s -S --needed %s`? [Y/n] ' "$V6163_INSTALLER" "${V6163_NEED[*]}"
+        read -r V6163_ANS
+        case "$V6163_ANS" in
+            n|N|no|NO) echo "    skipped — lock screen + auto-lock disabled until installed" ;;
+            *) $V6163_INSTALLER -S --needed "${V6163_NEED[@]}" || echo "    install failed — try manually" ;;
+        esac
+    else
+        echo "    no pacman/paru/yay — install manually: sudo pacman -S --needed ${V6163_NEED[*]}"
+    fi
+else
+    echo "    ✓ hyprlock + hypridle present"
+fi
+
+# Phase B — hypridle.conf + hyprlock.conf (user-scope, ~/.config/hypr/)
+# These files live directly under $HYPR_DIR (NOT modules/) because
+# hypridle and hyprlock look there by default. Existing files get
+# backed up to .bak.<TS> so users who hand-tweaked are safe.
+for v6163f in hypridle.conf hyprlock.conf; do
+    src="$SCRIPT_DIR/hypr-config/$v6163f"
+    dst="$HYPR_DIR/$v6163f"
+    [ -f "$src" ] || continue
+    if [ -f "$dst" ] && ! diff -q "$src" "$dst" >/dev/null 2>&1; then
+        cp "$dst" "$dst.bak.$TS" 2>/dev/null
+        cp "$src" "$dst"
+        echo "    $v6163f → $dst (backed up old)"
+    elif [ ! -f "$dst" ]; then
+        cp "$src" "$dst"
+        echo "    $v6163f → $dst (new)"
+    else
+        echo "    $v6163f up to date"
+    fi
+done
+
+# Phase C — lid-behavior.conf + autostart.conf (modules scope)
+# These were already copied by [6/9]'s generic hypr-config loop if the
+# install.sh had one; explicit copy here guarantees v6.16.3.X versions
+# land even when that loop is absent in older install.sh variants.
+for v6163f in lid-behavior.conf autostart.conf; do
+    src="$SCRIPT_DIR/hypr-config/$v6163f"
+    dst="$HYPR_DIR/modules/$v6163f"
+    [ -f "$src" ] || continue
+    cp "$src" "$dst"
+done
+echo "    lid-behavior.conf + autostart.conf synced"
+
+# Phase D — lock-wallpaper symlink seed (so first lock has a bg)
+V6163_LOCK_BG="$HOME/.cache/zen-shell/lock-wallpaper.png"
+V6163_WP_STATE="$HOME/.config/quickshell/zen-shell/wallpaper-v5.json"
+if [ -f "$V6163_WP_STATE" ] && command -v jq >/dev/null 2>&1; then
+    V6163_CUR_WP=$(jq -r '.currentWallpaper // empty' "$V6163_WP_STATE" 2>/dev/null)
+    if [ -n "$V6163_CUR_WP" ] && [ -f "$V6163_CUR_WP" ]; then
+        ln -sfn "$V6163_CUR_WP" "$V6163_LOCK_BG"
+        echo "    lock wallpaper seed → $V6163_CUR_WP"
+    fi
+fi
+if [ ! -e "$V6163_LOCK_BG" ] && command -v grim >/dev/null 2>&1; then
+    grim "$V6163_LOCK_BG" 2>/dev/null && echo "    lock wallpaper seed → grim fallback"
+fi
+
+# Phase E — systemd-sleep hook (optional, needs sudo)
+# Skip prompt silently if already installed; only ask on fresh boxes
+# and only if sudo is reachable without password-less hostile env.
+V6163_HOOK_SRC="$SCRIPT_DIR/hypr-config/zen-sleep-hook.sh"
+V6163_HOOK_DST="/usr/lib/systemd/system-sleep/zen-sleep-hook"
+if [ -f "$V6163_HOOK_SRC" ]; then
+    if [ -f "$V6163_HOOK_DST" ]; then
+        echo "    ✓ systemd-sleep hook already installed"
+    else
+        printf '    Install systemd-sleep hook for full wake recovery? [Y/n] '
+        read -r V6163_ANS
+        case "$V6163_ANS" in
+            n|N|no|NO) echo "    skipped (lid + manual recovery still work)" ;;
+            *)
+                if command -v sudo >/dev/null 2>&1; then
+                    sudo install -m 0755 -o root -g root "$V6163_HOOK_SRC" "$V6163_HOOK_DST" \
+                        && echo "    ✓ installed at $V6163_HOOK_DST" \
+                        || echo "    ⚠ sudo install failed"
+                else
+                    echo "    no sudo available — copy manually as root"
+                fi
+                ;;
+        esac
+    fi
+fi
+
+# Phase F — restart hypridle if it's running (so new hypridle.conf takes effect)
+if pgrep -x hypridle >/dev/null 2>&1; then
+    pkill -x hypridle 2>/dev/null
+    sleep 0.3
+fi
+if command -v hypridle >/dev/null 2>&1; then
+    setsid -f hypridle </dev/null >/dev/null 2>&1 &
+    echo "    ✓ hypridle restarted"
+fi
+
+echo "  ── v6.16.3 stack applied ──"
+echo ""
+
+
 ZEN_QS_PATH="${HOME}/.config/quickshell/zen-shell"
 
 if command -v quickshell >/dev/null 2>&1; then
@@ -1382,6 +1509,6 @@ else
 fi
 echo ""
 
-echo "  ✅  Done. Enjoy Zen Shell v6.16.2.3.7, pre."
+echo "  ✅  Done. Enjoy Zen Shell v6.16.3.4.2, pre."
 echo ""
 exit 0

@@ -101,7 +101,60 @@ Singleton {
         saveProc.running = true
     }
 
-    Process { id: saveProc; running: false }
+    Process { id: saveProc; running: false
+        // ─────────────────────────────────────────────────────────
+        // v6.16.3.4.1 — Hyprland-auto-reload re-push (THE root fix)
+        //
+        // After we write zen-mouse.conf, Hyprland 0.40+ detects the
+        // inotify change (because hyprland.conf has a `source =
+        // ~/.config/hypr/zen-mouse.conf` line) and triggers an
+        // INTERNAL `hyprctl reload`. That reload re-parses
+        // hyprland.conf from scratch — which WIPES every runtime
+        // hyprctl-keyword value not present in the conf files,
+        // including the user's custom gaps_in / gaps_out / blur /
+        // shadow / etc.
+        //
+        // V6.16.3.2.1 fixed the QML-side init bug (reading hyprctl
+        // and overwriting saved state on cold start). It did NOT
+        // and could NOT address this case, because the wiping
+        // happens INSIDE Hyprland after a file write — no QML
+        // singleton re-instantiation involved.
+        //
+        // Real fix: after our save process completes, wait long
+        // enough for Hyprland's inotify-driven reload to land
+        // (~250-400ms in practice on AMD/Intel; longer on slow
+        // disks), then re-push BOTH SettingsState V1 + V2's saved
+        // values. Both are idempotent — re-pushing values that are
+        // already correct is a no-op at the hyprctl level.
+        //
+        // This is symmetrical to the existing pattern in
+        // AnimationsPage.qml v6.16.1.6 and BatterySettingsPage.qml
+        // v6.16.1.6 — both of those re-push after their own
+        // explicit hyprctl reload calls. Mouse changes never had
+        // an explicit reload here in QML, so the pattern was
+        // missed; the reload was happening transparently in
+        // Hyprland.
+        // ─────────────────────────────────────────────────────────
+        onExited: rePushTimer.restart()
+    }
+
+    Timer {
+        id: rePushTimer
+        interval: 400          // covers ~99% of inotify-reload latency
+        repeat: false
+        onTriggered: {
+            // Re-push V2 (the canonical singleton with most state)
+            if (typeof SettingsStateV2 !== "undefined"
+                && typeof SettingsStateV2.applyToHyprland === "function") {
+                SettingsStateV2.applyToHyprland()
+            }
+            // Re-push V1 (the older, smaller singleton — Appearance page)
+            if (typeof SettingsState !== "undefined"
+                && typeof SettingsState.applyToHyprland === "function") {
+                SettingsState.applyToHyprland()
+            }
+        }
+    }
 
     // ── Initial load ──
     FileView {
