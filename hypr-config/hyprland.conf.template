@@ -46,6 +46,10 @@ source = ~/.config/hypr/modules/binds.conf
 # 2. Zen Shell overrides (LAST so they take priority)
 source = ~/.config/quickshell/zen-shell/config/hyprland-layer-rules.conf
 source = ~/.config/quickshell/zen-shell/config/keybinds-update.conf
+# v6.16.2.3.2: Mouse settings managed by Control Panel → Input.
+# File auto-created by MouseSettingsService on first save (also seeded
+# by install.sh with sane defaults so this source line is always valid).
+source = ~/.config/hypr/zen-mouse.conf
 
 
 env = XDG_CURRENT_DESKTOP,Hyprland

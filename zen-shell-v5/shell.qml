@@ -24,7 +24,20 @@ ShellRoot {
     property bool settingsFullscreen: false
     property bool keybindCheatsheetVisible: false
     property bool controlPanelVisible: false
-    property bool calendarVisible: false
+    // v6.16.2.3: Mirror PanelState.calendarVisible (singleton-backed) so
+    // Clock.qml can toggle directly without IPC. shell.qml's own boolean
+    // is kept as a forwarder to preserve existing downstream bindings.
+    property bool calendarVisible: PanelState.calendarVisible
+    onCalendarVisibleChanged: if (calendarVisible !== PanelState.calendarVisible) {
+        PanelState.calendarVisible = calendarVisible
+    }
+    Connections {
+        target: PanelState
+        function onCalendarVisibleChanged() {
+            if (root.calendarVisible !== PanelState.calendarVisible)
+                root.calendarVisible = PanelState.calendarVisible
+        }
+    }
 
     property bool powerConfirmVisible: false
     property string powerAction: ""
@@ -141,6 +154,51 @@ ShellRoot {
     //   - IpcHandler endpoint `testNuclearRestart` for manual testing
     property string _previousPanelMode: PanelState.panelMode
     property bool _nuclearRestartPending: false
+    // v6.16.2.3.1: Startup guard. PanelState starts with default
+    // panelMode="fullwidth" before its FileView finishes loading the
+    // persisted state. If the user's saved mode is "island", the
+    // JSON-load assigns panelMode="island" which fires onPanelModeChanged
+    // — and on some systems the QML evaluation order has
+    // _previousPanelMode's binding update AFTER the Connection fires,
+    // producing prev="fullwidth" curr="island" → bogus nuclear restart
+    // on every login. The respawn then wipes working state and Paul
+    // sees the bar come back in default "fullwidth".
+    //
+    // Fix: flip _shellReady the moment PanelState has actually loaded
+    // from disk (listen for panelStateLoaded signal). This works on any
+    // boot speed — unlike a fixed-interval timer, which could fire
+    // before a slow SSD/cold-boot FileView completes on the ROG laptop.
+    // Fallback: a 2000ms safety timer in case the signal never fires
+    // (e.g. first run with no JSON file — onLoaded won't be called).
+    property bool _shellReady: false
+
+    Connections {
+        target: PanelState
+        // Fires once when FileView applies loaded JSON (first success).
+        function onPanelStateLoaded() {
+            if (!root._shellReady) {
+                root._shellReady = true
+                root._previousPanelMode = PanelState.panelMode
+                console.log("[ZenShell v6.16.2.3.1] Shell ready (via panelStateLoaded). "
+                          + "panelMode=" + PanelState.panelMode)
+            }
+        }
+    }
+
+    Timer {
+        id: shellReadyFallback
+        interval: 2000
+        repeat: false
+        running: true
+        onTriggered: {
+            if (!root._shellReady) {
+                root._shellReady = true
+                root._previousPanelMode = PanelState.panelMode
+                console.log("[ZenShell v6.16.2.3.1] Shell ready (via fallback timer). "
+                          + "panelMode=" + PanelState.panelMode)
+            }
+        }
+    }
 
     Timer {
         id: nuclearRestartDelay
@@ -237,12 +295,23 @@ ShellRoot {
             const prev = root._previousPanelMode
             const curr = PanelState.panelMode
 
-            console.log("[ZenShell v6.15.12] Panel mode: " + prev + " → " + curr)
+            console.log("[ZenShell v6.16.2.3.1] Panel mode: " + prev + " → " + curr
+                      + " (shellReady=" + root._shellReady + ")")
+
+            // v6.16.2.3.1: Do NOT trigger nuclear restart until the
+            // shell has confirmed its startup-load phase is complete.
+            // During init, a mode change from "fullwidth" (default)
+            // to the persisted value (e.g. "island") is expected and
+            // must NOT respawn the shell.
+            if (!root._shellReady) {
+                root._previousPanelMode = curr
+                return
+            }
 
             if (!root._nuclearRestartPending
                 && curr === "island"
                 && (prev === "fullwidth" || prev === "floating")) {
-                console.log("[ZenShell v6.15.12] Nuclear trigger matched "
+                console.log("[ZenShell v6.16.2.3.1] Nuclear trigger matched "
                             + "(prev=" + prev + ", curr=island) — scheduling restart in 250ms")
                 root._nuclearRestartPending = true
                 nuclearRestartDelay.restart()
@@ -728,91 +797,26 @@ ShellRoot {
                 cavaData: ZenStringsState.cavaData
             }
 
-            // v6.15.1: Hover tooltip on the stringsWindow itself.
-            // The visible strings float in this PanelWindow — hovering
-            // the bar's MusicStrings slot doesn't work because the
-            // stringsWindow covers it. So tooltip lives here.
-            MouseArea {
-                id: stringsHover
-                anchors.fill: parent
-                hoverEnabled: true
-                acceptedButtons: Qt.NoButton
-            }
-
-            // v6.15.4: Tooltip anchor at the BAR's top edge within
-            // this stringsWindow. Previous version anchored the
-            // PopupWindow to stringsWindow.contentItem (the full
-            // overlay, 60px above bar due to vPad). Result: tooltip
-            // floated ~60px above the bar with a big empty gap —
-            // inconsistent with SysRow tooltips that anchor snugly
-            // to the bar edge. This invisible 1px-tall Item sits at
-            // the bar's actual top edge, so PopupWindow anchored to
-            // its Top shows directly above the bar, matching
-            // SysRowIcon's tooltip positioning.
-            Item {
-                id: barTopAnchor
-                anchors.horizontalCenter: parent.horizontalCenter
-                width: Math.max(10, ZenStringsState.musicSlotLocalWidth)
-                height: 1
-                // Y = where the bar's TOP edge sits inside stringsWindow.
-                // stringsWindow height = barHeight + 2*vPad.
-                // Bar is anchored to screen-bottom with margin
-                // panelMarginBottom; stringsWindow bottom-margin may have
-                // been clamped to 0 when vPad > panelMarginBottom.
-                // Bar's bottom-in-window = stringsWindow.implicitHeight
-                //                         - (panelMarginBottom - margins.bottom)
-                // Bar's top-in-window    = bar's bottom-in-window - barHeight
-                y: {
-                    const actualBottomMargin = stringsWindow.margins.bottom
-                    const barBottomInWindow = stringsWindow.implicitHeight
-                        - (PanelState.panelMarginBottom - actualBottomMargin)
-                    return barBottomInWindow - PanelState.barHeight
-                }
-            }
-
-            PopupWindow {
-                anchor.item: barTopAnchor
-                anchor.edges: Edges.Top
-                anchor.gravity: Edges.Top
-                visible: stringsHover.containsMouse
-                         && ZenStringsState.trackInfo.length > 0
-                width: stTipText.implicitWidth + stTipDot.width + stTipRow.spacing + 28
-                height: stTipRow.implicitHeight + 18
-                color: "transparent"
-
-                Rectangle {
-                    anchors.fill: parent
-                    radius: 10
-                    color: Qt.rgba(ThemeService.bg0.r, ThemeService.bg0.g, ThemeService.bg0.b, 0.95)
-                    border.width: 1
-                    border.color: ThemeService.alpha(ThemeService.fg, 0.15)
-
-                    Row {
-                        id: stTipRow
-                        anchors.centerIn: parent
-                        spacing: 8
-
-                        Rectangle {
-                            id: stTipDot
-                            width: 7; height: 7; radius: 4
-                            anchors.verticalCenter: parent.verticalCenter
-                            color: ZenStringsState.mediaPlaying ? ThemeService.green
-                                 : ZenStringsState.cavaHasAudio ? ThemeService.orange
-                                 : ThemeService.grey1
-                        }
-
-                        Text {
-                            id: stTipText
-                            text: ZenStringsState.trackInfo
-                            font.family: Theme.fontFamily
-                            font.pixelSize: 12
-                            font.weight: Font.DemiBold
-                            color: ThemeService.fg
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                    }
-                }
-            }
+            // v6.16.2.3.1: CLICK-THROUGH via Quickshell's `mask` property.
+            // Previous revisions had a MouseArea covering the entire
+            // stringsWindow which — on Wayland layer-shell — made the
+            // whole window's input region opaque. Result: Paul reported
+            // clicks over the strings area (which extends vPad above the
+            // bar over open windows like a browser) went NOWHERE, instead
+            // of falling through to the window beneath. This was the
+            // "prang may nag bblock" bug.
+            //
+            // Fix: set `mask` to an empty Region. The whole stringsWindow
+            // becomes click-through — pointer events pass straight to the
+            // window below. The hover tooltip is now served by the bar's
+            // own MusicStrings.qml (which has its own hoverArea+tipPopup
+            // and will finally receive events since strings no longer
+            // cover the slot with an input region).
+            //
+            // Why an empty Region and not omit-mask: omitting `mask` is
+            // equivalent to "whole window is clickable" (default). An
+            // empty Region explicitly says "nothing is clickable".
+            mask: Region {}
         }
     }
 
@@ -856,7 +860,13 @@ ShellRoot {
             margins.bottom: PanelState.barHeight + 8 + PanelState.panelMarginBottom
 
             HyprlandFocusGrab {
-                active: startMenuWindow.visible
+                // v6.16.2.3.1: Suspend focus grab while the StartMenuPanel
+                // has an external blocking dialog (zenity avatar picker)
+                // running. Without this, zenity steals focus → onCleared
+                // fires → menu closes before the user can pick a file.
+                // The panel exposes `uploadInProgress` as true while any
+                // such dialog is up; we simply disable the grab then.
+                active: startMenuWindow.visible && !startMenuPanelInstance.uploadInProgress
                 windows: [startMenuWindow]
                 onCleared: {
                     if (root.startMenuScreen === modelData) root.startMenuScreen = null
@@ -864,6 +874,7 @@ ShellRoot {
             }
 
             StartMenuPanel {
+                id: startMenuPanelInstance
                 anchors.fill: parent
                 visible: startMenuWindow.visible
                 onCloseRequested: root.closeStartMenu()
@@ -964,7 +975,21 @@ ShellRoot {
 
             // v6.13: No backdrop MouseArea — panel doesn't close on click-outside
             // and the backdrop was blocking drag events on the settings panel.
-            // Desktop clicks pass through the transparent PanelWindow naturally.
+
+            // v6.16.2.3.2: CRITICAL FIX — Wayland layer-shell surfaces claim
+            // the entire window as input region by default. The "Desktop
+            // clicks pass through the transparent PanelWindow naturally"
+            // assumption from v6.13 was wrong for layer-shell: transparent
+            // rendering does NOT mean transparent input. Paul reported he
+            // could not click files in a zenity file picker spawned ON TOP
+            // of the Settings because the Settings surface was intercepting
+            // every pointer event outside the ZenSettings panel rectangle.
+            //
+            // Fix: `mask: Region { item: zenSettingsPanel }` makes ONLY
+            // the panel itself clickable. Everything else (the transparent
+            // backdrop around the panel) passes clicks through to windows
+            // below — file pickers, browsers, Thunar, etc. all work.
+            mask: Region { item: zenSettingsPanel }
 
             ZenSettings {
                 id: zenSettingsPanel
@@ -1075,29 +1100,23 @@ ShellRoot {
             exclusionMode: ExclusionMode.Ignore
             color: "transparent"
 
-            // v6.16.0.2: Added click-outside-to-close backdrop.
-            // Without this, the whole screen was blocked because the
-            // PanelWindow spans top/bottom/left/right as an Overlay.
-            // Paul reported not being able to click desktop until he
-            // pressed ✕.
+            // v6.16.2.3.2: Click-through outside the ControlPanel rectangle.
+            // Previous v6.16.0.2 backdrop MouseArea spanned the entire
+            // Overlay-layer window — intercepting every click on the desktop
+            // and closing the panel on the first one. Paul wanted to be
+            // able to interact with the app underneath while the panel is
+            // visible (e.g. upload a file while ControlPanel is open).
             //
-            // Pattern: a MouseArea below the ControlPanel instance in
-            // z-order. ControlPanel + its children handle their own
-            // clicks first (natural QML stacking — later siblings are
-            // above earlier ones). Any click that reaches this area is
-            // by definition outside ControlPanel → close.
-            //
-            // Right-click also closes (match macOS Control Center UX).
-            MouseArea {
-                anchors.fill: parent
-                acceptedButtons: Qt.LeftButton | Qt.RightButton
-                enabled: controlPanelWindow.visible
-                onPressed: {
-                    // Reaching this handler means click missed all
-                    // child MouseAreas inside ControlPanel → outside
-                    root.controlPanelVisible = false
-                }
-            }
+            // New behavior: `mask: Region { item: controlPanelInstance }`
+            // restricts input events to the panel itself. Clicks outside
+            // the panel go straight to the window below (browser, file
+            // manager, editor). Closing the panel now requires:
+            //   1. Its ✕ close button
+            //   2. Esc key (see HyprlandFocusGrab-like behavior if we add)
+            //   3. Super+C (keybind toggle)
+            // This matches the Settings window behavior (v6.13+) and is
+            // how modern desktop control panels behave (macOS, GNOME).
+            mask: Region { item: controlPanelInstance }
 
             ControlPanel {
                 id: controlPanelInstance

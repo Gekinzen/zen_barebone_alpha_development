@@ -34,6 +34,11 @@ Rectangle {
     readonly property int thumbWidth: 180
     readonly property int thumbHeight: 110
 
+    // v6.16.2.3.2: Online repo browser toggle. When true, the grid shows
+    // wallpapers from WallpaperRepoService (Gekinzen/images-demo) instead
+    // of the local folder.
+    property bool onlineMode: false
+
     Keys.onEscapePressed: closeRequested()
 
     ColumnLayout {
@@ -108,6 +113,55 @@ Rectangle {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: WallpaperServiceV5.randomWallpaper()
+                }
+            }
+
+            // v6.16.2.3.2: Online repo browser (Gekinzen/images-demo).
+            // Toggles a panel below the header that lists wallpapers
+            // from the GitHub repo. Cached locally; one-click apply.
+            Rectangle {
+                Layout.preferredWidth: 110
+                Layout.preferredHeight: 34
+                radius: 8
+                color: onlineBtn.containsMouse
+                       ? Qt.rgba(ThemeService.blue.r, ThemeService.blue.g, ThemeService.blue.b, 0.22)
+                       : (root.onlineMode
+                          ? Qt.rgba(ThemeService.blue.r, ThemeService.blue.g, ThemeService.blue.b, 0.32)
+                          : Qt.rgba(ThemeService.bg2.r, ThemeService.bg2.g, ThemeService.bg2.b, 0.6))
+                border.width: 1
+                border.color: root.onlineMode
+                              ? ThemeService.blue
+                              : Qt.rgba(ThemeService.fg.r, ThemeService.fg.g, ThemeService.fg.b, 0.12)
+
+                RowLayout {
+                    anchors.centerIn: parent
+                    spacing: 6
+                    Text {
+                        text: "\uf0c2"  // cloud
+                        font.family: "JetBrainsMono Nerd Font"
+                        font.pixelSize: 12
+                        color: ThemeService.fg
+                    }
+                    Text {
+                        text: root.onlineMode ? "Local" : "Online"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        color: ThemeService.fg
+                    }
+                }
+
+                MouseArea {
+                    id: onlineBtn
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        root.onlineMode = !root.onlineMode
+                        if (root.onlineMode
+                            && !WallpaperRepoService.hasFetchedOnce) {
+                            WallpaperRepoService.refresh()
+                        }
+                    }
                 }
             }
 
@@ -225,7 +279,19 @@ Rectangle {
             cellWidth: width / columns
             cellHeight: root.thumbHeight + 32
             clip: true
-            model: WallpaperServiceV5.pagedList
+            // v6.16.2.3.2: Model switches with onlineMode. The local list
+            // and the online repo list are mapped to a unified shape
+            // {url, path, name, cached?} so the same delegate works.
+            model: root.onlineMode
+                ? WallpaperRepoService.items.map(it => ({
+                      url:  it.cached ? ("file://" + it.localPath)
+                                      : it.downloadUrl,
+                      path: it.localPath,
+                      name: it.name,
+                      cached: it.cached,
+                      downloadUrl: it.downloadUrl
+                  }))
+                : WallpaperServiceV5.pagedList
 
             // v6.13: Push columns × 4 back to service so pagedList slices correctly
             onColumnsChanged: WallpaperServiceV5.wallpapersPerPage = columns * 4
@@ -297,10 +363,39 @@ Rectangle {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            // This is the critical path — call selectWallpaper
-                            // which dispatches to applyWallpaper (local) or
-                            // downloadAndApply (remote) then runs swww img.
-                            WallpaperServiceV5.selectWallpaper(modelData)
+                            if (root.onlineMode) {
+                                // v6.16.2.3.2: Online item — download (or
+                                // use cached) then apply via WallpaperServiceV5.
+                                if (modelData.cached) {
+                                    WallpaperServiceV5.selectWallpaper({
+                                        path: modelData.path,
+                                        url:  "file://" + modelData.path,
+                                        name: modelData.name
+                                    })
+                                } else {
+                                    // Find index in repo items + download
+                                    const items = WallpaperRepoService.items
+                                    let idx = -1
+                                    for (let i = 0; i < items.length; i++) {
+                                        if (items[i].name === modelData.name) {
+                                            idx = i; break
+                                        }
+                                    }
+                                    if (idx >= 0) {
+                                        WallpaperRepoService.download(idx, function(localPath) {
+                                            if (localPath && localPath.length > 0) {
+                                                WallpaperServiceV5.selectWallpaper({
+                                                    path: localPath,
+                                                    url:  "file://" + localPath,
+                                                    name: modelData.name
+                                                })
+                                            }
+                                        })
+                                    }
+                                }
+                            } else {
+                                WallpaperServiceV5.selectWallpaper(modelData)
+                            }
                         }
                     }
                 }

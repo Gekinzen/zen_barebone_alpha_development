@@ -852,7 +852,10 @@ Rectangle {
                     model: [
                         { id: "wifi",      label: "Wi-Fi",     icon: "\uf1eb" },
                         { id: "bluetooth", label: "Bluetooth", icon: "\uf294" },
-                        { id: "audio",     label: "Audio",     icon: "\uf028" }
+                        { id: "audio",     label: "Audio",     icon: "\uf028" },
+                        // v6.16.2.3.2: Input tab — mouse sensitivity/scroll
+                        // live-controlled via MouseSettingsService.
+                        { id: "input",     label: "Input",     icon: "\uf245" }
                     ]
                     delegate: Rectangle {
                         required property var modelData
@@ -1177,6 +1180,164 @@ Rectangle {
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: ConnectivityService.openAudioSettings()
+                        }
+                    }
+
+                    Item { Layout.fillHeight: true }
+                }
+
+                // ─── v6.16.2.3.2: Input tab (mouse / touchpad) ───
+                // Live-applies via MouseSettingsService → hyprctl keyword.
+                // Persists to ~/.config/hypr/zen-mouse.conf (sourced by
+                // hyprland.conf) so changes survive Hyprland restarts.
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 12
+                    visible: root.expandedTab === "input"
+                    spacing: 14
+
+                    // Section label
+                    Text {
+                        text: "Mouse"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 13
+                        font.weight: Font.DemiBold
+                        color: ThemeService.fg
+                    }
+
+                    // Sensitivity slider  (-1.0 … +1.0)
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Text {
+                                text: "Sensitivity"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 11
+                                color: ThemeService.grey0
+                                Layout.fillWidth: true
+                            }
+                            Text {
+                                text: MouseSettingsService.sensitivity.toFixed(2)
+                                font.family: Theme.monoFont
+                                font.pixelSize: 11
+                                color: ThemeService.blue
+                            }
+                        }
+                        Slider {
+                            Layout.fillWidth: true
+                            from: -1.0; to: 1.0; stepSize: 0.05
+                            value: MouseSettingsService.sensitivity
+                            onMoved: {
+                                MouseSettingsService.sensitivity = value
+                                MouseSettingsService.apply(true)
+                            }
+                        }
+                    }
+
+                    // Scroll factor slider (0.1 … 3.0)
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Text {
+                                text: "Scroll speed"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 11
+                                color: ThemeService.grey0
+                                Layout.fillWidth: true
+                            }
+                            Text {
+                                text: MouseSettingsService.scrollFactor.toFixed(2) + "×"
+                                font.family: Theme.monoFont
+                                font.pixelSize: 11
+                                color: ThemeService.blue
+                            }
+                        }
+                        Slider {
+                            Layout.fillWidth: true
+                            from: 0.1; to: 3.0; stepSize: 0.1
+                            value: MouseSettingsService.scrollFactor
+                            onMoved: {
+                                MouseSettingsService.scrollFactor = value
+                                MouseSettingsService.apply(true)
+                            }
+                        }
+                    }
+
+                    // Natural scroll (mouse wheel)
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+                        Text {
+                            text: "Natural scroll"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 11
+                            color: ThemeService.fg
+                            Layout.fillWidth: true
+                        }
+                        Switch {
+                            checked: MouseSettingsService.naturalScroll
+                            onToggled: {
+                                MouseSettingsService.naturalScroll = checked
+                                MouseSettingsService.apply(true)
+                            }
+                        }
+                    }
+
+                    // Touchpad natural scroll (separate)
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+                        Text {
+                            text: "Touchpad natural scroll"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 11
+                            color: ThemeService.fg
+                            Layout.fillWidth: true
+                        }
+                        Switch {
+                            checked: MouseSettingsService.touchpadNaturalScroll
+                            onToggled: {
+                                MouseSettingsService.touchpadNaturalScroll = checked
+                                MouseSettingsService.apply(true)
+                            }
+                        }
+                    }
+
+                    // Reset button
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 32
+                        radius: 7
+                        color: resetInputMa.containsMouse
+                            ? ThemeService.alpha(ThemeService.fg, 0.14)
+                            : ThemeService.alpha(ThemeService.fg, 0.06)
+                        border.width: 1
+                        border.color: ThemeService.alpha(ThemeService.fg, 0.15)
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "Reset to defaults"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 11
+                            color: ThemeService.fgDim
+                        }
+
+                        MouseArea {
+                            id: resetInputMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                MouseSettingsService.sensitivity = 0.0
+                                MouseSettingsService.scrollFactor = 1.0
+                                MouseSettingsService.naturalScroll = false
+                                MouseSettingsService.touchpadNaturalScroll = false
+                                MouseSettingsService.apply(true)
+                            }
                         }
                     }
 

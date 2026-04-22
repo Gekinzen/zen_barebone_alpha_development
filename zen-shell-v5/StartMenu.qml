@@ -27,12 +27,39 @@ Rectangle {
     border.color: ma.containsMouse ? Theme.blue : Theme.bg1
     Behavior on color { ColorAnimation { duration: 200 } }
 
+    // v6.16.2: Custom logo support with auto-fit.
+    // Mode "auto" → distribution icon (original behavior).
+    // Mode "custom" → user-picked image at startButtonLogoPath, scaled
+    // to fit the button with preserved aspect ratio.
     Image {
+        id: logoImg
         anchors.centerIn: parent
         width: PanelState.startButtonIconSize
         height: PanelState.startButtonIconSize
-        source: Quickshell.iconPath("distributor-logo-archlinux")
-        sourceSize: Qt.size(PanelState.startButtonIconSize, PanelState.startButtonIconSize)
+        source: PanelState.startButtonLogoMode === "custom" && PanelState.startButtonLogoPath
+                ? "file://" + PanelState.startButtonLogoPath
+                : Quickshell.iconPath("distributor-logo-archlinux")
+        // v6.16.2: auto-fit preserves aspect ratio of user's custom image
+        // (PNG/SVG/JPG). For the distro icon this is a no-op since the
+        // icon is already square. smooth=true for better downscaling of
+        // high-res user images.
+        fillMode: Image.PreserveAspectFit
+        smooth: true
+        asynchronous: true
+        // Render at 2x internal resolution for crisp scaling
+        sourceSize: Qt.size(PanelState.startButtonIconSize * 2, PanelState.startButtonIconSize * 2)
+        // Optional theme tint for monochrome SVGs — opacity blend with
+        // the button's background color gives a tinted effect without
+        // requiring QtGraphicalEffects ColorOverlay or shader fragments
+        // that may not be available across all Quickshell builds.
+        opacity: PanelState.startButtonLogoMode === "custom" && PanelState.startButtonLogoTint
+                 ? 0.85
+                 : 1.0
+        // Fallback to distro icon if the user's custom image fails to load
+        onStatusChanged: if (status === Image.Error && PanelState.startButtonLogoMode === "custom") {
+            console.warn("[StartMenu] custom logo failed to load:", source, "falling back")
+            source = Quickshell.iconPath("distributor-logo-archlinux")
+        }
     }
 
     MouseArea {

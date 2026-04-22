@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 import Quickshell
+import Quickshell.Io
 
 /*
  * PanelPage v6 — Complete panel configuration
@@ -493,6 +494,127 @@ ScrollView {
                         font.family: Theme.fontFamily
                         font.pixelSize: 12
                         anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+            }
+
+            // ═══════════════════════════════════════════════════════
+            // v6.16.2: Custom logo picker
+            // ═══════════════════════════════════════════════════════
+            SettingRow {
+                label: "Start Button Logo"
+                description: "Auto (distribution icon) or a custom PNG/SVG/JPG"
+                Row {
+                    spacing: 8
+                    ComboBox {
+                        width: 180
+                        model: ["Auto (distro icon)", "Custom image"]
+                        readonly property var ids: ["auto", "custom"]
+                        currentIndex: Math.max(0, ids.indexOf(PanelState.startButtonLogoMode))
+                        onActivated: {
+                            PanelState.startButtonLogoMode = ids[currentIndex]
+                            PanelState.saveState()
+                        }
+                    }
+                    Image {
+                        width: 28; height: 28
+                        anchors.verticalCenter: parent.verticalCenter
+                        source: PanelState.startButtonLogoMode === "custom" && PanelState.startButtonLogoPath
+                            ? "file://" + PanelState.startButtonLogoPath
+                            : Quickshell.iconPath("distributor-logo-archlinux")
+                        fillMode: Image.PreserveAspectFit
+                        smooth: true
+                        sourceSize: Qt.size(56, 56)
+                    }
+                }
+            }
+
+            SettingRow {
+                label: "Logo Image Path"
+                description: "Absolute path to a PNG, SVG, or JPG file — auto-fits the button"
+                visible: PanelState.startButtonLogoMode === "custom"
+                Row {
+                    spacing: 8
+                    Rectangle {
+                        width: 320
+                        height: 32
+                        radius: 6
+                        color: ThemeService.alpha(ThemeService.fg, 0.06)
+                        border.width: 1
+                        border.color: ThemeService.alpha(ThemeService.fg, 0.15)
+
+                        TextInput {
+                            id: logoPathInput
+                            anchors.fill: parent
+                            anchors.leftMargin: 10
+                            anchors.rightMargin: 10
+                            verticalAlignment: TextInput.AlignVCenter
+                            text: PanelState.startButtonLogoPath
+                            color: ThemeService.fg
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 12
+                            selectByMouse: true
+                            clip: true
+                            onEditingFinished: {
+                                PanelState.startButtonLogoPath = text
+                                PanelState.saveState()
+                            }
+                        }
+                    }
+                    Rectangle {
+                        width: 80; height: 32; radius: 6
+                        color: browseMa.containsMouse
+                            ? ThemeService.alpha(ThemeService.blue, 0.3)
+                            : ThemeService.alpha(ThemeService.blue, 0.18)
+                        border.width: 1
+                        border.color: ThemeService.alpha(ThemeService.blue, 0.5)
+                        Text {
+                            anchors.centerIn: parent
+                            text: "Browse…"
+                            color: ThemeService.fg
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 11
+                        }
+                        MouseArea {
+                            id: browseMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: logoPicker.running = true
+                        }
+                    }
+                }
+            }
+
+            // zenity file picker for logo selection (writes path to a tmp
+            // file; we poll it via Process stdout)
+            Process {
+                id: logoPicker
+                running: false
+                command: ["bash", "-c",
+                    "zenity --file-selection --title='Select Start Button Logo' " +
+                    "--file-filter='Images | *.png *.svg *.jpg *.jpeg *.webp' " +
+                    "--file-filter='All | *'"]
+                stdout: StdioCollector {
+                    onStreamFinished: {
+                        const p = text.trim()
+                        if (p) {
+                            PanelState.startButtonLogoPath = p
+                            PanelState.saveState()
+                        }
+                    }
+                }
+            }
+
+            SettingRow {
+                label: "Theme Tint"
+                description: "Blend with theme foreground (helps monochrome SVG logos)"
+                visible: PanelState.startButtonLogoMode === "custom"
+                HMSwitch {
+                    checked: PanelState.startButtonLogoTint
+                    onToggled: {
+                        PanelState.startButtonLogoTint = !PanelState.startButtonLogoTint
+                        PanelState.saveState()
                     }
                 }
             }

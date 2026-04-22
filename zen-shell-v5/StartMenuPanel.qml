@@ -1,5 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Controls
+import Qt5Compat.GraphicalEffects
 import Quickshell
 import Quickshell.Io
 import Quickshell.Hyprland
@@ -23,18 +25,61 @@ Rectangle {
     signal appLaunched()
     signal powerActionRequested(string action, string command)
 
+    // v6.16.2.3.1: True while a blocking external dialog (zenity file
+    // picker) is open. shell.qml watches this and suspends the
+    // HyprlandFocusGrab so the StartMenu doesn't auto-close when
+    // zenity steals focus. Cleared when the Process exits.
+    property bool uploadInProgress: false
+
+    // v6.16.2 icons — Nerd Font Material Design glyphs
     readonly property string nfPin: "\uf0403"
     readonly property string nfUser: "\uf007"
-    readonly property string nfFolder: "\uf024b"
+    // v6.16.2 FIX: Previous value "\uf024b" was parsed by Qt as \uf024
+    // (FontAwesome 'flag' glyph) followed by literal 'b'. Correct Nerd
+    // Font folder codepoint is U+F07B (FontAwesome folder).
+    readonly property string nfFolder: "\uf07b"
     readonly property string nfSettings: "\uf013"
     readonly property string nfPower: "\u23fb"
     readonly property string nfSearch: "\uf002"
+    readonly property string nfPinFill: "\uf0403"    // filled pin for context menu
+    readonly property string nfPinOff: "\uf0402"     // unpin variant
+    readonly property string nfCalendar: "\uf073"    // for potential future use
 
     property var allApps: []
     property var pinnedAppIds: ["kitty", "firefox", "code", "thunar", "steam"]
     property string searchQuery: ""
     property bool appsLoaded: false
     property bool powerMenuOpen: false
+
+    // v6.16.2: Right-click context menu state
+    property bool contextMenuOpen: false
+    property string contextAppId: ""
+    property var contextApp: null
+    property int contextX: 0
+    property int contextY: 0
+    property bool contextFromPinned: false   // true = pinned tile, false = all-apps row
+
+    // v6.16.3: System info popover (fastfetch-style). Triggered by clicking
+    // the user avatar in the footer. Shows OS, kernel, CPU, GPU, theme, etc.
+    property bool sysInfoOpen: false
+
+    function openContextMenu(appId, app, globalX, globalY, fromPinned) {
+        contextAppId = appId
+        contextApp = app
+        contextFromPinned = fromPinned
+        // Clamp to panel bounds — menu is 200x variable
+        const menuW = 220
+        const menuH = fromPinned ? 100 : 140
+        contextX = Math.max(8, Math.min(globalX, menuRoot.width - menuW - 8))
+        contextY = Math.max(8, Math.min(globalY, menuRoot.height - menuH - 8))
+        contextMenuOpen = true
+    }
+
+    function closeContextMenu() {
+        contextMenuOpen = false
+        contextAppId = ""
+        contextApp = null
+    }
 
     Component.onCompleted: {
         loadApps()
@@ -192,13 +237,91 @@ Rectangle {
 
     Process { id: fallbackLauncher; running: false }
 
+    // v6.16.2 FUZZY FINDER:
+    // Old implementation used substring-only matching — "typing 'vcd'
+    // wouldn't match 'VSCode'. New fuzzy algorithm scores matches by:
+    //   1. Exact match (10000)       — name or id === query
+    //   2. Prefix match (5000-6000)  — name starts with query
+    //   3. Word-boundary match (2500) — query matches after space/hyphen
+    //   4. Subsequence match (500-1500) — characters appear in order,
+    //      scored by gap size + consecutiveness
+    //   5. Substring fallback (800)  — query appears as substring
+    //   6. Skip (0)                  — no match
+    // Results sorted by score descending, capped to top 50 for perf.
+    function _fuzzyScore(text, query) {
+        if (!text || !query) return 0
+        const t = text.toLowerCase()
+        const q = query.toLowerCase()
+
+        // Exact match — highest priority
+        if (t === q) return 10000
+
+        // Prefix — very high
+        if (t.startsWith(q)) {
+            // Shorter texts scored higher (more specific match)
+            return 6000 - Math.min(t.length - q.length, 100)
+        }
+
+        // Word boundary match — check if query starts after a space/hyphen/underscore
+        const wbMatch = new RegExp("(^|[\\s\\-_.])" + q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+        if (wbMatch.test(t)) return 2500
+
+        // Subsequence fuzzy match — "vcd" → "VsCoDe" (chars in order)
+        let ti = 0, qi = 0
+        let score = 0
+        let consecutive = 0
+        let lastMatchIdx = -1
+        while (ti < t.length && qi < q.length) {
+            if (t.charAt(ti) === q.charAt(qi)) {
+                // Consecutive char bonus
+                if (lastMatchIdx === ti - 1) {
+                    consecutive++
+                    score += 100 * consecutive
+                } else {
+                    consecutive = 0
+                    score += 30
+                }
+                // Penalize gap — earlier matches weighted more
+                if (qi === 0 && ti > 0) score -= ti * 2
+                lastMatchIdx = ti
+                qi++
+            }
+            ti++
+        }
+        if (qi === q.length) {
+            // Full subsequence match — base + accumulated bonuses
+            return 500 + score
+        }
+
+        // Plain substring fallback — lower priority than subsequence
+        if (t.includes(q)) return 800
+
+        return 0
+    }
+
     function filteredApps() {
         if (!searchQuery || searchQuery === "") return allApps
-        const q = searchQuery.toLowerCase()
-        return allApps.filter(app => {
-            return app.name.toLowerCase().includes(q) ||
-                   app.id.toLowerCase().includes(q)
+        const q = searchQuery
+
+        // Score every app by max(name score, id score, exec score)
+        const scored = []
+        for (let i = 0; i < allApps.length; i++) {
+            const app = allApps[i]
+            const nameScore = _fuzzyScore(app.name, q)
+            const idScore   = _fuzzyScore(app.id, q) * 0.9   // id slightly less weighted
+            const execScore = app.exec ? _fuzzyScore(app.exec, q) * 0.6 : 0
+            const score = Math.max(nameScore, idScore, execScore)
+            if (score > 0) scored.push({ app: app, score: score })
+        }
+
+        // Sort by score descending, tie-break alphabetically
+        scored.sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score
+            return a.app.name.localeCompare(b.app.name)
         })
+
+        // Cap to 50 results for rendering perf
+        return scored.slice(0, 50).map(s => s.app)
     }
 
     Keys.onEscapePressed: closeRequested()
@@ -279,13 +402,15 @@ Rectangle {
                                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                                 onClicked: (mouse) => {
                                     if (mouse.button === Qt.LeftButton) {
-                                        // Try DesktopEntry first, fall back to the app object itself
-                                        // (which may carry execCmd in fallback mode)
                                         const app = menuRoot.findAppById(appId)
                                         if (entry) menuRoot.launchApp(entry)
                                         else if (app) menuRoot.launchApp(app)
                                     } else {
-                                        menuRoot.unpinApp(appId)
+                                        // v6.16.2: right-click → context menu
+                                        const pos = mapToItem(menuRoot, mouse.x, mouse.y)
+                                        const app = menuRoot.findAppById(appId)
+                                        menuRoot.openContextMenu(appId, app || {name: appId, id: appId, entry: entry},
+                                                                 pos.x, pos.y, true)
                                     }
                                 }
                             }
@@ -433,15 +558,13 @@ Rectangle {
                             acceptedButtons: Qt.LeftButton | Qt.RightButton
                             onClicked: (mouse) => {
                                 if (mouse.button === Qt.LeftButton) {
-                                    // Prefer DesktopEntry, fall back to modelData
-                                    // itself (which carries execCmd in fallback mode).
                                     if (modelData.entry) menuRoot.launchApp(modelData.entry)
                                     else menuRoot.launchApp(modelData)
                                 } else {
-                                    if (menuRoot.isPinned(modelData.id))
-                                        menuRoot.unpinApp(modelData.id)
-                                    else
-                                        menuRoot.pinApp(modelData.id)
+                                    // v6.16.2: right-click → context menu
+                                    const pos = mapToItem(menuRoot, mouse.x, mouse.y)
+                                    menuRoot.openContextMenu(modelData.id, modelData,
+                                                             pos.x, pos.y, false)
                                 }
                             }
                         }
@@ -470,29 +593,94 @@ Rectangle {
                 anchors.rightMargin: 20
                 spacing: 12
 
+                // v6.16.3: User avatar circle.
+                // Shows auto-detected photo from /var/lib/AccountsService/icons,
+                // ~/.face, SDDM/GDM face files, or user-uploaded custom avatar.
+                // Click toggles a system-info popover (fastfetch-style).
                 Rectangle {
-                    width: 32
-                    height: 32
-                    radius: 16
+                    id: avatarWrap
+                    width: 36
+                    height: 36
+                    radius: width / 2
                     color: Theme.alpha(Theme.blue, 0.2)
                     border.width: 2
-                    border.color: Theme.alpha(Theme.blue, 0.4)
+                    border.color: avatarMa.containsMouse
+                        ? Theme.blue
+                        : Theme.alpha(Theme.blue, 0.4)
+                    Behavior on border.color { ColorAnimation { duration: 150 } }
+                    antialiasing: true
 
+                    // v6.16.2.3: shader-based circular mask (FBO approach
+                    // didn't reliably render as circle in Paul's Quickshell
+                    // build — fragment shader with UV distance test works
+                    // across all backends).
+                    Image {
+                        id: avatarImg
+                        anchors.fill: parent
+                        anchors.margins: 2
+                        source: UserProfileService.effectiveAvatarSource
+                        fillMode: Image.PreserveAspectCrop
+                        smooth: true
+                        mipmap: true
+                        asynchronous: true
+                        cache: false
+                        sourceSize: Qt.size(72, 72)
+                        visible: false
+                        onStatusChanged: console.log("[FooterAvatar] status=" + status + " src=" + source)
+                    }
+                    Rectangle {
+                        id: avatarImgMask
+                        anchors.fill: avatarImg
+                        radius: width / 2
+                        color: "white"
+                        visible: false
+                    }
+                    OpacityMask {
+                        anchors.fill: avatarImg
+                        source: avatarImg
+                        maskSource: avatarImgMask
+                        visible: avatarImg.status === Image.Ready
+                              && avatarImg.source.toString().length > 0
+                    }
+
+                    // Fallback glyph when no photo available
                     Text {
                         anchors.centerIn: parent
                         text: menuRoot.nfUser
                         color: Theme.blue
                         font.family: Theme.monoFont
-                        font.pixelSize: 14
+                        font.pixelSize: 16
+                        visible: !avatarImg.visible
+                    }
+
+                    MouseArea {
+                        id: avatarMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: menuRoot.sysInfoOpen = !menuRoot.sysInfoOpen
                     }
                 }
 
-                Text {
-                    text: Quickshell.env("USER") || "User"
-                    color: Theme.fgDim
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 14
-                    font.bold: true
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 0
+                    Text {
+                        text: UserProfileService.userName
+                        color: Theme.fg
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 13
+                        font.bold: true
+                    }
+                    Text {
+                        text: UserProfileService.hostname
+                               ? ("@" + UserProfileService.hostname)
+                               : ""
+                        color: Theme.fgDim
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 10
+                        visible: text.length > 0
+                    }
                 }
 
                 Item { Layout.fillWidth: true }
@@ -704,6 +892,554 @@ Rectangle {
         // (Power menu moved to a right-anchored popover attached to the power
         // button — see powerPopover above. This keeps the start menu visually
         // stable and aligns with the HyprMod / Event Horizon interaction model.)
+    }   // close main ColumnLayout — context menu below is a SIBLING
+
+    // ═══════════════════════════════════════════════════════════════
+    // v6.16.3 SYSTEM INFO POPOVER (fastfetch-style)
+    // Triggered by clicking the user avatar in the footer. Floats over
+    // the panel showing OS, kernel, CPU, GPU, theme, uptime, etc.
+    // ═══════════════════════════════════════════════════════════════
+    MouseArea {
+        id: sysInfoBackdrop
+        anchors.fill: parent
+        visible: menuRoot.sysInfoOpen
+        z: 95
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        onClicked: menuRoot.sysInfoOpen = false
     }
+
+    Rectangle {
+        id: sysInfoPanel
+        visible: menuRoot.sysInfoOpen
+        z: 96
+        // Anchor above the footer user row, left-aligned to avatar
+        x: 20
+        y: parent.height - 200 - 72   // 72 = footer height; 200 = this panel
+        width: 380
+        height: Math.min(sysInfoCol.implicitHeight + 24, 420)
+        radius: Math.max(8, (Theme.panelRadius || 12) * 0.6)
+        color: Theme.alpha(Theme.bg0 || "#1e1e1e", 0.98)
+        border.width: 1
+        border.color: Theme.alpha(Theme.fg, 0.14)
+        opacity: menuRoot.sysInfoOpen ? 1 : 0
+        scale: menuRoot.sysInfoOpen ? 1 : 0.95
+        transformOrigin: Item.BottomLeft
+
+        Behavior on opacity { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+        Behavior on scale   { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+
+        // Drop shadow
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: -1
+            radius: parent.radius + 1
+            color: "#000000"
+            opacity: 0.3
+            z: -1
+        }
+
+        ColumnLayout {
+            id: sysInfoCol
+            anchors.fill: parent
+            anchors.margins: 14
+            spacing: 6
+
+            // Header row: large avatar + user@host + distro
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 12
+
+                Rectangle {
+                    Layout.preferredWidth: 52
+                    Layout.preferredHeight: 52
+                    radius: width / 2
+                    color: Theme.alpha(Theme.blue, 0.2)
+                    border.width: 2
+                    border.color: Theme.alpha(Theme.blue, 0.5)
+                    antialiasing: true
+
+                    Image {
+                        id: popAvatarImg
+                        anchors.fill: parent
+                        anchors.margins: 2
+                        source: UserProfileService.effectiveAvatarSource
+                        fillMode: Image.PreserveAspectCrop
+                        smooth: true
+                        mipmap: true
+                        asynchronous: true
+                        cache: false
+                        sourceSize: Qt.size(104, 104)
+                        visible: false
+                        onStatusChanged: console.log("[PopoverAvatar] status=" + status + " src=" + source)
+                    }
+                    Rectangle {
+                        id: popAvatarImgMask
+                        anchors.fill: popAvatarImg
+                        radius: width / 2
+                        color: "white"
+                        visible: false
+                    }
+                    OpacityMask {
+                        anchors.fill: popAvatarImg
+                        source: popAvatarImg
+                        maskSource: popAvatarImgMask
+                        visible: popAvatarImg.status === Image.Ready
+                              && popAvatarImg.source.toString().length > 0
+                    }
+                    Text {
+                        anchors.centerIn: parent
+                        text: menuRoot.nfUser
+                        color: Theme.blue
+                        font.family: Theme.monoFont
+                        font.pixelSize: 22
+                        visible: !popAvatarImg.visible
+                    }
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 2
+                    Text {
+                        text: UserProfileService.userName +
+                              (UserProfileService.hostname
+                                ? "@" + UserProfileService.hostname : "")
+                        color: Theme.fg
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 14
+                        font.bold: true
+                        elide: Text.ElideRight
+                        Layout.fillWidth: true
+                    }
+                    Text {
+                        text: UserProfileService.osName +
+                              (UserProfileService.osVersion
+                                ? " " + UserProfileService.osVersion : "")
+                        color: Theme.blue
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 11
+                        elide: Text.ElideRight
+                        Layout.fillWidth: true
+                    }
+                    Text {
+                        text: "up " + (UserProfileService.uptime || "…")
+                        color: Theme.fgDim
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 10
+                    }
+                }
+            }
+
+            // Separator
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 1
+                color: Theme.alpha(Theme.fg, 0.1)
+                Layout.topMargin: 4
+                Layout.bottomMargin: 4
+            }
+
+            // Specs grid — key / value rows
+            GridLayout {
+                Layout.fillWidth: true
+                columns: 2
+                columnSpacing: 12
+                rowSpacing: 5
+
+                Text { text: "Kernel"; color: Theme.blue; font.family: Theme.fontFamily; font.pixelSize: 11; font.bold: true }
+                Text {
+                    Layout.fillWidth: true
+                    text: UserProfileService.kernelVersion || "…"
+                    color: Theme.fg; font.family: Theme.fontFamily; font.pixelSize: 11
+                    elide: Text.ElideRight
+                }
+
+                Text { text: "CPU"; color: Theme.blue; font.family: Theme.fontFamily; font.pixelSize: 11; font.bold: true }
+                Text {
+                    Layout.fillWidth: true
+                    text: UserProfileService.cpuModel
+                    color: Theme.fg; font.family: Theme.fontFamily; font.pixelSize: 11
+                    elide: Text.ElideRight
+                }
+
+                Text {
+                    text: UserProfileService.gpuNames.length > 1 ? "GPUs" : "GPU"
+                    color: Theme.blue; font.family: Theme.fontFamily; font.pixelSize: 11; font.bold: true
+                    visible: UserProfileService.gpuNames.length > 0
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: UserProfileService.gpuNames.join(" · ")
+                    color: Theme.fg; font.family: Theme.fontFamily; font.pixelSize: 11
+                    elide: Text.ElideRight
+                    wrapMode: Text.WordWrap
+                    visible: UserProfileService.gpuNames.length > 0
+                }
+
+                Text { text: "WM"; color: Theme.blue; font.family: Theme.fontFamily; font.pixelSize: 11; font.bold: true }
+                // v6.16.2.3.2: Hover tooltip shows the FULL Hyprland version
+                // string (commit hash, branch, etc.). Without this the row
+                // ellipses to "...built from branch v0.54.3 at c..." with
+                // no way to see the rest. ToolTip is a Quick Controls
+                // attachment that fires after a short hover delay.
+                Item {
+                    Layout.fillWidth: true
+                    implicitHeight: wmText.implicitHeight
+                    Text {
+                        id: wmText
+                        anchors.fill: parent
+                        text: "Hyprland " + (UserProfileService.hyprlandVersion || "")
+                        color: Theme.fg; font.family: Theme.fontFamily; font.pixelSize: 11
+                        elide: Text.ElideRight
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    ToolTip.visible: wmHoverMa.containsMouse
+                                     && (wmText.truncated
+                                         || UserProfileService.hyprlandVersion.length > 30)
+                    ToolTip.delay: 350
+                    ToolTip.text: "Hyprland " + (UserProfileService.hyprlandVersion || "(unknown)")
+                    MouseArea {
+                        id: wmHoverMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        acceptedButtons: Qt.NoButton
+                    }
+                }
+
+                Text { text: "Shell"; color: Theme.blue; font.family: Theme.fontFamily; font.pixelSize: 11; font.bold: true }
+                Text {
+                    Layout.fillWidth: true
+                    text: "Zen Shell · Quickshell"
+                    color: Theme.fg; font.family: Theme.fontFamily; font.pixelSize: 11
+                }
+
+                Text { text: "Theme"; color: Theme.blue; font.family: Theme.fontFamily; font.pixelSize: 11; font.bold: true }
+                Text {
+                    Layout.fillWidth: true
+                    text: UserProfileService.themeName
+                    color: Theme.fg; font.family: Theme.fontFamily; font.pixelSize: 11
+                    elide: Text.ElideRight
+                }
+            }
+
+            // Color palette preview (theme-synced)
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 16
+                Layout.topMargin: 6
+                color: "transparent"
+                Row {
+                    anchors.fill: parent
+                    spacing: 2
+                    Repeater {
+                        model: [
+                            Theme.bg0, Theme.bg1 || Theme.bg0,
+                            Theme.fg, Theme.fgDim,
+                            Theme.blue, Theme.alpha(Theme.blue, 0.6)
+                        ]
+                        delegate: Rectangle {
+                            required property var modelData
+                            width: 36
+                            height: 16
+                            radius: 3
+                            color: modelData
+                        }
+                    }
+                }
+            }
+
+            // Change avatar button row
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: 4
+                spacing: 6
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 30
+                    radius: 6
+                    color: changeAvatarMa.containsMouse
+                        ? Theme.alpha(Theme.blue, 0.25)
+                        : Theme.alpha(Theme.blue, 0.12)
+                    border.width: 1
+                    border.color: Theme.alpha(Theme.blue, 0.4)
+                    Text {
+                        anchors.centerIn: parent
+                        text: UserProfileService.customAvatarPath
+                              ? "Change avatar"
+                              : "Upload custom avatar"
+                        color: Theme.fg
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 11
+                    }
+                    MouseArea {
+                        id: changeAvatarMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: avatarPicker.running = true
+                    }
+                }
+
+                Rectangle {
+                    visible: UserProfileService.customAvatarPath.length > 0
+                    Layout.preferredWidth: 30
+                    Layout.preferredHeight: 30
+                    radius: 6
+                    color: resetAvatarMa.containsMouse
+                        ? Theme.alpha(Theme.fg, 0.18)
+                        : Theme.alpha(Theme.fg, 0.08)
+                    Text {
+                        anchors.centerIn: parent
+                        text: "↺"
+                        color: Theme.fgDim
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 13
+                    }
+                    MouseArea {
+                        id: resetAvatarMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: UserProfileService.clearCustomAvatar()
+                    }
+                }
+            }
+        }
+    }
+
+    // Avatar picker via zenity file dialog
+    // v6.16.2.3.1: Flip `uploadInProgress` around the Process lifecycle
+    // so shell.qml's HyprlandFocusGrab is suspended while zenity is up.
+    // Without this, zenity steals keyboard/pointer focus → FocusGrab
+    // onCleared fires → StartMenu closes before the user can pick a file.
+    Process {
+        id: avatarPicker
+        running: false
+        command: ["bash", "-c",
+            "zenity --file-selection --title='Select Avatar' " +
+            "--file-filter='Images | *.png *.jpg *.jpeg *.webp' 2>/dev/null || true"]
+        onRunningChanged: menuRoot.uploadInProgress = running
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const p = text.trim()
+                if (p) UserProfileService.setCustomAvatar(p)
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // v6.16.2 RIGHT-CLICK CONTEXT MENU
+    // Rendered as a sibling of the main ColumnLayout so it overlays
+    // everything else. Backdrop catches outside clicks to dismiss.
+    // ═══════════════════════════════════════════════════════════════
+    MouseArea {
+        id: ctxBackdrop
+        anchors.fill: parent
+        visible: menuRoot.contextMenuOpen
+        z: 99
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        onClicked: menuRoot.closeContextMenu()
+    }
+
+    Rectangle {
+        id: contextMenu
+        visible: menuRoot.contextMenuOpen
+        z: 100
+        x: menuRoot.contextX
+        y: menuRoot.contextY
+        width: 220
+        height: ctxColumn.implicitHeight + 12
+        radius: Math.max(8, (Theme.panelRadius || 12) * 0.6)
+        color: Theme.alpha(Theme.bg0 || "#1e1e1e", 0.98)
+        border.width: 1
+        border.color: Theme.alpha(Theme.fg, 0.14)
+        opacity: menuRoot.contextMenuOpen ? 1 : 0
+        scale: menuRoot.contextMenuOpen ? 1 : 0.95
+        transformOrigin: Item.TopLeft
+
+        Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+        Behavior on scale   { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+
+        // Subtle drop-shadow illusion via lower-z sibling (no QtGraphicalEffects)
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: -1
+            radius: parent.radius + 1
+            color: "#000000"
+            opacity: 0.25
+            z: -1
+        }
+
+        ColumnLayout {
+            id: ctxColumn
+            anchors.fill: parent
+            anchors.margins: 6
+            spacing: 2
+
+            // Header — app name
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 30
+                spacing: 8
+
+                Image {
+                    Layout.preferredWidth: 18
+                    Layout.preferredHeight: 18
+                    Layout.leftMargin: 6
+                    source: (menuRoot.contextApp && menuRoot.contextApp.icon)
+                        ? Quickshell.iconPath(menuRoot.contextApp.icon)
+                        : Quickshell.iconPath("application-x-executable")
+                    sourceSize: Qt.size(18, 18)
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: menuRoot.contextApp ? menuRoot.contextApp.name : ""
+                    elide: Text.ElideRight
+                    color: Theme.fg
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 12
+                    font.bold: true
+                }
+            }
+
+            // Separator
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.leftMargin: 6; Layout.rightMargin: 6
+                Layout.preferredHeight: 1
+                color: Theme.alpha(Theme.fg, 0.08)
+            }
+
+            // Launch
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 30
+                radius: 6
+                color: launchMa.containsMouse ? Theme.alpha(Theme.fg, 0.1) : "transparent"
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    spacing: 8
+                    Text {
+                        text: "\uf0a9"   // arrow-circle-right
+                        color: Theme.blue
+                        font.family: Theme.monoFont
+                        font.pixelSize: 14
+                        Layout.preferredWidth: 18
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text: "Launch"
+                        color: Theme.fg
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                    }
+                }
+                MouseArea {
+                    id: launchMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (menuRoot.contextApp) {
+                            if (menuRoot.contextApp.entry)
+                                menuRoot.launchApp(menuRoot.contextApp.entry)
+                            else
+                                menuRoot.launchApp(menuRoot.contextApp)
+                        }
+                        menuRoot.closeContextMenu()
+                    }
+                }
+            }
+
+            // Pin / Unpin (dynamic)
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 30
+                radius: 6
+                color: pinMa.containsMouse ? Theme.alpha(Theme.fg, 0.1) : "transparent"
+                readonly property bool pinned: menuRoot.isPinned(menuRoot.contextAppId)
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    spacing: 8
+                    Text {
+                        text: parent.parent.pinned ? menuRoot.nfPinOff : menuRoot.nfPin
+                        color: parent.parent.pinned ? Theme.alpha(Theme.fg, 0.7) : Theme.blue
+                        font.family: Theme.monoFont
+                        font.pixelSize: 14
+                        Layout.preferredWidth: 18
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text: parent.parent.pinned ? "Unpin from Start" : "Pin to Start"
+                        color: Theme.fg
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                    }
+                }
+                MouseArea {
+                    id: pinMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (parent.pinned) menuRoot.unpinApp(menuRoot.contextAppId)
+                        else menuRoot.pinApp(menuRoot.contextAppId)
+                        menuRoot.closeContextMenu()
+                    }
+                }
+            }
+
+            // Copy command (helpful for power users)
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 30
+                radius: 6
+                visible: menuRoot.contextApp
+                         && (menuRoot.contextApp.execCmd || (menuRoot.contextApp.entry && menuRoot.contextApp.entry.exec))
+                color: copyMa.containsMouse ? Theme.alpha(Theme.fg, 0.1) : "transparent"
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    spacing: 8
+                    Text {
+                        text: "\uf0c5"   // copy icon
+                        color: Theme.alpha(Theme.fg, 0.7)
+                        font.family: Theme.monoFont
+                        font.pixelSize: 14
+                        Layout.preferredWidth: 18
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text: "Copy launch command"
+                        color: Theme.fg
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                    }
+                }
+                MouseArea {
+                    id: copyMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        const cmd = menuRoot.contextApp.execCmd ||
+                                   (menuRoot.contextApp.entry ? menuRoot.contextApp.entry.exec : "")
+                        if (cmd) {
+                            copyProc.command = ["bash", "-c",
+                                "printf '%s' " + JSON.stringify(cmd) + " | wl-copy 2>/dev/null || " +
+                                "printf '%s' " + JSON.stringify(cmd) + " | xclip -sel clip 2>/dev/null"]
+                            copyProc.running = true
+                        }
+                        menuRoot.closeContextMenu()
+                    }
+                }
+            }
+        }
+    }
+
+    // Process for clipboard copy (wl-copy / xclip)
+    Process { id: copyProc; running: false }
 }
 

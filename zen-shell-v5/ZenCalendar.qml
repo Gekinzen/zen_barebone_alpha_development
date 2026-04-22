@@ -34,12 +34,54 @@ Rectangle {
 
     width: 280
     height: calLayout.implicitHeight + 24
-    radius: 12
+    // v6.16.2: theme-synced radius — follows the active theme's panel
+    // rounding. Previously hardcoded 12 which didn't match square-style
+    // themes or larger-radius themes.
+    radius: Theme.panelRadius !== undefined ? Math.min(Theme.panelRadius, 16) : 12
     color: Qt.rgba(ThemeService.bg0.r, ThemeService.bg0.g, ThemeService.bg0.b, 0.96)
     border.width: 1
     border.color: ThemeService.alpha(ThemeService.fg, 0.12)
 
     Keys.onEscapePressed: closeRequested()
+
+    // v6.16.2.3.1: React to month-delta nudges from Clock.qml scroll wheel.
+    // We track the last consumed delta so we only apply the INCREMENTAL
+    // change (ignoring stale deltas from before this calendar opened).
+    property int _lastConsumedMonthDelta: 0
+    Connections {
+        target: PanelState
+        function onCalendarMonthDeltaChanged() {
+            const diff = PanelState.calendarMonthDelta - root._lastConsumedMonthDelta
+            if (diff === 0) return
+            root._lastConsumedMonthDelta = PanelState.calendarMonthDelta
+            // Apply the delta. Negative = go back, positive = go forward.
+            let m = root.viewMonth + diff
+            let y = root.viewYear
+            while (m < 0)  { m += 12; y -= 1 }
+            while (m > 11) { m -= 12; y += 1 }
+            root.viewMonth = m
+            root.viewYear  = y
+        }
+    }
+
+    // v6.16.2.3.1: Also accept scroll wheel directly on the calendar
+    // itself (so the user can scroll-navigate even once it's open and
+    // the cursor is on the calendar, not the clock).
+    // WheelHandler (not MouseArea.onWheel) for Qt6/Wayland reliability.
+    WheelHandler {
+        target: null
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        onWheel: (event) => {
+            const dir = event.angleDelta.y > 0 ? -1 : +1
+            let m = root.viewMonth + dir
+            let y = root.viewYear
+            if (m < 0)  { m += 12; y -= 1 }
+            if (m > 11) { m -= 12; y += 1 }
+            root.viewMonth = m
+            root.viewYear  = y
+            event.accepted = true
+        }
+    }
 
     // Build the 6×7 grid of day numbers for the current view month
     function buildDays() {

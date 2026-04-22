@@ -66,6 +66,9 @@ Rectangle {
         { id: "themes",      label: "Themes",             icon: "\udb80\udd0e" },  // palette 󰔎
         { header: "INPUT & DISPLAY" },
         { id: "displays",    label: "Displays",           icon: "\uf26c" },  // tv
+        // v6.16.2.3.2-hotfix: full Input page (mirrors Control Panel
+        // → Input tab; same backing service, both stay in sync).
+        { id: "input",       label: "Input",              icon: "\uf245" },  // mouse
         { id: "panel",       label: "Panel",              icon: "\uf03a" },  // list
         { id: "barmodules",  label: "Bar Modules",        icon: "\uf017" },  // clock
         { id: "sysrow",     label: "System Tray",        icon: "\uf2db" },  // cpu chip
@@ -75,6 +78,8 @@ Rectangle {
         { header: "SYSTEM" },
         // v6.16.0.2: Battery & Power page (previously unregistered — oversight)
         { id: "battery",     label: "Battery & Power",    icon: "\uf240" },  // battery
+        // v6.16.4: User Profile — avatar upload + system info
+        { id: "userprofile", label: "User Profile",       icon: "\uf007" },  // user
         { header: "OTHER" },
         { id: "widgets",     label: "Desktop Widgets",    icon: "\uf1b2" },  // cube
         { id: "wallpaper",   label: "Wallpaper",          icon: "\uf03e" }   // image
@@ -411,14 +416,16 @@ Rectangle {
                             case "animations":    return 2
                             case "themes":        return 3
                             case "displays":      return 4
-                            case "panel":         return 5
-                            case "barmodules":    return 6
-                            case "sysrow":        return 7
-                            case "connectivity":  return 8
-                            case "notifications": return 9
-                            case "battery":       return 10   // v6.16.0.2
-                            case "widgets":       return 11
-                            case "wallpaper":     return 12
+                            case "input":         return 5    // v6.16.2.3.2-hotfix
+                            case "panel":         return 6
+                            case "barmodules":    return 7
+                            case "sysrow":        return 8
+                            case "connectivity":  return 9
+                            case "notifications": return 10
+                            case "battery":       return 11   // v6.16.0.2 (was 10)
+                            case "userprofile":   return 12   // v6.16.4 (was 11)
+                            case "widgets":       return 13
+                            case "wallpaper":     return 14
                             default:              return 0
                         }
                     }
@@ -428,12 +435,14 @@ Rectangle {
                     AnimationsPage { }
                     ThemesPage { }
                     DisplaysPage { }
+                    InputPage { }                      // v6.16.2.3.2-hotfix (index 5)
                     PanelPage { }
                     BarModulesPage { }
                     SysRowPage { }
                     ConnectivityPage { }
                     NotificationPage { }
-                    BatterySettingsPage { }            // v6.16.0.2 (index 10)
+                    BatterySettingsPage { }            // v6.16.0.2 (now index 11)
+                    UserProfilePage { }                // v6.16.4 (now index 12)
                     WidgetsPage { }
                     WallpaperPage { }
                 }
