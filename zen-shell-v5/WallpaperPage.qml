@@ -145,7 +145,7 @@ ScrollView {
                 label: "Auto Change Wallpaper"
                 description: "Randomly cycle at intervals"
 
-                Switch {
+                HMSwitch {
                     checked: WallpaperServiceV5.slideshowEnabled
                     onToggled: WallpaperServiceV5.setSlideshow(checked)
                 }
@@ -172,7 +172,7 @@ ScrollView {
                 label: "Random Transition"
                 description: "Different effect each change"
 
-                Switch {
+                HMSwitch {
                     checked: WallpaperServiceV5.randomTransition
                     onToggled: WallpaperServiceV5.setRandomTransition(checked)
                 }

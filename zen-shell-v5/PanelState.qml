@@ -86,6 +86,28 @@ Singleton {
     // v6.11: Start button icon size (default 26)
     property int startButtonIconSize: 26
 
+    // v6.16.2.3: Calendar visibility state — shared singleton prop so
+    // Clock.qml (loaded in Bar context) can toggle without needing IPC.
+    // shell.qml binds calendarWindow.visible to this property.
+    property bool calendarVisible: false
+    function toggleCalendar() { calendarVisible = !calendarVisible }
+    function closeCalendar()  { calendarVisible = false }
+    function openCalendar()   { calendarVisible = true }
+
+    // v6.16.2.3.1: Calendar month navigation nudge. Clock's scroll wheel
+    // increments/decrements this; ZenCalendar watches it and applies the
+    // delta to its viewMonth/viewYear. A counter (not a direct month
+    // value) because ZenCalendar maintains its own view state and we
+    // just want to nudge it. Reset to 0 isn't needed — ZenCalendar
+    // consumes the delta then updates its own state.
+    property int calendarMonthDelta: 0
+
+    // v6.16.2: Start button logo customization
+    // Mode: "auto" (distribution icon) | "custom" (user-picked image)
+    property string startButtonLogoMode: "auto"
+    property string startButtonLogoPath: ""    // absolute path to PNG/SVG/JPG
+    property bool   startButtonLogoTint: false // if true, colorize with Theme.fg (for monochrome SVGs)
+
     // v6.11: Workspace dot sizes — active/inactive
     property int workspaceDotActive: 32
     property int workspaceDotInactive: 26
@@ -94,9 +116,16 @@ Singleton {
 
     // ── Signals ──
     signal stateChanged()
+    // v6.16.2.3.1: Emitted ONCE after the first successful JSON load.
+    // shell.qml listens for this to flip _shellReady (gating nuclear
+    // restart). Emitted from FileView.onLoaded after applyState runs.
+    signal panelStateLoaded()
 
     function saveState() {
         const state = {
+            // v6.16.0: version stamp used by applyState migration checks.
+            // Bump this when introducing a non-idempotent data migration.
+            saveVersion: "6.16.0",
             panelMode: panelMode,
             barHeight: barHeight,
             borderEnabled: borderEnabled,
@@ -115,6 +144,10 @@ Singleton {
             barTargetDisplay: barTargetDisplay,
             // v6.11
             startButtonIconSize: startButtonIconSize,
+            // v6.16.2
+            startButtonLogoMode: startButtonLogoMode,
+            startButtonLogoPath: startButtonLogoPath,
+            startButtonLogoTint: startButtonLogoTint,
             workspaceDotActive: workspaceDotActive,
             workspaceDotInactive: workspaceDotInactive,
             workspaceFontActive: workspaceFontActive,
@@ -157,12 +190,43 @@ Singleton {
             if (s.barTargetDisplay) barTargetDisplay = s.barTargetDisplay
             // v6.11
             if (typeof s.startButtonIconSize === "number") startButtonIconSize = s.startButtonIconSize
+            // v6.16.2
+            if (typeof s.startButtonLogoMode === "string") startButtonLogoMode = s.startButtonLogoMode
+            if (typeof s.startButtonLogoPath === "string") startButtonLogoPath = s.startButtonLogoPath
+            if (typeof s.startButtonLogoTint === "boolean") startButtonLogoTint = s.startButtonLogoTint
             if (typeof s.workspaceDotActive === "number") workspaceDotActive = s.workspaceDotActive
             if (typeof s.workspaceDotInactive === "number") workspaceDotInactive = s.workspaceDotInactive
             if (typeof s.workspaceFontActive === "number") workspaceFontActive = s.workspaceFontActive
             if (typeof s.workspaceFontInactive === "number") workspaceFontInactive = s.workspaceFontInactive
             // v6.15.1: Restore Theme properties that need to survive restart
-            if (s.barLayout && typeof s.barLayout === "object") Theme.barLayout = s.barLayout
+            if (s.barLayout && typeof s.barLayout === "object") {
+                // v6.16.0 MIGRATION: inject "battery" into right row if the
+                // saved layout predates v6.16.0. Without this, upgraders
+                // never see the battery module — their existing panel-state.json
+                // overrides the new Theme.qml default that has "battery" in it.
+                //
+                // Insert position: before "notifications" if present (natural
+                // spot next to tray/clock), else append to end of right row.
+                // Migration is idempotent (checks for existing "battery") and
+                // self-stamps with saveVersion so it only runs once per save.
+                var _layout = s.barLayout
+                var _savedVer = s.saveVersion || ""
+                var _needsBatt = !_savedVer || _savedVer < "6.16.0"
+                if (_needsBatt && _layout.right && _layout.right.indexOf("battery") < 0) {
+                    var _right = _layout.right.slice()
+                    var _notifIdx = _right.indexOf("notifications")
+                    if (_notifIdx >= 0) {
+                        _right.splice(_notifIdx, 0, "battery")
+                    } else {
+                        _right.push("battery")
+                    }
+                    _layout.right = _right
+                    console.log("[PanelState] v6.16.0 migration: injected 'battery' into barLayout.right")
+                    // Persist immediately so this runs only once
+                    Qt.callLater(root.saveState)
+                }
+                Theme.barLayout = _layout
+            }
             if (typeof s.barOpacity === "number") Theme.barOpacity = s.barOpacity
             if (typeof s.barRadius === "number") Theme.barRadius = s.barRadius
             if (s.styleMode) Theme.styleMode = s.styleMode
@@ -177,7 +241,12 @@ Singleton {
         id: stateLoader
         path: root.statePath
         blockLoading: false
-        onLoaded: root.applyState(this.text())
+        onLoaded: {
+            root.applyState(this.text())
+            // v6.16.2.3.1: Signal the shell that we've loaded. Used to
+            // gate nuclear-restart logic against startup transitions.
+            root.panelStateLoaded()
+        }
     }
 
     function setMode(mode) {

@@ -135,7 +135,8 @@ Item {
                             { key: "showRam",       label: "RAM",         icon: "\uefc5", desc: "Memory usage" },
                             { key: "showTemp",      label: "Temperature", icon: "\uf2c9", desc: "CPU/GPU temperature" },
                             { key: "showNetwork",   label: "Network",     icon: "󰤨",     desc: "WiFi / Ethernet status" },
-                            { key: "showBluetooth", label: "Bluetooth",   icon: "\uf293", desc: "Bluetooth devices" }
+                            { key: "showBluetooth", label: "Bluetooth",   icon: "\uf293", desc: "Bluetooth devices" },
+                            { key: "showBattery",   label: "Battery",     icon: "\uf240", desc: "Battery level + charging (laptops only — auto-hides on desktop)" }
                         ]
 
                         SettingRow {
@@ -143,28 +144,13 @@ Item {
                             label: modelData.icon + "  " + modelData.label
                             description: modelData.desc
 
-                            Rectangle {
-                                width: 42; height: 22; radius: 11
-                                color: SysRowState[modelData.key]
-                                       ? ThemeService.alpha(ThemeService.green, 0.85)
-                                       : ThemeService.alpha(ThemeService.fg, 0.15)
-
-                                Behavior on color { ColorAnimation { duration: 150 } }
-
-                                Rectangle {
-                                    width: 18; height: 18; radius: 9
-                                    color: ThemeService.fg; y: 2
-                                    x: SysRowState[modelData.key] ? parent.width - width - 2 : 2
-                                    Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                                }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        SysRowState[modelData.key] = !SysRowState[modelData.key]
-                                        SysRowState.saveState()
-                                    }
+                            HMSwitch {
+                                compact: true
+                                activeColor: ThemeService.alpha(ThemeService.green, 0.85)
+                                checked: SysRowState[modelData.key]
+                                onToggled: {
+                                    SysRowState[modelData.key] = !SysRowState[modelData.key]
+                                    SysRowState.saveState()
                                 }
                             }
                         }

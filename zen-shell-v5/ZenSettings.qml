@@ -66,12 +66,20 @@ Rectangle {
         { id: "themes",      label: "Themes",             icon: "\udb80\udd0e" },  // palette 󰔎
         { header: "INPUT & DISPLAY" },
         { id: "displays",    label: "Displays",           icon: "\uf26c" },  // tv
+        // v6.16.2.3.2-hotfix: full Input page (mirrors Control Panel
+        // → Input tab; same backing service, both stay in sync).
+        { id: "input",       label: "Input",              icon: "\uf245" },  // mouse
         { id: "panel",       label: "Panel",              icon: "\uf03a" },  // list
         { id: "barmodules",  label: "Bar Modules",        icon: "\uf017" },  // clock
         { id: "sysrow",     label: "System Tray",        icon: "\uf2db" },  // cpu chip
         { header: "CONNECTIVITY" },
         { id: "connectivity", label: "Sound & Network",   icon: "\uf1eb" },  // wifi
         { id: "notifications", label: "Notifications",    icon: "\uf0f3" },  // bell
+        { header: "SYSTEM" },
+        // v6.16.0.2: Battery & Power page (previously unregistered — oversight)
+        { id: "battery",     label: "Battery & Power",    icon: "\uf240" },  // battery
+        // v6.16.4: User Profile — avatar upload + system info
+        { id: "userprofile", label: "User Profile",       icon: "\uf007" },  // user
         { header: "OTHER" },
         { id: "widgets",     label: "Desktop Widgets",    icon: "\uf1b2" },  // cube
         { id: "wallpaper",   label: "Wallpaper",          icon: "\uf03e" }   // image
@@ -228,33 +236,70 @@ Rectangle {
                     Layout.topMargin: 4
                 }
 
-                // Nav items (with section headers)
-                Repeater {
-                    model: root.navItems
-                    delegate: Item {
-                        id: navEntry
-                        required property var modelData
+                // v6.16.0.2 (fixed v6.16.1.2): Scrollable nav area.
+                // Initial ScrollView wrapper in v6.16.0.2 had two bugs:
+                //   1) `width: parent.parent.availableWidth` didn't
+                //      resolve — parent.parent is the ScrollView's
+                //      contentItem, not the ScrollView. Result: zero
+                //      or undefined width → icons got clipped at the
+                //      left edge of the sidebar, "Decoration" rendered
+                //      as " ecoration" etc.
+                //   2) ScrollView's internal Flickable was eating
+                //      press events before they reached the nav
+                //      MouseAreas — clicks appeared to do nothing.
+                //
+                // Fixed by switching to Flickable directly (explicit
+                // control over dimensions + interactive flag) and
+                // anchoring the inner ColumnLayout to the Flickable's
+                // contentItem with proper width binding.
+                Flickable {
+                    id: navFlick
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    contentWidth: navFlick.width
+                    contentHeight: navCol.implicitHeight
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    // Only scroll when content actually overflows — prevents
+                    // accidental "flick" of a short nav list.
+                    interactive: contentHeight > height
 
-                        readonly property bool isHeader: modelData.header !== undefined
-                        readonly property bool active: !isHeader && root.currentPage === modelData.id
+                    ScrollBar.vertical: ScrollBar {
+                        policy: ScrollBar.AsNeeded
+                    }
 
-                        Layout.fillWidth: true
-                        implicitHeight: isHeader ? 28 : 38
+                    ColumnLayout {
+                        id: navCol
+                        width: navFlick.width
+                        spacing: 2
 
-                        // SECTION HEADER (uppercase small text)
-                        Text {
-                            visible: navEntry.isHeader
-                            anchors.left: parent.left
-                            anchors.bottom: parent.bottom
-                            anchors.leftMargin: 4
-                            anchors.bottomMargin: 4
-                            text: navEntry.modelData.header || ""
-                            font.family: Theme.fontFamily
-                            font.pixelSize: 10
-                            font.weight: Font.DemiBold
-                            font.letterSpacing: 0.8
-                            color: ThemeService.grey0
-                        }
+                        // Nav items (with section headers)
+                        Repeater {
+                            model: root.navItems
+                            delegate: Item {
+                                id: navEntry
+                                required property var modelData
+
+                                readonly property bool isHeader: modelData.header !== undefined
+                                readonly property bool active: !isHeader && root.currentPage === modelData.id
+
+                                Layout.fillWidth: true
+                                implicitHeight: isHeader ? 28 : 38
+
+                                // SECTION HEADER (uppercase small text)
+                                Text {
+                                    visible: navEntry.isHeader
+                                    anchors.left: parent.left
+                                    anchors.bottom: parent.bottom
+                                    anchors.leftMargin: 4
+                                    anchors.bottomMargin: 4
+                                    text: navEntry.modelData.header || ""
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: 10
+                                    font.weight: Font.DemiBold
+                                    font.letterSpacing: 0.8
+                                    color: ThemeService.grey0
+                                }
 
                         // NAV ITEM
                         Rectangle {
@@ -303,9 +348,9 @@ Rectangle {
                             }
                         }
                     }
-                }
-
-                Item { Layout.fillHeight: true }
+                        }
+                    }
+                }  // close Flickable
 
                 // Footer — current theme indicator
                 Rectangle {
@@ -371,13 +416,16 @@ Rectangle {
                             case "animations":    return 2
                             case "themes":        return 3
                             case "displays":      return 4
-                            case "panel":         return 5
-                            case "barmodules":    return 6
-                            case "sysrow":        return 7
-                            case "connectivity":  return 8
-                            case "notifications": return 9
-                            case "widgets":       return 10
-                            case "wallpaper":     return 11
+                            case "input":         return 5    // v6.16.2.3.2-hotfix
+                            case "panel":         return 6
+                            case "barmodules":    return 7
+                            case "sysrow":        return 8
+                            case "connectivity":  return 9
+                            case "notifications": return 10
+                            case "battery":       return 11   // v6.16.0.2 (was 10)
+                            case "userprofile":   return 12   // v6.16.4 (was 11)
+                            case "widgets":       return 13
+                            case "wallpaper":     return 14
                             default:              return 0
                         }
                     }
@@ -387,11 +435,14 @@ Rectangle {
                     AnimationsPage { }
                     ThemesPage { }
                     DisplaysPage { }
+                    InputPage { }                      // v6.16.2.3.2-hotfix (index 5)
                     PanelPage { }
                     BarModulesPage { }
                     SysRowPage { }
                     ConnectivityPage { }
                     NotificationPage { }
+                    BatterySettingsPage { }            // v6.16.0.2 (now index 11)
+                    UserProfilePage { }                // v6.16.4 (now index 12)
                     WidgetsPage { }
                     WallpaperPage { }
                 }

@@ -11,8 +11,14 @@ import QtQuick
  * Reads from /proc/stat, /proc/meminfo, /sys/class/hwmon, etc.
  * No Python or psutil dependency. Updates every 2 seconds.
  *
+ * v6.16.0: Added battery section (/sys/class/power_supply/BAT*) +
+ * swaync notifications at 30% warning and 10% critical (with hysteresis
+ * so notifications only fire once per threshold crossing). batteryPresent
+ * stays false on desktops so UI components can hide cleanly.
+ *
  * Bar modules bind to: cpuPercent, cpuTemp, gpuTemp, gpuUsage,
- * ramPercent, ramUsedGb, ramTotalGb, netDown, netUp
+ * ramPercent, ramUsedGb, ramTotalGb, netDown, netUp,
+ * batteryCapacity, batteryStatus, batteryCharging, batteryPresent
  */
 Singleton {
     id: root
@@ -30,10 +36,52 @@ Singleton {
     property string gpuName: "GPU"
     property string gpuType: "unknown"  // "amd" | "nvidia" | "intel" | "unknown"
 
+    // ── v6.16.1: Multi-GPU support ──
+    // Extends the single-GPU model above without removing it. The first
+    // entry in gpus[] mirrors gpuUsage/gpuTemp/etc (primary GPU). Additional
+    // entries represent secondary/discrete GPUs. DesktopWidgets tabs bind
+    // to gpus[n].
+    //
+    // Each entry:
+    //   { index, name, type, usage, temp, vramUsed, vramTotal, history, driver }
+    // where history is a Nth-sample array (40 points) for sparklines.
+    //
+    // On single-GPU systems, gpus.length === 1. On multi-GPU (Optimus
+    // laptops like Paul's ROG, or dual-card workstations), gpus.length >= 2.
+    property var gpus: []
+    property int gpuCount: 0   // convenience: gpus.length
+
     // ── RAM ──
     property int ramPercent: 0
     property real ramUsedGb: 0
     property real ramTotalGb: 0
+
+    // ── v6.16.0: Battery ──
+    // batteryPresent = false on desktops (no BAT0/BAT1 under /sys/class/power_supply).
+    // UI components bind to batteryPresent to hide cleanly on desktops.
+    //
+    // batteryStatus mirrors the kernel's status string: "Charging",
+    // "Discharging", "Full", "Not charging", "Unknown".
+    //
+    // batteryCharging is derived: true if status is "Charging", else false.
+    // (Keeps consumers simple — they don't have to parse the string.)
+    //
+    // batteryCriticalNotified / batteryWarningNotified are debounce flags
+    // so we only fire one notification per threshold crossing. Reset when
+    // the battery climbs back above threshold+5 (hysteresis).
+    property bool batteryPresent: false
+    property int batteryCapacity: 0
+    property string batteryStatus: "Unknown"
+    property bool batteryCharging: false
+    property real batteryPowerDraw: 0.0           // watts (0 if unknown)
+    property string batteryTimeRemaining: ""      // human-readable (from upower)
+    property string batteryDevice: ""             // e.g. "BAT0" / "BAT1" / ""
+
+    // Notification debounce state
+    property bool _batteryWarningFired: false
+    property bool _batteryCriticalFired: false
+    property int batteryWarningThreshold: 30
+    property int batteryCriticalThreshold: 10
 
     // ── Network ──
     property string netDown: "0 B/s"
@@ -124,9 +172,47 @@ Singleton {
             "  nvidia-smi --query-gpu=temperature.gpu,utilization.gpu,memory.used,memory.total,name " +
             "  --format=csv,noheader,nounits 2>/dev/null; " +
 
+            // v6.16.1: Enumerate ALL GPUs (for multi-GPU widget tabs).
+            // Output format: idx|vendor|name, one line per GPU card.
+            // vendor: "amd" | "nvidia" | "intel" | "unknown"
+            // idx corresponds to /dev/dri/cardN.
+            "echo '---GPU_LIST---'; " +
+            "i=0; for d in /sys/class/drm/card[0-9]*; do " +
+            "  [ -d \"$d\" ] || continue; " +
+            "  [ -f \"$d/device/vendor\" ] || continue; " +
+            "  v=$(cat $d/device/vendor 2>/dev/null); " +
+            "  case \"$v\" in " +
+            "    0x1002) vendor=amd ;; " +
+            "    0x10de) vendor=nvidia ;; " +
+            "    0x8086) vendor=intel ;; " +
+            "    *) vendor=unknown ;; " +
+            "  esac; " +
+            "  gpu_name=$(lspci -s $(basename $(readlink $d/device) 2>/dev/null) 2>/dev/null | " +
+            "    sed -n 's/.*: //p' | sed -n 's/ (rev.*//p' | head -c 60); " +
+            "  [ -z \"$gpu_name\" ] && gpu_name=\"Unknown\"; " +
+            "  echo \"${i}|${vendor}|${gpu_name}\"; " +
+            "  i=$((i+1)); " +
+            "done; " +
+
             "echo '---NET---'; " +
             "awk '/^\\s*(eth|wlan|enp|wlp)/' /proc/net/dev 2>/dev/null | " +
             "  awk '{rx+=$2; tx+=$10} END {print rx, tx}'; " +
+
+            // v6.16.0: Battery — picks first BAT* under /sys/class/power_supply.
+            // If none exist, section is empty → batteryPresent stays false.
+            // Reads capacity (%), status, power_now (µW → W), energy_now/full
+            // for time-remaining estimation.
+            "echo '---BATTERY---'; " +
+            "for b in /sys/class/power_supply/BAT*; do " +
+            "  [ -d \"$b\" ] || continue; " +
+            "  echo \"device=$(basename $b)\"; " +
+            "  [ -f \"$b/capacity\" ] && echo \"capacity=$(cat $b/capacity 2>/dev/null)\"; " +
+            "  [ -f \"$b/status\" ] && echo \"status=$(cat $b/status 2>/dev/null)\"; " +
+            "  [ -f \"$b/power_now\" ] && echo \"power_now=$(cat $b/power_now 2>/dev/null)\"; " +
+            "  [ -f \"$b/energy_now\" ] && echo \"energy_now=$(cat $b/energy_now 2>/dev/null)\"; " +
+            "  [ -f \"$b/energy_full\" ] && echo \"energy_full=$(cat $b/energy_full 2>/dev/null)\"; " +
+            "  break; " +
+            "done; " +
 
             "echo '---END---'"
         ]
@@ -137,6 +223,8 @@ Singleton {
         const sections = text.split("---")
         let cpuLine = "", cpuTempRaw = "", cpuNameRaw = ""
         let memLines = "", amdLines = "", nvidiaLine = "", netLine = ""
+        let batteryLines = ""
+        let gpuListRaw = ""
 
         for (let i = 0; i < sections.length; i++) {
             const tag = sections[i].trim()
@@ -148,7 +236,9 @@ Singleton {
                 case "MEM": memLines = val; break
                 case "GPU_AMD": amdLines = val; break
                 case "GPU_NVIDIA": nvidiaLine = val; break
+                case "GPU_LIST": gpuListRaw = val; break
                 case "NET": netLine = val; break
+                case "BATTERY": batteryLines = val; break
             }
         }
 
@@ -236,6 +326,53 @@ Singleton {
             }
         }
 
+        // ── v6.16.1: Multi-GPU list build ──
+        // Build gpus[] from the GPU_LIST enum output. First entry mirrors
+        // the primary GPU (gpuUsage/gpuTemp/etc above). Subsequent entries
+        // carry vendor + name only — live metrics for secondary GPUs would
+        // require additional probes (nvidia-smi -i N for NVIDIA, separate
+        // hwmon lookup for multi-AMD); we show them with 0 usage + "(no metrics)"
+        // until the user expands that GPU's tab (future v6.16.x).
+        if (gpuListRaw && gpuListRaw.length > 0) {
+            const lines = gpuListRaw.split("\n").filter(l => l.trim().length > 0)
+            const newGpus = []
+            for (let i = 0; i < lines.length; i++) {
+                const parts = lines[i].split("|")
+                if (parts.length < 3) continue
+                const idx = parseInt(parts[0]) || 0
+                const vendor = parts[1] || "unknown"
+                const name = parts[2] || "Unknown"
+                // Primary GPU (index 0) gets live metrics from the existing
+                // single-GPU fields; others get placeholder values.
+                const isPrimary = (i === 0)
+                newGpus.push({
+                    index: idx,
+                    name: isPrimary ? (gpuName !== "GPU" ? gpuName : name) : name,
+                    type: vendor,
+                    usage: isPrimary ? gpuUsage : 0,
+                    temp: isPrimary ? gpuTemp : 0,
+                    vramUsed: isPrimary ? gpuVramUsed : 0,
+                    vramTotal: isPrimary ? gpuVramTotal : 0,
+                    history: isPrimary ? gpuHistory : new Array(historyMax).fill(0),
+                    hasMetrics: isPrimary
+                })
+            }
+            root.gpus = newGpus
+            root.gpuCount = newGpus.length
+        } else if (gpuCount === 0) {
+            // No GPU_LIST data but we had single-GPU info — synthesize a
+            // 1-entry array so widgets can still render.
+            if (gpuName !== "GPU" || gpuType !== "unknown") {
+                root.gpus = [{
+                    index: 0, name: gpuName, type: gpuType,
+                    usage: gpuUsage, temp: gpuTemp,
+                    vramUsed: gpuVramUsed, vramTotal: gpuVramTotal,
+                    history: gpuHistory, hasMetrics: true
+                }]
+                root.gpuCount = 1
+            }
+        }
+
         // ── Network ──
         if (netLine) {
             const np = netLine.split(/\s+/)
@@ -253,6 +390,82 @@ Singleton {
                 root._prevRx = rx
                 root._prevTx = tx
             }
+        }
+
+        // ── v6.16.0: Battery parsing + threshold notifications ──
+        // Fires swaync notifications at:
+        //   - 30% (warning — orange icon)
+        //   - 10% (critical — red icon, urgency=critical)
+        // Only fires ONCE per threshold crossing. Hysteresis: re-armed
+        // when battery climbs above threshold + 5 (prevents oscillation
+        // near the boundary or notification spam on slow discharge).
+        // Never fires while charging.
+        if (batteryLines && batteryLines.length > 0) {
+            batteryPresent = true
+            const lines = batteryLines.split("\n")
+            let cap = batteryCapacity
+            let stat = batteryStatus
+            let powW = 0
+            let energyNow = 0, energyFull = 0
+            for (const l of lines) {
+                if (l.startsWith("device=")) batteryDevice = l.split("=")[1] || ""
+                else if (l.startsWith("capacity=")) cap = parseInt(l.split("=")[1]) || 0
+                else if (l.startsWith("status=")) stat = l.split("=")[1] || "Unknown"
+                else if (l.startsWith("power_now=")) powW = (parseInt(l.split("=")[1]) || 0) / 1000000
+                else if (l.startsWith("energy_now=")) energyNow = parseInt(l.split("=")[1]) || 0
+                else if (l.startsWith("energy_full=")) energyFull = parseInt(l.split("=")[1]) || 0
+            }
+            batteryCapacity = Math.max(0, Math.min(100, cap))
+            batteryStatus = stat
+            batteryCharging = (stat === "Charging")
+            batteryPowerDraw = powW
+            // Time remaining estimate (rough — kernel doesn't expose this
+            // directly without upower). energyNow is in µWh, power in W.
+            if (powW > 0.1 && energyNow > 0 && energyFull > 0) {
+                let hours
+                if (batteryCharging) {
+                    hours = (energyFull - energyNow) / 1000000 / powW
+                    const h = Math.floor(hours)
+                    const m = Math.round((hours - h) * 60)
+                    batteryTimeRemaining = h + "h " + m + "m until full"
+                } else if (stat === "Discharging") {
+                    hours = energyNow / 1000000 / powW
+                    const h = Math.floor(hours)
+                    const m = Math.round((hours - h) * 60)
+                    batteryTimeRemaining = h + "h " + m + "m remaining"
+                } else {
+                    batteryTimeRemaining = ""
+                }
+            } else {
+                batteryTimeRemaining = ""
+            }
+
+            // ── Threshold notifications (only when discharging) ──
+            if (!batteryCharging && stat === "Discharging") {
+                if (batteryCapacity <= batteryCriticalThreshold && !_batteryCriticalFired) {
+                    _notify("critical",
+                        "Battery Critical",
+                        "Only " + batteryCapacity + "% left. Plug in now!",
+                        "battery-caution")
+                    _batteryCriticalFired = true
+                    _batteryWarningFired = true  // suppress the warning as well
+                } else if (batteryCapacity <= batteryWarningThreshold && !_batteryWarningFired) {
+                    _notify("normal",
+                        "Battery Low",
+                        "Battery at " + batteryCapacity + "%. Consider plugging in.",
+                        "battery-low")
+                    _batteryWarningFired = true
+                }
+            }
+            // Re-arm hysteresis (charging or back above threshold+5)
+            if (batteryCharging || batteryCapacity > batteryWarningThreshold + 5) {
+                _batteryWarningFired = false
+            }
+            if (batteryCharging || batteryCapacity > batteryCriticalThreshold + 5) {
+                _batteryCriticalFired = false
+            }
+        } else {
+            batteryPresent = false
         }
 
         // ── Push to history ──
@@ -302,5 +515,22 @@ Singleton {
         netHistory = new Array(historyMax).fill(0)
         // First update
         Qt.callLater(update)
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // v6.16.0: Notification helper (swaync via notify-send)
+    // ─────────────────────────────────────────────────────────────
+    // Urgency levels: "low" | "normal" | "critical"
+    // Named icon falls back to system theme (hicolor etc). Always safe
+    // to call — if notify-send isn't installed, just logs to console.
+    Process { id: _notifyProc; running: false }
+    function _notify(urgency, title, body, iconName) {
+        _notifyProc.command = ["bash", "-c",
+            "command -v notify-send >/dev/null 2>&1 && " +
+            "notify-send -a 'Zen Shell' -u '" + urgency + "' " +
+            "-i '" + (iconName || "dialog-information") + "' " +
+            "'" + title.replace(/'/g, "") + "' " +
+            "'" + body.replace(/'/g, "") + "' || true"]
+        _notifyProc.running = true
     }
 }

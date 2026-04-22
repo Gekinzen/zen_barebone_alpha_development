@@ -411,17 +411,140 @@ ScrollView {
 
                 HMRow { label: "Resolution"; description: "Output resolution"; icon: "\uf26c"; separator: true
                     ComboBox { id: resCombo; width: root.dropdownWidth
-                        property var uniqueRes: { const seen={}, list=[]; for(let m of (modelData.availableModes||[])) { const mt=m.match(/(\d+)x(\d+)@/); if(mt){const k=mt[1]+"x"+mt[2]; if(!seen[k]){seen[k]=true;list.push(k)}}} return list.length>0?list:[modelData.width+"x"+modelData.height] }
+
+                        // ─────────────────────────────────────────────
+                        // v6.16.3.3 — Resolution enumeration fix
+                        //
+                        // Previous (buggy) regex: /(\d+)x(\d+)@/
+                        //   Required an "@" terminator, which dropped
+                        //   any mode Hyprland emitted as a bare
+                        //   "1920x1080" (no refresh-rate suffix).
+                        //   Paul reported: "the resolution dropdown is
+                        //   missing some valid modes the monitor
+                        //   actually supports."
+                        //
+                        // Hyprland's `hyprctl monitors all -j` returns
+                        // `.availableModes` as an array of strings,
+                        // formats observed across hardware/versions:
+                        //   "1920x1080@60.000Hz"   (typical EDID)
+                        //   "1920x1080@60.00000"   (no Hz suffix)
+                        //   "1920x1080@60"         (integer Hz)
+                        //   "1920x1080"            (raw, no refresh)
+                        //   "2560x1440@144.00Hz"
+                        //   "3840x2160@29.981Hz"   (28.98 rounded to 30 elsewhere)
+                        //
+                        // New regex: /^(\d+)x(\d+)/
+                        //   Anchored at start, doesn't care what comes
+                        //   after the height. Matches every variant.
+                        //
+                        // Plus: we also add the CURRENT resolution
+                        //   (modelData.width × modelData.height) to the
+                        //   list even if it's not in availableModes
+                        //   (Hyprland sometimes omits the current mode
+                        //   from the list when user forces a custom
+                        //   mode via `monitor = ...` override — so the
+                        //   dropdown used to show an empty current
+                        //   index).
+                        //
+                        // Plus: results are sorted descending by total
+                        //   pixels (width × height) so native/best mode
+                        //   appears at the top.
+                        // ─────────────────────────────────────────────
+                        property var uniqueRes: {
+                            const seen = {}, list = []
+                            for (let m of (modelData.availableModes || [])) {
+                                const mt = m.match(/^(\d+)x(\d+)/)
+                                if (!mt) continue
+                                const w = parseInt(mt[1]), h = parseInt(mt[2])
+                                const k = w + "x" + h
+                                if (!seen[k]) { seen[k] = true; list.push({ w:w, h:h, k:k }) }
+                            }
+                            // Ensure the monitor's CURRENT mode is always in the list
+                            const curK = (modelData.width||0) + "x" + (modelData.height||0)
+                            if ((modelData.width||0) > 0 && !seen[curK]) {
+                                list.push({ w:modelData.width, h:modelData.height, k:curK })
+                                seen[curK] = true
+                            }
+                            // Descending by pixel count (native res first)
+                            list.sort(function(a,b){ return (b.w*b.h) - (a.w*a.h) })
+                            // Return as array of strings for ComboBox.model
+                            const keys = list.map(function(x){ return x.k })
+                            return keys.length > 0 ? keys : [curK]
+                        }
                         model: uniqueRes
-                        currentIndex: { const k=modelData.width+"x"+modelData.height; return Math.max(0,uniqueRes.indexOf(k)) }
+                        currentIndex: {
+                            const k = (modelData.width||0) + "x" + (modelData.height||0)
+                            return Math.max(0, uniqueRes.indexOf(k))
+                        }
                     }
                 }
 
                 HMRow { label: "Refresh rate"; description: "Monitor Hz"; icon: "\uf0e4"; separator: true
                     ComboBox { id: hzCombo; width: root.dropdownWidth
-                        property var hzList: { const rp=(resCombo.currentText||"").split("x"); if(rp.length<2) return [{hz:60,label:"60 Hz"}]; const seen={},list=[]; for(let m of (modelData.availableModes||[])){const mt=m.match(new RegExp(rp[0]+"x"+rp[1]+"@([\\d.]+)")); if(mt){const h=parseFloat(mt[1]),k=h.toFixed(0); if(!seen[k]){seen[k]=true;list.push({hz:h,label:k+" Hz"})}}} list.sort(function(a,b){return b.hz-a.hz}); return list.length>0?list:[{hz:60,label:"60 Hz"}] }
+
+                        // ─────────────────────────────────────────────
+                        // v6.16.3.3 — Refresh rate enumeration fix
+                        //
+                        // Companion to the resolution fix above. Was:
+                        //   new RegExp(rp[0]+"x"+rp[1]+"@([\\d.]+)")
+                        // which required an "@<number>" suffix. Missed
+                        //   "1920x1080"         → no @ at all
+                        //   "1920x1080@60Hz"    → @ but regex matched
+                        //                         fine here; still
+                        //   "1920x1080@60.00000Hz" — fine
+                        //
+                        // New regex: /@\s*([\d.]+)/
+                        //   Allows optional whitespace after @. If no
+                        //   @ present at all, defaults to 60 Hz as a
+                        //   sensible fallback so the mode isn't hidden.
+                        //
+                        // Plus: ALWAYS include the monitor's current
+                        //   refresh rate in the list (previous code
+                        //   would default to {hz:60,label:"60 Hz"} if
+                        //   no matches — hiding whatever the panel was
+                        //   actually running at).
+                        //
+                        // Plus: dedupe by ROUNDED Hz so "59.934" and
+                        //   "60.000" don't both show up as "60 Hz"
+                        //   twice.
+                        // ─────────────────────────────────────────────
+                        property var hzList: {
+                            const rp = (resCombo.currentText || "").split("x")
+                            if (rp.length < 2) {
+                                return [{ hz: modelData.refreshRate||60,
+                                          label: (modelData.refreshRate||60).toFixed(0) + " Hz" }]
+                            }
+                            const seen = {}, list = []
+                            const prefix = rp[0] + "x" + rp[1]
+                            for (let m of (modelData.availableModes || [])) {
+                                // Must start with our selected WxH
+                                if (m.indexOf(prefix) !== 0) continue
+                                // Extract Hz if present
+                                const mt = m.match(/@\s*([\d.]+)/)
+                                const h = mt ? parseFloat(mt[1]) : 60.0
+                                if (!isFinite(h) || h <= 0) continue
+                                const k = h.toFixed(0)
+                                if (!seen[k]) { seen[k] = true; list.push({ hz:h, label:k + " Hz" }) }
+                            }
+                            // Always include the current rate if it's
+                            // for this selected resolution and missing
+                            const curK = (modelData.refreshRate||60).toFixed(0)
+                            const isCurrentRes = (rp[0] == (modelData.width||0).toString())
+                                              && (rp[1] == (modelData.height||0).toString())
+                            if (isCurrentRes && !seen[curK]) {
+                                list.push({ hz: modelData.refreshRate||60, label: curK + " Hz" })
+                            }
+                            list.sort(function(a,b){ return b.hz - a.hz })
+                            return list.length > 0 ? list
+                                 : [{ hz: modelData.refreshRate||60, label: curK + " Hz" }]
+                        }
                         model: { const m=[]; for(const h of hzList) m.push(h.label); return m }
-                        currentIndex: { const c=(modelData.refreshRate||60).toFixed(0); for(let i=0;i<hzList.length;i++) if(hzList[i].hz.toFixed(0)===c) return i; return 0 }
+                        currentIndex: {
+                            const c = (modelData.refreshRate||60).toFixed(0)
+                            for (let i = 0; i < hzList.length; i++)
+                                if (hzList[i].hz.toFixed(0) === c) return i
+                            return 0
+                        }
                     }
                 }
 

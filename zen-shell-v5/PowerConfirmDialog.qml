@@ -2,6 +2,63 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 
+/*
+ * PowerConfirmDialog — confirm overlay for shutdown / restart / suspend /
+ * logout / lock with auto-execute countdown.
+ *
+ * ── v6.16.3.1 changes (Material Design icons + theme-synced palette) ──
+ *
+ *   1. Action icons swapped from FontAwesome to Material Design Icons
+ *      (Nerd Font nf-md range). Visually matches Google Material Symbols
+ *      while keeping our existing JetBrains Mono Nerd Font dependency —
+ *      no new font installed, no bootstrap.sh change.
+ *
+ *      Codepoints used (above-BMP, written as UTF-16 surrogate pairs to
+ *      match the codebase's "\uXXXX" escape convention):
+ *
+ *        shutdown  = U+F0425  nf-md-power
+ *        reboot    = U+F0709  nf-md-restart
+ *        suspend   = U+F0904  nf-md-power_sleep   (NEW — additive)
+ *        logout    = U+F0343  nf-md-logout        (also fixes pre-3.1 bug,
+ *                                                  see point 3 below)
+ *        lock      = U+F033E  nf-md-lock
+ *        warning   = U+F0028  nf-md-alert_circle  (default fallback)
+ *        clock     = U+F0150  nf-md-clock_outline (countdown chip)
+ *        cancel    = U+F0156  nf-md-close
+ *        confirm   = U+F012C  nf-md-check
+ *
+ *   2. Theme-synced colors: the existing Theme.{red,orange,yellow,blue}
+ *      tokens are already palette-pulled — they're rewritten on every
+ *      Theme.applyScheme() call from the active scheme JSON. Kept as-is
+ *      so each action keeps its semantic accent (red=destructive,
+ *      orange=disruptive, yellow=session-end, blue=safe), but the EXACT
+ *      hex now follows whatever theme the user picked. Wala tayong
+ *      babawasan — same color slots, just sourced cleanly.
+ *
+ *   3. Suspend support: added an additional case in actionInfo. Caller
+ *      can now pass `action: "suspend"` and the dialog renders correctly.
+ *      No existing caller invokes this yet (StartMenuPanel power buttons
+ *      stay shutdown/reboot/logout/lock for now), so this is a pure
+ *      forward-compat addition for whichever v6.16.3.X item wires the
+ *      Start Menu suspend button.
+ *
+ *   4. Bug fix: the pre-3.1 logout glyph literal "\uf0343" was a JS
+ *      string-escape malformity — \u takes exactly 4 hex digits, so it
+ *      was being parsed as "\uf034" + literal "3". The icon rendered as
+ *      the FontAwesome text-height glyph followed by a stray "3". Now
+ *      uses a proper surrogate pair for U+F0343.
+ *
+ * Public API (unchanged from v6.16.2.x):
+ *   property string action      // "shutdown" | "reboot" | "suspend" |
+ *                               //   "logout" | "lock"
+ *   property string command     // bash -c command to execute on confirm
+ *   property int    countdown   // seconds before auto-execute (default 60)
+ *   signal confirmed()
+ *   signal cancelled()
+ *   function executeAction()
+ *   function cancel()
+ */
+
 Rectangle {
     id: dialogRoot
     radius: 20
@@ -9,22 +66,50 @@ Rectangle {
     border.width: 1
     border.color: Theme.alpha(Theme.fg, 0.15)
 
-    property string action: ""      // "shutdown", "reboot", "logout", "lock"
+    property string action: ""      // "shutdown" | "reboot" | "suspend" | "logout" | "lock"
     property string command: ""
     property int countdown: 60
 
     signal confirmed()
     signal cancelled()
 
-    // Icon and color by action
+    // ── Action metadata ──
+    // Icon glyphs are Nerd Font Material Design Icons (nf-md-*). Colors
+    // pull from Theme.* tokens which are repopulated from the active
+    // scheme JSON via Theme.applyScheme(), so the palette follows
+    // whatever theme the user has selected.
     readonly property var actionInfo: {
         switch(action) {
-            case "shutdown": return { icon: "\uf28d", title: "Shutdown", color: Theme.red, subtitle: "System will power off" }
-            case "reboot":   return { icon: "\uf021", title: "Restart",  color: Theme.orange, subtitle: "System will reboot" }
-            case "logout":   return { icon: "\uf0343", title: "Logout", color: Theme.yellow, subtitle: "Exit Hyprland session" }
-            case "lock":     return { icon: "\uf023", title: "Lock",    color: Theme.blue, subtitle: "Lock the screen" }
+            case "shutdown":
+                return { icon:    "\udb81\udc25",                     // nf-md-power
+                         title:   "Shutdown",
+                         color:   Theme.red,
+                         subtitle:"System will power off" }
+            case "reboot":
+                return { icon:    "\udb81\udf09",                     // nf-md-restart
+                         title:   "Restart",
+                         color:   Theme.orange,
+                         subtitle:"System will reboot" }
+            case "suspend":
+                return { icon:    "\udb82\udd04",                     // nf-md-power_sleep
+                         title:   "Suspend",
+                         color:   Theme.purple,
+                         subtitle:"System will sleep" }
+            case "logout":
+                return { icon:    "\udb80\udf43",                     // nf-md-logout
+                         title:   "Logout",
+                         color:   Theme.yellow,
+                         subtitle:"Exit Hyprland session" }
+            case "lock":
+                return { icon:    "\udb80\udf3e",                     // nf-md-lock
+                         title:   "Lock",
+                         color:   Theme.blue,
+                         subtitle:"Lock the screen" }
         }
-        return { icon: "\uf071", title: "Action", color: Theme.fg, subtitle: "" }
+        return { icon:    "\udb80\udc28",                             // nf-md-alert_circle
+                 title:   "Action",
+                 color:   Theme.fg,
+                 subtitle:"" }
     }
 
     // ── Countdown timer ──
@@ -67,7 +152,7 @@ Rectangle {
         anchors.margins: 32
         spacing: 20
 
-        // ── Icon ──
+        // ── Action icon (Material Design, theme-tinted halo) ──
         Rectangle {
             Layout.alignment: Qt.AlignHCenter
             Layout.preferredWidth: 96
@@ -82,7 +167,11 @@ Rectangle {
                 text: dialogRoot.actionInfo.icon
                 color: dialogRoot.actionInfo.color
                 font.family: Theme.monoFont
-                font.pixelSize: 42
+                font.pixelSize: 48                  // bumped from 42 → 48,
+                                                    // MDI glyphs read smaller
+                                                    // than FA at the same px
+                                                    // size. Visually balances
+                                                    // the 96px halo.
             }
         }
 
@@ -105,7 +194,7 @@ Rectangle {
             font.pixelSize: 13
         }
 
-        // ── Countdown ──
+        // ── Countdown chip ──
         Rectangle {
             Layout.alignment: Qt.AlignHCenter
             Layout.preferredWidth: 200
@@ -120,10 +209,10 @@ Rectangle {
                 spacing: 8
 
                 Text {
-                    text: "\uf017"
+                    text: "\udb80\udd50"            // nf-md-clock_outline
                     color: dialogRoot.actionInfo.color
                     font.family: Theme.monoFont
-                    font.pixelSize: 14
+                    font.pixelSize: 16              // MDI sizing tweak
                 }
                 Text {
                     text: "Auto in " + dialogRoot.countdown + "s"
@@ -175,10 +264,10 @@ Rectangle {
                     anchors.centerIn: parent
                     spacing: 8
                     Text {
-                        text: "\uf00d"
+                        text: "\udb80\udd56"        // nf-md-close
                         color: Theme.fgDim
                         font.family: Theme.monoFont
-                        font.pixelSize: 14
+                        font.pixelSize: 16
                     }
                     Text {
                         text: "Cancel"
@@ -218,10 +307,10 @@ Rectangle {
                     anchors.centerIn: parent
                     spacing: 8
                     Text {
-                        text: "\uf00c"
+                        text: "\udb80\udd2c"        // nf-md-check
                         color: Theme.bg0
                         font.family: Theme.monoFont
-                        font.pixelSize: 14
+                        font.pixelSize: 16
                     }
                     Text {
                         text: "Confirm now"

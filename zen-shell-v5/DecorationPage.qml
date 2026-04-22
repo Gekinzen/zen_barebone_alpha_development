@@ -128,7 +128,7 @@ ScrollView {
             HMRow {
                 label: "Dim inactive"
                 description: "Dim inactive windows"
-                Switch {
+                HMSwitch {
                     checked: SettingsStateV2.dimInactive
                     onToggled: {
                         SettingsStateV2.dimInactive = checked
@@ -189,7 +189,7 @@ ScrollView {
             HMRow {
                 label: "Enable blur"
                 description: "Enable background blur effect"
-                Switch {
+                HMSwitch {
                     checked: SettingsStateV2.blurEnabled
                     onToggled: {
                         SettingsStateV2.blurEnabled = checked
@@ -230,7 +230,7 @@ ScrollView {
                 visible: SettingsStateV2.blurEnabled
                 label: "New optimizations"
                 description: "Enable further optimizations to the blur (recommended)"
-                Switch {
+                HMSwitch {
                     checked: SettingsStateV2.blurNewOptimizations
                     onToggled: {
                         SettingsStateV2.blurNewOptimizations = checked
@@ -243,7 +243,7 @@ ScrollView {
                 visible: SettingsStateV2.blurEnabled
                 label: "X-ray"
                 description: "Floating windows ignore tiled windows in blur calculation"
-                Switch {
+                HMSwitch {
                     checked: SettingsStateV2.blurXray
                     onToggled: {
                         SettingsStateV2.blurXray = checked
@@ -256,7 +256,7 @@ ScrollView {
                 visible: SettingsStateV2.blurEnabled
                 label: "Ignore opacity"
                 description: "Blur behavior ignores window opacity"
-                Switch {
+                HMSwitch {
                     checked: SettingsStateV2.blurIgnoreOpacity
                     onToggled: {
                         SettingsStateV2.blurIgnoreOpacity = checked
@@ -331,7 +331,7 @@ ScrollView {
             HMRow {
                 label: "Enable shadow"
                 description: "Drop shadow for windows"
-                Switch {
+                HMSwitch {
                     checked: SettingsStateV2.shadowEnabled
                     onToggled: {
                         SettingsStateV2.shadowEnabled = checked
@@ -372,7 +372,7 @@ ScrollView {
                 visible: SettingsStateV2.shadowEnabled
                 label: "Ignore window"
                 description: "Shadow does not render behind the window itself"
-                Switch {
+                HMSwitch {
                     checked: SettingsStateV2.shadowIgnoreWindow
                     onToggled: {
                         SettingsStateV2.shadowIgnoreWindow = checked

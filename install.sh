@@ -175,180 +175,49 @@ else
 fi
 
 echo ""
-echo "    Zen Shell v6.15.14"
+echo "    Zen Shell v6.16.2.3.7"
 echo "    ─────────────────────────────────────────────────────"
 echo ""
 echo "    Quickshell-native desktop environment for Hyprland."
 echo ""
-echo "    v6.15.15 — Smart one-command install + hardware detection"
-echo ""
-echo "      Auto-bootstrap              install.sh detects missing critical"
-echo "                                   deps (Hyprland, Quickshell, grim,"
-echo "                                   slurp, wl-copy, swww, cava,"
-echo "                                   playerctl, jq, notify-send) and"
-echo "                                   auto-runs bootstrap.sh if needed."
-echo "                                   Single './install.sh' works on both"
-echo "                                   fresh laptops and existing setups."
-echo ""
-echo "      Smart hardware detection    Auto-detects multi-GPU topology"
-echo "                                   (iGPU + dGPU, Optimus, NVIDIA,"
-echo "                                   AMD, Intel) and writes env vars"
-echo "                                   to ~/.config/hypr/modules/"
-echo "                                   hardware.conf with AQ_DRM_DEVICES"
-echo "                                   set to the correct primary node."
-echo "                                   Never overwritten on upgrade."
-echo ""
-echo "      Complete script inventory   3 scripts that were missing from"
-echo "                                   prior tarballs, now shipped:"
-echo "                                     - openrgb-autoload.sh"
-echo "                                     - openrgb-wrapper.sh"
-echo "                                     - zen-screenshot-capture.sh"
-echo ""
-echo "      Complete hypr modules       3 hypr config modules now"
-echo "                                   shipped to ~/.config/hypr/modules/"
-echo "                                   with preserve-if-exists logic:"
-echo "                                     - animations.conf"
-echo "                                     - autostart.conf"
-echo "                                     - look_and_feel.conf"
-echo ""
-echo "      Source auto-wired           hyprland.conf gets source = lines"
-echo "                                   auto-appended for all 4 modules"
-echo "                                   (hardware/animations/autostart/"
-echo "                                   look_and_feel) when missing."
-echo ""
-echo "    v6.15.14 — Ship 12 QML files missing from prior tarballs"
-echo "      Fresh-install fix           v6.15 → v6.15.13 tarballs shipped"
-echo "                                   only 56 of 68 QML files. Fresh"
-echo "                                   installs crashed with errors like"
-echo "                                   'PowerConfirmDialog is not a type'"
-echo ""
-echo "    v6.15.13 — Install automation polish"
-echo "      Generic helper script       zs-restart.sh fully dynamic via"
-echo "                                   \$HOME and \$USER, no hardcoded"
-echo "                                   paths."
-echo "      Auto cleanup on upgrade     install.sh removes stale"
-echo "                                   ~/.local/bin/zen-shell-nuclear-"
-echo "                                   restart.sh from v6.15.11."
-echo ""
-echo "    v6.15.12 hotfix — Fix nuclear restart self-suicide bug"
-echo "      Script renamed              zs-restart.sh (no 'zen-shell' in"
-echo "                                   path → can't self-pkill)"
-echo "      Tightened pkill pattern     'quickshell.*zen-shell' matches"
-echo "                                   ONLY the quickshell process, not"
-echo "                                   arbitrary scripts with 'zen-shell'"
-echo "                                   anywhere in their cmdline"
-echo "      Installed permanently       ~/.local/bin/zs-restart.sh via"
-echo "                                   install.sh step 5 (with inline"
-echo "                                   /tmp fallback for hotfix users)"
-echo ""
-echo "    v6.15.11 hotfix — Fix nuclear respawn command (actual invocation)"
-echo "      Correct quickshell command  Paul's actual reload pattern is"
-echo "                                   'quickshell -p ~/.config/quickshell/"
-echo "                                   zen-shell', NOT 'qs -c zen-shell'"
-echo "                                   as v6.15.10 assumed. pkill pattern"
-echo "                                   'zen-shell' now matches any invocation."
-echo "      Helper-script approach      Wrote reload commands to a /tmp"
-echo "                                   script instead of nested bash -c,"
-echo "                                   eliminating all quoting bugs."
-echo "      Debug log at                /tmp/zs-restart.log"
-echo "      Manual test IPC:            'ipc call zen testNuclearRestart'"
-echo ""
-echo "    v6.15.10 hotfix — Nuclear shell respawn for Float/FW → Island"
-echo "      Only on problematic path    Previous mode fullwidth/floating +"
-echo "                                   new mode island → kill + relaunch"
-echo "                                   the entire qs shell process. Every"
-echo "                                   other transition unchanged."
-echo "      Brief flicker (~600-900ms)  All ephemeral shell state resets"
-echo "                                   (Settings panel, Control Panel,"
-echo "                                   calendar close). Music stream"
-echo "                                   continues (cava is external)."
-echo "                                   Trade-off chosen by user — the"
-echo "                                   only way to fully bypass Qt/"
-echo "                                   Quickshell layer-shell timing quirk."
-echo ""
-echo "    v6.15.9 hotfix — Synchronous layout via forceLayout()"
-echo "      Collapse async layout loop   Calls RowLayout.forceLayout() on"
-echo "                                    all 4 bar rows during mode"
-echo "                                    transitions. Eliminates the"
-echo "                                    multi-frame feedback loop that"
-echo "                                    caused island-commit-at-startmenu"
-echo "                                    bug — positions are now guaranteed"
-echo "                                    fresh when we read them."
-echo "      Faster Loading                Stable-read unlock now typically"
-echo "                                    fires on first or second read,"
-echo "                                    reducing transition Loading time."
-echo ""
-echo "    v6.15.8 hotfix — Stable-read transition verification"
-echo "      Island mode commit fix      Floating/FW → Island no longer"
-echo "                                   commits music string at start-menu"
-echo "                                   position. Transition now waits for"
-echo "                                   TWO consecutive stable position"
-echo "                                   reads before committing — catches"
-echo "                                   island's multi-frame layout settle."
-echo "      Bounds sanity               Parent-chain walk now verifies x is"
-echo "                                   within bar bounds before writing."
-echo "                                   Prevents stale rightRow.x from"
-echo "                                   previous mode leaking through."
-echo ""
-echo "    v6.15.7 hotfix — Mode cycling orphaned string"
-echo "      Lockout during transition   Rapid Island→FW→Float→Island no"
-echo "                                   longer leaves music string at stale"
-echo "                                   old coordinates. Bar.qml now blocks"
-echo "                                   position writes during bar resize +"
-echo "                                   shell.qml waits for barWindowLeft to"
-echo "                                   settle before committing position."
-echo ""
-echo "    v6.15.6 bugfix — Theme reload / panel mode string fixes"
-echo "      Complete applyToHyprland    Snap gaps + blur/shadow extras now"
-echo "                                   apply properly → no more reset to"
-echo "                                   hyprland.conf defaults after theme"
-echo "                                   change"
-echo "      Panel mode safety           Switching fullwidth/floating/island"
-echo "                                   no longer leaves music string"
-echo "                                   orphaned at old coordinates"
-echo ""
-echo "    v6.15.5 enhancement — Smooth runtime transitions"
-echo "      Behavior on margins        Tray expand / app open → string slides"
-echo "                                  smoothly into new position (180ms)"
-echo "                                  instead of snap-after-delay"
-echo ""
-echo "    v6.15.4 hotfix — Layout-stuck position + tooltip gap"
-echo "      Parent-chain walk          Position via direct .x reads, no"
-echo "                                  scene-graph staleness on login"
-echo "      Layout nudger (30s)        Forces RowLayout recompute every 250ms"
-echo "                                  → unsticks wrong rightRow.x without"
-echo "                                  needing user hover/click"
-echo "      15s max-wait + sanity gate  Max-wait no longer fires with a"
-echo "                                  pre-layout default position"
-echo "      Tooltip bar-top anchor      Music tooltip now snug to bar edge"
-echo "                                  like SysRow tooltips (no vPad gap)"
-echo ""
-echo "    v6.15.3 hotfix — Loading loop + clock jitter"
-echo "      2px write threshold       Clock/badge jitter no longer restarts"
-echo "                                 stability timer → no more infinite Loading"
-echo "      Stop-on-ready safetyPoll  No continuous polling in steady state"
-echo ""
-echo "    v6.15.2 patch — Music string position live-update + loading placeholder"
-echo "      musicSlotLocalX          Live tracking across zone reflows"
-echo "      Loading placeholder      Pulsing '...' in bar slot on login"
-echo "      Stability-based reveal   Strings fade in after 600ms settle"
-echo ""
-echo "    v6.15 — Music module → ZenStrings"
-echo "      Strings in music slot     Toggle music widget → ZenStrings"
-echo "      Music slot position fix   Strings now align with music slot"
-echo "      No background             String floats transparently in bar"
-echo "      Hover tooltip             Shows Artist — Title on hover"
-echo "      Static when idle          Decorative line when nothing plays"
-echo "      Animated when playing     Cava-reactive bezier on beat"
-echo "      Color modes               Theme / Synced / Custom"
-echo "      zen-cava.sh               Bundled cava wrapper script"
-echo ""
-echo "    Carried forward from v6.14.x:"
-echo "      Screenshot ropes          Physics rope on region screenshot"
-echo "      Tooltip PopupWindow       SysRow tooltip aligns to icon"
-echo "      SwayNC position fix       Notification position applies"
-echo "      Process reuse fix         Rapid settings clicks honored"
-echo "      SIGTERM-first restart     Clean daemon restart sequence"
+cat << 'ZSCHANGELOG'
+    v6.16.2.3.7 — Single-instance launch (fix double bar on re-install)
+
+      Step [9/9] kill-only         The legacy 'setsid qs -c zen-shell ...'
+                                    spawn at the bottom of step [9/9] used
+                                    the OLD invocation pattern (qs not
+                                    quickshell). The end-of-install kill
+                                    loop in v6.16.2.3.6 used a tightened
+                                    'quickshell.*zen-shell' pattern, so it
+                                    never matched the qs spawn from
+                                    step [9/9] — net result was TWO bars
+                                    on every fresh install / re-install
+                                    (one from step 9, one from end-of-
+                                    install). Step [9/9] now ONLY kills
+                                    existing shells; the single canonical
+                                    spawn happens at end-of-install.
+
+      Catch-all kill pattern       New _zen_kill_all_shells() kills BOTH
+                                    pattern variants — 'qs.*zen-shell'
+                                    AND 'quickshell.*zen-shell' — across
+                                    SIGTERM x3 then SIGKILL x2 attempts,
+                                    plus zombie clear of /run/user/UID/
+                                    quickshell/by-id/. Shared between
+                                    step [9/9] and end-of-install so
+                                    behavior is consistent.
+
+      End-of-install verifies      Spawn refuses to fire if any shell
+                                    process is still alive after kill loop
+                                    (prevents stacked bars even if user
+                                    runs ./install.sh while two shells
+                                    are already up from prior bug). Prints
+                                    actionable diagnostic lines.
+
+    v6.16.2.3.6 — auto-restart at end of install (kill loop + verify)
+    v6.16.2.3.2 — Window click-through + avatar cache + wallpaper repo + mouse tuning
+    v6.16.2.3.1 — Click-through rope + clock hover + island persist
+    (older changelog truncated for brevity — see CHANGELOG.md)
+ZSCHANGELOG
 echo ""
 echo "    ─────────────────────────────────────────────────────"
 echo ""
@@ -356,6 +225,69 @@ echo "    Smart mode (default): auto-detects missing Hyprland/Quickshell"
 echo "    and runs bootstrap automatically if needed. Safe alongside"
 echo "    KDE, GNOME, or COSMIC."
 echo ""
+
+# ═══════════════════════════════════════════════════════════════
+# Shared helper — kill ALL zen-shell instances (v6.16.2.3.7)
+# ═══════════════════════════════════════════════════════════════
+# Kills both invocation styles:
+#   (a) qs -c zen-shell             (legacy)
+#   (b) quickshell -p .../zen-shell (current)
+# SIGTERM up to 3 rounds, escalates to SIGKILL on rounds 4-5,
+# then zombie-clears Quickshell IPC sockets so respawn is clean.
+# Returns 0 if everything died, non-zero count = surviving PIDs.
+_zen_kill_all_shells() {
+    local label="${1:-kill}"
+    local patterns=( 'qs[[:space:]].*zen-shell' 'quickshell.*zen-shell' )
+    local initial=0 attempt pids p
+
+    # Count initial victims for the report line
+    for p in "${patterns[@]}"; do
+        local n
+        n=$(pgrep -f "$p" 2>/dev/null | wc -l)
+        initial=$(( initial + n ))
+    done
+
+    if [ "$initial" -gt 0 ]; then
+        echo "    [$label] $initial existing zen-shell process(es) found, terminating..."
+    else
+        echo "    [$label] nothing to kill."
+    fi
+
+    # 5 rounds: 3x SIGTERM, then 2x SIGKILL
+    for attempt in 1 2 3 4 5; do
+        local all_pids=""
+        for p in "${patterns[@]}"; do
+            pids=$(pgrep -f "$p" 2>/dev/null || true)
+            [ -n "$pids" ] && all_pids="$all_pids $pids"
+        done
+        all_pids=$(echo "$all_pids" | tr ' ' '\n' | sort -u | grep -v '^$' | tr '\n' ' ')
+        [ -z "$all_pids" ] && break
+        if [ "$attempt" -le 3 ]; then
+            # shellcheck disable=SC2086
+            kill $all_pids 2>/dev/null || true
+        else
+            # shellcheck disable=SC2086
+            kill -9 $all_pids 2>/dev/null || true
+        fi
+        sleep 0.3
+    done
+
+    # Belt-and-suspenders: also pkill -9 for the bare 'qs' executable
+    # (covers the rare case where a shell was launched with no path arg).
+    pkill -9 -x qs 2>/dev/null || true
+
+    # Clear stale IPC sockets so the next quickshell can claim the id
+    rm -rf "/run/user/$(id -u)/quickshell/by-id"/* 2>/dev/null || true
+
+    # Final survivor count
+    local survivors=0
+    for p in "${patterns[@]}"; do
+        local n
+        n=$(pgrep -f "$p" 2>/dev/null | wc -l)
+        survivors=$(( survivors + n ))
+    done
+    echo "$survivors"
+}
 
 # ═══════════════════════════════════════════════════════════════
 # [0/9] Pre-flight: Smart detect + warning
@@ -389,7 +321,7 @@ echo "      4. Auto-apply ZenClock, ZenWorkspaces, Taskbar"
 echo "      5. Install CLI scripts (inc. zen-cava.sh) and themes"
 echo "      6. Install Hyprland binds, keybind updates, layer rules"
 echo "      7. Migrate strings-state.json to v6.15 schema (if needed)"
-echo "      8. Restart qs"
+echo "      8. Restart qs (single instance — v6.16.2.3.7)"
 echo ""
 
 if [ "$EXISTING_INSTALL" -eq 1 ]; then
@@ -786,6 +718,14 @@ echo "  v6.15 — Strings music module:"
 check_cmd cava cava
 check_cmd playerctl playerctl
 
+# v6.16.3.2.1 — Lock screen + idle daemon (recommended for laptops)
+# These power the smart lid behavior, the auto-lock cascade, and
+# the wallpaper-synced lock screen. install-v6.16.3.2-overlay.sh
+# also auto-installs them if you didn't pick them here.
+echo "  v6.16.3.2 — Lock screen + idle (laptop-recommended):"
+check_cmd hyprlock hyprlock
+check_cmd hypridle hypridle
+
 if [ "$MISSING_REQUIRED" = "1" ]; then
     echo ""
     echo "  ⚠ Missing required deps."
@@ -898,20 +838,6 @@ INSTALLED_QML_COUNT=$(ls "$SHELL_DIR/"*.qml 2>/dev/null | wc -l)
 echo "    $INSTALLED_QML_COUNT QML files installed"
 
 echo ""
-echo "    v6.15 new:"
-echo "      MusicStrings.qml         — music slot string renderer + hover tooltip"
-echo "      ZenStrings.qml           — bezier string visual (updated)"
-echo "      ZenStringsState.qml      — simplified state (updated)"
-echo "      ZenScreenshotOverlay.qml — screenshot rope overlay (carried from v6.14.2)"
-echo "      ZenRope.qml              — physics rope primitive (carried from v6.14.2)"
-echo ""
-echo "    v6.15 modified:"
-echo "      Bar.qml                  — cMusic toggles MusicWidget ↔ MusicStrings"
-echo "                                  + reliable music slot position tracking"
-echo "      GeneralPage.qml          — Strings section added"
-echo "      shell.qml                — ZenStrings sibling + screenshotRope IPC"
-
-echo ""
 echo "    Auto-applying bar modules..."
 for pair in "ZenClock.qml:Clock.qml" "ZenWorkspaces.qml:Workspaces.qml"; do
     src="${pair%%:*}"; dst="${pair##*:}"
@@ -941,7 +867,10 @@ for script in \
     wifi-toggle.sh termrun.sh regen-terminal-themes.sh \
     regen-swaync-theme.sh zen-screenshot.sh \
     patch-swaync-position.sh zen-cava.sh \
-    zs-restart.sh
+    zs-restart.sh \
+    zen-volume-notify.sh zen-power-profile-restore.sh zen-lid-handler.sh \
+    zen-resume-handler.sh zen-lock.sh zen-bar-add-powerbadge.sh \
+    zen-game-watcher.sh prime-run
 do
     src="$SCRIPT_DIR/scripts/$script"
     if [ -f "$src" ]; then
@@ -962,11 +891,6 @@ done
 # ═══════════════════════════════════════════════════════════════
 # v6.15.14: Clean up stale helper from pre-v6.15.12 installs
 # ═══════════════════════════════════════════════════════════════
-# v6.15.11 installed ~/.local/bin/zen-shell-nuclear-restart.sh which
-# had the self-suicide pkill bug (script's own path contained
-# "zen-shell" and got matched by its own pkill -f zen-shell call).
-# v6.15.12 replaced it with zs-restart.sh (safe filename). Remove the
-# old script so users upgrading don't end up with both files.
 if [ -f "$BIN_DIR/zen-shell-nuclear-restart.sh" ]; then
     rm -f "$BIN_DIR/zen-shell-nuclear-restart.sh"
     echo "    removed stale: zen-shell-nuclear-restart.sh (replaced by zs-restart.sh)"
@@ -1054,9 +978,10 @@ echo "[6/9] Hyprland configs..."
 
 # ─────────────────────────────────────────────────────────────────
 # v6.15.15: animations.conf / autostart.conf / look_and_feel.conf
+# v6.16.0 : + lid-behavior.conf
 # These are USER-CUSTOMIZABLE — install default only if missing.
 # ─────────────────────────────────────────────────────────────────
-for mod in animations.conf autostart.conf look_and_feel.conf; do
+for mod in animations.conf autostart.conf look_and_feel.conf lid-behavior.conf; do
     src="$SCRIPT_DIR/hypr-config/$mod"
     dst="$HYPR_DIR/modules/$mod"
     if [ -f "$src" ]; then
@@ -1072,20 +997,6 @@ done
 # ─────────────────────────────────────────────────────────────────
 # v6.15.15: hyprland.conf — canonical template install
 # ─────────────────────────────────────────────────────────────────
-# Strategy:
-#   - We ship a canonical hyprland.conf.template that has the EXACT
-#     source = lines and env vars Zen Shell expects.
-#   - On fresh install (no existing hyprland.conf), drop the template
-#     in place verbatim.
-#   - On upgrade (existing hyprland.conf), back up to .bak-$TS, then
-#     install the canonical template — but ONLY if the user explicitly
-#     opts in. By default we just append missing source = lines (the
-#     old behavior) so existing user customizations survive.
-#   - In both cases, dedupe stray 'exec-once = quickshell|qs ... zen-shell'
-#     lines that pre-bootstrap-fix versions might have left behind
-#     (autostart.conf already handles quickshell startup; having it in
-#     hyprland.conf too causes a double-launch).
-
 HCONF="$HYPR_DIR/hyprland.conf"
 TEMPLATE="$SCRIPT_DIR/hypr-config/hyprland.conf.template"
 
@@ -1131,6 +1042,10 @@ if [ -f "$TEMPLATE" ]; then
         grep -q "modules/look_and_feel.conf" "$HCONF" || {
             echo "source = ~/.config/hypr/modules/look_and_feel.conf" >> "$HCONF"
             added=$((added+1)); }
+        # v6.16.0: lid-behavior module (bindl rules for switch:on:Lid)
+        grep -q "modules/lid-behavior.conf" "$HCONF" || {
+            echo "source = ~/.config/hypr/modules/lid-behavior.conf" >> "$HCONF"
+            added=$((added+1)); }
         grep -q "keybinds-update.conf" "$HCONF" || {
             echo "source = ~/.config/quickshell/zen-shell/config/keybinds-update.conf" >> "$HCONF"
             added=$((added+1)); }
@@ -1138,19 +1053,12 @@ if [ -f "$TEMPLATE" ]; then
             echo "source = ~/.config/quickshell/zen-shell/config/hyprland-layer-rules.conf" >> "$HCONF"
             added=$((added+1)); }
 
-        # NOTE: animations.conf is intentionally NOT auto-sourced.
-        # The canonical look_and_feel.conf has its own animations block.
-        # Users who want the standalone animations.conf module can add
-        # the source line manually:
-        #   source = ~/.config/hypr/modules/animations.conf
-
         if [ $added -gt 0 ]; then
             echo "    Added $added line(s) to hyprland.conf"
         else
             echo "    hyprland.conf already up to date"
         fi
 
-        # Offer to install canonical template if user wants a clean reset
         echo ""
         echo "    Tip: To replace your hyprland.conf with the canonical Zen Shell"
         echo "         template (your version backed up to .bak-$TS), run:"
@@ -1173,6 +1081,10 @@ else
             added=$((added+1)); }
         grep -q "modules/look_and_feel.conf" "$HCONF" || {
             echo "source = ~/.config/hypr/modules/look_and_feel.conf" >> "$HCONF"
+            added=$((added+1)); }
+        # v6.16.0: lid-behavior module
+        grep -q "modules/lid-behavior.conf" "$HCONF" || {
+            echo "source = ~/.config/hypr/modules/lid-behavior.conf" >> "$HCONF"
             added=$((added+1)); }
         grep -q "keybinds-update.conf" "$HCONF" || {
             echo "source = ~/.config/quickshell/zen-shell/config/keybinds-update.conf" >> "$HCONF"
@@ -1222,38 +1134,19 @@ echo "[8/9] First-run tasks..."
 # ═══════════════════════════════════════════════════════════════
 # [8.5/9] QML integrity smoke test (v6.15.15+)
 # ═══════════════════════════════════════════════════════════════
-# Catches missing QML type references BEFORE quickshell crashes on
-# load. Would have prevented the v6.15.13 PowerConfirmDialog bug and
-# the v6.15.14 Theme/Clock/MusicWidget chain.
-#
-# How it works:
-#   1. For each local *.qml file, grep for component names that look
-#      like Zen Shell-local types (PascalCase starting at column 0
-#      or after whitespace).
-#   2. Check that every referenced name has a corresponding .qml
-#      file in $SHELL_DIR.
-#   3. Report anything missing — doesn't abort the install (user may
-#      be intentionally customizing), just prints a warning.
 echo ""
 echo "[8.5/9] QML integrity check..."
 MISSING_TYPES=""
 if [ -d "$SHELL_DIR" ]; then
-    # Build a set of provided type names (bare file stems)
     PROVIDED=$(ls "$SHELL_DIR"/*.qml 2>/dev/null | xargs -n1 basename | sed 's/\.qml$//' | sort -u)
-
-    # Scan shell.qml + Bar.qml (the two files most likely to instantiate other components)
-    # for  ComponentName { ... }  patterns that look like local types
     for scan_file in "$SHELL_DIR/shell.qml" "$SHELL_DIR/Bar.qml"; do
         [ -f "$scan_file" ] || continue
-        # Extract PascalCase identifiers followed by {  (likely component instantiations)
-        # Filter out known Quickshell / QtQuick builtins
         REFS=$(grep -oE '^\s*[A-Z][a-zA-Z0-9_]*\s*\{' "$scan_file" 2>/dev/null \
                | sed 's/\s*{$//' | sed 's/^\s*//' | sort -u \
                | grep -vE '^(Item|Rectangle|Row|Column|Grid|RowLayout|ColumnLayout|GridLayout|StackLayout|Text|Image|MouseArea|Loader|Repeater|Timer|Process|Binding|Connections|Behavior|NumberAnimation|PropertyAnimation|SequentialAnimation|ParallelAnimation|State|Transition|PathAnimation|PathView|ListView|GridView|TableView|ScrollView|Flickable|Popup|ApplicationWindow|Window|PanelWindow|FloatingWindow|PopupWindow|ShellRoot|IpcHandler|Variants|LayerSurface|ExclusiveZone|WlrLayer|Scope|Component|QtObject|Package|SystemTrayItem|Socket|FileView|Quickshell|Hyprland|Keys|Anchors|Margins|AnchorChanges|PropertyChanges|StateGroup|PathLine|PathQuad|PathCubic|Path|Gradient|GradientStop|Canvas|ShaderEffect|ShaderEffectSource|Flow|Pane|Control|TextInput|TextEdit|TextField|TextArea|Button|CheckBox|RadioButton|Slider|SpinBox|ComboBox|ProgressBar|ScrollBar|Switch|Label|GroupBox|Menu|MenuItem|ToolTip|Dialog|DialogButtonBox|BusyIndicator|Frame|ToolBar|TabBar|TabButton|StackView|Page|PageIndicator|Drawer|Action|ActionGroup)$')
 
         for ref in $REFS; do
             if ! echo "$PROVIDED" | grep -qx "$ref"; then
-                # Double-check it's not in any sub-directory
                 if ! find "$SHELL_DIR" -maxdepth 2 -name "${ref}.qml" 2>/dev/null | grep -q .; then
                     MISSING_TYPES="$MISSING_TYPES $ref"
                 fi
@@ -1272,20 +1165,32 @@ if [ -d "$SHELL_DIR" ]; then
         done
         echo ""
         echo "    This is usually fine if you've customized shell.qml with external types."
-        echo "    If you haven't, the missing file is probably from an incomplete package."
-        echo "    Run: $INSTALLER -S --needed quickshell-git  # to ensure latest Quickshell"
     fi
 fi
 
 # ═══════════════════════════════════════════════════════════════
-# [9/9] Restart
+# [9/9] Pre-launch cleanup — KILL ONLY (v6.16.2.3.7)
 # ═══════════════════════════════════════════════════════════════
+# v6.16.2.3.6 and earlier ALSO spawned a 'qs -c zen-shell' here, then
+# the end-of-install block at the bottom of the file spawned ANOTHER
+# 'quickshell -p ...' instance. The end-of-install kill loop only
+# matched 'quickshell.*zen-shell', missing the 'qs' invocation from
+# this step → TWO bars on every install.
+#
+# v6.16.2.3.7 makes step [9/9] kill-only. The single canonical spawn
+# is owned by the v6.16.2.3.7 launch block at the end of the file.
 echo ""
-echo "[9/9] Restart..."
-pkill -9 qs 2>/dev/null || true
-sleep 0.5
-rm -rf "/run/user/$(id -u)/quickshell/by-id"/* 2>/dev/null
+echo "[9/9] Pre-launch cleanup — kill any running zen-shell instances..."
+SURV1=$(_zen_kill_all_shells "step9")
+if [ "$SURV1" -gt 0 ]; then
+    echo "    ⚠ $SURV1 process(es) survived — end-of-install spawn will refuse to start a duplicate."
+else
+    echo "    ✓ All previous zen-shell instances stopped cleanly."
+fi
 
+# Best-effort: start swww-daemon if it's not already running. The shell
+# expects it but does NOT spawn a new shell here — that's reserved for
+# the single canonical launch block at the end of the file.
 command -v swww >/dev/null 2>&1 && ! swww query >/dev/null 2>&1 && {
     if command -v swww-daemon >/dev/null 2>&1; then
         setsid swww-daemon </dev/null >/dev/null 2>&1 & disown 2>/dev/null || true
@@ -1296,18 +1201,16 @@ command -v swww >/dev/null 2>&1 && ! swww query >/dev/null 2>&1 && {
     echo "    swww-daemon started"
 }
 
-setsid qs -c zen-shell > /tmp/zen-shell.log 2>&1 </dev/null & disown
-echo "    qs -c zen-shell started (log: /tmp/zen-shell.log)"
+# Reload Hyprland config so any new source = lines / module changes apply
+# before the shell reattaches its layer surface.
+pgrep -x Hyprland >/dev/null && sleep 0.3 && hyprctl reload 2>/dev/null && echo "    Hyprland reloaded"
 
-pgrep -x Hyprland >/dev/null && sleep 0.5 && hyprctl reload 2>/dev/null && echo "    Hyprland reloaded"
-
-sleep 1
+sleep 0.5
 
 # ═══════════════════════════════════════════════════════════════
 # DONE
 # ═══════════════════════════════════════════════════════════════
 QML_FINAL=$(ls -1 "$SHELL_DIR/"*.qml 2>/dev/null | wc -l)
-SHELL_PID=$(pgrep -f "qs -c zen-shell" | head -1)
 SWWW_ALIVE="no";  command -v swww >/dev/null 2>&1 && swww query >/dev/null 2>&1 && SWWW_ALIVE="yes"
 SWAYNC_ALIVE="no"; pgrep -x swaync >/dev/null 2>&1 && SWAYNC_ALIVE="yes"
 CAVA_OK="no";      command -v cava >/dev/null 2>&1 && CAVA_OK="yes"
@@ -1316,7 +1219,7 @@ PCTL_OK="no";      command -v playerctl >/dev/null 2>&1 && PCTL_OK="yes"
 echo ""
 echo "╔═══════════════════════════════════════════════════════════════╗"
 echo "║                                                               ║"
-echo "║         🎉  ZEN SHELL v6.15.14 INSTALLED SUCCESSFULLY  🎉      ║"
+echo "║         🎉  ZEN SHELL v6.16.2.3.7 INSTALLED SUCCESSFULLY  🎉   ║"
 echo "║                                                               ║"
 echo "╚═══════════════════════════════════════════════════════════════╝"
 echo ""
@@ -1324,7 +1227,6 @@ echo "  ── Install summary ──"
 echo "    QML files installed:   $QML_FINAL"
 echo "    Toggle scripts:        $INSTALLED_SCRIPTS_COUNT in $BIN_DIR"
 echo "    Builtin themes:        $INSTALLED_THEMES_COUNT"
-echo "    Shell running:         ${SHELL_PID:-(not running — check /tmp/zen-shell.log)}"
 echo "    swww daemon alive:     $SWWW_ALIVE"
 echo "    swaync daemon alive:   $SWAYNC_ALIVE"
 echo "    cava available:        $CAVA_OK"
@@ -1336,256 +1238,277 @@ if [ -n "$SKIPPED_OPTIONAL_PACKAGES" ]; then
     echo "    Optional pkgs skipped: $SKIPPED_OPTIONAL_PACKAGES"
 fi
 echo ""
-echo "  ── New in v6.15 ──"
-echo "      Music module → ZenStrings    Toggle in Settings → General → Strings"
-echo "      Position tracking             Strings follow music slot reliably"
-echo "      Hover tooltip                 Artist — Title on hover"
-echo "      Color modes                   Theme / Synced / Custom"
-echo "      zen-cava.sh                   Bundled cava wrapper"
-echo ""
-echo "  ── Fixed in v6.15 ──"
-echo "      Music slot position         Strings now align to actual music slot"
-echo "                                   (was stuck at far-left due to layout race)"
-echo "      Carried from v6.14:         Tooltip alignment, SwayNC position,"
-echo "                                   Process reuse, SIGTERM restart"
-echo ""
-echo "  ── Fixed in v6.15.2 ──"
-echo "      Live position updates       String now tracks music slot position"
-echo "                                   even when sysrow/taskbar reflow after"
-echo "                                   login — no more stale position until"
-echo "                                   user interaction."
-echo "      Loading placeholder         Pulsing 'Loading…' shows in the bar"
-echo "                                   slot during the 600ms settle window."
-echo "      Stability-based reveal      Strings fade in only when the slot"
-echo "                                   position has been stable for 600ms,"
-echo "                                   not on a fixed 1.5s timer."
-echo ""
-echo "  ── Fixed in v6.15.3 ──"
-echo "      Loading loop                Clock ticks + taskbar badges + sysrow"
-echo "                                   jitter used to keep restarting the"
-echo "                                   600ms stability timer → placeholder"
-echo "                                   looped forever. Write threshold now"
-echo "                                   2px (ignores sub-pixel noise)."
-echo ""
-echo "  ── Fixed in v6.15.4 ──"
-echo "      Layout-stuck position       After Loading finished, string used"
-echo "                                   to stay at wrong (pre-layout) position"
-echo "                                   until user hovered a bar module."
-echo "                                   Now auto-unsticks via layoutNudger"
-echo "                                   + parent-chain walk + 15s max-wait"
-echo "                                   with sanity gate."
-echo "      Tooltip bar-top anchor      Music string tooltip no longer floats"
-echo "                                   60px above the bar — now snug to bar"
-echo "                                   top edge like SysRow tooltips."
-echo ""
-echo "  ── Enhanced in v6.15.5 ──"
-echo "      Smooth runtime transitions  When sysrow/tray expands or taskbar"
-echo "                                   gains/loses an app, the string now"
-echo "                                   SLIDES smoothly (180ms OutCubic) into"
-echo "                                   its new position instead of snap-after-"
-echo "                                   delay. Width changes (stringLength"
-echo "                                   adjustments) animate too."
-echo "                                   Initial login placement still snaps"
-echo "                                   — only runtime changes animate."
-echo ""
-echo "  ── Fixed in v6.15.6 ──"
-echo "      Complete applyToHyprland    SettingsStateV2 now writes ALL snap"
-echo "                                   keywords (window_gap, monitor_gap,"
-echo "                                   border_overlap, respect_gaps) plus"
-echo "                                   the full blur/shadow extras. Before"
-echo "                                   this, those were never asserted to"
-echo "                                   Hyprland — so any hyprctl reload"
-echo "                                   silently reverted them to"
-echo "                                   hyprland.conf defaults."
-echo "      Theme reload defensively    After theme change, applyToHyprland"
-echo "                                   is called again — so even if some"
-echo "                                   downstream cascade wipes settings,"
-echo "                                   user config is immediately restored."
-echo "      Panel mode transition       Switching Fullwidth/Floating/Island"
-echo "                                   no longer leaves music string stuck"
-echo "                                   at stale old coordinates. Transition"
-echo "                                   now routes through the Loading"
-echo "                                   placeholder → fresh position discovery"
-echo "                                   → strings reappear at correct position."
-echo ""
-echo "  ── Fixed in v6.15.7 ──"
-echo "      Rapid mode cycling fix      When user rapidly cycles Island →"
-echo "                                   Fullwidth → Floating → Island, the"
-echo "                                   v6.15.6 fix could still leak stale"
-echo "                                   intermediate coordinates (captured"
-echo "                                   mid-resize) into ZenStringsState,"
-echo "                                   leading to orphaned string at wrong"
-echo "                                   position after Loading cleared."
-echo "      Bar.qml mode lockout        _doUpdatePos now short-circuits"
-echo "                                   while _modeTransitioning is true."
-echo "                                   The flag is set on panelModeChanged"
-echo "                                   and cleared 300ms after barRoot.width"
-echo "                                   stops changing significantly (>20px)."
-echo "                                   Runtime tray expand (<20px changes)"
-echo "                                   is unaffected."
-echo "      shell.qml barWindowLeft     Stability timer now watches"
-echo "                                   barWindowLeft changes in addition to"
-echo "                                   musicSlotLocalX. Prevents positionReady"
-echo "                                   commit while bar origin is still"
-echo "                                   updating post-mode-change."
-echo ""
-echo "  ── Fixed in v6.15.8 ──"
-echo "      Island commit at start-menu v6.15.7's bar-width-idle lockout"
-echo "                                   unlocked too early for Floating→Island"
-echo "                                   or FW→Island transitions. Island mode"
-echo "                                   has a layout feedback loop"
-echo "                                   (barWindow.implicitWidth ↔"
-echo "                                   bar.contentImplicitWidth) that can"
-echo "                                   propagate across multiple frames"
-echo "                                   AFTER bar.width stabilizes. Single"
-echo "                                   read after unlock caught intermediate"
-echo "                                   stale values, committed to wrong"
-echo "                                   position (near start menu)."
-echo "      Stable-read verification    _doUpdatePos now requires TWO"
-echo "                                   consecutive stable reads (x,width)"
-echo "                                   within 2px AND bar-width-idle before"
-echo "                                   lifting the mode transition lockout."
-echo "                                   Guarantees layout has fully propagated."
-echo "      Bounds sanity check         x must be within (0, barRoot.width)"
-echo "                                   and musicSlotItem.width must be"
-echo "                                   sensible. Filters out partial"
-echo "                                   layout state reads."
-echo ""
-echo "  ── Fixed in v6.15.9 ──"
-echo "      RowLayout.forceLayout()     The proper fix to the island layout"
-echo "                                   feedback loop. Instead of passively"
-echo "                                   waiting for Qt's async layout engine"
-echo "                                   to propagate child .x values across"
-echo "                                   multiple frames, we now explicitly"
-echo "                                   call forceLayout() on all 4 bar"
-echo "                                   RowLayouts (main, left, center,"
-echo "                                   right). This collapses the entire"
-echo "                                   layout pass into a single synchronous"
-echo "                                   update so positions are ALWAYS fresh"
-echo "                                   when read."
-echo "      Transition-only cost        forceLayout() is only called during"
-echo "                                   _modeTransitioning (once in the"
-echo "                                   panelModeChanged handler as preemptive"
-echo "                                   warmup, and again at start of each"
-echo "                                   _doUpdatePos during transition). Zero"
-echo "                                   overhead in steady state."
-echo "      Faster Loading              Typical transition Loading reduced"
-echo "                                   from ~1-1.2s down to ~700-900ms."
-echo ""
-echo "  ── Fixed in v6.15.10 ──"
-echo "      Nuclear Float/FW → Island   v6.15.2 through v6.15.9 all attempted"
-echo "                                   progressively more sophisticated QML"
-echo "                                   workarounds to catch Qt's async"
-echo "                                   RowLayout propagation in island mode."
-echo "                                   forceLayout() (v6.15.9) should have"
-echo "                                   been the proper fix but Quickshell"
-echo "                                   PanelWindow + WlrLayer renegotiation"
-echo "                                   timing has a quirk QML can't reach."
-echo "      Kill + relaunch on transit  When previous mode was fullwidth or"
-echo "                                   floating and new mode is island,"
-echo "                                   shell.qml triggers a detached bash"
-echo "                                   respawn (setsid + nohup). PanelState"
-echo "                                   saves to JSON first, then pkill +"
-echo "                                   relaunch. Reborn shell starts"
-echo "                                   directly in island mode from fresh"
-echo "                                   state — no feedback loop."
-echo "      Selective — only that path  Island→FW, Island→Float, FW↔Float"
-echo "                                   transitions continue using v6.15.8"
-echo "                                   stable-read + v6.15.9 forceLayout."
-echo "                                   No unnecessary flicker."
-echo ""
-echo "  ── Fixed in v6.15.11 ──"
-echo "      Nuclear respawn command     v6.15.10's pkill pattern assumed"
-echo "                                   Quickshell was invoked as 'qs -c"
-echo "                                   zen-shell'. Paul actually runs it"
-echo "                                   as 'quickshell -p ~/.config/"
-echo "                                   quickshell/zen-shell' — different"
-echo "                                   executable name entirely. The"
-echo "                                   pkill pattern didn't match and"
-echo "                                   v6.15.10's nuclear restart never"
-echo "                                   actually fired."
-echo "      Fixed pkill pattern         Now uses 'zen-shell' which matches"
-echo "                                   BOTH invocations (qs or quickshell)"
-echo "                                   as long as they have 'zen-shell'"
-echo "                                   in the command line — covers all"
-echo "                                   reasonable setups."
-echo "      Helper script approach      Nuclear restart commands are now"
-echo "                                   written to /tmp/zen-shell-nuclear-"
-echo "                                   restart.sh and executed via"
-echo "                                   setsid -f (fallback nohup+disown)."
-echo "                                   No more nested bash -c quoting"
-echo "                                   bugs. Debug log at"
-echo "                                   /tmp/zs-restart.log"
-echo "      Manual test IPC endpoint    Added 'testNuclearRestart' to the"
-echo "                                   IpcHandler — run 'quickshell -p"
-echo "                                   ~/.config/quickshell/zen-shell"
-echo "                                   ipc call zen testNuclearRestart'"
-echo "                                   from terminal to verify respawn"
-echo "                                   works outside the mode-change"
-echo "                                   pathway."
-echo "      Recovery timer              If respawn fails silently,"
-echo "                                   _nuclearRestartPending clears"
-echo "                                   after 3s so another mode cycle"
-echo "                                   can trigger a fresh attempt."
-echo ""
-echo "  ── Fixed in v6.15.12 ──"
-echo "      Helper script self-suicide  v6.15.11's helper was written to"
-echo "                                   /tmp/zen-shell-nuclear-restart.sh"
-echo "                                   — path contains 'zen-shell'."
-echo "                                   Inside, it ran 'pkill -f zen-shell'"
-echo "                                   which matched its OWN cmdline and"
-echo "                                   killed itself mid-execution. The"
-echo "                                   quickshell respawn half never ran."
-echo "                                   Paul reported: 'nung nag pkill"
-echo "                                   -f zen-shell wala na hindi nag"
-echo "                                   load yung sleep mo 0.2 quickshell"
-echo "                                   -p...'"
-echo "      Safe filename               Renamed to 'zs-restart.sh' — no"
-echo "                                   'zen-shell' substring, immune to"
-echo "                                   the broad pkill pattern."
-echo "      Tightened pkill pattern     Now uses 'quickshell.*zen-shell'"
-echo "                                   which matches ONLY the quickshell"
-echo "                                   invocation, not random scripts."
-echo "      Permanent install path      ~/.local/bin/zs-restart.sh added"
-echo "                                   to install.sh scripts list."
-echo "                                   Inline /tmp/zs-restart.sh fallback"
-echo "                                   if user applied hotfix patch"
-echo "                                   without re-running install.sh."
-echo ""
-echo "  ── How to use Strings ──"
-echo "    Super+,  → Settings → General → Strings"
-echo "    Toggle 'Enable strings' → music module becomes a string"
-echo "    Play music → string animates with the beat"
-echo "    Hover over string → shows Artist — Title tooltip"
-echo "    Pause/stop → string returns to static line"
-echo ""
-echo "  ── Color modes ──"
-echo "    theme    = auto blue→purple from current theme"
-echo "    synced   = pick specific theme color keys"
-echo "    custom   = your own hex colors"
-echo ""
-echo "  ── Screenshot rope (add to hyprland.conf if not set) ──"
-echo "    bind = SUPER SHIFT, S, exec, qs msg -i zen -f zenScreenshotRope"
-echo ""
-echo "  ── Keybinds ──"
-echo "    Super+C      → Control Panel (quick settings)"
-echo "    Super+,      → Settings window"
-echo "    Super+W      → Wallpaper picker"
-echo "    Super+A      → Start menu"
-echo "    Super+/      → Keybind cheatsheet"
-echo ""
-echo "  ── Quick test (v6.15 strings) ──"
-echo "    1. Super+,  → General → Strings → Enable strings"
-echo "    2. Verify the string sits INSIDE the music slot (not far-left)"
-echo "    3. Play music in Spotify/Rhythmbox → string animates with beat"
-echo "    4. Hover the string → Artist — Title tooltip pops above it"
-echo "    5. Pause music → string returns to static line"
-echo ""
+
+# ═══════════════════════════════════════════════════════════════════════
+# v6.16.2.3.2: SEED zen-mouse.conf + INJECT source line into hyprland.conf
+# ═══════════════════════════════════════════════════════════════════════
+ZEN_MOUSE_CONF="${HOME}/.config/hypr/zen-mouse.conf"
+ZEN_HYPRLAND_CONF="${HOME}/.config/hypr/hyprland.conf"
+
+mkdir -p "${HOME}/.config/hypr"
+if [ ! -f "${ZEN_MOUSE_CONF}" ]; then
+    cat > "${ZEN_MOUSE_CONF}" << 'ZSMOUSE'
+# Zen Shell v6.16.2.3.7 — managed mouse settings
+# Edit via Control Panel → Input, not by hand.
+input {
+    sensitivity     = 0.0
+    scroll_factor   = 1.0
+    natural_scroll  = false
+    touchpad {
+        natural_scroll = false
+    }
+}
+ZSMOUSE
+    echo "  ── Seeded ${ZEN_MOUSE_CONF}"
+fi
+
+if [ -f "${ZEN_HYPRLAND_CONF}" ]; then
+    if ! grep -q "zen-mouse.conf" "${ZEN_HYPRLAND_CONF}"; then
+        cat >> "${ZEN_HYPRLAND_CONF}" << 'ZSAPP'
+
+# Zen Shell v6.16.2.3.7: mouse settings (managed by Control Panel → Input)
+source = ~/.config/hypr/zen-mouse.conf
+ZSAPP
+        echo "  ── Injected source line into ${ZEN_HYPRLAND_CONF}"
+    fi
+fi
+
 echo "  ── Diagnostics ──"
 echo "    tail -30 /tmp/zen-shell.log"
 echo "    playerctl status"
 echo "    cava   (test standalone)"
+echo "    pgrep -fa 'quickshell.*zen-shell|qs.*zen-shell'   # should show ONE line"
 echo ""
-echo "  ✅  Done. Enjoy Zen Shell v6.15, pre."
+
+# ═══════════════════════════════════════════════════════════════════════
+# v6.16.2.3.2: DEFAULT WALLPAPER FETCH
+# ═══════════════════════════════════════════════════════════════════════
+ZEN_WP_DIR="${HOME}/.config/zen-shell/wallpapers"
+ZEN_WP_STATE="${HOME}/.config/quickshell/zen-shell/wallpaper-state.json"
+ZEN_DEFAULT_WP_NAME="123824383_p0 (Edited) compressed.png"
+ZEN_DEFAULT_WP_URL="https://raw.githubusercontent.com/Gekinzen/images-demo/main/wallpapers/123824383_p0%20(Edited)%20compressed.png"
+ZEN_DEFAULT_WP_LOCAL="${ZEN_WP_DIR}/${ZEN_DEFAULT_WP_NAME}"
+
+mkdir -p "${ZEN_WP_DIR}"
+
+_is_fresh_wallpaper() {
+    [ ! -f "${ZEN_WP_STATE}" ] && return 0
+    local current
+    current=$(grep -oE '"currentPath"[[:space:]]*:[[:space:]]*"[^"]*"' "${ZEN_WP_STATE}" 2>/dev/null | sed -E 's/.*"([^"]*)"$/\1/')
+    [ -z "${current}" ] && return 0
+    [ ! -f "${current}" ] && return 0
+    return 1
+}
+
+echo "  ── Default wallpaper ──"
+if command -v curl >/dev/null 2>&1; then
+    if [ ! -f "${ZEN_DEFAULT_WP_LOCAL}" ]; then
+        echo "    Downloading default wallpaper from Gekinzen/images-demo ..."
+        if curl -fsSL --connect-timeout 10 --max-time 60 \
+                -o "${ZEN_DEFAULT_WP_LOCAL}" "${ZEN_DEFAULT_WP_URL}"; then
+            echo "    ✅  Saved to ${ZEN_DEFAULT_WP_LOCAL}"
+        else
+            echo "    ⚠️   Download failed (offline? repo private?) — skipping."
+            rm -f "${ZEN_DEFAULT_WP_LOCAL}" 2>/dev/null
+        fi
+    else
+        echo "    ✅  Already cached at ${ZEN_DEFAULT_WP_LOCAL}"
+    fi
+
+    if [ -f "${ZEN_DEFAULT_WP_LOCAL}" ] && _is_fresh_wallpaper; then
+        echo "    Fresh install detected → applying default wallpaper."
+        if command -v swww >/dev/null 2>&1; then
+            swww query >/dev/null 2>&1 || swww-daemon >/dev/null 2>&1 &
+            sleep 0.3
+            swww img "${ZEN_DEFAULT_WP_LOCAL}" \
+                --transition-type fade --transition-duration 0.6 \
+                >/dev/null 2>&1 || true
+            mkdir -p "$(dirname "${ZEN_WP_STATE}")"
+            cat > "${ZEN_WP_STATE}" << JSONEOF
+{
+  "currentPath": "${ZEN_DEFAULT_WP_LOCAL}",
+  "appliedBy": "install.sh-v6.16.2.3.7"
+}
+JSONEOF
+            echo "    ✅  Default wallpaper applied via swww."
+        else
+            echo "    ⚠️   swww not found — wallpaper downloaded but not applied."
+            echo "         Run: swww img \"${ZEN_DEFAULT_WP_LOCAL}\""
+        fi
+    else
+        echo "    ℹ️   User already has a wallpaper — not overriding."
+    fi
+else
+    echo "    ⚠️   curl not found — cannot fetch default wallpaper."
+fi
+echo ""
+
+# ═══════════════════════════════════════════════════════════════════════
+# v6.16.3 STACK — idempotent apply of smart-lid + wake + lock changes
+# ───────────────────────────────────────────────────────────────────────
+# Replaces the standalone install-v6.16.3.2.1-overlay.sh. Runs on every
+# `./install.sh` invocation so the v6.16.3 files are always in sync with
+# the tarball. Individual phases are idempotent — re-running is cheap.
+# ═══════════════════════════════════════════════════════════════════════
+echo ""
+echo "  ── v6.16.3 stack (smart lid + wake recovery + lock redesign) ──"
+
+# Phase A — lock screen + idle daemon deps
+# Added in v6.16.3.2.1: auto-detect + offer paru/yay/pacman install for
+# hyprlock + hypridle. Earlier optional-deps loop above already covered
+# this during the fresh-install flow; we still check here in case user
+# answered "n" to that prompt but changed their mind, OR is running a
+# re-install after initial setup.
+V6163_NEED=()
+command -v hyprlock >/dev/null 2>&1 || V6163_NEED+=(hyprlock)
+command -v hypridle >/dev/null 2>&1 || V6163_NEED+=(hypridle)
+if [ ${#V6163_NEED[@]} -gt 0 ]; then
+    echo "    hyprlock/hypridle missing: ${V6163_NEED[*]}"
+    V6163_INSTALLER=""
+    if command -v paru >/dev/null 2>&1; then V6163_INSTALLER="paru"
+    elif command -v yay >/dev/null 2>&1; then V6163_INSTALLER="yay"
+    elif command -v pacman >/dev/null 2>&1; then V6163_INSTALLER="sudo pacman"
+    fi
+    if [ -n "$V6163_INSTALLER" ]; then
+        printf '    Install with `%s -S --needed %s`? [Y/n] ' "$V6163_INSTALLER" "${V6163_NEED[*]}"
+        read -r V6163_ANS
+        case "$V6163_ANS" in
+            n|N|no|NO) echo "    skipped — lock screen + auto-lock disabled until installed" ;;
+            *) $V6163_INSTALLER -S --needed "${V6163_NEED[@]}" || echo "    install failed — try manually" ;;
+        esac
+    else
+        echo "    no pacman/paru/yay — install manually: sudo pacman -S --needed ${V6163_NEED[*]}"
+    fi
+else
+    echo "    ✓ hyprlock + hypridle present"
+fi
+
+# Phase B — hypridle.conf + hyprlock.conf (user-scope, ~/.config/hypr/)
+# These files live directly under $HYPR_DIR (NOT modules/) because
+# hypridle and hyprlock look there by default. Existing files get
+# backed up to .bak.<TS> so users who hand-tweaked are safe.
+for v6163f in hypridle.conf hyprlock.conf; do
+    src="$SCRIPT_DIR/hypr-config/$v6163f"
+    dst="$HYPR_DIR/$v6163f"
+    [ -f "$src" ] || continue
+    if [ -f "$dst" ] && ! diff -q "$src" "$dst" >/dev/null 2>&1; then
+        cp "$dst" "$dst.bak.$TS" 2>/dev/null
+        cp "$src" "$dst"
+        echo "    $v6163f → $dst (backed up old)"
+    elif [ ! -f "$dst" ]; then
+        cp "$src" "$dst"
+        echo "    $v6163f → $dst (new)"
+    else
+        echo "    $v6163f up to date"
+    fi
+done
+
+# Phase C — lid-behavior.conf + autostart.conf (modules scope)
+# These were already copied by [6/9]'s generic hypr-config loop if the
+# install.sh had one; explicit copy here guarantees v6.16.3.X versions
+# land even when that loop is absent in older install.sh variants.
+for v6163f in lid-behavior.conf autostart.conf; do
+    src="$SCRIPT_DIR/hypr-config/$v6163f"
+    dst="$HYPR_DIR/modules/$v6163f"
+    [ -f "$src" ] || continue
+    cp "$src" "$dst"
+done
+echo "    lid-behavior.conf + autostart.conf synced"
+
+# Phase D — lock-wallpaper symlink seed (so first lock has a bg)
+V6163_LOCK_BG="$HOME/.cache/zen-shell/lock-wallpaper.png"
+V6163_WP_STATE="$HOME/.config/quickshell/zen-shell/wallpaper-v5.json"
+if [ -f "$V6163_WP_STATE" ] && command -v jq >/dev/null 2>&1; then
+    V6163_CUR_WP=$(jq -r '.currentWallpaper // empty' "$V6163_WP_STATE" 2>/dev/null)
+    if [ -n "$V6163_CUR_WP" ] && [ -f "$V6163_CUR_WP" ]; then
+        ln -sfn "$V6163_CUR_WP" "$V6163_LOCK_BG"
+        echo "    lock wallpaper seed → $V6163_CUR_WP"
+    fi
+fi
+if [ ! -e "$V6163_LOCK_BG" ] && command -v grim >/dev/null 2>&1; then
+    grim "$V6163_LOCK_BG" 2>/dev/null && echo "    lock wallpaper seed → grim fallback"
+fi
+
+# Phase E — systemd-sleep hook (optional, needs sudo)
+# Skip prompt silently if already installed; only ask on fresh boxes
+# and only if sudo is reachable without password-less hostile env.
+V6163_HOOK_SRC="$SCRIPT_DIR/hypr-config/zen-sleep-hook.sh"
+V6163_HOOK_DST="/usr/lib/systemd/system-sleep/zen-sleep-hook"
+if [ -f "$V6163_HOOK_SRC" ]; then
+    if [ -f "$V6163_HOOK_DST" ]; then
+        echo "    ✓ systemd-sleep hook already installed"
+    else
+        printf '    Install systemd-sleep hook for full wake recovery? [Y/n] '
+        read -r V6163_ANS
+        case "$V6163_ANS" in
+            n|N|no|NO) echo "    skipped (lid + manual recovery still work)" ;;
+            *)
+                if command -v sudo >/dev/null 2>&1; then
+                    sudo install -m 0755 -o root -g root "$V6163_HOOK_SRC" "$V6163_HOOK_DST" \
+                        && echo "    ✓ installed at $V6163_HOOK_DST" \
+                        || echo "    ⚠ sudo install failed"
+                else
+                    echo "    no sudo available — copy manually as root"
+                fi
+                ;;
+        esac
+    fi
+fi
+
+# Phase F — restart hypridle if it's running (so new hypridle.conf takes effect)
+if pgrep -x hypridle >/dev/null 2>&1; then
+    pkill -x hypridle 2>/dev/null
+    sleep 0.3
+fi
+if command -v hypridle >/dev/null 2>&1; then
+    setsid -f hypridle </dev/null >/dev/null 2>&1 &
+    echo "    ✓ hypridle restarted"
+fi
+
+echo "  ── v6.16.3 stack applied ──"
+echo ""
+
+
+ZEN_QS_PATH="${HOME}/.config/quickshell/zen-shell"
+
+if command -v quickshell >/dev/null 2>&1; then
+    # Final kill pass — should be a no-op after step [9/9] but covers
+    # the edge case where something respawned in the meantime.
+    SURVIVED=$(_zen_kill_all_shells "launch")
+
+    if [ "$SURVIVED" -gt 0 ]; then
+        echo "    ⚠️   $SURVIVED zen-shell process(es) survived SIGKILL — REFUSING"
+        echo "         to spawn another (would result in stacked bars)."
+        echo "         Diagnose with:"
+        echo "           pgrep -fa 'quickshell.*zen-shell|qs.*zen-shell'"
+        echo "         Then manually:"
+        echo "           pkill -9 -f 'zen-shell'"
+        echo "           quickshell -p ${ZEN_QS_PATH} &"
+    else
+        # All clear — spawn exactly ONE detached zen-shell.
+        if command -v setsid >/dev/null 2>&1; then
+            setsid -f quickshell -p "${ZEN_QS_PATH}" </dev/null >/tmp/zen-shell.log 2>&1
+        else
+            nohup quickshell -p "${ZEN_QS_PATH}" </dev/null >/tmp/zen-shell.log 2>&1 &
+            disown
+        fi
+        # Verify exactly one is running after spawn settles
+        sleep 0.6
+        FINAL=$(pgrep -f 'quickshell.*zen-shell' 2>/dev/null | wc -l)
+        if [ "$FINAL" -eq 1 ]; then
+            echo "    ✅  spawned: quickshell -p ${ZEN_QS_PATH}  (1 instance, verified)"
+        elif [ "$FINAL" -eq 0 ]; then
+            echo "    ⚠️   spawn did not stick — check /tmp/zen-shell.log"
+        else
+            echo "    ⚠️   $FINAL instances detected after spawn (expected 1) — check"
+            echo "         pgrep -fa 'quickshell.*zen-shell|qs.*zen-shell'"
+        fi
+    fi
+else
+    echo "    ⚠️   quickshell not in PATH — bootstrap may have failed."
+fi
+echo ""
+
+echo "  ✅  Done. Enjoy Zen Shell v6.16.3.4.2, pre."
 echo ""
 exit 0

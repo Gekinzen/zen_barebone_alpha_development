@@ -126,7 +126,7 @@ ScrollView {
             HMRow {
                 label: "Resize on border"
                 description: "Enables resizing windows by clicking and dragging on borders and gaps"
-                Switch {
+                HMSwitch {
                     checked: SettingsStateV2.resizeOnBorder
                     onToggled: {
                         SettingsStateV2.resizeOnBorder = checked
@@ -151,7 +151,7 @@ ScrollView {
             HMRow {
                 label: "Hover icon on border"
                 description: "Show a cursor icon when hovering on borders"
-                Switch {
+                HMSwitch {
                     checked: SettingsStateV2.hoverIconOnBorder
                     onToggled: {
                         SettingsStateV2.hoverIconOnBorder = checked
@@ -342,7 +342,7 @@ ScrollView {
             HMRow {
                 label: "Allow tearing"
                 description: "Allow screen tearing for reduced latency"
-                Switch {
+                HMSwitch {
                     checked: SettingsStateV2.allowTearing
                     onToggled: {
                         SettingsStateV2.allowTearing = checked
@@ -361,7 +361,7 @@ ScrollView {
             HMRow {
                 label: "Enable snap"
                 description: "Enable snapping for floating windows"
-                Switch {
+                HMSwitch {
                     checked: SettingsStateV2.snapEnabled
                     onToggled: {
                         SettingsStateV2.snapEnabled = checked
@@ -402,7 +402,7 @@ ScrollView {
                 visible: SettingsStateV2.snapEnabled
                 label: "Respect gaps"
                 description: "Snap respects the configured window gaps"
-                Switch {
+                HMSwitch {
                     checked: SettingsStateV2.snapRespectGaps
                     onToggled: {
                         SettingsStateV2.snapRespectGaps = checked
@@ -424,7 +424,7 @@ ScrollView {
             HMRow {
                 label: "Enable strings"
                 description: "Music module → string (requires 'music' in your bar layout)"
-                Switch {
+                HMSwitch {
                     checked: ZenStringsState.enabled
                     onToggled: {
                         ZenStringsState.enabled = checked
@@ -483,7 +483,7 @@ ScrollView {
                 separator: true
                 label: "Glow"
                 description: "Soft glow around string lines"
-                Switch {
+                HMSwitch {
                     checked: ZenStringsState.glowEnabled
                     onToggled: { ZenStringsState.glowEnabled = checked; ZenStringsState.markDirty() }
                 }
@@ -554,7 +554,7 @@ ScrollView {
                 separator: true
                 label: "Screenshot ropes"
                 description: "Physics rope overlay during region screenshot"
-                Switch {
+                HMSwitch {
                     checked: ZenStringsState.screenshotRopeEnabled
                     onToggled: { ZenStringsState.screenshotRopeEnabled = checked; ZenStringsState.markDirty() }
                 }

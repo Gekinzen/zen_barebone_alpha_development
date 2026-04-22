@@ -2,7 +2,21 @@ import QtQuick
 import QtQuick.Layouts
 
 /*
- * Bar.qml v6.15.4
+ * Bar.qml v6.16.0.2
+ *
+ * v6.16.0: Added Battery module. Registered as "battery" in the
+ *   barLayout map. Hides itself automatically on desktops (when
+ *   no /sys/class/power_supply/BAT* exists) so the same layout
+ *   config works on laptops AND desktops without branching.
+ *   Three display modes via SettingsStateV2.batteryDisplayMode:
+ *   icon (default) | text | bar.
+ *
+ * v6.16.0.1 HOTFIX: Battery.qml Rectangle popup (was ToolTip which
+ *   needs QtQuick.Controls not available in Quickshell).
+ *
+ * v6.16.0.2: PanelState migration — upgraders with existing
+ *   panel-state.json now get "battery" auto-injected into barLayout.right
+ *   on first load (was only taking effect on fresh installs before).
  *
  * v6.15: music module now toggleable as ZenStrings.
  *   - cMusic component: kapag ZenStringsState.enabled → loads MusicStrings
@@ -87,6 +101,12 @@ Rectangle {
     Component { id: cClock;       Clock {} }
     Component { id: cWeather;     ZenWeather {} }
     Component { id: cSysMonitor;  ZenSysMonitor {} }
+    // v6.16.0: Battery module (hides itself on desktops)
+    Component { id: cBattery;     Battery {} }
+    // v6.16.3.4: Power profile + GPU mode badge.
+    // Hides itself when neither powerprofilesctl nor multi-GPU
+    // detection succeeds (single-GPU desktop with no PPD = invisible).
+    Component { id: cPowerBadge;  PowerBadge {} }
 
     // v6.15: music slot — toggles between MusicWidget and MusicStrings
     // musicSlotLocalX / musicSlotLocalWidth: bar-local coordinates of the
@@ -528,6 +548,9 @@ Rectangle {
             case "clock":         return cClock
             case "weather":       return cWeather
             case "sysmonitor":    return cSysMonitor
+            case "battery":       return cBattery
+            // v6.16.3.4: power profile + GPU mode badge
+            case "powerbadge":    return cPowerBadge
         }
         console.warn("[Bar] Unknown module:", name)
         return null
