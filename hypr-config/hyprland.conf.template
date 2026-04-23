@@ -43,6 +43,13 @@ source = ~/.config/hypr/modules/autostart.conf
 source = ~/.config/hypr/modules/look_and_feel.conf
 source = ~/.config/hypr/modules/binds.conf
 
+# v6.16.3.4.4: sourced AFTER look_and_feel.conf so user-picked animation
+# presets override the default animations { } block. Written by Zen
+# Settings → Animations. If absent (fresh install before first preset
+# save) install.sh copies the default animations.conf, so this source
+# line is always valid.
+source = ~/.config/hypr/modules/animations.conf
+
 # 2. Zen Shell overrides (LAST so they take priority)
 source = ~/.config/quickshell/zen-shell/config/hyprland-layer-rules.conf
 source = ~/.config/quickshell/zen-shell/config/keybinds-update.conf

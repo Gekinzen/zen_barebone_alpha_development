@@ -150,7 +150,7 @@ ScrollView {
                 RowLayout {
                     spacing: 8
 
-                    ComboBox {
+                    ZenComboBox {
                         id: themeCombo
                         Layout.preferredWidth: 260
                         model: ThemeService.availableThemes.map(t =>

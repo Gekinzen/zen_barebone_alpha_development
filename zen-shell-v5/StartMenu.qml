@@ -28,17 +28,32 @@ Rectangle {
     Behavior on color { ColorAnimation { duration: 200 } }
 
     // v6.16.2: Custom logo support with auto-fit.
-    // Mode "auto" → distribution icon (original behavior).
-    // Mode "custom" → user-picked image at startButtonLogoPath, scaled
-    // to fit the button with preserved aspect ratio.
+    // v6.16.3.5: three modes now — auto / builtin / custom. The
+    // resolver on PanelState encapsulates the lookup logic; here we
+    // just bind to its result with a sensible fallback for the empty
+    // case (e.g. auto mode on a distro without a matching builtin).
+    //
+    // Fallback chain:
+    //   PanelState.resolveStartButtonLogo()   ← user's effective choice
+    //     → if empty, Quickshell.iconPath("distributor-logo-<osLogo>")
+    //     → if that 404s, Quickshell.iconPath("distributor-logo-archlinux")
     Image {
         id: logoImg
         anchors.centerIn: parent
         width: PanelState.startButtonIconSize
         height: PanelState.startButtonIconSize
-        source: PanelState.startButtonLogoMode === "custom" && PanelState.startButtonLogoPath
-                ? "file://" + PanelState.startButtonLogoPath
-                : Quickshell.iconPath("distributor-logo-archlinux")
+
+        readonly property string _resolved: PanelState.resolveStartButtonLogo()
+        readonly property string _osTag: UserProfileService
+            ? String(UserProfileService.osLogo || "").toLowerCase()
+            : ""
+
+        source: _resolved !== ""
+            ? _resolved
+            : (_osTag
+                ? Quickshell.iconPath("distributor-logo-" + _osTag)
+                : Quickshell.iconPath("distributor-logo-archlinux"))
+
         // v6.16.2: auto-fit preserves aspect ratio of user's custom image
         // (PNG/SVG/JPG). For the distro icon this is a no-op since the
         // icon is already square. smooth=true for better downscaling of
@@ -52,12 +67,12 @@ Rectangle {
         // the button's background color gives a tinted effect without
         // requiring QtGraphicalEffects ColorOverlay or shader fragments
         // that may not be available across all Quickshell builds.
-        opacity: PanelState.startButtonLogoMode === "custom" && PanelState.startButtonLogoTint
+        opacity: (PanelState.startButtonLogoMode === "custom" && PanelState.startButtonLogoTint)
                  ? 0.85
                  : 1.0
-        // Fallback to distro icon if the user's custom image fails to load
-        onStatusChanged: if (status === Image.Error && PanelState.startButtonLogoMode === "custom") {
-            console.warn("[StartMenu] custom logo failed to load:", source, "falling back")
+        // Fallback to Arch icon if the resolved image fails to load
+        onStatusChanged: if (status === Image.Error) {
+            console.warn("[StartMenu] logo failed to load:", source, "falling back to Arch")
             source = Quickshell.iconPath("distributor-logo-archlinux")
         }
     }

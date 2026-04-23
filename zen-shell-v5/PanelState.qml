@@ -102,11 +102,110 @@ Singleton {
     // consumes the delta then updates its own state.
     property int calendarMonthDelta: 0
 
+    // v6.16.3.7: universal desktop widget scale factor.
+    // Multiplies all widget font sizes + derived container bounds
+    // in DesktopWidgets.qml. Range clamped to 0.5-2.0 in the UI.
+    // Default 1.0 = baseline sizes Paul designed around for his
+    // 1440p / 4K development setup. Bump to 1.25-1.5 on very large
+    // screens, drop to 0.75-0.85 on 1080p to match visual density.
+    property real widgetScale: 1.0
+
+    // v6.16.3.8: Idle cascade timeouts (seconds).
+    // 0 = never (disabled). UI offers: 30s, 1m, 30m, 1h, 3h, 5h, never.
+    // Defaults mirror the old static hypridle.conf values to preserve
+    // behavior for existing installs — 5min lock, no auto-sleep.
+    //   idleLockSeconds  = seconds of user idle before screen locks
+    //   idleSleepSeconds = seconds of user idle before systemctl suspend
+    //
+    // zen-hypridle-sync.sh reads these values, rewrites hypridle.conf
+    // listener timeouts via sed (matching # ZEN_IDLE_LOCK /
+    // # ZEN_IDLE_SLEEP markers), and restarts hypridle.
+    property int idleLockSeconds: 300         // 5 minutes
+    property int idleSleepSeconds: 0          // never
+
+    // v6.16.3.8: System action on laptop lid close (separate from
+    // the monitor-mirroring behavior in SettingsStateV2.lidCloseBehavior).
+    //   "suspend" — lock + systemctl suspend (wake to lock screen)
+    //   "lock"    — lock screen only, no suspend
+    //   "ignore"  — noop; user controls power manually
+    // Read by zen-lid-handler.sh alongside monitor behavior.
+    property string lidCloseAction: "suspend"
+
+    // v6.16.3.6: user gender preference for lock-screen message
+    // flavor. "neutral" uses gender-agnostic phrasings (default).
+    // "male" / "female" pull from pools that address the user
+    // directly (e.g. "What's up, man!" / "What's up, miss!").
+    // Stored here rather than in UserProfileService because it's
+    // a user preference, not a system-detected attribute.
+    property string userGender: "neutral"
+
     // v6.16.2: Start button logo customization
-    // Mode: "auto" (distribution icon) | "custom" (user-picked image)
-    property string startButtonLogoMode: "auto"
-    property string startButtonLogoPath: ""    // absolute path to PNG/SVG/JPG
-    property bool   startButtonLogoTint: false // if true, colorize with Theme.fg (for monochrome SVGs)
+    // v6.16.3.5: expanded — three modes instead of two:
+    //   "auto"    — auto-detect from UserProfileService.osLogo (reads
+    //               /etc/os-release $LOGO or $ID). Falls back to Arch
+    //               if no match.
+    //   "builtin" — user picks from the bundled logo set (Arch, CachyOS,
+    //               EndeavourOS, Fedora, Ubuntu, NixOS, Linux fallback).
+    //               Logos live at ~/.local/share/quickshell/zen-shell/
+    //               logos/<id>.svg, installed by install.sh from
+    //               zen-shell-v5/assets/logos/.
+    //   "custom"  — user-supplied file (existing v6.16.2 behavior,
+    //               unchanged).
+    //
+    // startButtonLogoBuiltinId holds the chosen builtin when mode = "builtin".
+    // Ignored in other modes.
+    property string startButtonLogoMode: "auto"     // "auto" | "builtin" | "custom"
+    property string startButtonLogoPath: ""          // absolute path to PNG/SVG/JPG (custom mode)
+    property string startButtonLogoBuiltinId: "arch" // id key into builtinLogos (builtin mode)
+    property bool   startButtonLogoTint: false       // if true, colorize with Theme.fg (for monochrome SVGs)
+
+    // v6.16.3.5: Bundled logo library.
+    //   - id         → filename stem (matches <id>.svg under logos/)
+    //   - label      → display text in the picker grid
+    //   - osReleaseIds → array of strings matched against os-release $LOGO/$ID
+    //                    for the "auto" mode detection
+    readonly property var builtinLogos: [
+        { id: "arch",        label: "Arch Linux",    osReleaseIds: ["arch", "archlinux", "distributor-logo-archlinux"] },
+        { id: "cachyos",     label: "CachyOS",       osReleaseIds: ["cachyos", "cachy", "cachyos-linux"] },
+        { id: "endeavouros", label: "EndeavourOS",   osReleaseIds: ["endeavouros", "endeavour"] },
+        { id: "fedora",      label: "Fedora",        osReleaseIds: ["fedora", "fedora-linux"] },
+        { id: "ubuntu",      label: "Ubuntu",        osReleaseIds: ["ubuntu"] },
+        { id: "nixos",       label: "NixOS",         osReleaseIds: ["nixos"] },
+        { id: "linux",       label: "Linux (generic)", osReleaseIds: [] }
+    ]
+
+    readonly property string _logosDir: Quickshell.env("HOME") + "/.local/share/quickshell/zen-shell/logos"
+
+    // v6.16.3.5: resolve the effective logo path for the currently-
+    // selected mode. Returns a QML-ready URL ("file://...") or empty
+    // string if nothing is configured (caller falls back to
+    // Quickshell.iconPath("distributor-logo-archlinux") in that case).
+    function resolveStartButtonLogo() {
+        switch (startButtonLogoMode) {
+            case "custom":
+                return startButtonLogoPath ? "file://" + startButtonLogoPath : ""
+            case "builtin":
+                return "file://" + _logosDir + "/" + startButtonLogoBuiltinId + ".svg"
+            case "auto":
+            default:
+                // Try to match os-release against the builtin library
+                const tag = (typeof UserProfileService !== "undefined")
+                    ? String(UserProfileService.osLogo || "").toLowerCase()
+                    : ""
+                if (tag) {
+                    for (let i = 0; i < builtinLogos.length; i++) {
+                        const entry = builtinLogos[i]
+                        for (let j = 0; j < entry.osReleaseIds.length; j++) {
+                            if (tag.indexOf(entry.osReleaseIds[j]) >= 0) {
+                                return "file://" + _logosDir + "/" + entry.id + ".svg"
+                            }
+                        }
+                    }
+                }
+                // No match — return empty so caller uses Quickshell.iconPath
+                return ""
+        }
+    }
 
     // v6.11: Workspace dot sizes — active/inactive
     property int workspaceDotActive: 32
@@ -148,6 +247,16 @@ Singleton {
             startButtonLogoMode: startButtonLogoMode,
             startButtonLogoPath: startButtonLogoPath,
             startButtonLogoTint: startButtonLogoTint,
+            // v6.16.3.5: bundled logo selection (mode="builtin")
+            startButtonLogoBuiltinId: startButtonLogoBuiltinId,
+            // v6.16.3.6: gender for lock screen message flavor
+            userGender: userGender,
+            // v6.16.3.7: desktop widget scale multiplier
+            widgetScale: widgetScale,
+            // v6.16.3.8: idle/lid cascade
+            idleLockSeconds: idleLockSeconds,
+            idleSleepSeconds: idleSleepSeconds,
+            lidCloseAction: lidCloseAction,
             workspaceDotActive: workspaceDotActive,
             workspaceDotInactive: workspaceDotInactive,
             workspaceFontActive: workspaceFontActive,
@@ -194,6 +303,21 @@ Singleton {
             if (typeof s.startButtonLogoMode === "string") startButtonLogoMode = s.startButtonLogoMode
             if (typeof s.startButtonLogoPath === "string") startButtonLogoPath = s.startButtonLogoPath
             if (typeof s.startButtonLogoTint === "boolean") startButtonLogoTint = s.startButtonLogoTint
+            // v6.16.3.5: bundled logo selection
+            if (typeof s.startButtonLogoBuiltinId === "string") startButtonLogoBuiltinId = s.startButtonLogoBuiltinId
+            // v6.16.3.6: user gender for lock screen
+            if (typeof s.userGender === "string") userGender = s.userGender
+            // v6.16.3.7: widget scale multiplier (clamped on load)
+            if (typeof s.widgetScale === "number")
+                widgetScale = Math.max(0.5, Math.min(2.0, s.widgetScale))
+            // v6.16.3.8: idle/lid settings (clamped)
+            if (typeof s.idleLockSeconds === "number")
+                idleLockSeconds = Math.max(0, Math.min(86400, Math.floor(s.idleLockSeconds)))
+            if (typeof s.idleSleepSeconds === "number")
+                idleSleepSeconds = Math.max(0, Math.min(86400, Math.floor(s.idleSleepSeconds)))
+            if (typeof s.lidCloseAction === "string"
+                && ["suspend", "lock", "ignore"].indexOf(s.lidCloseAction) >= 0)
+                lidCloseAction = s.lidCloseAction
             if (typeof s.workspaceDotActive === "number") workspaceDotActive = s.workspaceDotActive
             if (typeof s.workspaceDotInactive === "number") workspaceDotInactive = s.workspaceDotInactive
             if (typeof s.workspaceFontActive === "number") workspaceFontActive = s.workspaceFontActive

@@ -410,7 +410,7 @@ ScrollView {
                           ((modelData.transform||0) > 0 ? "  •  rot " + [0,90,180,270][modelData.transform||0] + "°" : "")
 
                 HMRow { label: "Resolution"; description: "Output resolution"; icon: "\uf26c"; separator: true
-                    ComboBox { id: resCombo; width: root.dropdownWidth
+                    ZenComboBox { id: resCombo; width: root.dropdownWidth
 
                         // ─────────────────────────────────────────────
                         // v6.16.3.3 — Resolution enumeration fix
@@ -480,7 +480,7 @@ ScrollView {
                 }
 
                 HMRow { label: "Refresh rate"; description: "Monitor Hz"; icon: "\uf0e4"; separator: true
-                    ComboBox { id: hzCombo; width: root.dropdownWidth
+                    ZenComboBox { id: hzCombo; width: root.dropdownWidth
 
                         // ─────────────────────────────────────────────
                         // v6.16.3.3 — Refresh rate enumeration fix
@@ -549,14 +549,14 @@ ScrollView {
                 }
 
                 HMRow { label: "Scale"; description: "HiDPI scaling"; icon: "\uf00e"; separator: true
-                    ComboBox { id: scaleCombo; width: root.dropdownWidth
+                    ZenComboBox { id: scaleCombo; width: root.dropdownWidth
                         property var scales: ["1.0","1.25","1.5","1.75","2.0"]; model: scales
                         currentIndex: { const s=(modelData.scale||1.0).toFixed(2); for(let i=0;i<scales.length;i++) if(Math.abs(parseFloat(scales[i])-parseFloat(s))<0.05) return i; return 0 }
                     }
                 }
 
                 HMRow { label: "Rotation"; description: "Transform"; icon: "\uf2f1"; separator: true
-                    ComboBox { id: rotCombo; width: root.dropdownWidth; model: ["Normal (0°)","90°","180°","270°"]
+                    ZenComboBox { id: rotCombo; width: root.dropdownWidth; model: ["Normal (0°)","90°","180°","270°"]
                         currentIndex: Math.min(3, modelData.transform || 0)
                     }
                 }

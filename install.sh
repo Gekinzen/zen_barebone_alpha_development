@@ -726,6 +726,49 @@ echo "  v6.16.3.2 — Lock screen + idle (laptop-recommended):"
 check_cmd hyprlock hyprlock
 check_cmd hypridle hypridle
 
+# v6.16.3.4.3 — Brightness control (laptops only; ignored on desktops)
+# brightnessctl handles logind permissions cleanly on Arch/CachyOS.
+# Without it we fall back to direct sysfs writes which need a udev rule.
+echo "  v6.16.3.4.3 — Laptop brightness control:"
+check_cmd brightnessctl brightnessctl
+
+# v6.16.3.7 — Font packages for lock screen + bar parity
+# ────────────────────────────────────────────────────────────────
+# zen-lock.sh maps fontFamilyId → "Adwaita Sans Black" / "Inter Black"
+# etc. to match the desktop widget clock weight. If the Black/Heavy
+# variant family isn't installed, fc-config falls back to Regular
+# and the lock clock renders thin (the bug fixed in 3.6.1).
+#
+# We check the specific weighted family names via fc-list (not
+# command -v, since these are fonts not binaries) and add the
+# packaging to the optional install offer.
+echo "  v6.16.3.7 — Font weight variants (lock clock + widgets):"
+check_font() {
+    local style=$1 family=$2 pkg=$3
+    if fc-list 2>/dev/null | grep -q ":style=.*${style}" | head -1 >/dev/null 2>&1 \
+       || fc-list 2>/dev/null | grep -iq "${family}:style=${style}"; then
+        echo "    ✓ ${family} ${style} (installed)"
+    else
+        echo "  ○ ${family} ${style} missing — will offer: ${pkg}"
+        add_opt "${pkg}"
+    fi
+}
+if command -v fc-list >/dev/null 2>&1; then
+    check_font Black   "Adwaita Sans"   adwaita-fonts
+    check_font Black   "Inter"          inter-font
+    # gnome-themes-extra is a safe catch-all that pulls in Adwaita
+    # variants + font alternates. Offer alongside adwaita-fonts for
+    # users who want the whole GNOME theme pack.
+    if ! pacman -Q gnome-themes-extra >/dev/null 2>&1; then
+        echo "  ○ gnome-themes-extra (optional: Adwaita theme pack) — will offer"
+        add_opt "gnome-themes-extra"
+    fi
+else
+    echo "  ○ fc-list not available — can't verify font variants"
+    add_opt "fontconfig"
+    add_opt "adwaita-fonts"
+fi
+
 if [ "$MISSING_REQUIRED" = "1" ]; then
     echo ""
     echo "  ⚠ Missing required deps."
@@ -837,9 +880,23 @@ cp "$SCRIPT_DIR/zen-shell-v5/"*.qml "$SHELL_DIR/"
 INSTALLED_QML_COUNT=$(ls "$SHELL_DIR/"*.qml 2>/dev/null | wc -l)
 echo "    $INSTALLED_QML_COUNT QML files installed"
 
+# v6.16.3.5: Deploy bundled Start Button logos
+# These ship with the shell under zen-shell-v5/assets/logos/ and get
+# installed to ~/.local/share/quickshell/zen-shell/logos/ so the Start
+# Menu picker can find them via an absolute path. Idempotent — we
+# always overwrite so logo bug fixes land without prompting.
+LOGOS_SRC="$SCRIPT_DIR/zen-shell-v5/assets/logos"
+LOGOS_DST="$HOME/.local/share/quickshell/zen-shell/logos"
+if [ -d "$LOGOS_SRC" ]; then
+    mkdir -p "$LOGOS_DST"
+    cp -f "$LOGOS_SRC/"*.svg "$LOGOS_DST/" 2>/dev/null || true
+    LOGO_COUNT=$(ls "$LOGOS_DST/"*.svg 2>/dev/null | wc -l)
+    echo "    $LOGO_COUNT built-in Start Button logos installed → $LOGOS_DST"
+fi
+
 echo ""
 echo "    Auto-applying bar modules..."
-for pair in "ZenClock.qml:Clock.qml" "ZenWorkspaces.qml:Workspaces.qml"; do
+for pair in "ZenClock.qml:Clock.qml" "ZenWorkspaces.qml:Workspaces.qml" "ZenSysMonitor.qml:SysMonitor.qml"; do
     src="${pair%%:*}"; dst="${pair##*:}"
     [ -f "$SHELL_DIR/$src" ] || continue
     if [ -f "$SHELL_DIR/$dst" ]; then
@@ -869,7 +926,7 @@ for script in \
     patch-swaync-position.sh zen-cava.sh \
     zs-restart.sh \
     zen-volume-notify.sh zen-power-profile-restore.sh zen-lid-handler.sh \
-    zen-resume-handler.sh zen-lock.sh zen-bar-add-powerbadge.sh \
+    zen-resume-handler.sh zen-lock.sh zen-lock-message.sh zen-hypridle-sync.sh zen-panic.sh zen-bar-add-powerbadge.sh \
     zen-game-watcher.sh prime-run
 do
     src="$SCRIPT_DIR/scripts/$script"
@@ -1046,6 +1103,14 @@ if [ -f "$TEMPLATE" ]; then
         grep -q "modules/lid-behavior.conf" "$HCONF" || {
             echo "source = ~/.config/hypr/modules/lid-behavior.conf" >> "$HCONF"
             added=$((added+1)); }
+        # v6.16.3.4.4: animations.conf — THIS WAS MISSING in all prior
+        # versions. AnimationsPage.qml writes preset content to this
+        # file and calls `hyprctl reload`, but without a source line
+        # Hyprland never read it, so switching presets did nothing.
+        # Placed LAST so it overrides look_and_feel.conf's animations{}.
+        grep -q "modules/animations.conf" "$HCONF" || {
+            echo "source = ~/.config/hypr/modules/animations.conf" >> "$HCONF"
+            added=$((added+1)); }
         grep -q "keybinds-update.conf" "$HCONF" || {
             echo "source = ~/.config/quickshell/zen-shell/config/keybinds-update.conf" >> "$HCONF"
             added=$((added+1)); }
@@ -1085,6 +1150,10 @@ else
         # v6.16.0: lid-behavior module
         grep -q "modules/lid-behavior.conf" "$HCONF" || {
             echo "source = ~/.config/hypr/modules/lid-behavior.conf" >> "$HCONF"
+            added=$((added+1)); }
+        # v6.16.3.4.4: animations.conf (previously missing — see main block)
+        grep -q "modules/animations.conf" "$HCONF" || {
+            echo "source = ~/.config/hypr/modules/animations.conf" >> "$HCONF"
             added=$((added+1)); }
         grep -q "keybinds-update.conf" "$HCONF" || {
             echo "source = ~/.config/quickshell/zen-shell/config/keybinds-update.conf" >> "$HCONF"
@@ -1130,6 +1199,34 @@ echo "[8/9] First-run tasks..."
     echo "    regen-swaync-theme.sh..."
     timeout 10s "$BIN_DIR/regen-swaync-theme.sh" 2>&1 | sed 's/^/    /' || true
 }
+
+# ─────────────────────────────────────────────────────────────────
+# v6.16.3.4.5 — One-shot bar-layout migrations
+# ─────────────────────────────────────────────────────────────────
+# When we ship a new bar module (powerbadge in v6.16.3.4), existing
+# users whose bar-layout.json was saved BEFORE the module existed
+# silently miss it — their saved layout overrides Theme.qml's default.
+#
+# Instead of forcing users to discover + run zen-bar-add-powerbadge.sh
+# manually, we run those migrations here — ONCE. A marker file under
+# ~/.config/quickshell/zen-shell/.migrations/ records that the
+# migration has been applied, so re-installs don't re-add a module
+# the user may have deliberately removed after first migration.
+#
+# Each migration is idempotent AND guarded by its own marker. Adding
+# a new bar module later = drop another bash block + marker file.
+MIG_DIR="$HOME/.config/quickshell/zen-shell/.migrations"
+mkdir -p "$MIG_DIR"
+
+# Migration: powerbadge bar module (introduced v6.16.3.4)
+if [ ! -f "$MIG_DIR/powerbadge-v6.16.3.4" ]; then
+    if [ -x "$BIN_DIR/zen-bar-add-powerbadge.sh" ]; then
+        echo "    One-shot migration: adding 'powerbadge' to bar-layout.json..."
+        "$BIN_DIR/zen-bar-add-powerbadge.sh" 2>&1 | sed 's/^/      /' || true
+        touch "$MIG_DIR/powerbadge-v6.16.3.4"
+        echo "      marker written — migration will not re-run on future installs"
+    fi
+fi
 
 # ═══════════════════════════════════════════════════════════════
 # [8.5/9] QML integrity smoke test (v6.15.15+)
@@ -1403,6 +1500,15 @@ for v6163f in hypridle.conf hyprlock.conf; do
     fi
 done
 
+# v6.16.3.8: Sync hypridle timeouts with PanelState on fresh install.
+# Picks up idleLockSeconds / idleSleepSeconds if the user has an
+# existing panel-state.json; otherwise defaults baked in
+# hypridle.conf (5min lock, never sleep) stay put.
+if [ -x "$BIN_DIR/zen-hypridle-sync.sh" ]; then
+    "$BIN_DIR/zen-hypridle-sync.sh" >/dev/null 2>&1 || true
+    echo "    hypridle timeouts synced from panel-state.json"
+fi
+
 # Phase C — lid-behavior.conf + autostart.conf (modules scope)
 # These were already copied by [6/9]'s generic hypr-config loop if the
 # install.sh had one; explicit copy here guarantees v6.16.3.X versions
@@ -1509,6 +1615,6 @@ else
 fi
 echo ""
 
-echo "  ✅  Done. Enjoy Zen Shell v6.16.3.4.2, pre."
+echo "  ✅  Done. Enjoy Zen Shell v6.16.4.1, pre."
 echo ""
 exit 0

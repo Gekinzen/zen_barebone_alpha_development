@@ -190,10 +190,16 @@ Flickable {
                             Layout.fillWidth: true
                         }
                     }
-                    Switch {
+                    // v6.16.3.4.4: swap stock Qt Switch for HMSwitch so the
+                    // toggle design matches System Tray / Bar Modules pages.
+                    // Same API surface: `checked` for the initial value,
+                    // `onToggled` to react. HMSwitch mutates external state
+                    // explicitly (no auto-write-through) so we flip the
+                    // service property ourselves.
+                    HMSwitch {
                         checked: MouseSettingsService.naturalScroll
                         onToggled: {
-                            MouseSettingsService.naturalScroll = checked
+                            MouseSettingsService.naturalScroll = !MouseSettingsService.naturalScroll
                             MouseSettingsService.apply(true)
                         }
                     }
@@ -247,10 +253,10 @@ Flickable {
                             Layout.fillWidth: true
                         }
                     }
-                    Switch {
+                    HMSwitch {
                         checked: MouseSettingsService.touchpadNaturalScroll
                         onToggled: {
-                            MouseSettingsService.touchpadNaturalScroll = checked
+                            MouseSettingsService.touchpadNaturalScroll = !MouseSettingsService.touchpadNaturalScroll
                             MouseSettingsService.apply(true)
                         }
                     }

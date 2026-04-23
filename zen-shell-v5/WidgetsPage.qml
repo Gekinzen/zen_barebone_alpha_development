@@ -193,9 +193,58 @@ ScrollView {
         // ═══════════════════════════════════════════════════════
         HMSection { title: "Widget Display"; subtitle: "Which monitor shows desktop widgets"
             HMRow { label: "Show Widgets On"; description: "Primary monitor only or all monitors"; icon: "\uf108"; separator: false
-                ComboBox { width: root.dropdownWidth; model: ["Primary Monitor", "All Monitors"]
+                ZenComboBox { width: root.dropdownWidth; model: ["Primary Monitor", "All Monitors"]
                     currentIndex: root.widgetDisplay === "primary" ? 0 : 1
                     onActivated: { root.widgetDisplay = currentIndex === 0 ? "primary" : "all"; root.saveState() }
+                }
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // v6.16.3.7 — WIDGET SCALE
+        // ═══════════════════════════════════════════════════════
+        // Universal scale multiplier applied to all three desktop
+        // widgets (clocks, weather, sysmon) in lockstep. Changes
+        // apply live — no shell restart needed — because the
+        // _scale property on DesktopWidgets binds to
+        // PanelState.widgetScale and every font.pixelSize /
+        // container dimension in that file multiplies by it.
+        HMSection { title: "Widget Scale"; subtitle: "Resize all desktop widgets in one go"
+            HMRow {
+                label: "Scale"
+                description: "Drag the slider. 0.5× compact, 1.0× baseline, 2.0× large. Reset returns to 1.0×."
+                icon: "\uf065"
+                separator: false
+                RowLayout {
+                    spacing: 10
+                    Slider {
+                        id: scaleSlider
+                        Layout.preferredWidth: root.dropdownWidth - 110
+                        from: 0.5
+                        to: 2.0
+                        stepSize: 0.05
+                        value: PanelState.widgetScale
+                        onMoved: {
+                            PanelState.widgetScale = value
+                            PanelState.saveState()
+                        }
+                    }
+                    Text {
+                        text: scaleSlider.value.toFixed(2) + "×"
+                        color: ThemeService.fg
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        font.weight: Font.DemiBold
+                        Layout.preferredWidth: 40
+                        horizontalAlignment: Text.AlignRight
+                    }
+                    Button {
+                        text: "Reset"
+                        onClicked: {
+                            PanelState.widgetScale = 1.0
+                            PanelState.saveState()
+                        }
+                    }
                 }
             }
         }
@@ -205,7 +254,7 @@ ScrollView {
         // ═══════════════════════════════════════════════════════
         HMSection { title: "Widget Colors"; subtitle: "Text color mode for desktop widgets"
             HMRow { label: "Color Mode"; description: "Default (white), Theme (auto-sync), or Custom"; icon: "\uf53f"; separator: true
-                ComboBox { width: root.dropdownWidth; model: { const m=[]; for(const c of root.colorModes) m.push(c.label); return m }
+                ZenComboBox { width: root.dropdownWidth; model: { const m=[]; for(const c of root.colorModes) m.push(c.label); return m }
                     currentIndex: root.colorModeIndex(root.colorMode)
                     onActivated: { root.colorMode = root.colorModes[currentIndex].id; root.saveState() }
                 }
@@ -249,7 +298,7 @@ ScrollView {
             subtitle: "Background color + opacity for the weather overlay"
 
             HMRow { label: "Mode"; description: "Default / Theme-synced / Custom color"; icon: "\uf53f"; separator: true
-                ComboBox {
+                ZenComboBox {
                     width: root.dropdownWidth
                     model: ["Default (Dark)", "Theme (Auto-sync)", "Custom Color"]
                     readonly property var ids: ["default", "theme", "custom"]
@@ -338,7 +387,7 @@ ScrollView {
             subtitle: "Background color + opacity for the sysmon overlay"
 
             HMRow { label: "Mode"; description: "Default / Theme-synced / Custom color"; icon: "\uf53f"; separator: true
-                ComboBox {
+                ZenComboBox {
                     width: root.dropdownWidth
                     model: ["Default (Dark)", "Theme (Auto-sync)", "Custom Color"]
                     readonly property var ids: ["default", "theme", "custom"]
@@ -440,7 +489,7 @@ ScrollView {
                     }
                 }
                 HMRow { label: "Timezone"; description: modelData.label || "Select timezone"; icon: "\uf0ac"; separator: true
-                    ComboBox { width: root.dropdownWidth; model: { const m=[]; for(const tz of root.timezones) m.push(tz.label); return m }
+                    ZenComboBox { width: root.dropdownWidth; model: { const m=[]; for(const tz of root.timezones) m.push(tz.label); return m }
                         currentIndex: root.tzIndex(modelData.timezone)
                         onActivated: root.updateClock(index, "timezone", root.timezones[currentIndex].id)
                     }
@@ -465,7 +514,7 @@ ScrollView {
                 }
             }
             HMRow { label: "Location mode"; description: "Auto-detect or manual"; icon: "\uf3c5"; separator: true
-                ComboBox { width: root.dropdownWidth; model: ["Auto-detect (IP)", "Manual"]
+                ZenComboBox { width: root.dropdownWidth; model: ["Auto-detect (IP)", "Manual"]
                     currentIndex: root.weatherMode === "auto" ? 0 : 1
                     onActivated: { root.weatherMode = currentIndex === 0 ? "auto" : "manual"; root.saveState() }
                 }

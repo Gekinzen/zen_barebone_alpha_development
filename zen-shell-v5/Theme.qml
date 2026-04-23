@@ -125,4 +125,12 @@ Singleton {
             } catch (e) {}
         }
     }
+
+    // v6.16.3.4.5: exposed so UI surfaces that mutate bar-layout.json
+    // (e.g. BarModulesPage's PowerBadge toggle) can force a re-read
+    // after the file changes on disk. Avoids the need for FileView
+    // watchChanges (which would fire on every write).
+    function reloadBarLayout() {
+        layoutLoader.reload()
+    }
 }
