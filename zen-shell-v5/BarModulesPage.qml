@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 import Quickshell
+import Quickshell.Io
 
 /*
  * BarModulesPage v6.8
@@ -76,7 +77,7 @@ ScrollView {
             HMRow {
                 label: "Format"; description: "How the clock displays time and date"
                 icon: "\uf017"; separator: true
-                ComboBox {
+                ZenComboBox {
                     id: clockCombo; width: root.dropdownWidth
                     model: { const m=[]; for(const f of ZenConstants.clockFormats) m.push(f.label); return m }
                     currentIndex: PanelState.clockFormatIndex
@@ -108,7 +109,7 @@ ScrollView {
             HMRow {
                 label: "Number format"; description: "Icons for workspace 1-10"
                 icon: "\uf24d"; separator: true
-                ComboBox {
+                ZenComboBox {
                     id: wsCombo; width: root.dropdownWidth
                     property var presetIds: ["numbers","korean","chinese","japanese","roman",
                                              "nerd-dots","nerd-circles","nerd-squares","symbols","empty","custom"]
@@ -121,7 +122,7 @@ ScrollView {
             HMRow {
                 label: "Visible count"; description: "How many workspaces shown in bar (3-10)"
                 icon: "\uf0c8"; separator: true
-                ComboBox {
+                ZenComboBox {
                     width: root.dropdownWidth
                     model: ["3", "4", "5", "6", "7", "8", "9", "10"]
                     currentIndex: Math.max(0, Math.min(7, (PanelState.workspaceLimit || 5) - 3))
@@ -160,7 +161,7 @@ ScrollView {
             HMRow {
                 label: "Font family"; description: "Primary bar font. Falls back to JetBrainsMono Nerd Font Propo."
                 icon: "\uf031"; separator: true
-                ComboBox {
+                ZenComboBox {
                     id: fontCombo; width: root.dropdownWidth
                     model: { const m=[]; for(const f of ZenConstants.fontFamilies) m.push(f.label); return m }
                     currentIndex: { for(let i=0;i<ZenConstants.fontFamilies.length;i++)
@@ -183,6 +184,82 @@ ScrollView {
                     }
                 }
             }
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // v6.16.3.4.5 — Bar module visibility toggles
+        // ═══════════════════════════════════════════════════════════
+        //
+        // Source of truth for the full layout is bar-layout.json under
+        // Quickshell.dataPath() — the helper scripts in ~/.local/bin/
+        // are the canonical mutators (they use jq for JSON-safe edits
+        // and write .bak backups).
+        //
+        // QML side: we bind `checked` to the presence of the module
+        // name in Theme.barLayout.right, fire the corresponding helper
+        // script on toggle, then call Theme.reloadBarLayout() to
+        // propagate the change to every subscribed surface (including
+        // Bar.qml's Repeaters, which re-instantiate the component
+        // chain immediately — no shell restart needed).
+        HMSection {
+            title: "Optional Bar Modules"
+            subtitle: "Additive toggles — mutates ~/.local/share/quickshell/zen-shell/bar-layout.json"
+
+            HMRow {
+                label: "Power Profile badge"
+                description: "Small pill showing current power profile + GPU mode. "
+                             + "Hides itself on systems without powerprofilesctl or multi-GPU."
+                icon: "\uf0e7"   // fa-bolt
+                separator: true
+
+                HMSwitch {
+                    id: powerBadgeSwitch
+                    // Compute from live Theme.barLayout so external edits
+                    // (manual jq, another shell instance) reflect here too.
+                    checked: {
+                        const r = Theme.barLayout.right || []
+                        return r.indexOf("powerbadge") >= 0
+                    }
+                    onToggled: {
+                        // Flip the intended state ourselves, then run the
+                        // matching script. The reload() call at onExited
+                        // picks up the new JSON and re-binds Theme.barLayout
+                        // so every other surface (Bar.qml, diagnostic pills,
+                        // this very switch) updates automatically.
+                        const nextOn = !checked
+                        powerBadgeProc.command = nextOn
+                            ? ["bash", "-c", "~/.local/bin/zen-bar-add-powerbadge.sh || true"]
+                            : ["bash", "-c", "~/.local/bin/zen-bar-add-powerbadge.sh --remove || true"]
+                        powerBadgeProc.running = true
+                    }
+                }
+            }
+
+            HMRow {
+                label: "Reload shell after change"
+                description: "The bar re-renders instantly after toggle — but if the badge "
+                             + "doesn't appear, click here to force a shell restart."
+                icon: "\uf021"  // fa-refresh
+                Button {
+                    text: "Restart shell"
+                    onClicked: reloadShellProc.running = true
+                }
+            }
+        }
+
+        Process {
+            id: powerBadgeProc
+            running: false
+            onExited: (exitCode) => {
+                // Small delay so the jq write completes flushing to disk
+                // before FileView.reload() tries to re-read it.
+                Qt.callLater(Theme.reloadBarLayout)
+            }
+        }
+        Process {
+            id: reloadShellProc
+            running: false
+            command: ["bash", "-c", "~/.local/bin/zs-restart.sh &"]
         }
 
         PageFooter {

@@ -123,7 +123,7 @@ ScrollView {
             SettingRow {
                 label: "Transition Effect"
 
-                ComboBox {
+                ZenComboBox {
                     width: 160
                     model: ["Random", "Fade", "Wipe", "Grow", "Outer", "Wave"]
                     currentIndex: {
@@ -154,7 +154,7 @@ ScrollView {
             SettingRow {
                 label: "Change Interval"
 
-                ComboBox {
+                ZenComboBox {
                     width: 160
                     model: ["10 seconds", "1 minute", "30 minutes", "1 hour"]
                     property var values: [10, 60, 1800, 3600]

@@ -72,7 +72,52 @@ else
     log "wallpaper unchanged (using existing $LOCK_BG)"
 fi
 
-# ── Step 3: Launch hyprlock (idempotent) ──
+# ── Step 3: Sync clock font from PanelState (v6.16.3.6) ──
+#
+# The lock screen's big centered clock uses whatever font the user
+# picked in Settings → Bar Modules → Font family. We read the
+# fontFamilyId from panel-state.json and rewrite the font_family
+# line on hyprlock.conf labels tagged with  # ZEN_FONT_OVERRIDE.
+#
+# If the user wants to hand-pick a lock font (outside Zen Shell's
+# font library), they just remove the  # ZEN_FONT_OVERRIDE  comment
+# trailer from the relevant line and zen-lock.sh leaves it alone.
+PANEL_STATE="$HOME/.local/share/quickshell/zen-shell/panel-state.json"
+HYPRLOCK_CONF="$HOME/.config/hypr/hyprlock.conf"
+
+if [ -f "$PANEL_STATE" ] && [ -f "$HYPRLOCK_CONF" ] && command -v jq >/dev/null 2>&1; then
+    FONT_ID=$(jq -r '.fontFamilyId // "adwaita"' "$PANEL_STATE" 2>/dev/null)
+    # v6.16.3.6.1: CLOCK_FONT now uses Black/Heavy/Bold weight variants
+    # to match the desktop ZenWidget clock (which renders Adwaita Sans
+    # with Font.Black / weight 900). Previously mapped to "Adwaita
+    # Sans Light" which gave a thin elegant look but didn't match the
+    # chunky widget clock Paul references as the system baseline.
+    #
+    # Weight variant picked per font:
+    #   - Sans/proportional → Black or ExtraBold (where available)
+    #   - Mono Nerd fonts    → Bold (most mono fonts don't ship Black)
+    case "$FONT_ID" in
+        adwaita)   CLOCK_FONT="Adwaita Sans Black";            MSG_FONT="Adwaita Sans" ;;
+        jetbrains) CLOCK_FONT="JetBrainsMono Nerd Font Bold";  MSG_FONT="JetBrainsMono Nerd Font Propo" ;;
+        geist)     CLOCK_FONT="GeistMono Nerd Font Mono Bold"; MSG_FONT="GeistMono Nerd Font Mono" ;;
+        firacode)  CLOCK_FONT="FiraCode Nerd Font Bold";       MSG_FONT="FiraCode Nerd Font" ;;
+        caskaydia) CLOCK_FONT="CaskaydiaCove Nerd Font Bold";  MSG_FONT="CaskaydiaCove Nerd Font" ;;
+        iosevka)   CLOCK_FONT="Iosevka Nerd Font Heavy";       MSG_FONT="Iosevka Nerd Font" ;;
+        hack)      CLOCK_FONT="Hack Nerd Font Bold";           MSG_FONT="Hack Nerd Font" ;;
+        ubuntu)    CLOCK_FONT="UbuntuMono Nerd Font Bold";     MSG_FONT="UbuntuMono Nerd Font" ;;
+        sfpro)     CLOCK_FONT="SF Pro Display Black";          MSG_FONT="SF Pro Text" ;;
+        inter)     CLOCK_FONT="Inter Black";                   MSG_FONT="Inter" ;;
+        *)         CLOCK_FONT="Adwaita Sans Black";            MSG_FONT="Adwaita Sans" ;;
+    esac
+
+    # sed replaces the value on lines tagged with the override marker
+    # only. User's unmarked font_family lines stay untouched.
+    sed -i -E "s|^(\s*font_family\s*=\s*)[^#]*(\s*# ZEN_FONT_OVERRIDE_CLOCK.*)$|\1${CLOCK_FONT}    \2|" "$HYPRLOCK_CONF" 2>/dev/null
+    sed -i -E "s|^(\s*font_family\s*=\s*)[^#]*(\s*# ZEN_FONT_OVERRIDE_MSG.*)$|\1${MSG_FONT}    \2|" "$HYPRLOCK_CONF" 2>/dev/null
+    log "fonts synced: clock=${CLOCK_FONT}  msg=${MSG_FONT}  (fontFamilyId=${FONT_ID})"
+fi
+
+# ── Step 4: Launch hyprlock (idempotent) ──
 if pgrep -x hyprlock >/dev/null 2>&1; then
     log "hyprlock already running — exit 0"
     exit 0

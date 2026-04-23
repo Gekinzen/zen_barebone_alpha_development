@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Generic Linux logo — stylized penguin silhouette, fallback for
+  distros without a bundled asset.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- Body -->
+  <ellipse cx="64" cy="78" rx="34" ry="38" fill="#2a2a2a"/>
+  <!-- Belly -->
+  <ellipse cx="64" cy="82" rx="22" ry="28" fill="#f5f5f5"/>
+  <!-- Head -->
+  <circle cx="64" cy="42" r="22" fill="#2a2a2a"/>
+  <!-- Eyes -->
+  <circle cx="56" cy="40" r="5" fill="#ffffff"/>
+  <circle cx="72" cy="40" r="5" fill="#ffffff"/>
+  <circle cx="57" cy="41" r="2" fill="#000000"/>
+  <circle cx="73" cy="41" r="2" fill="#000000"/>
+  <!-- Beak -->
+  <polygon points="60,50 68,50 64,58" fill="#FFB020"/>
+  <!-- Feet -->
+  <ellipse cx="52" cy="116" rx="10" ry="5" fill="#FFB020"/>
+  <ellipse cx="76" cy="116" rx="10" ry="5" fill="#FFB020"/>
+</svg>

@@ -42,38 +42,49 @@ log() {
 
 log "resume: pipeline start (HIS=${HYPRLAND_INSTANCE_SIGNATURE:-unset})"
 
-# ── Wait for compositor to be reachable ──
-# After a deep suspend, hyprctl can take a few hundred ms before
-# the IPC socket comes back. Retry up to 2s.
+# ── v6.16.4: Wait for compositor with aggressive retries ──
+# After a deep suspend on some AMD/Intel hardware, hyprctl IPC
+# can take up to 5s to come back. Old code aborted at 2s which
+# left the user on a black screen. New: retry up to 5s, and if
+# STILL unreachable, attempt a kernel-level DRM kick as a last
+# resort before giving up.
 WAITED=0
 while ! hyprctl monitors >/dev/null 2>&1; do
     sleep 0.1
     WAITED=$((WAITED + 1))
-    if [ "$WAITED" -ge 20 ]; then
-        log "  hyprctl unreachable after 2s — abort recovery"
-        exit 0
+    if [ "$WAITED" -ge 50 ]; then
+        log "  hyprctl unreachable after 5s — last-resort DRM kick"
+        # Blind DRM power cycle via sysfs. Works even when
+        # Hyprland's IPC is dead. Only fires if we can find
+        # drm card nodes (i.e. we're running on a KMS-enabled GPU).
+        for card in /sys/class/drm/card*/card*-*/enabled; do
+            [ -w "$card" ] || continue
+            echo "disabled" >"$card" 2>/dev/null
+            sleep 0.1
+            echo "enabled"  >"$card" 2>/dev/null
+        done
+        log "  DRM sysfs kick attempted; continuing recovery steps"
+        break
     fi
 done
-log "  hyprctl reachable after ${WAITED}00ms"
+[ "$WAITED" -lt 50 ] && log "  hyprctl reachable after ${WAITED}00ms"
 
-# ── Step 1: Force monitor re-enumeration ──
-# This is critical for dock unplug/replug while suspended.
-# hyprctl reload re-reads the config and re-applies monitor= rules.
-hyprctl reload >/dev/null 2>&1 || true
+# ── v6.16.4.1 Step 1: Monitor re-sync WITHOUT wiping runtime config ──
+# Previously called `hyprctl reload` which wipes runtime monitor
+# keywords set via Settings → Displays. After wake, monitors
+# reverted to hyprland.conf defaults → user's custom resolution
+# /scale/refresh-rate gone.
+#
+# Fix: use forcerendererreload (KMS re-enum only, preserves
+# runtime config). Same recovery benefit, zero config clobbering.
+hyprctl dispatch forcerendererreload >/dev/null 2>&1 || true
 sleep 0.2
 
-# ── Step 2: For every detected monitor, force preferred mode ──
-# This catches the case where Hyprland thinks a monitor is
-# enabled but the actual KMS state is wrong.
-MONITORS=$(hyprctl -j monitors 2>/dev/null | \
-    jq -r '.[] | .name' 2>/dev/null)
-if [ -n "$MONITORS" ]; then
-    while IFS= read -r mon; do
-        [ -n "$mon" ] || continue
-        hyprctl keyword monitor "${mon},preferred,auto,1" >/dev/null 2>&1
-        log "  force-applied preferred mode on $mon"
-    done <<<"$MONITORS"
-fi
+# Per-monitor preferred mode force — REMOVED in 4.1.
+# Reason: overrides user custom resolution/scale. The
+# forcerendererreload above handles the re-enum we need.
+# Leaving this as an explicit comment so future-me doesn't
+# re-add it thinking it's a defensive measure.
 
 # ── Step 3: DRM kick via DPMS off→on ──
 # Same as the lid-handler step 4. Black-screen-on-wake fix.
@@ -111,6 +122,23 @@ fi
 if pgrep -x hyprlock >/dev/null 2>&1; then
     pkill -SIGUSR1 -x hyprlock 2>/dev/null || true
     log "  hyprlock SIGUSR1 sent"
+
+    # v6.16.4: detect zombie hyprlock. If it's running but the
+    # compositor can't see its surface anymore, we're in the
+    # "black screen + frozen lock" trap. Check by querying layers.
+    sleep 0.5
+    LAYER_COUNT=$(hyprctl layers -j 2>/dev/null \
+        | jq -r '[..|.namespace? // empty | select(contains("hyprlock") or contains("session-lock"))] | length' 2>/dev/null \
+        || echo 0)
+    if [ "$LAYER_COUNT" = "0" ] && pgrep -x hyprlock >/dev/null 2>&1; then
+        log "  hyprlock is zombie (process up, no layer surface) — SIGKILL + relock"
+        pkill -9 -x hyprlock 2>/dev/null
+        sleep 0.2
+        if [ -x "$HOME/.local/bin/zen-lock.sh" ]; then
+            setsid -f "$HOME/.local/bin/zen-lock.sh" </dev/null >/dev/null 2>&1 &
+            log "  relaunched via zen-lock.sh"
+        fi
+    fi
 fi
 
 # ── Step 6: Restart Zen Shell bar surfaces ──
@@ -126,19 +154,42 @@ if pgrep -f 'quickshell.*zen-shell' >/dev/null 2>&1; then
     log "  zen-shell event-loop wake hint sent"
 fi
 
-# ── Step 7: Workspace bounce to force a render pass ──
-CUR_WS=$(hyprctl -j activeworkspace 2>/dev/null | jq -r '.id' 2>/dev/null)
-if [ -n "$CUR_WS" ] && [ "$CUR_WS" != "null" ]; then
-    if [ "$CUR_WS" != "1" ]; then
-        hyprctl dispatch workspace 1         >/dev/null 2>&1 || true
+# ── v6.16.4.1: Step 7 workspace bounce REMOVED ──
+# Was dispatching workspace switch to force a paint pass. Side
+# effect: music widget marquee animation replayed every wake,
+# window fade-in animations double-fired. DPMS cycle + forcerenderer
+# already handle the paint need — bounce was redundant insurance
+# with unwanted animation side effects.
+
+# ── v6.16.4 Step 8: Input subsystem kick ──
+# Occasionally after wake from deep sleep, keyboard input doesn't
+# reach Wayland clients (scenario: hyprlock shows, keystrokes
+# don't register in password field). The cause is libinput
+# thinking the device is still sleeping. A cheap fix: poke the
+# device node's power/wakeup to bounce it.
+#
+# This is a best-effort step — it silently skips devices we can't
+# write to. Worst case, no change.
+for dev in /sys/class/input/input*/device/power/control; do
+    [ -w "$dev" ] || continue
+    cur=$(cat "$dev" 2>/dev/null)
+    if [ "$cur" = "auto" ]; then
+        echo "on"   >"$dev" 2>/dev/null
         sleep 0.05
-        hyprctl dispatch workspace "$CUR_WS" >/dev/null 2>&1 || true
-    else
-        hyprctl dispatch workspace 2         >/dev/null 2>&1 || true
-        sleep 0.05
-        hyprctl dispatch workspace 1         >/dev/null 2>&1 || true
+        echo "auto" >"$dev" 2>/dev/null
     fi
-    log "  workspace bounce complete (returned to ws $CUR_WS)"
+done
+log "  input subsystem power-cycle poke complete"
+
+# ── v6.16.4 Step 9: Hyprctl responsiveness validation ──
+# Final sanity check. If hyprctl is still not responding to simple
+# commands, something's deeply wrong. Log it loudly so post-mortem
+# via resume.log is clear — the user can see "recovery tried but
+# hyprland is still wedged" and knows to hit the panic keybind.
+if ! timeout 2 hyprctl dispatch focuscurrentorlast >/dev/null 2>&1; then
+    log "  ⚠ WARNING: hyprctl still unresponsive after recovery."
+    log "  ⚠ Try panic keybind: SUPER+SHIFT+CTRL+Escape"
+    log "  ⚠ Or from SSH: ~/.local/bin/zen-panic.sh"
 fi
 
 log "resume: pipeline complete"

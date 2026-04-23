@@ -285,6 +285,78 @@ Flickable {
             }
         }
 
+        // ═══ PERSONAL PREFERENCES SECTION (v6.16.3.6) ═══
+        //
+        // Single setting for now: lock-screen message flavor (gender).
+        // This controls which pool of rotating care messages
+        // zen-lock-message.sh picks from. "Neutral" is safe and
+        // inclusive default. "Male" / "Female" unlock gendered
+        // phrasings ("What's up, man!" / "What's up, miss!") for
+        // users who prefer that vibe.
+        //
+        // Saved via PanelState.saveState() → panel-state.json →
+        // read by zen-lock-message.sh at lock time.
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: prefsCol.implicitHeight + 32
+            radius: 12
+            color: ThemeService.alpha(ThemeService.bg1 || ThemeService.bg0, 0.5)
+            border.width: 1
+            border.color: ThemeService.alpha(ThemeService.fg, 0.08)
+
+            ColumnLayout {
+                id: prefsCol
+                anchors.fill: parent
+                anchors.margins: 16
+                spacing: 10
+
+                Text {
+                    text: "Personal Preferences"
+                    color: ThemeService.fg
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 15
+                    font.bold: true
+                }
+
+                Text {
+                    text: "Flavors your lock-screen rotating messages. "
+                        + "Neutral works for everyone; Male / Female unlock gendered phrasings."
+                    color: ThemeService.grey0
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 11
+                    wrapMode: Text.WordWrap
+                    Layout.fillWidth: true
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.topMargin: 4
+                    spacing: 12
+
+                    Text {
+                        text: "Address me as"
+                        color: ThemeService.fg
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        Layout.preferredWidth: 140
+                    }
+
+                    ZenComboBox {
+                        Layout.preferredWidth: 200
+                        model: ["Neutral (they / friend)", "Male (man / bro)", "Female (miss / queen)"]
+                        readonly property var ids: ["neutral", "male", "female"]
+                        currentIndex: Math.max(0, ids.indexOf(PanelState.userGender))
+                        onActivated: {
+                            PanelState.userGender = ids[currentIndex]
+                            PanelState.saveState()
+                        }
+                    }
+
+                    Item { Layout.fillWidth: true }
+                }
+            }
+        }
+
         // ═══ SYSTEM INFO SECTION (fastfetch-style) ═══
         Rectangle {
             Layout.fillWidth: true
@@ -406,10 +478,29 @@ Flickable {
                     Text { text: "Shell"; color: ThemeService.blue; font.family: Theme.fontFamily; font.pixelSize: 12; font.bold: true }
                     Text {
                         Layout.fillWidth: true
-                        text: "Zen Shell · Quickshell"
+                        // v6.16.3.4.4: surface the current shell version
+                        // straight from the ZenVersion singleton. Updating
+                        // ZenVersion.version once propagates to every bound
+                        // surface — no more hand-chasing scattered strings.
+                        text: "Zen Shell " + ZenVersion.version + " · " + ZenVersion.channel + " · Quickshell"
                         color: ThemeService.fg
                         font.family: Theme.fontFamily
                         font.pixelSize: 12
+                        elide: Text.ElideRight
+                    }
+
+                    // v6.16.3.4.4: dedicated version / release-date row for
+                    // users who want a quick visual reference of "am I on
+                    // the latest drop?". Matches the "Device" / "BIOS" row
+                    // layout pattern used below.
+                    Text { text: "Version"; color: ThemeService.blue; font.family: Theme.fontFamily; font.pixelSize: 12; font.bold: true }
+                    Text {
+                        Layout.fillWidth: true
+                        text: ZenVersion.version + "  ·  released " + ZenVersion.releaseDate
+                        color: ThemeService.fg
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        elide: Text.ElideRight
                     }
 
                     // v6.16.2.3.1: Device + BIOS rows from /sys/class/dmi/id

@@ -327,7 +327,7 @@ ScrollView {
             HMRow {
                 label: "Layout"
                 description: "Which layout to use for tiling"
-                ComboBox {
+                ZenComboBox {
                     width: 140
                     model: ["dwindle", "master"]
                     currentIndex: SettingsStateV2.layout === "master" ? 1 : 0
@@ -494,7 +494,7 @@ ScrollView {
                 separator: true
                 label: "Color"
                 description: "Theme = auto accent · Synced = pick color keys · Custom = hex"
-                ComboBox {
+                ZenComboBox {
                     width: 140
                     model: ["theme", "synced", "custom"]
                     currentIndex: {
@@ -512,7 +512,7 @@ ScrollView {
             HMRow {
                 visible: ZenStringsState.enabled && ZenStringsState.colorMode === "synced"
                 label: "Start color"
-                ComboBox {
+                ZenComboBox {
                     width: 120
                     model: ["blue", "purple", "red", "orange", "yellow", "green", "aqua", "fg", "grey0"]
                     currentIndex: { var i = model.indexOf(ZenStringsState.syncedColor1Key); return i >= 0 ? i : 0 }
@@ -523,7 +523,7 @@ ScrollView {
             HMRow {
                 visible: ZenStringsState.enabled && ZenStringsState.colorMode === "synced"
                 label: "End color"
-                ComboBox {
+                ZenComboBox {
                     width: 120
                     model: ["purple", "blue", "red", "orange", "yellow", "green", "aqua", "fg", "grey0"]
                     currentIndex: { var i = model.indexOf(ZenStringsState.syncedColor2Key); return i >= 0 ? i : 0 }

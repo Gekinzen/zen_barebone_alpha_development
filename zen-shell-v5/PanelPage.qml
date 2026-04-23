@@ -18,9 +18,15 @@ ScrollView {
     id: root
     clip: true
 
+    // v6.16.3.5.2: added "battery" and "powerbadge" so they're
+    // pickable from the Module Layout zone dropdowns. Before this
+    // they were only reachable by hand-editing bar-layout.json or
+    // via the PowerBadge toggle in Bar Modules settings. Battery was
+    // missing from the selectable set since v6.16.0 shipped.
     readonly property var allModules: [
         "start", "taskbar", "workspaces", "window",
-        "music", "sysrow", "tray", "notifications", "clock",
+        "music", "sysrow", "tray", "battery", "powerbadge",
+        "notifications", "clock",
         "weather", "sysmonitor"
     ]
 
@@ -126,7 +132,7 @@ ScrollView {
                 label: "Show Bar On"
                 description: "All monitors, primary only, or a specific display"
 
-                ComboBox {
+                ZenComboBox {
                     id: displayTargetCombo
                     width: 260
 
@@ -418,7 +424,7 @@ ScrollView {
                 label: "Module Shape"
                 description: "Round (circular) or pill (elongated)"
 
-                ComboBox {
+                ZenComboBox {
                     width: 140
                     model: ["Round", "Pill"]
                     currentIndex: Theme.styleMode === "round" ? 0 : 1
@@ -499,36 +505,188 @@ ScrollView {
             }
 
             // ═══════════════════════════════════════════════════════
-            // v6.16.2: Custom logo picker
+            // v6.16.3.5: Start Button Logo picker
+            // ─────────────────────────────────────────────────────────
+            // Three modes:
+            //   auto    → auto-detect from /etc/os-release
+            //   builtin → pick from the bundled logo grid
+            //   custom  → browse a user image file
+            //
+            // Bundled logos live under ~/.local/share/quickshell/
+            // zen-shell/logos/<id>.svg, installed by install.sh from
+            // the tree's zen-shell-v5/assets/logos/. Adding a new one:
+            // drop the SVG in the assets dir AND append an entry to
+            // PanelState.builtinLogos. No other code changes needed.
             // ═══════════════════════════════════════════════════════
             SettingRow {
                 label: "Start Button Logo"
-                description: "Auto (distribution icon) or a custom PNG/SVG/JPG"
+                description: "Auto-detect your distro, pick from the built-in set, or use a custom image"
                 Row {
                     spacing: 8
-                    ComboBox {
+                    ZenComboBox {
+                        id: logoModeCombo
                         width: 180
-                        model: ["Auto (distro icon)", "Custom image"]
-                        readonly property var ids: ["auto", "custom"]
+                        model: ["Auto (detect distro)", "Built-in logo", "Custom image"]
+                        readonly property var ids: ["auto", "builtin", "custom"]
                         currentIndex: Math.max(0, ids.indexOf(PanelState.startButtonLogoMode))
                         onActivated: {
                             PanelState.startButtonLogoMode = ids[currentIndex]
                             PanelState.saveState()
                         }
                     }
-                    Image {
-                        width: 28; height: 28
+                    // Live preview of the currently-effective logo
+                    Rectangle {
+                        width: 36; height: 36; radius: 6
                         anchors.verticalCenter: parent.verticalCenter
-                        source: PanelState.startButtonLogoMode === "custom" && PanelState.startButtonLogoPath
-                            ? "file://" + PanelState.startButtonLogoPath
-                            : Quickshell.iconPath("distributor-logo-archlinux")
-                        fillMode: Image.PreserveAspectFit
-                        smooth: true
-                        sourceSize: Qt.size(56, 56)
+                        color: ThemeService.alpha(ThemeService.fg, 0.06)
+                        border.width: 1
+                        border.color: ThemeService.alpha(ThemeService.fg, 0.12)
+
+                        Image {
+                            anchors.centerIn: parent
+                            width: 28; height: 28
+                            readonly property string _r: PanelState.resolveStartButtonLogo()
+                            source: _r !== ""
+                                ? _r
+                                : Quickshell.iconPath("distributor-logo-archlinux")
+                            fillMode: Image.PreserveAspectFit
+                            smooth: true
+                            sourceSize: Qt.size(56, 56)
+                        }
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: PanelState.startButtonLogoMode === "auto"
+                        text: {
+                            const tag = UserProfileService
+                                ? String(UserProfileService.osLogo || "").toLowerCase()
+                                : ""
+                            if (!tag) return "detecting…"
+                            for (let i = 0; i < PanelState.builtinLogos.length; i++) {
+                                const e = PanelState.builtinLogos[i]
+                                for (let j = 0; j < e.osReleaseIds.length; j++) {
+                                    if (tag.indexOf(e.osReleaseIds[j]) >= 0) {
+                                        return "matched: " + e.label
+                                    }
+                                }
+                            }
+                            return "no match (using system icon)"
+                        }
+                        color: ThemeService.grey1
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 11
                     }
                 }
             }
 
+            // ─────────────────────────────────────────────────────────
+            // BUILT-IN LOGO GRID (visible when mode = builtin)
+            // ─────────────────────────────────────────────────────────
+            // v6.16.3.5.1 FIX: was wrapped in SettingRow which has a
+            // hardcoded implicitHeight of 48px — the grid (2 rows × 84px
+            // = ~180px) overflowed its bounds and visually collided with
+            // the next row ("Workspace Dot (Active)"). Now the whole
+            // block is a standalone ColumnLayout that auto-sizes from
+            // its children, so the parent SettingsSection.contentLayout
+            // positions subsequent rows at the correct Y.
+            //
+            // Layout.leftMargin: 16 matches SettingRow's internal left
+            // padding so header + grid visually align with the rest of
+            // the section's rows.
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: 4
+                Layout.bottomMargin: 4
+                visible: PanelState.startButtonLogoMode === "builtin"
+                spacing: 10
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 16
+                    spacing: 2
+                    Text {
+                        text: "Pick a built-in"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 13
+                        font.weight: Font.DemiBold
+                        color: ThemeService.fg
+                    }
+                    Text {
+                        text: "Bundled Arch, CachyOS, EndeavourOS, Fedora, Ubuntu, NixOS, generic Linux"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 11
+                        color: ThemeService.grey1
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+                }
+
+                Grid {
+                    Layout.leftMargin: 16
+                    columns: 4
+                    rowSpacing: 10
+                    columnSpacing: 10
+                    Repeater {
+                        model: PanelState.builtinLogos
+                        delegate: Rectangle {
+                            id: tile
+                            required property var modelData
+                            width: 80; height: 84; radius: 10
+                            readonly property bool selected:
+                                PanelState.startButtonLogoBuiltinId === tile.modelData.id
+                            color: tile.selected
+                                ? ThemeService.alpha(ThemeService.blue, 0.18)
+                                : (tileMa.containsMouse
+                                    ? ThemeService.alpha(ThemeService.fg, 0.08)
+                                    : ThemeService.alpha(ThemeService.fg, 0.04))
+                            border.width: tile.selected ? 2 : 1
+                            border.color: tile.selected
+                                ? ThemeService.blue
+                                : ThemeService.alpha(ThemeService.fg, 0.12)
+                            Behavior on color { ColorAnimation { duration: 150 } }
+
+                            Column {
+                                anchors.centerIn: parent
+                                spacing: 4
+                                Image {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    width: 40; height: 40
+                                    source: "file://" + PanelState._logosDir + "/" + tile.modelData.id + ".svg"
+                                    fillMode: Image.PreserveAspectFit
+                                    smooth: true
+                                    sourceSize: Qt.size(80, 80)
+                                }
+                                Text {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    text: tile.modelData.label
+                                    color: ThemeService.fg
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: 10
+                                    horizontalAlignment: Text.AlignHCenter
+                                    elide: Text.ElideRight
+                                    width: 76
+                                }
+                            }
+
+                            MouseArea {
+                                id: tileMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    PanelState.startButtonLogoBuiltinId = tile.modelData.id
+                                    PanelState.saveState()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ─────────────────────────────────────────────────────────
+            // CUSTOM IMAGE PATH (visible when mode = custom) — existing
+            // v6.16.2 behavior preserved byte-identical below.
+            // ─────────────────────────────────────────────────────────
             SettingRow {
                 label: "Logo Image Path"
                 description: "Absolute path to a PNG, SVG, or JPG file — auto-fits the button"
@@ -857,11 +1015,30 @@ ScrollView {
                         Layout.fillWidth: true
                         spacing: 8
 
-                        ComboBox {
+                        ZenComboBox {
                             id: addCombo
                             Layout.preferredWidth: 180
+                            // v6.16.3.5.2: dedup across ALL zones.
+                            // Before: only filtered out modules in THIS zone,
+                            // so a module already assigned to e.g. "center"
+                            // still appeared as a pickable option in "left"
+                            // and "right". Clicking Add would succeed but
+                            // leave the module assigned to both zones —
+                            // unintuitive and surfaces bar ambiguity.
+                            // Now: a module is shown in at most ONE zone's
+                            // dropdown — the zones it's NOT assigned to hide
+                            // it entirely. User removes it from its current
+                            // zone (× chip button) before it becomes pickable
+                            // again anywhere. "kapag nakalagay na sa bar,
+                            // hindi na mareselect yun mga naka assign na
+                            // need muna alisin para ma gamit ulit."
                             property var availableForZone: {
-                                return root.allModules.filter(m => root.modulesFor(modelData.id).indexOf(m) === -1)
+                                const assigned = [].concat(
+                                    root.modulesFor("left"),
+                                    root.modulesFor("center"),
+                                    root.modulesFor("right")
+                                )
+                                return root.allModules.filter(m => assigned.indexOf(m) === -1)
                             }
                             model: availableForZone
                         }

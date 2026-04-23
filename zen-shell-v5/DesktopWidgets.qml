@@ -31,6 +31,23 @@ Item {
     readonly property string configDir: Quickshell.env("HOME") + "/.config/quickshell/zen-shell"
     readonly property string configPath: configDir + "/widgets-state.json"
 
+    // v6.16.3.7: Universal widget scale multiplier.
+    // Binds live to PanelState.widgetScale (set via Settings →
+    // Widgets → Widget Scale slider). Every font.pixelSize and
+    // container dimension in this file multiplies by dw._scale,
+    // so changing the Settings slider resizes all three widgets
+    // (clocks, weather, sysmon) in lockstep — instantly, no
+    // shell restart.
+    //
+    // Clamped to 0.5-2.0 defensively in case someone hand-edits
+    // panel-state.json with a nonsense value. Lower bound 0.5
+    // keeps text readable; upper bound 2.0 keeps widgets from
+    // eating the entire screen on HiDPI displays.
+    readonly property real _scale: {
+        const s = PanelState.widgetScale !== undefined ? PanelState.widgetScale : 1.0
+        return Math.max(0.5, Math.min(2.0, s))
+    }
+
     property var clocks: [
         { enabled: true, timezone: "Asia/Manila", format24h: true, label: "Manila" },
         { enabled: false, timezone: "America/Winnipeg", format24h: true, label: "Winnipeg" }
@@ -205,6 +222,18 @@ Item {
         interval: 500
         repeat: false
         onTriggered: {
+            // v6.16.3.4.3: STATE-CLOBBER FIX
+            //
+            // Old payload was missing weatherBg + sysmonBg, so every drag
+            // wrote a JSON that dropped those fields. On next shell restart
+            // the FileView would load the clobbered JSON and fall back to
+            // the default background mode — user complaint:
+            //   "pinalitan ko color pag ka restart ko babalik sa default
+            //    nanaman"
+            //
+            // The complete widget-state schema is owned by WidgetsPage.qml's
+            // saveState(); both serializers must agree on it. Keep this
+            // payload in sync whenever a new field is added to WidgetsPage.
             const state = {
                 clocks: dw.clocks,
                 weather: { enabled: dw.weatherEnabled },
@@ -213,7 +242,11 @@ Item {
                 clockGlow: dw.clockGlow,
                 positions: { clockX: dw.clockPosX, clockY: dw.clockPosY, weatherX: dw.weatherPosX, weatherY: dw.weatherPosY, sysmonX: dw.sysmonPosX, sysmonY: dw.sysmonPosY },
                 colorMode: dw.colorMode,
-                customColor: dw.customColor
+                customColor: dw.customColor,
+                // v6.16.3.4.3: per-widget background fields — MUST be included
+                // or dragging a widget nukes the user's custom colors
+                weatherBg: { mode: dw.weatherBgMode, color: dw.weatherBgCustomColor, opacity: dw.weatherBgOpacity },
+                sysmonBg:  { mode: dw.sysmonBgMode,  color: dw.sysmonBgCustomColor,  opacity: dw.sysmonBgOpacity }
             }
             posSaver.command = ["bash", "-c", "mkdir -p '" + dw.configDir + "' && cat > '" + dw.configPath + "' << 'ZENEOF'\n" + JSON.stringify(state, null, 2) + "\nZENEOF"]
             posSaver.running = true
@@ -363,7 +396,7 @@ Item {
                                 return pad(h12) + ":" + pad(m)
                             }
                             font.family: "Adwaita Sans"
-                            font.pixelSize: index === 0 ? 120 : 36
+                            font.pixelSize: (index === 0 ? 120 : 36) * dw._scale
                             font.weight: Font.Black
                             font.letterSpacing: index === 0 ? -4 : -1
                             color: index === 0 ? dw.widgetTextColor : dw.widgetAccentColor
@@ -380,7 +413,7 @@ Item {
                             return days[dw.now.getDay()] + ", " + months[dw.now.getMonth()] + " " + String(dw.now.getDate()).padStart(2, "0")
                         }
                         font.family: "Adwaita Sans"
-                        font.pixelSize: 24
+                        font.pixelSize: 24 * dw._scale
                         font.weight: Font.ExtraBold
                         font.letterSpacing: 0.5
                         color: dw.widgetTextColor
@@ -392,7 +425,7 @@ Item {
                         visible: !modelData.format24h && index === 0
                         text: dw.now.getHours() < 12 ? "AM" : "PM"
                         font.family: "Adwaita Sans"
-                        font.pixelSize: 18
+                        font.pixelSize: 18 * dw._scale
                         font.weight: Font.Bold
                         color: Qt.rgba(dw.widgetTextColor.r, dw.widgetTextColor.g, dw.widgetTextColor.b, 0.7)
                         style: Text.Outline
@@ -403,7 +436,7 @@ Item {
                         visible: index > 0
                         text: modelData.label || modelData.timezone.split("/").pop().replace(/_/g, " ")
                         font.family: "Adwaita Sans"
-                        font.pixelSize: 14
+                        font.pixelSize: 14 * dw._scale
                         font.weight: Font.DemiBold
                         color: Qt.rgba(dw.widgetAccentColor.r, dw.widgetAccentColor.g, dw.widgetAccentColor.b, 0.7)
                         style: Text.Outline
@@ -427,8 +460,10 @@ Item {
         id: weatherWidget
         visible: dw.weatherEnabled
         // NO x: or y: binding — set imperatively
-        width: 400
-        height: 260
+        // v6.16.3.7: scaled via dw._scale so the whole weather widget
+        // resizes with the user's Settings → Widgets → Widget Scale.
+        width: 400 * dw._scale
+        height: 260 * dw._scale
         radius: 16
         // v6.16.1.5: reactive background from WidgetsPage settings
         color: dw.weatherBgColor
@@ -480,7 +515,7 @@ Item {
 
                     Text {
                         text: WeatherService.emojiIcon
-                        font.pixelSize: 48
+                        font.pixelSize: 48 * dw._scale
                     }
 
                     Column {
@@ -489,14 +524,14 @@ Item {
                         Text {
                             text: WeatherService.temperature + "°C"
                             font.family: "Adwaita Sans"
-                            font.pixelSize: 42
+                            font.pixelSize: 42 * dw._scale
                             font.weight: Font.ExtraBold
                             color: "#ffffff"
                         }
                         Text {
                             text: WeatherService.locationName
                             font.family: "Adwaita Sans"
-                            font.pixelSize: 13
+                            font.pixelSize: 13 * dw._scale
                             color: Qt.rgba(1, 1, 1, 0.7)
                         }
                     }
@@ -512,7 +547,7 @@ Item {
                         anchors.right: parent.right
                         text: WeatherService.feelsLike + "°"
                         font.family: "Adwaita Sans"
-                        font.pixelSize: 12
+                        font.pixelSize: 12 * dw._scale
                         font.weight: Font.Bold
                         color: Qt.rgba(1, 1, 1, 0.7)
                     }
@@ -520,7 +555,7 @@ Item {
                         anchors.right: parent.right
                         text: WeatherService.humidity + "%"
                         font.family: "Adwaita Sans"
-                        font.pixelSize: 12
+                        font.pixelSize: 12 * dw._scale
                         font.weight: Font.Bold
                         color: Qt.rgba(1, 1, 1, 0.7)
                     }
@@ -528,7 +563,7 @@ Item {
                         anchors.right: parent.right
                         text: WeatherService.windSpeed + "km/h"
                         font.family: "Adwaita Sans"
-                        font.pixelSize: 12
+                        font.pixelSize: 12 * dw._scale
                         font.weight: Font.Bold
                         color: Qt.rgba(1, 1, 1, 0.7)
                     }
@@ -543,7 +578,7 @@ Item {
                 Text {
                     text: WeatherService.condition
                     font.family: "Adwaita Sans"
-                    font.pixelSize: 14
+                    font.pixelSize: 14 * dw._scale
                     font.weight: Font.Medium
                     color: Qt.rgba(1, 1, 1, 0.85)
                 }
@@ -551,7 +586,7 @@ Item {
                     visible: WeatherService.lastUpdated !== ""
                     text: "Updated " + WeatherService.lastUpdated
                     font.family: "Adwaita Sans"
-                    font.pixelSize: 10
+                    font.pixelSize: 10 * dw._scale
                     color: Qt.rgba(1, 1, 1, 0.4)
                 }
             }
@@ -590,20 +625,20 @@ Item {
                             Text {
                                 text: modelData.day || "?"
                                 font.family: "Adwaita Sans"
-                                font.pixelSize: 10
+                                font.pixelSize: 10 * dw._scale
                                 font.weight: Font.Bold
                                 color: Qt.rgba(1, 1, 1, index === 0 ? 0.9 : 0.6)
                                 Layout.alignment: Qt.AlignHCenter
                             }
                             Text {
                                 text: modelData.emoji || "☁️"
-                                font.pixelSize: 18
+                                font.pixelSize: 18 * dw._scale
                                 Layout.alignment: Qt.AlignHCenter
                             }
                             Text {
                                 text: (modelData.maxTemp !== undefined ? modelData.maxTemp : "--") + "°/" + (modelData.minTemp !== undefined ? modelData.minTemp : "--") + "°"
                                 font.family: "Adwaita Sans"
-                                font.pixelSize: 10
+                                font.pixelSize: 10 * dw._scale
                                 font.weight: Font.Bold
                                 color: Qt.rgba(1, 1, 1, 0.8)
                                 Layout.alignment: Qt.AlignHCenter
@@ -616,7 +651,7 @@ Item {
                     visible: !WeatherService.forecast || WeatherService.forecast.length === 0
                     text: "Loading forecast..."
                     font.family: "Adwaita Sans"
-                    font.pixelSize: 11
+                    font.pixelSize: 11 * dw._scale
                     color: Qt.rgba(1, 1, 1, 0.4)
                     Layout.alignment: Qt.AlignHCenter
                 }
@@ -645,8 +680,9 @@ Item {
         id: sysmonWidget
         visible: dw.sysmonEnabled
         // NO x: or y: binding — set imperatively
-        width: 420
-        height: 420
+        // v6.16.3.7: scaled with dw._scale (see Settings → Widgets)
+        width: 420 * dw._scale
+        height: 420 * dw._scale
         radius: 16
         // v6.16.1.5: reactive background from WidgetsPage settings
         color: dw.sysmonBgColor
@@ -693,7 +729,7 @@ Item {
                 Text {
                     text: "SYSTEM MONITOR"
                     font.family: "Adwaita Sans"
-                    font.pixelSize: 12
+                    font.pixelSize: 12 * dw._scale
                     font.weight: Font.Bold
                     font.letterSpacing: 1
                     color: Qt.rgba(1, 1, 1, 0.95)
@@ -702,7 +738,7 @@ Item {
                 Text {
                     text: SystemMonitorService.cpuName
                     font.family: "Adwaita Sans"
-                    font.pixelSize: 10
+                    font.pixelSize: 10 * dw._scale
                     color: Qt.rgba(1, 1, 1, 0.5)
                     visible: dw.sysmonActiveTab === "overview"
                 }
@@ -726,7 +762,7 @@ Item {
                         anchors.centerIn: parent
                         text: "\uf2db"  // microchip / process icon
                         font.family: "JetBrainsMono Nerd Font"
-                        font.pixelSize: 13
+                        font.pixelSize: 13 * dw._scale
                         color: Qt.rgba(1, 1, 1, 0.9)
                     }
 
@@ -792,7 +828,7 @@ Item {
                             anchors.centerIn: parent
                             text: modelData.label
                             font.family: "Adwaita Sans"
-                            font.pixelSize: 9
+                            font.pixelSize: 9 * dw._scale
                             font.weight: Font.DemiBold
                             color: parent.isActive ? Qt.rgba(1,1,1,0.95) : Qt.rgba(1,1,1,0.55)
                         }
@@ -833,7 +869,7 @@ Item {
                                 ? ("GPU" + index)
                                 : "GPU"
                             font.family: "Adwaita Sans"
-                            font.pixelSize: 9
+                            font.pixelSize: 9 * dw._scale
                             font.weight: Font.DemiBold
                             color: parent.isActive ? Qt.rgba(1,1,1,0.95) : Qt.rgba(1,1,1,0.55)
                         }
@@ -867,7 +903,7 @@ Item {
                         anchors.centerIn: parent
                         text: "NET"
                         font.family: "Adwaita Sans"
-                        font.pixelSize: 9
+                        font.pixelSize: 9 * dw._scale
                         font.weight: Font.DemiBold
                         color: parent.isActive ? Qt.rgba(1,1,1,0.95) : Qt.rgba(1,1,1,0.55)
                     }
@@ -908,9 +944,9 @@ Item {
                         spacing: 2
                         RowLayout {
                             Layout.fillWidth: true
-                            Text { text: "CPU"; font.family: "Adwaita Sans"; font.pixelSize: 10; font.weight: Font.DemiBold; color: Qt.rgba(1,1,1,0.5) }
+                            Text { text: "CPU"; font.family: "Adwaita Sans"; font.pixelSize: 10 * dw._scale; font.weight: Font.DemiBold; color: Qt.rgba(1,1,1,0.5) }
                             Item { Layout.fillWidth: true }
-                            Text { text: "USAGE"; font.family: "Adwaita Sans"; font.pixelSize: 8; font.weight: Font.DemiBold; color: Qt.rgba(1,1,1,0.3) }
+                            Text { text: "USAGE"; font.family: "Adwaita Sans"; font.pixelSize: 8 * dw._scale; font.weight: Font.DemiBold; color: Qt.rgba(1,1,1,0.3) }
                         }
                         Canvas {
                             id: cpuCanvas
@@ -925,11 +961,11 @@ Item {
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 6
-                            Text { text: "TEMP"; font.family: "Adwaita Sans"; font.pixelSize: 8; font.weight: Font.Bold; color: Qt.rgba(1,1,1,0.4) }
-                            Text { text: SystemMonitorService.cpuTemp > 0 ? SystemMonitorService.cpuTemp + "°C" : "--"; font.family: "Adwaita Sans"; font.pixelSize: 14; font.weight: Font.Bold; color: SystemMonitorService.tempColor(SystemMonitorService.cpuTemp) }
+                            Text { text: "TEMP"; font.family: "Adwaita Sans"; font.pixelSize: 8 * dw._scale; font.weight: Font.Bold; color: Qt.rgba(1,1,1,0.4) }
+                            Text { text: SystemMonitorService.cpuTemp > 0 ? SystemMonitorService.cpuTemp + "°C" : "--"; font.family: "Adwaita Sans"; font.pixelSize: 14 * dw._scale; font.weight: Font.Bold; color: SystemMonitorService.tempColor(SystemMonitorService.cpuTemp) }
                             Item { Layout.fillWidth: true }
-                            Text { text: "USAGE"; font.family: "Adwaita Sans"; font.pixelSize: 8; font.weight: Font.Bold; color: Qt.rgba(1,1,1,0.4) }
-                            Text { text: SystemMonitorService.cpuPercent + "%"; font.family: "Adwaita Sans"; font.pixelSize: 14; font.weight: Font.Bold; color: SystemMonitorService.usageColor(SystemMonitorService.cpuPercent) }
+                            Text { text: "USAGE"; font.family: "Adwaita Sans"; font.pixelSize: 8 * dw._scale; font.weight: Font.Bold; color: Qt.rgba(1,1,1,0.4) }
+                            Text { text: SystemMonitorService.cpuPercent + "%"; font.family: "Adwaita Sans"; font.pixelSize: 14 * dw._scale; font.weight: Font.Bold; color: SystemMonitorService.usageColor(SystemMonitorService.cpuPercent) }
                         }
                     }
                 }
@@ -948,9 +984,9 @@ Item {
                         spacing: 2
                         RowLayout {
                             Layout.fillWidth: true
-                            Text { text: "GPU"; font.family: "Adwaita Sans"; font.pixelSize: 10; font.weight: Font.DemiBold; color: Qt.rgba(1,1,1,0.5) }
+                            Text { text: "GPU"; font.family: "Adwaita Sans"; font.pixelSize: 10 * dw._scale; font.weight: Font.DemiBold; color: Qt.rgba(1,1,1,0.5) }
                             Item { Layout.fillWidth: true }
-                            Text { text: "VRAM"; font.family: "Adwaita Sans"; font.pixelSize: 8; font.weight: Font.DemiBold; color: Qt.rgba(1,1,1,0.3) }
+                            Text { text: "VRAM"; font.family: "Adwaita Sans"; font.pixelSize: 8 * dw._scale; font.weight: Font.DemiBold; color: Qt.rgba(1,1,1,0.3) }
                         }
                         Canvas {
                             id: gpuCanvas
@@ -965,11 +1001,11 @@ Item {
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 6
-                            Text { text: "TEMP"; font.family: "Adwaita Sans"; font.pixelSize: 8; font.weight: Font.Bold; color: Qt.rgba(1,1,1,0.4) }
-                            Text { text: SystemMonitorService.gpuTemp > 0 ? SystemMonitorService.gpuTemp + "°C" : "--"; font.family: "Adwaita Sans"; font.pixelSize: 14; font.weight: Font.Bold; color: SystemMonitorService.tempColor(SystemMonitorService.gpuTemp) }
+                            Text { text: "TEMP"; font.family: "Adwaita Sans"; font.pixelSize: 8 * dw._scale; font.weight: Font.Bold; color: Qt.rgba(1,1,1,0.4) }
+                            Text { text: SystemMonitorService.gpuTemp > 0 ? SystemMonitorService.gpuTemp + "°C" : "--"; font.family: "Adwaita Sans"; font.pixelSize: 14 * dw._scale; font.weight: Font.Bold; color: SystemMonitorService.tempColor(SystemMonitorService.gpuTemp) }
                             Item { Layout.fillWidth: true }
-                            Text { text: "VRAM"; font.family: "Adwaita Sans"; font.pixelSize: 8; font.weight: Font.Bold; color: Qt.rgba(1,1,1,0.4) }
-                            Text { text: SystemMonitorService.gpuVramUsed.toFixed(1) + "GB"; font.family: "Adwaita Sans"; font.pixelSize: 14; font.weight: Font.Bold; color: Qt.rgba(1,1,1,0.8) }
+                            Text { text: "VRAM"; font.family: "Adwaita Sans"; font.pixelSize: 8 * dw._scale; font.weight: Font.Bold; color: Qt.rgba(1,1,1,0.4) }
+                            Text { text: SystemMonitorService.gpuVramUsed.toFixed(1) + "GB"; font.family: "Adwaita Sans"; font.pixelSize: 14 * dw._scale; font.weight: Font.Bold; color: Qt.rgba(1,1,1,0.8) }
                         }
                     }
                 }
@@ -988,9 +1024,9 @@ Item {
                         spacing: 2
                         RowLayout {
                             Layout.fillWidth: true
-                            Text { text: "RAM"; font.family: "Adwaita Sans"; font.pixelSize: 10; font.weight: Font.DemiBold; color: Qt.rgba(1,1,1,0.5) }
+                            Text { text: "RAM"; font.family: "Adwaita Sans"; font.pixelSize: 10 * dw._scale; font.weight: Font.DemiBold; color: Qt.rgba(1,1,1,0.5) }
                             Item { Layout.fillWidth: true }
-                            Text { text: "TOTAL"; font.family: "Adwaita Sans"; font.pixelSize: 8; font.weight: Font.DemiBold; color: Qt.rgba(1,1,1,0.3) }
+                            Text { text: "TOTAL"; font.family: "Adwaita Sans"; font.pixelSize: 8 * dw._scale; font.weight: Font.DemiBold; color: Qt.rgba(1,1,1,0.3) }
                         }
                         Canvas {
                             id: ramCanvas
@@ -1005,11 +1041,11 @@ Item {
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 6
-                            Text { text: "USAGE"; font.family: "Adwaita Sans"; font.pixelSize: 8; font.weight: Font.Bold; color: Qt.rgba(1,1,1,0.4) }
-                            Text { text: SystemMonitorService.ramPercent + "%"; font.family: "Adwaita Sans"; font.pixelSize: 14; font.weight: Font.Bold; color: SystemMonitorService.usageColor(SystemMonitorService.ramPercent) }
+                            Text { text: "USAGE"; font.family: "Adwaita Sans"; font.pixelSize: 8 * dw._scale; font.weight: Font.Bold; color: Qt.rgba(1,1,1,0.4) }
+                            Text { text: SystemMonitorService.ramPercent + "%"; font.family: "Adwaita Sans"; font.pixelSize: 14 * dw._scale; font.weight: Font.Bold; color: SystemMonitorService.usageColor(SystemMonitorService.ramPercent) }
                             Item { Layout.fillWidth: true }
-                            Text { text: "TOTAL"; font.family: "Adwaita Sans"; font.pixelSize: 8; font.weight: Font.Bold; color: Qt.rgba(1,1,1,0.4) }
-                            Text { text: SystemMonitorService.ramTotalGb.toFixed(0) + "GB"; font.family: "Adwaita Sans"; font.pixelSize: 14; font.weight: Font.Bold; color: Qt.rgba(1,1,1,0.8) }
+                            Text { text: "TOTAL"; font.family: "Adwaita Sans"; font.pixelSize: 8 * dw._scale; font.weight: Font.Bold; color: Qt.rgba(1,1,1,0.4) }
+                            Text { text: SystemMonitorService.ramTotalGb.toFixed(0) + "GB"; font.family: "Adwaita Sans"; font.pixelSize: 14 * dw._scale; font.weight: Font.Bold; color: Qt.rgba(1,1,1,0.8) }
                         }
                     }
                 }
@@ -1029,7 +1065,7 @@ Item {
                         Text {
                             text: "NETWORK"
                             font.family: "Adwaita Sans"
-                            font.pixelSize: 10
+                            font.pixelSize: 10 * dw._scale
                             font.weight: Font.DemiBold
                             color: Qt.rgba(1, 1, 1, 0.5)
                         }
@@ -1046,11 +1082,11 @@ Item {
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 6
-                            Text { text: "DOWN"; font.family: "Adwaita Sans"; font.pixelSize: 8; font.weight: Font.Bold; color: Qt.rgba(1,1,1,0.4) }
-                            Text { text: SystemMonitorService.netDown; font.family: "Adwaita Sans"; font.pixelSize: 12; font.weight: Font.Bold; color: Qt.rgba(0.19,0.82,0.35,0.9) }
+                            Text { text: "DOWN"; font.family: "Adwaita Sans"; font.pixelSize: 8 * dw._scale; font.weight: Font.Bold; color: Qt.rgba(1,1,1,0.4) }
+                            Text { text: SystemMonitorService.netDown; font.family: "Adwaita Sans"; font.pixelSize: 12 * dw._scale; font.weight: Font.Bold; color: Qt.rgba(0.19,0.82,0.35,0.9) }
                             Item { Layout.fillWidth: true }
-                            Text { text: "UP"; font.family: "Adwaita Sans"; font.pixelSize: 8; font.weight: Font.Bold; color: Qt.rgba(1,1,1,0.4) }
-                            Text { text: SystemMonitorService.netUp; font.family: "Adwaita Sans"; font.pixelSize: 12; font.weight: Font.Bold; color: Qt.rgba(0.48,0.81,1.0,0.9) }
+                            Text { text: "UP"; font.family: "Adwaita Sans"; font.pixelSize: 8 * dw._scale; font.weight: Font.Bold; color: Qt.rgba(1,1,1,0.4) }
+                            Text { text: SystemMonitorService.netUp; font.family: "Adwaita Sans"; font.pixelSize: 12 * dw._scale; font.weight: Font.Bold; color: Qt.rgba(0.48,0.81,1.0,0.9) }
                         }
                     }
                 }
@@ -1080,7 +1116,7 @@ Item {
                     Text {
                         text: SystemMonitorService.cpuName
                         font.family: "Adwaita Sans"
-                        font.pixelSize: 12
+                        font.pixelSize: 12 * dw._scale
                         font.weight: Font.DemiBold
                         color: Qt.rgba(1,1,1,0.9)
                     }
@@ -1099,17 +1135,17 @@ Item {
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 14
-                        Text { text: "TEMP"; font.family: "Adwaita Sans"; font.pixelSize: 10; color: Qt.rgba(1,1,1,0.5) }
+                        Text { text: "TEMP"; font.family: "Adwaita Sans"; font.pixelSize: 10 * dw._scale; color: Qt.rgba(1,1,1,0.5) }
                         Text {
                             text: SystemMonitorService.cpuTemp > 0 ? SystemMonitorService.cpuTemp + "°C" : "--"
-                            font.family: "Adwaita Sans"; font.pixelSize: 20; font.weight: Font.Bold
+                            font.family: "Adwaita Sans"; font.pixelSize: 20 * dw._scale; font.weight: Font.Bold
                             color: SystemMonitorService.tempColor(SystemMonitorService.cpuTemp)
                         }
                         Item { Layout.fillWidth: true }
-                        Text { text: "USAGE"; font.family: "Adwaita Sans"; font.pixelSize: 10; color: Qt.rgba(1,1,1,0.5) }
+                        Text { text: "USAGE"; font.family: "Adwaita Sans"; font.pixelSize: 10 * dw._scale; color: Qt.rgba(1,1,1,0.5) }
                         Text {
                             text: SystemMonitorService.cpuPercent + "%"
-                            font.family: "Adwaita Sans"; font.pixelSize: 20; font.weight: Font.Bold
+                            font.family: "Adwaita Sans"; font.pixelSize: 20 * dw._scale; font.weight: Font.Bold
                             color: SystemMonitorService.usageColor(SystemMonitorService.cpuPercent)
                         }
                     }
@@ -1141,7 +1177,7 @@ Item {
                             Text {
                                 text: parent.parent.g.name || "GPU " + parent.parent.index
                                 font.family: "Adwaita Sans"
-                                font.pixelSize: 12
+                                font.pixelSize: 12 * dw._scale
                                 font.weight: Font.DemiBold
                                 color: Qt.rgba(1,1,1,0.9)
                                 Layout.fillWidth: true
@@ -1150,7 +1186,7 @@ Item {
                             Text {
                                 text: (parent.parent.g.type || "").toUpperCase()
                                 font.family: "Adwaita Sans"
-                                font.pixelSize: 9
+                                font.pixelSize: 9 * dw._scale
                                 font.weight: Font.Bold
                                 color: {
                                     const t = parent.parent.g.type
@@ -1176,7 +1212,7 @@ Item {
                             visible: !parent.parent.g.hasMetrics
                             text: "(no live metrics for secondary GPU)"
                             font.family: "Adwaita Sans"
-                            font.pixelSize: 10
+                            font.pixelSize: 10 * dw._scale
                             color: Qt.rgba(1,1,1,0.4)
                             Layout.alignment: Qt.AlignHCenter
                         }
@@ -1186,17 +1222,17 @@ Item {
                             spacing: 14
                             visible: parent.parent.g.hasMetrics
 
-                            Text { text: "TEMP"; font.family: "Adwaita Sans"; font.pixelSize: 10; color: Qt.rgba(1,1,1,0.5) }
+                            Text { text: "TEMP"; font.family: "Adwaita Sans"; font.pixelSize: 10 * dw._scale; color: Qt.rgba(1,1,1,0.5) }
                             Text {
                                 text: (parent.parent.parent.g.temp || 0) > 0 ? (parent.parent.parent.g.temp + "°C") : "--"
-                                font.family: "Adwaita Sans"; font.pixelSize: 20; font.weight: Font.Bold
+                                font.family: "Adwaita Sans"; font.pixelSize: 20 * dw._scale; font.weight: Font.Bold
                                 color: SystemMonitorService.tempColor(parent.parent.parent.g.temp || 0)
                             }
                             Item { Layout.fillWidth: true }
-                            Text { text: "USAGE"; font.family: "Adwaita Sans"; font.pixelSize: 10; color: Qt.rgba(1,1,1,0.5) }
+                            Text { text: "USAGE"; font.family: "Adwaita Sans"; font.pixelSize: 10 * dw._scale; color: Qt.rgba(1,1,1,0.5) }
                             Text {
                                 text: (parent.parent.parent.g.usage || 0) + "%"
-                                font.family: "Adwaita Sans"; font.pixelSize: 20; font.weight: Font.Bold
+                                font.family: "Adwaita Sans"; font.pixelSize: 20 * dw._scale; font.weight: Font.Bold
                                 color: SystemMonitorService.usageColor(parent.parent.parent.g.usage || 0)
                             }
                         }
@@ -1206,11 +1242,11 @@ Item {
                             spacing: 14
                             visible: parent.parent.g.hasMetrics && (parent.parent.g.vramTotal || 0) > 0
 
-                            Text { text: "VRAM"; font.family: "Adwaita Sans"; font.pixelSize: 10; color: Qt.rgba(1,1,1,0.5) }
+                            Text { text: "VRAM"; font.family: "Adwaita Sans"; font.pixelSize: 10 * dw._scale; color: Qt.rgba(1,1,1,0.5) }
                             Text {
                                 text: (parent.parent.parent.g.vramUsed || 0).toFixed(1) + " / "
                                       + (parent.parent.parent.g.vramTotal || 0).toFixed(0) + " GB"
-                                font.family: "Adwaita Sans"; font.pixelSize: 14; font.weight: Font.DemiBold
+                                font.family: "Adwaita Sans"; font.pixelSize: 14 * dw._scale; font.weight: Font.DemiBold
                                 color: Qt.rgba(1,1,1,0.85)
                             }
                         }
@@ -1233,7 +1269,7 @@ Item {
                     anchors.margins: 14
                     spacing: 6
 
-                    Text { text: "NETWORK"; font.family: "Adwaita Sans"; font.pixelSize: 12; font.weight: Font.DemiBold; color: Qt.rgba(1,1,1,0.9) }
+                    Text { text: "NETWORK"; font.family: "Adwaita Sans"; font.pixelSize: 12 * dw._scale; font.weight: Font.DemiBold; color: Qt.rgba(1,1,1,0.9) }
 
                     Canvas {
                         id: netBigCanvas
@@ -1249,17 +1285,17 @@ Item {
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 14
-                        Text { text: "DOWN"; font.family: "Adwaita Sans"; font.pixelSize: 10; color: Qt.rgba(1,1,1,0.5) }
+                        Text { text: "DOWN"; font.family: "Adwaita Sans"; font.pixelSize: 10 * dw._scale; color: Qt.rgba(1,1,1,0.5) }
                         Text {
                             text: SystemMonitorService.netDown
-                            font.family: "Adwaita Sans"; font.pixelSize: 20; font.weight: Font.Bold
+                            font.family: "Adwaita Sans"; font.pixelSize: 20 * dw._scale; font.weight: Font.Bold
                             color: Qt.rgba(0.19,0.82,0.35,0.9)
                         }
                         Item { Layout.fillWidth: true }
-                        Text { text: "UP"; font.family: "Adwaita Sans"; font.pixelSize: 10; color: Qt.rgba(1,1,1,0.5) }
+                        Text { text: "UP"; font.family: "Adwaita Sans"; font.pixelSize: 10 * dw._scale; color: Qt.rgba(1,1,1,0.5) }
                         Text {
                             text: SystemMonitorService.netUp
-                            font.family: "Adwaita Sans"; font.pixelSize: 20; font.weight: Font.Bold
+                            font.family: "Adwaita Sans"; font.pixelSize: 20 * dw._scale; font.weight: Font.Bold
                             color: Qt.rgba(0.48,0.81,1.0,0.9)
                         }
                     }

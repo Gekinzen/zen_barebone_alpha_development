@@ -78,6 +78,12 @@ Item {
     // v6.16.2 HOVER PEEK POPUP — shows full date + week info after 350ms.
     // Uses PopupWindow (same pattern as SysRowIcon tooltip) so it renders
     // above the bar's layer surface. Theme-synced via ThemeService.
+    //
+    // v6.16.3.6: richer content (time with seconds, day-of-year, IANA
+    // timezone) + consistent styling with ZenSysMonitor hover popup.
+    // All bar-module hover popups now share the same visual language:
+    // bg0 @ 96% alpha, 15% fg border, Theme.panelRadius (min 14),
+    // 350ms hover-intent delay, Edges.Top anchor.
     // ═══════════════════════════════════════════════════════════════
     PopupWindow {
         id: peekPopup
@@ -85,7 +91,7 @@ Item {
         anchor.edges: Edges.Top
         anchor.gravity: Edges.Top
         visible: clockRoot._peekPending && clockMouse.containsMouse
-        width: Math.max(peekCol.implicitWidth + 28, 180)
+        width: Math.max(peekCol.implicitWidth + 28, 220)
         height: peekCol.implicitHeight + 20
         color: "transparent"
 
@@ -118,6 +124,14 @@ Item {
                     font.pixelSize: 12
                     color: ThemeService.fg
                 }
+                // Live time with seconds (updates every tick)
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: Qt.formatDateTime(clockRoot.now, "h:mm:ss AP")
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 11
+                    color: ThemeService.grey0
+                }
                 // Subtle separator
                 Rectangle {
                     anchors.horizontalCenter: parent.horizontalCenter
@@ -125,7 +139,7 @@ Item {
                     height: 1
                     color: ThemeService.alpha(ThemeService.fg, 0.1)
                 }
-                // Week number + click hint
+                // Week + day-of-year + timezone (IANA, via JS Intl)
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: {
@@ -136,8 +150,47 @@ Item {
                         d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7))
                         const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1))
                         const wk = Math.ceil(((d - yearStart) / 86400000 + 1) / 7)
-                        return "Week " + wk + "  ·  Click for calendar"
+                        // Day of year
+                        const startOfYear = new Date(clockRoot.now.getFullYear(), 0, 0)
+                        const diff = clockRoot.now - startOfYear
+                        const doy = Math.floor(diff / 86400000)
+                        return "Week " + wk + "  ·  Day " + doy + " of " + clockRoot.now.getFullYear()
                     }
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 10
+                    color: ThemeService.grey1
+                }
+                // IANA timezone
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: {
+                        try {
+                            const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+                            const offMin = -clockRoot.now.getTimezoneOffset()
+                            const sign = offMin >= 0 ? "+" : "-"
+                            const hh = Math.floor(Math.abs(offMin) / 60)
+                            const mm = Math.abs(offMin) % 60
+                            const off = "UTC" + sign + String(hh).padStart(2, "0") + ":" + String(mm).padStart(2, "0")
+                            return (tz || "Local") + "  ·  " + off
+                        } catch (e) {
+                            return "Local time"
+                        }
+                    }
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 10
+                    color: ThemeService.grey1
+                }
+                // Subtle separator
+                Rectangle {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    width: peekCol.width * 0.5
+                    height: 1
+                    color: ThemeService.alpha(ThemeService.fg, 0.1)
+                }
+                // Click hint
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: "Click for calendar"
                     font.family: Theme.fontFamily
                     font.pixelSize: 10
                     color: ThemeService.grey0

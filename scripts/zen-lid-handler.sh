@@ -92,6 +92,29 @@ if command -v jq >/dev/null 2>&1 && [ -f "$CONFIG" ]; then
     esac
 fi
 
+# ── v6.16.3.8: Read system action preference ──
+# This is SEPARATE from BEHAVIOR above (which controls MONITOR
+# handling on close — mirror/keep/off). LID_ACTION controls what
+# the SYSTEM does on close:
+#   suspend — lock + systemctl suspend (wake to lock screen)
+#   lock    — lock screen only, stay powered
+#   ignore  — no system action, only monitor handling fires
+#
+# When LID_ACTION = "suspend" or "lock", it OVERRIDES the per-branch
+# lock/suspend logic in the smart/mirror cases below. When "ignore",
+# the original monitor-only behavior is preserved.
+#
+# Read from PanelState (not SettingsStateV2) because this is a
+# user preference tracked alongside idleLockSeconds.
+PANEL_STATE="$HOME/.local/share/quickshell/zen-shell/panel-state.json"
+LID_ACTION="suspend"
+if command -v jq >/dev/null 2>&1 && [ -f "$PANEL_STATE" ]; then
+    SAVED_ACTION=$(jq -r '.lidCloseAction // empty' "$PANEL_STATE" 2>/dev/null)
+    case "$SAVED_ACTION" in
+        suspend|lock|ignore) LID_ACTION="$SAVED_ACTION" ;;
+    esac
+fi
+
 # ── Detect internal display name ──
 # Most laptops report eDP-1; some older / niche hardware uses
 # LVDS-1 or DSI-1. Grab the first monitor whose name matches.
@@ -128,16 +151,83 @@ on_ac() {
 }
 
 # ── Lock screen launcher (graceful fallback chain) ──
-# Tries hyprlock → swaylock → just dpms off if neither installed.
+# v6.16.4 hardening:
+#   - Prefer zen-lock.sh wrapper when available (does wallpaper
+#     sync + font sync + lock-message gen; stronger guarantee
+#     that user lands on a fully-rendered lock screen).
+#   - SIGKILL existing hyprlock if it's running but stuck (no
+#     layer surface in hyprctl's view → zombie → kill + relaunch).
+#   - Final fallback chain: hyprlock → swaylock → plain DPMS off.
 lock_screen() {
-    if command -v hyprlock >/dev/null 2>&1; then
-        # Run detached so this script can exit immediately
+    # Zombie detection — hyprlock running but hidden/frozen.
+    if pgrep -x hyprlock >/dev/null 2>&1; then
+        local layers
+        layers=$(timeout 1 hyprctl layers -j 2>/dev/null \
+            | jq -r '[..|.namespace? // empty | select(contains("hyprlock") or contains("session-lock"))] | length' 2>/dev/null \
+            || echo 0)
+        if [ "$layers" = "0" ]; then
+            log "  lock_screen: zombie hyprlock detected — SIGKILL + relaunch"
+            pkill -9 -x hyprlock 2>/dev/null
+            sleep 0.2
+        else
+            log "  lock_screen: hyprlock already running with visible surface — skip"
+            return 0
+        fi
+    fi
+
+    if [ -x "$HOME/.local/bin/zen-lock.sh" ]; then
+        setsid -f "$HOME/.local/bin/zen-lock.sh" </dev/null >/dev/null 2>&1 &
+        log "  lock_screen: via zen-lock.sh wrapper"
+    elif command -v hyprlock >/dev/null 2>&1; then
         setsid -f hyprlock >/dev/null 2>&1 &
+        log "  lock_screen: via direct hyprlock"
     elif command -v swaylock >/dev/null 2>&1; then
         setsid -f swaylock -f >/dev/null 2>&1 &
+        log "  lock_screen: via swaylock fallback"
     else
-        log "no lock binary found — falling back to DPMS off only"
+        log "  lock_screen: no lock binary found — DPMS off only"
+        hyprctl dispatch dpms off >/dev/null 2>&1 || true
     fi
+}
+
+# ── v6.16.4: Pre-suspend health validation ──
+# Run before any systemctl suspend call. Returns 0 (suspend OK) if
+# everything looks healthy, non-zero if we should skip suspend and
+# log a warning. The idea: never suspend a broken session, because
+# waking from suspend when the session is already broken is the
+# exact recipe for "force-power-off required".
+#
+# Checks:
+#   1. hyprctl is responding to basic queries (compositor alive)
+#   2. hyprlock is either running cleanly OR not running at all
+#      (no zombie hyprlock — those cause the frozen-lock-on-wake
+#      failure mode)
+#
+# If the check fails, caller should skip suspend and run recovery
+# instead. But we don't force that — sometimes the user REALLY
+# wants to suspend even from a broken state (e.g. going to sleep
+# and planning to reboot after). Just logs a warning.
+pre_suspend_healthcheck() {
+    local healthy=0
+
+    if ! timeout 1 hyprctl monitors >/dev/null 2>&1; then
+        log "  pre-suspend: hyprctl unreachable — will suspend anyway"
+        healthy=1
+    fi
+
+    if pgrep -x hyprlock >/dev/null 2>&1; then
+        local layers
+        layers=$(timeout 1 hyprctl layers -j 2>/dev/null \
+            | jq -r '[..|.namespace? // empty | select(contains("hyprlock") or contains("session-lock"))] | length' 2>/dev/null \
+            || echo 0)
+        if [ "$layers" = "0" ]; then
+            log "  pre-suspend: ⚠ zombie hyprlock detected before suspend — killing first"
+            pkill -9 -x hyprlock 2>/dev/null
+            sleep 0.2
+        fi
+    fi
+
+    return $healthy
 }
 
 INTERNAL=$(detect_internal)
@@ -164,7 +254,31 @@ close)
         echo "closed_at=$(date +%s)"
     } >"$STATE_FILE" 2>/dev/null
 
-    log "close: behavior=$BEHAVIOR ext=$EXT_COUNT internal=$INTERNAL"
+    log "close: behavior=$BEHAVIOR lid_action=$LID_ACTION ext=$EXT_COUNT internal=$INTERNAL"
+
+    # v6.16.3.8: LID_ACTION early-dispatch.
+    # When the user set lidCloseAction = "suspend" or "lock" in
+    # Settings → Power, that ALWAYS wins — we fire lock/suspend
+    # regardless of whether they're clamshelling with externals.
+    # This matches the expectation "close lid → system goes to
+    # sleep, on wake → lock screen" without any edge-case surprises.
+    # BEHAVIOR (mirror/keep/off) still runs after, to handle the
+    # monitor side, but for "suspend" it's moot since the system
+    # is going to sleep anyway.
+    if [ "$LID_ACTION" = "suspend" ]; then
+        log "  → lid_action=suspend: lock + systemctl suspend"
+        lock_screen
+        sleep 0.3
+        pre_suspend_healthcheck; command -v systemctl >/dev/null 2>&1 && systemctl suspend
+        exit 0
+    elif [ "$LID_ACTION" = "lock" ]; then
+        log "  → lid_action=lock: lock only, no suspend"
+        lock_screen
+        # Continue to BEHAVIOR case for monitor handling (clamshell
+        # still useful here — lock screen on internal is redundant
+        # when you've got an external)
+    fi
+    # lid_action = "ignore" falls through to BEHAVIOR-only handling
 
     case "$BEHAVIOR" in
     keep)
@@ -184,7 +298,7 @@ close)
         # else suspend.
         if [ "$EXT_COUNT" -eq 0 ]; then
             log "  → mirror + no external: suspend"
-            command -v systemctl >/dev/null 2>&1 && systemctl suspend
+            pre_suspend_healthcheck; command -v systemctl >/dev/null 2>&1 && systemctl suspend
             exit 0
         fi
         hyprctl keyword monitor "${INTERNAL},disable" >/dev/null 2>&1
@@ -214,7 +328,7 @@ close)
             log "  → smart + no external + on battery: lock + suspend"
             lock_screen
             sleep 0.3
-            command -v systemctl >/dev/null 2>&1 && systemctl suspend
+            pre_suspend_healthcheck; command -v systemctl >/dev/null 2>&1 && systemctl suspend
         fi
         ;;
     esac

@@ -5,11 +5,20 @@ import Quickshell
 import Quickshell.Io
 
 /*
- * BatterySettingsPage v6.16.0
+ * BatterySettingsPage v6.16.3.4.3
  *
- * Settings UI for the v6.16.0 battery/power feature set:
+ * Settings UI for the battery/power/GPU/brightness feature set:
  *   - Battery bar-module display mode (icon | text | bar)
  *   - Warning + critical capacity thresholds
+ *   - DISPLAY BRIGHTNESS (v6.16.3.4.3 — new)
+ *       · Auto-detects backlight devices under /sys/class/backlight/
+ *       · Primary device slider (AMD GPU / Intel GPU / NVIDIA / ASUS / ACPI)
+ *       · Multi-device picker for laptops with extra surfaces
+ *         (ASUS ROG: main panel + screenpad + keyboard backlight)
+ *       · Fixes "brightness ayaw gumana sa ROG" — old code assumed
+ *         intel_backlight only; ROG devices typically live under
+ *         amdgpu_bl0 or acpi_video0
+ *       · Prefers brightnessctl (logind perms) with sysfs fallback
  *   - System power profile (Power Saver | Balanced | Performance)
  *   - Lid-close behavior (mirror external | keep internal on | off)
  *
@@ -19,6 +28,7 @@ import Quickshell.Io
  *
  * Sections auto-hide gracefully:
  *   - Battery section hidden on desktops (SystemMonitorService.batteryPresent = false)
+ *   - Brightness section hidden on desktops (BrightnessService.available = false)
  *   - Power Profile section hidden if powerprofilesctl isn't installed
  *   - Lid section always visible (laptop users the only realistic audience)
  *
@@ -284,7 +294,7 @@ ScrollView {
                 label: "Display mode"
                 description: "How the battery shows in the panel"
                 icon: "\uf240"; separator: true
-                ComboBox {
+                ZenComboBox {
                     id: modeCombo
                     width: root.dropdownWidth
                     model: ["Icon only", "Text percentage", "Progress bar"]
@@ -367,6 +377,215 @@ ScrollView {
                         "This is a test notification at " +
                         SystemMonitorService.batteryCapacity + "%",
                         "battery-low")
+                }
+            }
+        }
+
+        // ═══ v6.16.3.4.3: DISPLAY BRIGHTNESS ═══
+        //
+        // Shown only when BrightnessService.available (i.e. at least one
+        // device under /sys/class/backlight/ was detected with a usable
+        // max_brightness value).
+        //
+        // Rationale for the enumeration-first design:
+        //   - ROG laptops with AMD dGPU expose the panel via amdgpu_bl0,
+        //     NOT intel_backlight. Old code that hardcoded intel_backlight
+        //     would fail to detect any device. BrightnessService enumerates
+        //     all entries and picks the best-ranked candidate.
+        //   - ASUS platforms often expose multiple auxiliary surfaces
+        //     (screenpad, keyboard backlight) via asus::<name> entries.
+        //     We expose them via the device picker so the user can control
+        //     each surface independently.
+        //
+        // Writes go through brightnessctl when available (handles logind
+        // permissions cleanly); fallback to direct sysfs otherwise with a
+        // diagnostic in the shell log if permissions block it.
+        HMSection {
+            title: "Display Brightness"
+            subtitle: "Detected: " + BrightnessService.deviceLabel(BrightnessService.currentDevice)
+                      + (BrightnessService.devices.length > 1
+                         ? " · " + BrightnessService.devices.length + " devices total"
+                         : "")
+            visible: BrightnessService.available
+
+            // Primary brightness slider
+            HMRow {
+                label: "Brightness"
+                description: "Current: " + BrightnessService.brightness + "%"
+                             + " · Device: " + BrightnessService.currentDevice
+                icon: "\uf185"; separator: true   // fa-sun-o
+
+                RowLayout {
+                    spacing: 10
+
+                    Slider {
+                        id: brightnessSlider
+                        Layout.preferredWidth: 240
+                        from: 1           // never allow 0 — instant blackout surprise
+                        to: 100
+                        stepSize: 1
+                        value: BrightnessService.brightness
+                        // Debounce writes via Timer so dragging the slider doesn't
+                        // fire a dozen brightnessctl processes per second.
+                        onValueChanged: if (pressed) brightnessDebouncer.restart()
+                        onPressedChanged: if (!pressed) {
+                            brightnessDebouncer.stop()
+                            BrightnessService.setBrightness(Math.round(value))
+                        }
+
+                        Timer {
+                            id: brightnessDebouncer
+                            interval: 80
+                            repeat: false
+                            onTriggered: BrightnessService.setBrightness(Math.round(brightnessSlider.value))
+                        }
+                    }
+
+                    Text {
+                        text: Math.round(brightnessSlider.value) + "%"
+                        font.family: Theme.monoFont
+                        font.pixelSize: 12
+                        color: ThemeService.grey0
+                        Layout.preferredWidth: 42
+                        horizontalAlignment: Text.AlignRight
+                    }
+                }
+            }
+
+            // Multi-device picker — only shown when there's more than one
+            // controllable surface (ASUS ROG screenpad / keyboard backlight etc).
+            HMRow {
+                visible: BrightnessService.devices.length > 1
+                label: "Active device"
+                description: "Which backlight surface the slider controls"
+                icon: "\uf26c"; separator: true   // fa-tv
+
+                ZenComboBox {
+                    width: root.dropdownWidth
+                    model: {
+                        const out = []
+                        const devs = BrightnessService.devices
+                        for (let i = 0; i < devs.length; i++) {
+                            out.push(BrightnessService.deviceLabel(devs[i].name)
+                                     + " — " + devs[i].name
+                                     + " (" + devs[i].percent + "%)")
+                        }
+                        return out
+                    }
+                    currentIndex: {
+                        const devs = BrightnessService.devices
+                        for (let i = 0; i < devs.length; i++) {
+                            if (devs[i].name === BrightnessService.currentDevice) return i
+                        }
+                        return 0
+                    }
+                    onActivated: {
+                        const devs = BrightnessService.devices
+                        if (currentIndex >= 0 && currentIndex < devs.length) {
+                            BrightnessService.selectDevice(devs[currentIndex].name)
+                        }
+                    }
+                }
+            }
+
+            // Quick presets for common levels
+            HMRow {
+                label: "Quick levels"
+                description: "One-tap brightness presets"
+                icon: "\uf0e7"                       // fa-bolt
+                RowLayout {
+                    spacing: 6
+                    Repeater {
+                        model: [10, 30, 50, 75, 100]
+                        delegate: Button {
+                            text: modelData + "%"
+                            implicitWidth: 52
+                            onClicked: BrightnessService.setBrightness(modelData)
+                        }
+                    }
+                }
+            }
+        }
+
+        // ═══ v6.16.3.4.3: BRIGHTNESS UNAVAILABLE NOTICE ═══
+        //
+        // Mirrors the "powerprofilesctl not found" pill below — whenever we
+        // detect that /sys/class/backlight/ is empty OR brightnessctl isn't
+        // installed AND we have no sysfs write access, surface a helpful
+        // install hint instead of silently hiding everything.
+        //
+        // Visibility logic:
+        //   - On desktops (SystemMonitorService.batteryPresent = false), hide
+        //     the notice entirely — no backlight is expected.
+        //   - On laptops where backlight detection returned 0 devices, show
+        //     a "not detected" notice (likely kernel/module issue).
+        //   - On laptops where devices were detected but brightnessctl is
+        //     missing, show an "install brightnessctl" tip.
+        Rectangle {
+            visible: SystemMonitorService.batteryPresent && !BrightnessService.available
+            Layout.fillWidth: true
+            Layout.preferredHeight: 64
+            radius: 10
+            color: ThemeService.alpha(ThemeService.orange, 0.08)
+            border.width: 1
+            border.color: ThemeService.alpha(ThemeService.orange, 0.25)
+
+            ColumnLayout {
+                anchors.left: parent.left; anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.margins: 16
+                spacing: 4
+
+                Text {
+                    text: "\uf185  No backlight devices detected"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 13
+                    font.weight: Font.DemiBold
+                    color: ThemeService.orange
+                }
+                Text {
+                    text: "Nothing found under /sys/class/backlight/. On ASUS ROG: ensure "
+                          + "asusctl + asus-wmi module are loaded. Arch/CachyOS: "
+                          + "sudo pacman -S brightnessctl asusctl"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 11
+                    color: ThemeService.grey1
+                    wrapMode: Text.WordWrap
+                    Layout.fillWidth: true
+                }
+            }
+        }
+
+        Rectangle {
+            visible: BrightnessService.available && !BrightnessService.hasBrightnessctl
+            Layout.fillWidth: true
+            Layout.preferredHeight: 54
+            radius: 10
+            color: ThemeService.alpha(ThemeService.blue, 0.08)
+            border.width: 1
+            border.color: ThemeService.alpha(ThemeService.blue, 0.25)
+
+            ColumnLayout {
+                anchors.left: parent.left; anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.margins: 16
+                spacing: 4
+
+                Text {
+                    text: "\uf05a  brightnessctl recommended"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 13
+                    font.weight: Font.DemiBold
+                    color: ThemeService.blue
+                }
+                Text {
+                    text: "Falling back to direct sysfs writes. Install brightnessctl for "
+                          + "cleaner permissions: sudo pacman -S brightnessctl"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 11
+                    color: ThemeService.grey1
+                    wrapMode: Text.WordWrap
+                    Layout.fillWidth: true
                 }
             }
         }
@@ -574,7 +793,7 @@ ScrollView {
                 label: "Active profile"
                 description: "Managed by power-profiles-daemon. Persists across reboots."
                 icon: "\uf0e7"; separator: true
-                ComboBox {
+                ZenComboBox {
                     width: root.dropdownWidth
                     model: ["Power Saver", "Balanced", "Performance"]
                     readonly property var ids: ["power-saver", "balanced", "performance"]
@@ -651,7 +870,7 @@ ScrollView {
                 description: "Controls which GPU new app launches use. "
                              + "Takes effect on next app start (or next login for env-based mode)."
                 icon: "\uf1b2"; separator: true
-                ComboBox {
+                ZenComboBox {
                     width: root.dropdownWidth
                     model: [
                         "Auto (default)",
@@ -731,15 +950,117 @@ ScrollView {
             }
         }
 
+        // ═══ IDLE & SLEEP (v6.16.3.8) ═══
+        //
+        // User-configurable timeouts for the hypridle cascade.
+        // The values here translate to hypridle.conf listener
+        // timeouts via ~/.local/bin/zen-hypridle-sync.sh which
+        // runs on every setting change and restarts hypridle.
+        //
+        // Options in seconds:
+        //   30, 60, 1800, 3600, 10800, 18000, 0 (never)
+        //
+        // DPMS off is auto-derived as lockIdle + 60s — no separate
+        // UI (keeps the page simple; users rarely tune this
+        // individually and it's usually tied to lock timing).
+        HMSection {
+            title: "Idle & Sleep"
+            subtitle: "When to lock the screen and when to suspend"
+
+            HMRow {
+                label: "Lock after idle"
+                description: "Time before the lock screen appears automatically"
+                icon: "\uf023"; separator: true
+                ZenComboBox {
+                    width: root.dropdownWidth
+                    model: ["30 seconds", "1 minute", "30 minutes", "1 hour", "3 hours", "5 hours", "Never"]
+                    readonly property var ids: [30, 60, 1800, 3600, 10800, 18000, 0]
+                    currentIndex: {
+                        const i = ids.indexOf(PanelState.idleLockSeconds)
+                        return i >= 0 ? i : 1   // default 1 min if unrecognized
+                    }
+                    onActivated: {
+                        PanelState.idleLockSeconds = ids[currentIndex]
+                        PanelState.saveState()
+                        hypridleSync.running = true
+                    }
+                }
+            }
+
+            HMRow {
+                label: "Sleep after idle"
+                description: "Time before systemctl suspend fires. Pick 'Never' on desktops."
+                icon: "\uf186"; separator: true
+                ZenComboBox {
+                    width: root.dropdownWidth
+                    model: ["30 seconds", "1 minute", "30 minutes", "1 hour", "3 hours", "5 hours", "Never"]
+                    readonly property var ids: [30, 60, 1800, 3600, 10800, 18000, 0]
+                    currentIndex: {
+                        const i = ids.indexOf(PanelState.idleSleepSeconds)
+                        return i >= 0 ? i : 6   // default Never if unrecognized
+                    }
+                    onActivated: {
+                        PanelState.idleSleepSeconds = ids[currentIndex]
+                        PanelState.saveState()
+                        hypridleSync.running = true
+                    }
+                }
+            }
+
+            HMRow {
+                label: "How it works"
+                description: "Changes apply immediately — zen-hypridle-sync.sh "
+                             + "rewrites your hypridle.conf timeouts and restarts "
+                             + "the daemon. DPMS off fires 60s after the lock "
+                             + "timeout. 'Never' sets a sentinel that won't trigger "
+                             + "for 3+ years of idle time."
+                icon: "\uf05a"
+            }
+
+            // Process fires zen-hypridle-sync.sh whenever a combobox
+            // above changes. Since PanelState.saveState() is a file
+            // write, we add a small Timer delay to let the disk flush
+            // before the script reads panel-state.json.
+            Process {
+                id: hypridleSync
+                running: false
+                command: ["bash", "-c",
+                    "sleep 0.1 && $HOME/.local/bin/zen-hypridle-sync.sh"]
+            }
+        }
+
         // ═══ LID BEHAVIOR ═══
         HMSection {
             title: "Lid Close Behavior"
+
+            // v6.16.3.8: Primary "what happens" question on close.
+            // This is separate from the monitor-mirroring choice
+            // below — that one handles the DISPLAY, this one handles
+            // the SYSTEM (suspend / lock / nothing).
+            HMRow {
+                label: "On lid close"
+                description: "System action when you close the laptop lid"
+                icon: "\uf011"; separator: true
+                ZenComboBox {
+                    width: root.dropdownWidth
+                    model: ["Sleep (suspend + lock on wake)", "Lock only (stay on)", "Do nothing"]
+                    readonly property var ids: ["suspend", "lock", "ignore"]
+                    currentIndex: {
+                        const i = ids.indexOf(PanelState.lidCloseAction)
+                        return i >= 0 ? i : 0
+                    }
+                    onActivated: {
+                        PanelState.lidCloseAction = ids[currentIndex]
+                        PanelState.saveState()
+                    }
+                }
+            }
 
             HMRow {
                 label: "When the laptop lid closes"
                 description: "Fixes the 'external monitor goes black when I close the lid' bug"
                 icon: "\uf109"; separator: true
-                ComboBox {
+                ZenComboBox {
                     width: root.dropdownWidth
                     model: ["Mirror to external monitor", "Keep internal display on", "Turn off internal (default)"]
                     readonly property var ids: ["mirror", "keep", "off"]
@@ -774,6 +1095,77 @@ ScrollView {
                 onExited: (exitCode) => {
                     if (exitCode === 0) Qt.callLater(SettingsStateV2.applyToHyprland)
                 }
+            }
+        }
+
+        // ═══ v6.16.4 — PANIC RECOVERY (laptop reliability) ═══
+        //
+        // Educates the user about the SUPER+SHIFT+CTRL+Escape
+        // escape hatch. This is the "never force-power-off again"
+        // feature: a keybind that survives a locked/frozen session
+        // and runs zen-panic.sh which does the full recovery
+        // sequence. Details in the card.
+        //
+        // Why this lives in Settings and not hidden docs: the
+        // user needs to KNOW the keybind exists BEFORE they need
+        // it. Black screen + no visible UI is exactly when you
+        // won't be able to look up the shortcut.
+        HMSection {
+            title: "Panic Recovery"
+            subtitle: "The keybind that saves you from force-power-off"
+
+            HMRow {
+                label: "Escape keybind"
+                description: "Press this combo any time you're stuck: frozen lock screen, black "
+                             + "screen after wake, zombied shell. Works even when hyprlock is "
+                             + "running (bindl flag) — that's the whole point."
+                icon: "\uf071"; separator: true
+
+                Rectangle {
+                    Layout.preferredWidth: 210
+                    Layout.preferredHeight: 38
+                    radius: 8
+                    color: ThemeService.alpha(ThemeService.red, 0.12)
+                    border.width: 1
+                    border.color: ThemeService.alpha(ThemeService.red, 0.35)
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "SUPER + SHIFT + CTRL + Esc"
+                        color: ThemeService.red
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        font.weight: Font.DemiBold
+                    }
+                }
+            }
+
+            HMRow {
+                label: "What it does"
+                description: "1) SIGKILL frozen hyprlock (only if zombie)  ·  "
+                             + "2) Double DPMS off→on cycle  ·  "
+                             + "3) forcerendererreload (does NOT wipe your monitor config)  ·  "
+                             + "4) Restart zombied swww-daemon + re-apply wallpaper  ·  "
+                             + "5) Clean re-lock if session was locked before panic  ·  "
+                             + "6) Input subsystem kick (keyboard-not-receiving fix)  ·  "
+                             + "Single press leaves Quickshell, music widget, widget positions untouched. "
+                             + "Second press within 10 seconds = full Quickshell restart (last-resort)."
+                icon: "\uf059"; separator: true
+            }
+
+            HMRow {
+                label: "Manual invocation"
+                description: "If even the keybind doesn't fire (Hyprland totally wedged), from an "
+                             + "SSH session or TTY (Ctrl+Alt+F2): ~/.local/bin/zen-panic.sh"
+                icon: "\uf120"; separator: true
+            }
+
+            HMRow {
+                label: "Check recovery log"
+                description: "After a panic, every step is logged with timestamps to "
+                             + "~/.cache/zen-shell/panic.log — useful for post-mortem if "
+                             + "a specific hardware combo keeps wedging."
+                icon: "\uf15c"
             }
         }
 
