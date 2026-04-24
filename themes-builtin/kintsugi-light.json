@@ -1,0 +1,25 @@
+{
+  "id": "kintsugi-light",
+  "name": "Kintsugi Light",
+  "description": "Light bone + sage + gold — lacquered refinement. Based on the v6.16.4.11.2 codename palette.",
+  "is_builtin": true,
+  "version": "1.0",
+  "colors": {
+    "bg0": "#fafaf7",
+    "bg1": "#f4f2eb",
+    "bg2": "#ecebe3",
+    "bg3": "#e5e3dd",
+    "bg4": "#d8d5cc",
+    "fg": "#2a2a2a",
+    "grey0": "#666666",
+    "grey1": "#3a3a3a",
+    "grey2": "#2a2a2a",
+    "red": "#a4413c",
+    "orange": "#c68a4a",
+    "yellow": "#b8924e",
+    "green": "#5f7450",
+    "aqua": "#6f8678",
+    "blue": "#4b6f7a",
+    "purple": "#7d5e74"
+  }
+}
