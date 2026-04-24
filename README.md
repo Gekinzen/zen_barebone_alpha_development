@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_15_3_demo_2026/sample1.png" alt="Zen Shell — v6.16.4.11.2" width="960"/>
+  <img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_16_4_11_2_demo_2026/hero_desktop.jpg" alt="Zen Shell — v6.16.4.11.2 Kintsugi" width="960"/>
 </p>
 
 <h1 align="center" style="letter-spacing:-0.02em;">Zen&nbsp;Shell</h1>
@@ -16,15 +16,21 @@
   <a href="https://gekinzen.github.io/zen-shell-site/">
     <img src="https://img.shields.io/badge/Project%20Website-gekinzen.github.io%2Fzen--shell--site-1a1a1a?style=for-the-badge&labelColor=0a0a0a" alt="Project website"/>
   </a>
+  &nbsp;
+  <a href="https://www.youtube.com/watch?v=nS2L9dIQbF4">
+    <img src="https://img.shields.io/badge/Watch%20Release%20Showcase-d4a85f?style=for-the-badge&labelColor=0a0a0a&logo=youtube&logoColor=white" alt="Watch release showcase"/>
+  </a>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/v6.16.4.11.2-stable-brightgreen?style=flat-square"/>
+  <img src="https://img.shields.io/badge/v6.16.4.11.2-Kintsugi%20%E5%90%9B%E7%B9%BC%E3%81%8E-b8924e?style=flat-square&labelColor=0a0a0a"/>
   &nbsp;
-  <img src="https://img.shields.io/badge/v6.16.4.12-alpha%20next-c68a4a?style=flat-square"/>
+  <img src="https://img.shields.io/badge/stable-brightgreen?style=flat-square"/>
   &nbsp;
-  <img src="https://img.shields.io/badge/v6.16.5-planned-blueviolet?style=flat-square"/>
+  <img src="https://img.shields.io/badge/v6.16.4.12-Hikari%20alpha%20next-c68a4a?style=flat-square&labelColor=0a0a0a"/>
   &nbsp;
+  <img src="https://img.shields.io/badge/v6.16.5-Michi%20planned-7a9068?style=flat-square&labelColor=0a0a0a"/>
+  <br/>
   <img src="https://img.shields.io/badge/Arch%20Linux-1a1a1a?style=flat-square&logo=arch-linux&logoColor=white"/>
   &nbsp;
   <img src="https://img.shields.io/badge/Hyprland%200.54%2B-1a1a1a?style=flat-square&logo=wayland&logoColor=white"/>
@@ -59,6 +65,8 @@
   &nbsp;·&nbsp;
   <a href="#architecture">Architecture</a>
   &nbsp;·&nbsp;
+  <a href="#codename-history">Codenames</a>
+  &nbsp;·&nbsp;
   <a href="#wallpapers">Wallpapers</a>
   &nbsp;·&nbsp;
   <a href="#changelogs">Changelogs</a>
@@ -67,7 +75,9 @@
   &nbsp;·&nbsp;
   <a href="#faq">FAQ</a>
   &nbsp;·&nbsp;
-  <a href="#legacy-archive--2025-alpha">Archive</a>
+  <a href="#previous-showcases--v6153-era">Previous</a>
+  &nbsp;·&nbsp;
+  <a href="#legacy-archive--2025-alpha-koke--%E8%8B%94">Archive</a>
   &nbsp;·&nbsp;
   <a href="#credits">Credits</a>
 </p>
@@ -75,13 +85,13 @@
 <br/>
 
 > [!NOTE]
-> **Stable: v6.16.4.11.2** (`main` branch — promoted 2026-04-24). **Next alpha: v6.16.4.12** (Profile Export/Import). **Next minor: v6.16.5** (in-app Updates Manager).
+> **Stable: v6.16.4.11.2 "Kintsugi" (金継ぎ)** — `main` branch, promoted 2026-04-24. **Next alpha: v6.16.4.12 "Hikari" (光)** (Profile Export/Import). **Next minor: v6.16.5 "Michi" (道)** (in-app Updates Manager).
 >
-> | Channel | Version | Branch | Notes |
+> | Channel | Version | Codename | Notes |
 > |---|---|---|---|
-> | **Stable** | v6.16.4.11.2 | [`main`](https://github.com/Gekinzen/zen_barebone_alpha_development/tree/v6.16.4.11.2) | **Official release** — rolls in the v4.1 stable base, the full v4.2 → v4.11 alpha cycle (widget scale, dark mode, terminal auto-detect, WiFi fix, 4-attempt color picker saga, custom themes), plus v4.11.2's palette relocation + Material-style ZenComboBox with WCAG auto-contrast text. |
-> | **Alpha (next)** | v6.16.4.12 | *planned* | Profile Export/Import — whole-system snapshot JSON (theme + settings + panel + widgets + bar + wallpaper). Shareable with dotfile friends for instant reflection. |
-> | **Next** | v6.16.5 | *planned* | In-app Updates Manager — channel picker (Stable / Beta / Alpha), installed version readout, changelog browser, download + apply + rollback. No more terminal git-checkout dance. |
+> | **Stable** | v6.16.4.11.2 | **Kintsugi 金継ぎ** — *golden-repair* | **Official release** — rolls in the full v4.2 → v4.11 alpha cycle on top of the v4.1 base: widget scale, dark mode, terminal auto-detect, WiFi fix, 4-attempt color picker saga, custom themes, palette relocation, Material-style ZenComboBox with WCAG auto-contrast text, new Kintsugi Light + Kintsugi Dark themes. |
+> | **Alpha (next)** | v6.16.4.12 | **Hikari 光** — *light · clarity* | Profile Export/Import — whole-system snapshot JSON (theme + settings + panel + widgets + bar + wallpaper). Shareable with dotfile friends for instant reflection. |
+> | **Planned** | v6.16.5 | **Michi 道** — *the way* | In-app Updates Manager — channel picker (Stable / Beta / Alpha), installed version readout, changelog browser, download + apply + rollback. No more terminal git-checkout dance. |
 
 <br/>
 
@@ -258,6 +268,10 @@ It is not just a Hyprland configuration. It is a structured, modular desktop eco
 
 <br/>
 
+<p align="center"><sub>Icons · <a href="https://fonts.google.com/icons">Google Material Symbols</a> (Apache 2.0), served via <a href="https://icon-sets.iconify.design/material-symbols/">Iconify</a>. Auto-switch light/dark via <code>&lt;picture&gt;</code> &nbsp;srcset.</sub></p>
+
+<br/>
+
 > The legacy Python/GTK4 alpha is preserved at [`zen-alpha-deprecated-0.52/`](https://github.com/Gekinzen/zen_barebone_alpha_development/tree/zen-alpha-deprecated-0.52) for historical reference. Active development targets the QML rewrite shipped in this branch.
 
 <br/>
@@ -268,39 +282,54 @@ It is not just a Hyprland configuration. It is a structured, modular desktop eco
 
 ## Demos
 
+### 🟢 Latest · Kintsugi Release Showcase
+
 <p align="center">
-  <a href="https://www.youtube.com/watch?v=dNwGRBhA97g">
-    <img src="https://img.youtube.com/vi/dNwGRBhA97g/maxresdefault.jpg" alt="Zen Shell v6.15.13 — Full Tour" width="880"/>
+  <a href="https://www.youtube.com/watch?v=nS2L9dIQbF4">
+    <img src="https://img.youtube.com/vi/nS2L9dIQbF4/maxresdefault.jpg" alt="Zen Shell v6.16.4.11.2 Kintsugi — Release Showcase" width="880"/>
   </a>
 </p>
 
 <p align="center">
-  <sub>FULL TOUR</sub><br/>
-  <b>Zen Shell — Full Tour</b><br/>
-  <i>Strings music module, screenshot ropes, settings, and the complete desktop experience.</i>
+  <sub>v6.16.4.11.2 · KINTSUGI 金継ぎ · 1:35</sub><br/>
+  <b>Zen Shell Kintsugi — Release Showcase</b><br/>
+  <i>Panel, wallpaper engine, Material ZenComboBox, Themes with PaletteBox, Control Panel Dark Mode sync, WiFi picker. New Kintsugi Light + Dark themes matching the signature sage / gold / bone / ink palette.</i>
 </p>
 
 <br/>
 
+### Historical tours
+
 <table align="center">
 <tr>
-<td align="center" width="50%">
-<a href="https://www.youtube.com/watch?v=YQxrh5_naMQ">
-  <img src="https://img.youtube.com/vi/YQxrh5_naMQ/maxresdefault.jpg" alt="Zen Shell v6.14" width="420"/>
+<td align="center" width="33%">
+<a href="https://www.youtube.com/watch?v=dNwGRBhA97g">
+  <img src="https://img.youtube.com/vi/dNwGRBhA97g/maxresdefault.jpg" alt="Zen Shell — Full Tour" width="280"/>
 </a>
 <br/>
-<sub>PREVIOUS SERIES</sub>
+<sub>FULL TOUR · v6.15.x ENSŌ</sub>
+<br/>
+<b>Zen Shell — Full Tour</b>
+<br/>
+<i>Strings music module, screenshot ropes, settings, and the complete desktop experience.</i>
+</td>
+<td align="center" width="33%">
+<a href="https://www.youtube.com/watch?v=YQxrh5_naMQ">
+  <img src="https://img.youtube.com/vi/YQxrh5_naMQ/maxresdefault.jpg" alt="Zen Shell v6.14" width="280"/>
+</a>
+<br/>
+<sub>PREVIOUS SERIES · v6.14 YUGEN</sub>
 <br/>
 <b>Zen Shell v6.14</b>
 <br/>
 <i>Theme switching, panel modes, control center.</i>
 </td>
-<td align="center" width="50%">
+<td align="center" width="33%">
 <a href="https://www.youtube.com/watch?v=ao89J3DEqiA">
-  <img src="https://img.youtube.com/vi/ao89J3DEqiA/maxresdefault.jpg" alt="Zen Shell v6.10 — QML Foundations" width="420"/>
+  <img src="https://img.youtube.com/vi/ao89J3DEqiA/maxresdefault.jpg" alt="Zen Shell v6.10 — QML Foundations" width="280"/>
 </a>
 <br/>
-<sub>QML FOUNDATIONS</sub>
+<sub>QML FOUNDATIONS · v6.10 YUGEN</sub>
 <br/>
 <b>Zen Shell v6.10</b>
 <br/>
@@ -318,63 +347,57 @@ It is not just a Hyprland configuration. It is a structured, modular desktop eco
 ## Showcase
 
 <p align="center">
-  <i>Zen Shell — captured on Hyprland 0.54, Quickshell 0.2.1.</i>
+  <i>v6.16.4.11.2 Kintsugi — captured on Hyprland 0.54, Quickshell 0.2.1+ with the Kintsugi Dark theme.</i>
 </p>
 
 <br/>
 
+### Wallpaper engine
+
+Full wallpaper picker with folder scanning, slideshow scheduling, transition effects, and the online `Gekinzen/images-demo` repo browser.
+
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_15_3_demo_2026/sample2.png" alt="Desktop preview" width="920"/>
+  <img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_16_4_11_2_demo_2026/gif_01_wallpaper_picker.gif" alt="Wallpaper picker" width="920"/>
 </p>
 
 <br/>
 
+### Animation presets · Material ZenComboBox &nbsp;·&nbsp; v4.11.2
+
+21 community animation presets, live-applied via `hyprctl reload`. The new Material-style `ZenComboBox` auto-contrasts text using WCAG 2.0 luminance — readable on any theme.
+
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_15_3_demo_2026/sample3.png" alt="Desktop preview" width="920"/>
+  <img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_16_4_11_2_demo_2026/gif_02_animations_dropdown.gif" alt="Animations dropdown" width="920"/>
 </p>
 
 <br/>
 
-### Adaptive theming
+### Themes page with PaletteBox &nbsp;·&nbsp; v4.11.2
+
+Unified theme engine with 19 built-in themes (including the new **Kintsugi Light** and **Kintsugi Dark**). Click any 60×60 palette box to open the Quickshell PopupWindow color picker with live hex typing.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_15_3_demo_2026/zen_shell_01_adaptive_theming.gif" alt="Adaptive theming" width="920"/>
-</p>
-
-<p align="center">
-  <sub>One palette. Every surface — bar, settings, control panel, notifications, terminal, launcher.</sub>
-</p>
-
-<br/>
-
-### Settings tour
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_15_3_demo_2026/zen_shell_02_settings_tour.gif" alt="Settings tour" width="920"/>
-</p>
-
-<p align="center">
-  <sub>Fourteen pages of live-preview configuration. No config files. No restart.</sub>
+  <img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_16_4_11_2_demo_2026/gif_03_themes_palette.gif" alt="Themes palette" width="920"/>
 </p>
 
 <br/>
 
-### Screenshot module · ultrawide
+### Panel drag-drop + bar modes
+
+Drag modules between Left / Center / Right zones — state persists to `panel-state.json`. Fullwidth ↔ Island mode toggle with `panelStateLoaded` gate prevents the old revert-on-reboot bug.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_15_3_demo_2026/zen_shell_03_screenshot_module_ultrawide.gif" alt="Screenshot module on ultrawide" width="920"/>
-</p>
-
-<p align="center">
-  <sub>Region selection with physics-draped ropes. Clipboard-backed paste, reliable on the first try.</sub>
+  <img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_16_4_11_2_demo_2026/gif_04_panel_drag_drop.gif" alt="Panel drag-drop" width="920"/>
 </p>
 
 <br/>
 
+### Control Panel + Dark Mode sync &nbsp;·&nbsp; v4.7+
+
+`Super+C` opens Quick Settings — volume sliders, WiFi / Bluetooth / Ethernet, CPU / GPU / RAM / VRAM telemetry, Power Profile, Gaming Boost, and the **Dark Mode toggle** that syncs GTK3/4/libadwaita apps via gsettings + `settings.ini`.
+
 <p align="center">
-  <a href="https://github.com/Gekinzen/images-demo/raw/main/zen_6_15_3_demo_2026/zen_shell_v6.15.13_showcase.mp4">
-    <img src="https://img.shields.io/badge/Download%20MP4%20Showcase-0a0a0a?style=for-the-badge" alt="Download MP4 showcase"/>
-  </a>
+  <img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_16_4_11_2_demo_2026/gif_05_control_panel.gif" alt="Control Panel dark mode" width="920"/>
 </p>
 
 <br/>
@@ -385,16 +408,24 @@ It is not just a Hyprland configuration. It is a structured, modular desktop eco
 
 ## What's New in v6.16.4.1x
 
-v6.16.4.11.2 is the current stable, promoted from the `alpha-v6.16.4.11.2` branch on 2026-04-24. It rolls in **eleven alpha iterations** from the 4.x cycle, on top of the prior 4.1 stable base. The big arc: widget scale awareness, Dark Mode toggle, terminal auto-detect, WiFi Connect fix, a 4-attempt color picker saga that finally landed on Quickshell's native PopupWindow primitive, and the custom themes management rework.
+v6.16.4.11.2 is the current stable, promoted from the `alpha-v6.16.4.11.2` branch on 2026-04-24. It rolls in **eleven alpha iterations** from the 4.x cycle, on top of the prior 4.1 stable base. The big arc: widget scale awareness, Dark Mode toggle, terminal auto-detect, WiFi Connect fix, a 4-attempt color picker saga that finally landed on Quickshell's native PopupWindow primitive, the custom themes management rework, and the new Kintsugi Light / Dark themes.
 
 <br/>
 
 ### v6.16.4.11.2 stable highlights
 
+#### Kintsugi themes &nbsp;·&nbsp; v6.16.4.11.2
+
+- Two new built-in themes matching the signature sage / gold / bone / ink palette
+- **Kintsugi Dark** — warm ink bg (`#14140f`) · sage bright fg (`#98b283`) · gold bright accent (`#d4a85f`)
+- **Kintsugi Light** — bone bg (`#fafaf7`) · sage-deep fg (`#5f7450`) · gold accent (`#b8924e`)
+- Both WCAG AA/AAA compliant
+- **Kintsugi Dark is the default for fresh installs only** — existing users keep their selected theme (installer gate: `!exists current-theme.json` → fallback to `tokyo-night.json`)
+
 #### Palette relocation &nbsp;·&nbsp; v6.16.4.11.2
 
 - Theme Palette editor **moved** from General page → Themes page. Single source of truth for theme customization.
-- Old General-page `HMSection` preserved via `visible: false` + zero height (wala tayong babawasan literal — every binding, state, and callback stays wired)
+- Old General-page `HMSection` preserved via `visible: false` + zero height (*wala tayong babawasan* literal — every binding, state, and callback stays wired)
 - New **`PaletteBox.qml`** component — compact 60×60 clickable swatches with hover pencil overlay
 - Click any palette box → opens Quickshell PopupWindow picker → HS canvas + Lightness slider + live hex + Apply/Cancel
 - Commits to `ThemeService.setAccent(key, hex)` — live re-render across the entire shell
@@ -415,14 +446,12 @@ v6.16.4.11.2 is the current stable, promoted from the `alpha-v6.16.4.11.2` branc
 - **Activate / Rename / Delete** buttons per custom theme row
 - New `ThemeService.renameCustomTheme(theme, newName)` function — uses `jq` to rewrite id + name fields, `mv` to new path, re-copies to current-theme.json if active
 - Empty state hint when no custom themes exist yet
-- Reuses existing `saveAsCustomTheme()` / `deleteCustomTheme()` infrastructure from prior versions — minimal additive work
 
 #### Color Picker PopupWindow rewrite &nbsp;·&nbsp; v6.16.4.10
 
 - Fourth iteration on this feature finally landed
-- **Abandoned Qt Quick Popup entirely** — kept hitting Wayland-specific coord system bugs (parent=Overlay screen-sized vs parent=window coords, deeply-nested ScrollView/HMRow coord frames, etc.)
+- **Abandoned Qt Quick Popup entirely** — kept hitting Wayland-specific coord system bugs
 - Switched to **Quickshell `PopupWindow` primitive** — backed by native `xdg_popup` Wayland surface. Compositor handles positioning, zero coord math.
-- Same pattern `SysRowIcon.qml` has used for tooltips since v6.14 without a single positioning bug
 - **Live hex typing** — hex textbox commits color on every valid 6/8 char keystroke (was previously only on Enter/Tab via `editingFinished`)
 - Lesson: when Qt's high-level abstraction keeps misbehaving on Wayland, drop to the platform-native primitive
 
@@ -451,7 +480,7 @@ v6.16.4.11.2 is the current stable, promoted from the `alpha-v6.16.4.11.2` branc
 - Fixed the Quick Settings "Connect" button that was silently failing on secured networks
 - **Root cause**: `nmcli device wifi connect <SSID>` without password fails silently on secured networks. Prior fix attempts tried type-sniffing arg 2 against a whitelist (`["WPA2", "WPA", "WEP", "WPA3"]`) but nmcli returns composite security strings like `"WPA2 802.1X"`, `"WPA1 WPA2"` — those failed the whitelist and got treated as literal passwords.
 - **Fix**: Named-arg pattern — `connectWifi(ssid, security, password)` — no more type-sniffing. Saved-creds preflight via `nmcli -t connection show` → zenity password prompt for new secured networks → direct connect for open.
-- **Audit log** at `~/.cache/zen-shell/wifi.log` with timestamps, saved-profile detection, nmcli output capture
+- **Audit log** at `~/.cache/zen-shell/wifi.log`
 
 #### Gaps + Displays cascade fix &nbsp;·&nbsp; v6.16.4.4
 
@@ -463,12 +492,11 @@ v6.16.4.11.2 is the current stable, promoted from the `alpha-v6.16.4.11.2` branc
 
 - v6.16.4.2 surfaced display scale (100% / 125% / 150%) but didn't wire it to widget rendering
 - v6.16.4.3 wired `displayScale` into widget `Layout.preferredWidth/Height` computations
-- Killed oscillation loop where applying widget scale triggered a reflow that re-emitted the signal (endless update cycles) — added `Qt.callLater` debounce + dirty flag
+- Killed oscillation loop where applying widget scale triggered a reflow that re-emitted the signal — added `Qt.callLater` debounce + dirty flag
 
 #### Start Menu breathing room &nbsp;·&nbsp; v6.16.4.5
 
-- Pinned app tiles were cramped
-- Tile 64px → 72px, label height 58px → 66px
+- Pinned app tiles were cramped — tile 64px → 72px, label height 58px → 66px
 - Better visual rhythm, long app names no longer clip
 
 #### Wallpaper grid columns &nbsp;·&nbsp; v6.16.4.6
@@ -501,14 +529,14 @@ Full per-patch details: [`CHANGELOG-ROLLUP-v6.16.4.x.md`](CHANGELOG-ROLLUP-v6.16
 
 <br/>
 
-### Theme engine with Custom Themes &nbsp;·&nbsp; v6.16.4.11+
+### Theme engine with Kintsugi + Custom Themes &nbsp;·&nbsp; v6.16.4.11.2+
 
-- 17 built-in themes + user custom themes (JSON-backed)
+- **19 built-in themes** — including new Kintsugi Light + Kintsugi Dark — plus unlimited user custom themes (JSON-backed)
 - Settings → Themes → Palette Preview with clickable PaletteBoxes (v4.11.2)
 - Click any 60×60 swatch → Quickshell PopupWindow picker → HS canvas / Lightness slider / live hex typing
 - Custom Themes management: Save as… / Activate / Rename / Delete per row
 - Storage: `~/.config/hypr-control-center/themes/custom/<slug>.json`
-- `ThemeService.renameCustomTheme()` uses jq for atomic JSON field rewrite
+- `ThemeService.renameCustomTheme()` uses `jq` for atomic JSON field rewrite
 
 <br/>
 
@@ -564,8 +592,8 @@ Full per-patch details: [`CHANGELOG-ROLLUP-v6.16.4.x.md`](CHANGELOG-ROLLUP-v6.16
 - Lock after idle: `30s / 1min / 30min / 1h / 3h / 5h / Never`
 - Sleep after idle: same options, defaults to Never on desktops
 - Lid close action: `Sleep (suspend + lock on wake) / Lock only / Do nothing`
-- `zen-hypridle-sync.sh` reads PanelState values, rewrites hypridle.conf via sed (on lines marked `# ZEN_IDLE_LOCK`, `# ZEN_IDLE_DPMS`, `# ZEN_IDLE_SLEEP`), restarts hypridle — changes apply live without shell restart
-- Pre-suspend health check kills zombie hyprlock before every `systemctl suspend` (prevents "suspend broken session → wake more broken" cascade)
+- `zen-hypridle-sync.sh` reads PanelState values, rewrites `hypridle.conf` via sed (on lines marked `# ZEN_IDLE_LOCK`, `# ZEN_IDLE_DPMS`, `# ZEN_IDLE_SLEEP`), restarts hypridle — changes apply live without shell restart
+- Pre-suspend health check kills zombie hyprlock before every `systemctl suspend`
 
 <br/>
 
@@ -581,7 +609,7 @@ Full per-patch details: [`CHANGELOG-ROLLUP-v6.16.4.x.md`](CHANGELOG-ROLLUP-v6.16
 
 ### Lock Screen &nbsp;·&nbsp; v6.16.3.6+
 
-- Clock font matches your desktop widget font exactly — `zen-lock.sh` reads `fontFamilyId` from panel-state.json
+- Clock font matches your desktop widget font exactly — `zen-lock.sh` reads `fontFamilyId` from `panel-state.json`
 - Black/Bold weight variants per font (adwaita → `Adwaita Sans Black`, jetbrains → `JetBrainsMono Nerd Font Bold`)
 - **Weather mood line** — `Sunny morning ☀️` / `Rainy afternoon 🌧️` / `Starry night sky 🌌` / etc.
 - **Rotating care message** — gender-aware pool (Neutral / Male / Female) seeded on minute-of-day
@@ -710,10 +738,10 @@ Fourteen pages: General, Decoration, Animations, **Themes** (with Palette Previe
 
 ### Unified Theming System
 
-17 built-in themes auto-synchronize across Quickshell bar, Settings app, Control Panel, SwayNC notifications, Alacritty terminal, and Fuzzel launcher. Plus unlimited user custom themes.
+19 built-in themes auto-synchronize across Quickshell bar, Settings app, Control Panel, SwayNC notifications, Alacritty terminal, and Fuzzel launcher. Plus unlimited user custom themes.
 
 <p align="center">
-  <sub>One Dark · Gruvbox · Nord · Tokyo Night · Catppuccin Mocha · Dracula · Solarized Dark · Everforest Dark · Cyberpunk · Lovelace · Yousai · Arc · Adapta · Navy · Black · Paper</sub>
+  <sub><b>Kintsugi Light</b> · <b>Kintsugi Dark</b> · One Dark · Gruvbox · Nord · Tokyo Night · Catppuccin Mocha · Dracula · Solarized Dark · Everforest Dark · Cyberpunk · Lovelace · Yousai · Arc · Adapta · Navy · Black · Paper</sub>
 </p>
 
 - Custom theme palette editor on Themes page (v4.11.2)
@@ -753,9 +781,32 @@ Fourteen pages: General, Decoration, Animations, **Themes** (with Palette Previe
 
 <br/>
 
+## Codename history
+
+Each release era gets a codename from Japanese zen vocabulary.
+
+| Codename | Kanji | Meaning | Versions |
+|---|---|---|---|
+| Wakaba | 若葉 | Young leaf | Alpha v0.91 — Waybar + Python + rofi |
+| Koke | 苔 | Moss | Alpha v2.x (v2.1.3) — GTK4 / Libadwaita era |
+| Yugen | 幽玄 | Subtle profound grace | v6.10 – v6.14 — QML rewrite |
+| Ensō | 円相 | The zen circle | v6.15.x · v6.16 base — unified stack |
+| Ma | 間 | The space between | v6.16.1.x — cascade Control Panel |
+| Shibui | 渋い | Understated refinement | v6.16.2.3.x — click-through masks |
+| Sabi | 寂 | Beauty of age &amp; patina | v6.16.3.x — lock screen, PowerBadge |
+| **Kintsugi** | **金継ぎ** | **Golden-repair** | **v6.16.4.x · v6.16.4.11.2** — 🟢 current stable |
+| Hikari *(next)* | 光 | Light · clarity | v6.16.4.12 — Profile Export/Import |
+| Michi *(planned)* | 道 | The way | v6.16.5 — in-app Updates Manager |
+
+<br/>
+
+---
+
+<br/>
+
 ## Quick Start
 
-### Stable &nbsp;·&nbsp; v6.16.4.11.2 &nbsp;·&nbsp; `main` branch
+### Stable &nbsp;·&nbsp; v6.16.4.11.2 Kintsugi &nbsp;·&nbsp; `main` branch
 
 ```bash
 git clone https://github.com/Gekinzen/zen_barebone_alpha_development.git
@@ -772,7 +823,26 @@ chmod +x install.sh
 ./install.sh                  # if Hyprland + Quickshell already installed
 ```
 
-On fresh install the dependency check will offer `adwaita-fonts` / `inter-font` / `gnome-themes-extra` / `zenity` / `jq` via `paru -S --needed`. `zenity` is new-required-for `v4.7+` (Dark Mode prompts) and `v4.11+` (custom theme save/rename prompts). `jq` required for `v4.11+` custom theme rename.
+On fresh install the dependency check will offer `adwaita-fonts` / `inter-font` / `gnome-themes-extra` / `zenity` / `jq` via `paru -S --needed`. `zenity` is required from v4.7+ (Dark Mode prompts) and v4.11+ (custom theme save/rename prompts). `jq` required for v4.11+ custom theme rename.
+
+### Expected install output
+
+```
+[7/9] Themes...
+    19 builtin themes
+    ★ NEW: Kintsugi Light + Kintsugi Dark (v6.16.4.11.2 codename palette)
+    Default theme: kintsugi-dark (Kintsugi 金継ぎ)
+...
+╔═══════════════════════════════════════════════════════════════╗
+║     🎉  ZEN SHELL v6.16.4.11.2 · KINTSUGI INSTALLED  🎉      ║
+╚═══════════════════════════════════════════════════════════════╝
+
+  ── Install summary ──
+    QML files installed:   76
+    Toggle scripts:        22 in /home/you/.local/bin
+    Builtin themes:        19
+    Active theme:          kintsugi-dark
+```
 
 ### Verify after install
 
@@ -783,6 +853,15 @@ pgrep -fa 'quickshell.*zen-shell' | wc -l
 # Verify version
 grep "version" ~/.config/quickshell/zen-shell/ZenVersion.qml | head -1
 # → readonly property string version: "v6.16.4.11.2"
+
+# Confirm Kintsugi themes present
+ls ~/.config/hypr-control-center/themes/builtin/ | grep kintsugi
+# → kintsugi-dark.json
+# → kintsugi-light.json
+
+# Confirm active theme
+cat ~/.config/hypr-control-center/current-theme.json | grep '"id"'
+# → "id": "kintsugi-dark"
 
 # Verify panic keybind is registered (v6.16.4+)
 hyprctl binds | grep -i zen-panic
@@ -822,7 +901,7 @@ mv ~/.config/quickshell ~/.config/quickshell.backup 2>/dev/null || true
 **Required**
 
 - [Quickshell](https://github.com/quickshell-mirror/quickshell) 0.2.1+ with **`PopupWindow` support** — required by v4.10+ color picker
-- [Hyprland](https://hyprland.org/) 0.54+ — Wayland compositor
+- [Hyprland](https://hyprland.org/) 0.54+ — Wayland compositor (new `windowrule` / `layerrule` anonymous syntax used throughout)
 - `jq` — JSON processor (required for custom theme rename in v4.11+)
 - `zenity` — GTK dialog prompts (required for Dark Mode + custom theme flows in v4.7+)
 
@@ -877,6 +956,16 @@ The installer auto-detects missing packages and offers to install via `paru` > `
 ├── SettingsStateV2.qml          # Full Hyprland state persistence
 ├── ZenVersion.qml               # Single version source of truth
 └── ...                          # ~80 QML files total
+
+~/.config/hypr-control-center/themes/
+├── builtin/
+│   ├── kintsugi-dark.json           ← NEW in v6.16.4.11.2 (default)
+│   ├── kintsugi-light.json          ← NEW in v6.16.4.11.2
+│   ├── tokyo-night.json
+│   ├── nord.json
+│   ├── gruvbox.json
+│   └── ... (14 more)
+└── custom/                          ← user custom themes (v4.11+)
 
 ~/.local/bin/
 ├── zen-screenshot.sh            # Screenshot pipeline
@@ -934,8 +1023,9 @@ hypr-config/                     # Separate overlay patches
 | `~/.config/hypr/modules/lid-behavior.conf` | Lid bindl switch |
 | `~/.config/hypr/hypridle.conf` | Sed-templated idle timeouts (v6.16.3.8) |
 | `~/.config/hypr/hyprlock.conf` | Sed-templated font sync (v6.16.3.6) |
+| `~/.config/hypr-control-center/themes/builtin/*.json` | 19 built-in themes (incl. Kintsugi) |
 | `~/.config/hypr-control-center/themes/custom/*.json` | User custom themes (v4.11+) |
-| `~/.config/hypr-control-center/themes/current-theme.json` | Active theme pointer |
+| `~/.config/hypr-control-center/current-theme.json` | Active theme pointer |
 | `~/.config/gtk-3.0/settings.ini` | Synced by Dark Mode toggle (v4.7+) |
 | `~/.config/gtk-4.0/settings.ini` | Synced by Dark Mode toggle (v4.7+) |
 | `~/.local/share/zen-shell/darkmode.state` | Persisted dark/light choice (v4.7+) |
@@ -1028,9 +1118,9 @@ In the shell: `Super+W` → **Wallpaper Picker** → toggle to the **Online** ta
 
 ## Changelogs
 
-### v6.16.4.1x &nbsp;·&nbsp; current stable cycle
+### v6.16.4.1x &nbsp;·&nbsp; current stable cycle (Kintsugi)
 
-- **[v6.16.4.11.2](CHANGELOG-v6.16.4.11.2.md)** — Palette relocation + Material dropdown + PaletteBox ✅ **CURRENT STABLE**
+- **[v6.16.4.11.2](CHANGELOG-v6.16.4.11.2.md)** — Kintsugi themes + Palette relocation + Material dropdown + PaletteBox ✅ **CURRENT STABLE**
 - **[v6.16.4.11](CHANGELOG-v6.16.4.11.md)** — Custom Themes management (Save/Rename/Delete) ✅
 - **[v6.16.4.10](CHANGELOG-v6.16.4.10.md)** — ColorPicker PopupWindow rewrite + live hex typing ✅
 - **[v6.16.4.9](CHANGELOG-v6.16.4.9.md)** — ColorPicker window bounds (still buggy) ✅
@@ -1048,7 +1138,7 @@ In the shell: `Super+W` → **Wallpaper Picker** → toggle to the **Online** ta
 - **[v6.16.4.1](CHANGELOG-v6.16.4.1.md)** — Panic script hotfix (reload wipe, SIGUSR2 kill, music loop) ✅
 - **[v6.16.4](CHANGELOG-v6.16.4.md)** — Laptop reliability pass — panic keybind + hardened resume ✅
 
-### v6.16.3.x
+### v6.16.3.x (Sabi)
 
 - **[v6.16.3.8](CHANGELOG-v6.16.3.8.md)** — Idle / Lid / Sleep unified UX ✅
 - **[v6.16.3.7](CHANGELOG-v6.16.3.7.md)** — Universal widget scale + font deps ✅
@@ -1060,7 +1150,7 @@ In the shell: `Super+W` → **Wallpaper Picker** → toggle to the **Online** ta
 - **[v6.16.3.2](CHANGELOG-v6.16.3.2.md)** — Lid-close hypridle/hyprlock patch ✅
 - **[v6.16.3.1](CHANGELOG-v6.16.3.1.md)** — Material Power Icons ✅
 
-### v6.16.x
+### v6.16.x &nbsp;·&nbsp; Ensō / Ma / Shibui
 
 - **[v6.16.x consolidated](CHANGELOG-v6.16.x.md)**
 - **[v6.16.2.3.6 hotfix series closeout](HOTFIX-v6.16.2.3.6.md)**
@@ -1069,7 +1159,7 @@ In the shell: `Super+W` → **Wallpaper Picker** → toggle to the **Online** ta
 - [v6.16.1](CHANGELOG-v6.16.1.md) — Multi-GPU, GPU Switcher, Gaming Boost
 - [v6.16](CHANGELOG-v6.16.md) — Battery, Power Profiles, Volume OSD
 
-### v6.15.x
+### v6.15.x &nbsp;·&nbsp; Ensō
 
 - **[v6.15.x consolidated](CHANGELOG-v6.15.x.md)**
 - [v6.15.13](CHANGELOG-v6.15.13.md) — Install automation polish
@@ -1115,6 +1205,18 @@ v4.11.2's `ZenComboBox` uses WCAG 2.0 relative luminance: `L = 0.2126R + 0.7152G
 
 <br/>
 
+**Why "Kintsugi"?**
+
+金継ぎ is the Japanese art of repairing broken pottery by mending the cracks with gold lacquer — the breaks aren't hidden, they're illuminated as part of the object's history. The v4.x cycle took 11 alpha iterations to land, including a 4-attempt color picker saga. The codename honors that: the seams are visible, the repair *is* the art.
+
+<br/>
+
+**Will Kintsugi replace my current theme when I upgrade?**
+
+No. The installer sets Kintsugi Dark as the default **only for fresh installs** (gated by `!exists ~/.config/hypr-control-center/current-theme.json`). Existing users keep their selected theme. If you want to switch: Settings → Themes → Kintsugi Dark / Kintsugi Light.
+
+<br/>
+
 **I pressed the panic keybind — what just happened?**
 
 `SUPER+SHIFT+CTRL+Esc` runs `~/.local/bin/zen-panic.sh` which does a 9-step recovery sequence: kill zombie hyprlock if detected, double DPMS cycle, force renderer reload (preserves monitor config — unlike `hyprctl reload`), revive swww-daemon if zombied, clean re-lock if session was locked, input subsystem kick. **Your Quickshell keeps running** — bar, widgets, music marquee, drag positions all preserved. Only double-press within 10 seconds escalates to full Quickshell restart. Log at `~/.cache/zen-shell/panic.log`.
@@ -1129,7 +1231,7 @@ Yes — v6.16.3.8 added full Idle/Sleep/Lid configurability (Settings → Batter
 
 **Why is stable `v6.16.4.11.2` and not `v6.17`?**
 
-Because the v6.16 phase has been an uninterrupted run of shipping since v6.16.0. Each `.x.y.z` bump corresponds to a clean feature drop or hotfix. `v6.17` will follow after Phase 4 items (Hyprland dark mode + GTK3/4 sync shipped already in v4.7, hyprbars, float/tile assignment GUI, auto-clean memory) and Phase 5 (in-app updates manager) ship.
+Because the v6.16 phase has been an uninterrupted run of shipping since v6.16.0. Each `.x.y.z` bump corresponds to a clean feature drop or hotfix. `v6.17` will follow after Phase 4 items (hyprbars, float/tile assignment GUI, auto-clean memory) and Phase 5 (in-app updates manager — v6.16.5 Michi) ship.
 
 <br/>
 
@@ -1151,7 +1253,7 @@ Zen Shell is actively developed. Continuous iteration rather than a "finished" s
 
 ### Naming convention
 
-Once a phase reaches stable, the branch promotes to `main` as `v6.x.x.x`. Current stable is `v6.16.4.11.2` on `main`. Next work is `v6.16.4.12` (Profile Export/Import) on an alpha branch until stable, then `v6.16.5` (in-app Updates Manager).
+Once a phase reaches stable, the branch promotes to `main` as `v6.x.x.x`. Current stable is `v6.16.4.11.2 Kintsugi` on `main`. Next work is `v6.16.4.12 Hikari` (Profile Export/Import) on an alpha branch until stable, then `v6.16.5 Michi` (in-app Updates Manager).
 
 <br/>
 
@@ -1175,7 +1277,7 @@ Once a phase reaches stable, the branch promotes to `main` as `v6.x.x.x`. Curren
 | **v6.16.4.6 – .9** | ✅ Shipped | Wallpaper cols / WiFi / ColorPicker iterations |
 | **v6.16.4.10** | ✅ Shipped | ColorPicker PopupWindow rewrite + live hex typing |
 | **v6.16.4.11** | ✅ Shipped | Custom Themes management (Save / Rename / Delete) |
-| **v6.16.4.11.2** | 🟢 **Current stable** | Palette relocation + Material dropdown + PaletteBox + WCAG contrast |
+| **v6.16.4.11.2** | 🟢 **Current stable** | Kintsugi themes + Palette relocation + Material dropdown + WCAG contrast |
 
 <br/>
 
@@ -1183,7 +1285,7 @@ Once a phase reaches stable, the branch promotes to `main` as `v6.x.x.x`. Curren
 
 <br/>
 
-#### v6.16.4.12 — Profile Export/Import (next alpha cycle)
+#### v6.16.4.12 Hikari 光 — Profile Export/Import (next alpha cycle)
 
 Phase 2 of the themes/profiles work. The "big cousin" of v4.11's Custom Themes management.
 
@@ -1192,12 +1294,12 @@ Phase 2 of the themes/profiles work. The "big cousin" of v4.11's Custom Themes m
 - `ProfileManagerSection.qml` — UI component (top of GeneralPage, additive)
 
 **What a profile captures** (everything portable):
-- Active theme + all custom themes (embedded palettes)
-- Settings V2 full dump (gaps/borders/decorations/animations)
-- Panel state (island mode, bar layout)
-- Widget layout
-- Bar layout
-- Wallpaper basename + mode
+- [ ] Active theme + all custom themes (embedded palettes)
+- [ ] Settings V2 full dump (gaps/borders/decorations/animations)
+- [ ] Panel state (island mode, bar layout)
+- [ ] Widget layout
+- [ ] Bar layout
+- [ ] Wallpaper basename + mode
 
 **Storage:**
 
@@ -1213,7 +1315,7 @@ Shareable as portable JSON — friends with same dotfiles can import and auto-re
 
 <br/>
 
-#### v6.16.5 — In-app Updates Manager
+#### v6.16.5 Michi 道 — In-app Updates Manager
 
 - [ ] **Channel picker** — Official (tagged releases) / Beta (pre-tag branches) / Alpha (active development)
 - [ ] **Installed version readout** — "v6.16.4.11.2 · main ✓ current"
@@ -1230,7 +1332,8 @@ Website mockup already staged at the project site.
 
 #### Phase 4 — UX polish (multi-version, likely v6.16.6 → v6.16.9)
 
-- [x] **Hyprland dark mode + GTK3/4 theming sync** ← ✅ shipped in v4.7!
+- [x] **Hyprland dark mode + GTK3/4 theming sync** &nbsp;·&nbsp; ✅ shipped in v4.7
+- [x] **Kintsugi Light + Dark themes** &nbsp;·&nbsp; ✅ shipped in v4.11.2
 - [ ] **hyprbars + recreate minimize mode** — Hyprland's hyprbars plugin with title-bar per window + minimize / maximize / close buttons. Useful for users transitioning from GNOME / KDE.
 - [ ] **Float / tile assignment rules GUI** — visual editor for Hyprland's `windowrule`s. Assign an app to always float, always tile, always fullscreen, etc. Saves to `windowrules.conf` module. Preview which apps match each rule.
 - [ ] **Auto-clean memory** — service watches free memory, triggers `echo 3 > /proc/sys/vm/drop_caches` when threshold hit. Settings → Battery &amp; Power → Auto-clean memory toggle + threshold slider.
@@ -1289,23 +1392,112 @@ Open an issue on [GitHub](https://github.com/Gekinzen/zen_barebone_alpha_develop
 
 <br/>
 
-## Legacy Archive &nbsp;·&nbsp; 2025 Alpha
+## Previous showcases &nbsp;·&nbsp; v6.15.3 era
 
 <p align="center">
-  <sub>HISTORICAL REFERENCE</sub><br/>
-  <b>Zen Barebone Alpha — Hyprland 0.52 era</b><br/>
-  <i>The original Python / GTK4 / Waybar stack, preserved for posterity before the full QML rewrite shipped in v6.10+.</i>
+  <sub>ENSŌ 円相 — preserved so the evolution stays visible. Captured before the v4.x Kintsugi alpha cycle began.</sub>
 </p>
 
 <br/>
 
-> These assets were captured on **Hyprland 0.52** and document the pre-Quickshell lineage of the project. Current Zen Shell runs on **Hyprland 0.54+** with a unified QML architecture. The deprecated source is preserved at [`zen-alpha-deprecated-0.52/`](https://github.com/Gekinzen/zen_barebone_alpha_development/tree/zen-alpha-deprecated-0.52).
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_15_3_demo_2026/sample1.png" alt="Zen Shell v6.15.3 desktop composition" width="880"/>
+</p>
+
+<p align="center"><sub><b>v6.15.3 · Desktop composition</b> — status bar, clock hover popup, music strings, desktop widgets.</sub></p>
+
+<br/>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_15_3_demo_2026/sample2.png" alt="Zen Shell v6.15.3 workspace" width="880"/>
+</p>
+
+<p align="center"><sub><b>v6.15.3 · Workspace</b> — island mode bar + Control Panel with quick toggles.</sub></p>
+
+<br/>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_15_3_demo_2026/sample3.png" alt="Zen Shell v6.15.3 settings pages" width="880"/>
+</p>
+
+<p align="center"><sub><b>v6.15.3 · Settings</b> — pre-relocation settings layout before the v4.11.2 Themes page refactor.</sub></p>
+
+<br/>
+
+### Adaptive theming
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_15_3_demo_2026/zen_shell_01_adaptive_theming.gif" alt="Adaptive theming" width="880"/>
+</p>
+
+<p align="center"><sub>One palette. Every surface — bar, settings, control panel, notifications, terminal, launcher.</sub></p>
+
+<br/>
+
+### Settings tour
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_15_3_demo_2026/zen_shell_02_settings_tour.gif" alt="Settings tour" width="880"/>
+</p>
+
+<p align="center"><sub>Fourteen pages of live-preview configuration. No config files. No restart.</sub></p>
+
+<br/>
+
+### Screenshot module · ultrawide
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_15_3_demo_2026/zen_shell_03_screenshot_module_ultrawide.gif" alt="Screenshot module on ultrawide" width="880"/>
+</p>
+
+<p align="center"><sub>Region selection with physics-draped ropes. Clipboard-backed paste, reliable on the first try.</sub></p>
+
+<br/>
+
+---
+
+<br/>
+
+## Legacy Archive &nbsp;·&nbsp; 2025 Alpha (Koke · 苔)
+
+<p align="center">
+  <sub>HISTORICAL REFERENCE · KOKE 苔 (moss) — steady growth of the early stack</sub><br/>
+  <b>Zen Barebone Alpha — Hyprland 0.52 era</b><br/>
+  <i>The original Python / GTK4 / Waybar stack, preserved for posterity before the full QML rewrite shipped in v6.10+ Yugen.</i>
+</p>
+
+<br/>
+
+> These assets were captured on **Hyprland 0.52** and document the pre-Quickshell lineage. Current Zen Shell runs on **Hyprland 0.54+** with a unified QML architecture. The deprecated source is preserved at [`zen-alpha-deprecated-0.52/`](https://github.com/Gekinzen/zen_barebone_alpha_development/tree/zen-alpha-deprecated-0.52).
 
 <br/>
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/main.gif" alt="Alpha main demo" width="880"/>
 </p>
+
+<p align="center"><sub><b>Main demo</b> — full alpha desktop tour (Python + GTK4 + Libadwaita + Waybar)</sub></p>
+
+<br/>
+
+<table align="center">
+<tr>
+<td align="center"><img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/theming.gif" alt="Alpha theme switching" width="420"/><br/><sub><b>Theme switching</b></sub></td>
+<td align="center"><img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/changewallpaper.gif" alt="Alpha wallpaper picker" width="420"/><br/><sub><b>Wallpaper picker</b></sub></td>
+</tr>
+<tr>
+<td align="center"><img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/paneldemo.gif" alt="Alpha panel modes" width="420"/><br/><sub><b>Panel modes</b></sub></td>
+<td align="center"><img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/desktoplooks.png" alt="Alpha desktop looks" width="420"/><br/><sub><b>Desktop looks</b></sub></td>
+</tr>
+<tr>
+<td align="center"><img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/dock.png" alt="Alpha dock" width="420"/><br/><sub><b>Custom dock</b></sub></td>
+<td align="center"><img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/hyprcontrolcenter.png" alt="Alpha control center" width="420"/><br/><sub><b>Hypr Control Center (GTK4)</b></sub></td>
+</tr>
+<tr>
+<td align="center"><img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/hyprcontrolcenteranimation.png" alt="Alpha animation editor" width="420"/><br/><sub><b>Animation editor (Bezier)</b></sub></td>
+<td align="center"><img src="https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/hyprlandappearance.png" alt="Alpha appearance settings" width="420"/><br/><sub><b>Appearance settings</b></sub></td>
+</tr>
+</table>
 
 <br/>
 
@@ -1326,6 +1518,7 @@ Huge thanks to **[flickowoa](https://github.com/flickowoa)** for the original de
 - **[Quickshell](https://github.com/quickshell-mirror/quickshell)** — the QML shell framework (requires v0.2.1+ with PopupWindow support for v4.10+)
 - **[Hyprland](https://hyprland.org/)** — the Wayland compositor
 - **Qt 6 / QML** — declarative UI + runtime
+- **[Google Material Symbols](https://fonts.google.com/icons)** via [Iconify](https://icon-sets.iconify.design/material-symbols/) — feature-grid icons (Apache 2.0)
 
 <br/>
 
