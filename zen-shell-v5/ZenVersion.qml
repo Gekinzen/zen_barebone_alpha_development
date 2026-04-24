@@ -33,8 +33,8 @@ import QtQuick
 Singleton {
     id: root
 
-    readonly property string version:        "v6.16.4.1"
-    readonly property string versionRaw:     "6.16.4.1"
+    readonly property string version:        "v6.16.4.5"
+    readonly property string versionRaw:     "6.16.4.5"
     readonly property string releaseDate:    "2026-04-24"
     readonly property string channel:        "beta"
     readonly property string codename:       "Zen Shell"

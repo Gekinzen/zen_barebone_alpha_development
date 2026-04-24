@@ -350,8 +350,15 @@ Rectangle {
                     font.bold: true
                 }
 
+                // v6.16.4.5: grid reduced 5 → 4 columns to accommodate
+                // the wider tiles (72px instead of 64px). Math:
+                //   4 tiles × 72 + 3 gaps × 8 = 288 + 24 = 312px,
+                //   fits comfortably in the 360px left pane with
+                //   room for padding.
+                // Previously 5 × 64 + 4 × 8 = 320 + 32 = 352px, tight
+                // but fit. Can't keep 5 columns with wider tiles.
                 GridLayout {
-                    columns: 5
+                    columns: 4
                     columnSpacing: 8
                     rowSpacing: 8
                     Layout.fillWidth: true
@@ -362,8 +369,8 @@ Rectangle {
                         Rectangle {
                             property string appId: modelData
                             property var entry: menuRoot.findEntry(appId)
-                            Layout.preferredWidth: 64
-                            Layout.preferredHeight: 76
+                            Layout.preferredWidth: 72
+                            Layout.preferredHeight: 82
                             radius: 10
                             color: tileMa.containsMouse ? Theme.alpha(Theme.fg, 0.08) : "transparent"
                             Behavior on color { ColorAnimation { duration: 150 } }
@@ -383,8 +390,15 @@ Rectangle {
                                 }
 
                                 Text {
+                                    // v6.16.4.5: widened from 58px to 66px + reduced
+                                    // tile padding — gives labels ~8px more breathing
+                                    // room so "Thunar F…" / "Visual St…" / "Crimson…"
+                                    // don't look cramped under the icons. Tile width
+                                    // also bumped 64→72 to match. At monitor scale
+                                    // 1.25x, the extra room prevents the visual
+                                    // overlap Paul reported.
                                     Layout.alignment: Qt.AlignHCenter
-                                    Layout.preferredWidth: 58
+                                    Layout.preferredWidth: 66
                                     text: entry ? entry.name : appId
                                     color: Theme.fgDim
                                     font.family: Theme.fontFamily

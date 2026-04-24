@@ -1615,6 +1615,6 @@ else
 fi
 echo ""
 
-echo "  ✅  Done. Enjoy Zen Shell v6.16.4.1, pre."
+echo "  ✅  Done. Enjoy Zen Shell v6.16.4.5, pre."
 echo ""
 exit 0

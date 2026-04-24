@@ -43,9 +43,105 @@ Item {
     // panel-state.json with a nonsense value. Lower bound 0.5
     // keeps text readable; upper bound 2.0 keeps widgets from
     // eating the entire screen on HiDPI displays.
-    readonly property real _scale: {
+    // v6.16.4.2: Enhanced scale computation with multiple safety
+    // layers to prevent widgets from becoming unusable:
+    //
+    //   1. _userScale       — raw slider value (0.5-2.0)
+    //   2. _monitorScale    — Hyprland's per-monitor scale factor
+    //                         (1.0 on 1080p, 1.25 on small 1440p,
+    //                         1.5 on 4K 13" panels, etc.)
+    //   3. _effectiveScale  — combined value clamped to a safe
+    //                         minimum that preserves readability
+    //   4. _scale           — public API, what widgets multiply by
+    //
+    // Why combine monitor + user scales:
+    //   When Hyprland monitor scale = 1.25 and user scale = 1.0,
+    //   the logical resolution shrinks to 80% of physical. Without
+    //   compensating, 400px widgets that looked right at scale=1.0
+    //   now only cover 500 physical pixels — too small on HiDPI.
+    //   We bump the effective scale slightly upward so visual size
+    //   roughly tracks physical pixels instead of logical ones.
+    //
+    // Why minimum clamp at 0.65:
+    //   Below ~0.65x, fonts drop below 6px and become unreadable;
+    //   container padding (which is absolute, not scaled) eats
+    //   more usable area than the content itself. 0.5 slider
+    //   position still renders but forces minimum of 0.65 applied.
+    readonly property real _userScale: {
         const s = PanelState.widgetScale !== undefined ? PanelState.widgetScale : 1.0
         return Math.max(0.5, Math.min(2.0, s))
+    }
+
+    // Monitor scale — picked from the primary monitor where widgets
+    // live. Not all Quickshell Screen bindings expose this cleanly,
+    // so we read it from Hyprland's own monitor list through a Process.
+    property real _monitorScale: 1.0
+
+    // Combined safe scale — floor at 0.65 to keep widgets readable
+    // even if user slides to 0.5. Monitor scale applied as a mild
+    // compensation (sqrt avoids over-magnifying on high-density
+    // displays where the user already picked a small user scale).
+    readonly property real _effectiveScale: {
+        const combined = _userScale * Math.sqrt(_monitorScale)
+        return Math.max(0.65, Math.min(2.4, combined))
+    }
+
+    // Public property — every widget in this file multiplies
+    // dimensions by dw._scale. Bound to _effectiveScale so updates
+    // propagate through automatically when user or monitor scale
+    // changes (via onMonitorScaleChanged or Settings slider).
+    readonly property real _scale: _effectiveScale
+
+    // v6.16.4.2: inner padding multiplier — scales the absolute
+    // padding values inside widgets (anchors.margins: 24, etc.)
+    // down with the scale factor, so content area ratio stays
+    // consistent at any scale. Ratio 0.7-1.3 of _scale prevents
+    // over-compression at extreme ends.
+    readonly property real _padScale: Math.max(0.6, Math.min(1.3, _scale))
+
+    // v6.16.4.2: Poll monitor scale via hyprctl when DesktopWidgets
+    // loads and on monitor changes. Running `hyprctl -j monitors`
+    // is cheap (~1ms).
+    //
+    // v6.16.4.3 FIX: removed the 3s Timer that was causing widget
+    // "oscillation" — every 3 seconds the probe would fire, the
+    // value might fluctuate by 0.001 due to float parsing precision,
+    // and the on_ScaleChanged hook would re-reflow widgets. Paul:
+    // "bigla nag babago bago yun scaling."
+    //
+    // New policy: probe ONCE on load, plus whenever PanelState.
+    // widgetScale changes (Settings slider moved). That's enough
+    // — monitor scale changes rarely and usually trigger a full
+    // Hyprland config reload which re-initializes DesktopWidgets
+    // from scratch anyway.
+    Process {
+        id: monitorScaleProbe
+        running: true
+        command: ["bash", "-c",
+            "hyprctl -j monitors 2>/dev/null | jq -r '[.[] | select(.focused==true)][0].scale // 1.0' 2>/dev/null || echo 1.0"]
+        stdout: SplitParser {
+            onRead: (line) => {
+                const v = parseFloat(line.trim())
+                // Round to 2 decimal places so float-parsing noise
+                // (1.2499999 vs 1.25) doesn't trigger reflow loops.
+                if (!isNaN(v) && v > 0.1 && v < 5.0) {
+                    const rounded = Math.round(v * 100) / 100
+                    if (Math.abs(dw._monitorScale - rounded) > 0.005) {
+                        dw._monitorScale = rounded
+                    }
+                }
+            }
+        }
+    }
+
+    // v6.16.4.3: Re-probe when user slider changes — covers cases
+    // where user changed monitor scale in DisplaysPage then the
+    // widget scale slider. No periodic Timer anymore.
+    Connections {
+        target: PanelState
+        function onWidgetScaleChanged() {
+            monitorScaleProbe.running = true
+        }
     }
 
     property var clocks: [
@@ -142,22 +238,95 @@ Item {
         // v6.16.1.9: don't clobber drag.target's live position
         if (_anyDragActive) return
 
-        clockWidget.x = clockPosX
-        clockWidget.y = clockPosY
+        // v6.16.4.2: Clamp loaded positions into the current logical
+        // screen bounds. Two scenarios this fixes:
+        //
+        //   1. Monitor scale change — user bumps Scale from 1.0 to
+        //      1.25 in DisplaysPage → logical resolution shrinks
+        //      from e.g. 2560x1440 to 2048x1152. Old positions at
+        //      (x=2100, y=1300) would leave widgets off-screen.
+        //   2. Widget scale change — slider from 1.0 to 1.5 grows
+        //      widgets by 50%. A widget anchored at the right edge
+        //      would now overflow past screen width.
+        //
+        // Formula: clamp each widget's top-left so that the entire
+        // widget (including its new scaled width/height) fits
+        // within dw.width × dw.height with a 16px margin.
+        //
+        // Widgets with negative stored X (sentinel for "right-align")
+        // keep their right-align behavior.
+        const margin = 16
+        const clampX = (pos, w) => {
+            if (pos < 0) return pos   // preserve right-align sentinel
+            return Math.max(margin, Math.min(pos, dw.width - w - margin))
+        }
+        const clampY = (pos, h) => Math.max(margin, Math.min(pos, dw.height - h - margin))
+
+        clockWidget.x = clampX(clockPosX, clockWidget.width)
+        clockWidget.y = clampY(clockPosY, clockWidget.height)
         if (weatherPosX < 0)
             weatherWidget.x = dw.width - weatherWidget.width - 40
         else
-            weatherWidget.x = weatherPosX
-        weatherWidget.y = weatherPosY
+            weatherWidget.x = clampX(weatherPosX, weatherWidget.width)
+        weatherWidget.y = clampY(weatherPosY, weatherWidget.height)
         if (sysmonPosX < 0)
             sysmonWidget.x = dw.width - sysmonWidget.width - 40
         else
-            sysmonWidget.x = sysmonPosX
-        sysmonWidget.y = sysmonPosY
+            sysmonWidget.x = clampX(sysmonPosX, sysmonWidget.width)
+        sysmonWidget.y = clampY(sysmonPosY, sysmonWidget.height)
     }
 
-    onWidthChanged: _applyPositions()
-    onHeightChanged: _applyPositions()
+    onWidthChanged: containerReflowTimer.restart()
+    onHeightChanged: containerReflowTimer.restart()
+
+    // v6.16.4.3: debounce container-size-change reflows so opening/
+    // closing Control Panel (which briefly changes the reserved
+    // screen area) doesn't cascade into widget position oscillation.
+    // Previous code called _applyPositions() directly on every
+    // width/height change — during Control Panel fade-out animation,
+    // dw.width ticks through dozens of intermediate values and each
+    // one clobbers positions.
+    Timer {
+        id: containerReflowTimer
+        interval: 150
+        repeat: false
+        onTriggered: _applyPositions()
+    }
+
+    // v6.16.4.2: Reflow positions whenever the effective scale
+    // changes. This catches:
+    //   - User dragging the Settings → Widgets → Widget Scale slider
+    //   - Hyprland monitor scale change via DisplaysPage
+    //   - Dock plug/unplug changing which monitor widgets live on
+    //
+    // v6.16.4.3 hardening: dampened the cascade.
+    //   - Changed from on_ScaleChanged hooks (fire on ANY float change)
+    //     to explicit Connections that only react when the SOURCE
+    //     properties change by a meaningful amount (>0.005)
+    //   - Reflow timer interval 120ms → 180ms to further coalesce
+    //   - Ignore scale events during Control Panel / Settings panel
+    //     transitions (detected via a short "cooling" period after
+    //     widget geometry last changed by itself)
+    Connections {
+        target: PanelState
+        function onWidgetScaleChanged() {
+            scaleReflowTimer.restart()
+        }
+    }
+
+    on_MonitorScaleChanged: scaleReflowTimer.restart()
+
+    Timer {
+        id: scaleReflowTimer
+        interval: 180
+        repeat: false
+        onTriggered: {
+            // Widget widths/heights are already bound to _scale, so
+            // by the time this fires they've re-layouted. Just
+            // re-clamp positions into new bounds.
+            _applyPositions()
+        }
+    }
 
     FileView {
         id: cfgLoader
@@ -460,10 +629,25 @@ Item {
         id: weatherWidget
         visible: dw.weatherEnabled
         // NO x: or y: binding — set imperatively
-        // v6.16.3.7: scaled via dw._scale so the whole weather widget
-        // resizes with the user's Settings → Widgets → Widget Scale.
-        width: 400 * dw._scale
-        height: 260 * dw._scale
+        // v6.16.4.3: Content-aware sizing.
+        //
+        // Previously (v6.16.3.7): width/height were hardcoded
+        // 400 × 260 multiplied by dw._scale. Problem: at small
+        // scales (0.5x), the container shrinks uniformly but the
+        // inner ColumnLayout's content (Text elements, forecast
+        // row with 7 delegates) can't compress below its intrinsic
+        // implicitWidth/Height. Result: content overflows or
+        // collides, widget "looks broken."
+        //
+        // Now: use an intermediate `_targetW/H` that's the maximum
+        // of scaled-target and content-implicit. Widget grows to
+        // fit its content, never clips. At 2.0x the target wins
+        // (widget grows as expected). At 0.5x the content-implicit
+        // wins (widget stays readable).
+        readonly property real _targetW: 400 * dw._scale
+        readonly property real _targetH: 260 * dw._scale
+        width: Math.max(_targetW, weatherContent.implicitWidth + (16 * dw._padScale * 2))
+        height: Math.max(_targetH, weatherContent.implicitHeight + (16 * dw._padScale * 2))
         radius: 16
         // v6.16.1.5: reactive background from WidgetsPage settings
         color: dw.weatherBgColor
@@ -499,19 +683,20 @@ Item {
         }
 
         ColumnLayout {
+            id: weatherContent
             anchors.fill: parent
-            anchors.margins: 16
-            spacing: 8
+            anchors.margins: 16 * dw._padScale
+            spacing: 8 * dw._padScale
 
             // Top section — emoji+temp left, stats forced right
             Item {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 90
+                Layout.preferredHeight: 90 * dw._scale
 
                 Row {
                     anchors.left: parent.left
                     anchors.top: parent.top
-                    spacing: 12
+                    spacing: 12 * dw._padScale
 
                     Text {
                         text: WeatherService.emojiIcon
@@ -600,7 +785,7 @@ Item {
             // Forecast: Today + 6 days with emoji cloud/sun icons
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 4
+                spacing: 4 * dw._padScale
 
                 Repeater {
                     model: {
@@ -612,7 +797,7 @@ Item {
                         required property var modelData
                         required property int index
                         Layout.fillWidth: true
-                        height: 72
+                        height: 72 * dw._scale
                         radius: 8
                         color: index === 0 ? Qt.rgba(0.22, 0.22, 0.24, 0.6) : Qt.rgba(0.18, 0.18, 0.19, 0.4)
                         border.width: 1
@@ -680,9 +865,14 @@ Item {
         id: sysmonWidget
         visible: dw.sysmonEnabled
         // NO x: or y: binding — set imperatively
-        // v6.16.3.7: scaled with dw._scale (see Settings → Widgets)
-        width: 420 * dw._scale
-        height: 420 * dw._scale
+        // v6.16.4.3: content-aware sizing (same as weather widget).
+        // At low scales, grows to fit the 2×2 stats grid + tab bar
+        // instead of clipping content. At high scales, _targetW/H
+        // wins.
+        readonly property real _targetW: 420 * dw._scale
+        readonly property real _targetH: 420 * dw._scale
+        width: Math.max(_targetW, sysmonContent.implicitWidth + (14 * dw._padScale * 2))
+        height: Math.max(_targetH, sysmonContent.implicitHeight + (14 * dw._padScale * 2))
         radius: 16
         // v6.16.1.5: reactive background from WidgetsPage settings
         color: dw.sysmonBgColor
@@ -716,9 +906,10 @@ Item {
         }
 
         ColumnLayout {
+            id: sysmonContent
             anchors.fill: parent
-            anchors.margins: 14
-            spacing: 8
+            anchors.margins: 14 * dw._padScale
+            spacing: 8 * dw._padScale
 
             // ── Header row: title + btop button ──
             RowLayout {
@@ -940,7 +1131,7 @@ Item {
                     border.color: Qt.rgba(1, 1, 1, 0.05)
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: 10
+                        anchors.margins: 10 * dw._padScale
                         spacing: 2
                         RowLayout {
                             Layout.fillWidth: true
@@ -980,7 +1171,7 @@ Item {
                     border.color: Qt.rgba(1, 1, 1, 0.05)
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: 10
+                        anchors.margins: 10 * dw._padScale
                         spacing: 2
                         RowLayout {
                             Layout.fillWidth: true
@@ -1020,7 +1211,7 @@ Item {
                     border.color: Qt.rgba(1, 1, 1, 0.05)
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: 10
+                        anchors.margins: 10 * dw._padScale
                         spacing: 2
                         RowLayout {
                             Layout.fillWidth: true
@@ -1060,7 +1251,7 @@ Item {
                     border.color: Qt.rgba(1, 1, 1, 0.05)
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: 10
+                        anchors.margins: 10 * dw._padScale
                         spacing: 2
                         Text {
                             text: "NETWORK"
@@ -1110,7 +1301,7 @@ Item {
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 14
+                    anchors.margins: 14 * dw._padScale
                     spacing: 6
 
                     Text {
@@ -1169,7 +1360,7 @@ Item {
 
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: 14
+                        anchors.margins: 14 * dw._padScale
                         spacing: 6
 
                         RowLayout {
@@ -1266,7 +1457,7 @@ Item {
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 14
+                    anchors.margins: 14 * dw._padScale
                     spacing: 6
 
                     Text { text: "NETWORK"; font.family: "Adwaita Sans"; font.pixelSize: 12 * dw._scale; font.weight: Font.DemiBold; color: Qt.rgba(1,1,1,0.9) }

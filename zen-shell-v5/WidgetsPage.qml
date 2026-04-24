@@ -212,7 +212,7 @@ ScrollView {
         HMSection { title: "Widget Scale"; subtitle: "Resize all desktop widgets in one go"
             HMRow {
                 label: "Scale"
-                description: "Drag the slider. 0.5× compact, 1.0× baseline, 2.0× large. Reset returns to 1.0×."
+                description: "Drag the slider. 0.5× compact (auto-floored to 0.65× for readability), 1.0× baseline, 2.0× large. Reset returns to 1.0×."
                 icon: "\uf065"
                 separator: false
                 RowLayout {

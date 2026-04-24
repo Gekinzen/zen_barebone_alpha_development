@@ -60,6 +60,33 @@ ScrollView {
             onStreamFinished: {
                 root.applyStatus = this.text.trim() === "ok" || !this.text.trim() ? "✓ Applied" : "⚠ " + this.text.trim()
                 refreshDelay.running = true
+                // v6.16.4.4: Re-apply SettingsStateV2 after monitor
+                // keyword change. Paul reported: "nung nag palit ako
+                // ng scale etc yung mga gaps ko nawala."
+                //
+                // Root cause: `hyprctl keyword monitor ...` internally
+                // bumps Hyprland's monitor state and re-creates the
+                // output's workspace layout. When that happens, some
+                // runtime keywords (particularly gaps_in/gaps_out,
+                // rounding, blur radius) that were set via keyword
+                // rather than via conf file silently fall back to
+                // whatever hyprland.conf has on disk.
+                //
+                // Paul's workaround was re-selecting a theme, which
+                // made ZenSettings trigger applyToHyprland() as a
+                // side effect. We replicate that side effect directly
+                // here so the workaround isn't needed.
+                //
+                // Qt.callLater queues it after the current event
+                // loop tick — gives Hyprland a moment to finish the
+                // monitor reconfiguration before we re-assert all
+                // the runtime keywords on top.
+                Qt.callLater(function() {
+                    if (typeof SettingsStateV2 !== "undefined"
+                        && typeof SettingsStateV2.applyToHyprland === "function") {
+                        SettingsStateV2.applyToHyprland()
+                    }
+                })
             }
         }
     }
@@ -450,8 +477,36 @@ ScrollView {
                         //   pixels (width × height) so native/best mode
                         //   appears at the top.
                         // ─────────────────────────────────────────────
+                        // ─────────────────────────────────────────────
+                        // v6.16.4.2 — Enumeration 3-tier fallback
+                        //
+                        // Some panels (notably eDP OLEDs and high-refresh
+                        // laptop IPS screens) only expose their native
+                        // mode via DRM — `availableModes` returns just
+                        // one entry. Paul reported this on his ROG
+                        // laptop: 2560x1440@165Hz panel, dropdown showed
+                        // only 2560x1440 with nothing else to pick.
+                        //
+                        // 3-tier fallback to guarantee a useful list:
+                        //   Tier 1: hyprctl `availableModes` (primary)
+                        //   Tier 2: scaled aspect-ratio fallbacks
+                        //           — native divided by common factors
+                        //           (100%, 75%, 67%, 50%)
+                        //           gives the "downscale for games" set
+                        //   Tier 3: common standard resolutions that
+                        //           fit within the native bounds
+                        //           (1920x1080, 1680x1050, 1600x900,
+                        //            1440x900, 1366x768, 1280x720)
+                        //
+                        // Tiers are merged (no duplicates), then sorted
+                        // descending by pixel count. User can pick any
+                        // of these — Hyprland will accept them even if
+                        // they're "synthetic" modes via GPU scaling.
+                        // ─────────────────────────────────────────────
                         property var uniqueRes: {
                             const seen = {}, list = []
+
+                            // Tier 1: availableModes from hyprctl
                             for (let m of (modelData.availableModes || [])) {
                                 const mt = m.match(/^(\d+)x(\d+)/)
                                 if (!mt) continue
@@ -459,16 +514,50 @@ ScrollView {
                                 const k = w + "x" + h
                                 if (!seen[k]) { seen[k] = true; list.push({ w:w, h:h, k:k }) }
                             }
-                            // Ensure the monitor's CURRENT mode is always in the list
-                            const curK = (modelData.width||0) + "x" + (modelData.height||0)
-                            if ((modelData.width||0) > 0 && !seen[curK]) {
-                                list.push({ w:modelData.width, h:modelData.height, k:curK })
-                                seen[curK] = true
+
+                            const nativeW = modelData.width || 0
+                            const nativeH = modelData.height || 0
+
+                            // Ensure current mode is in the list
+                            if (nativeW > 0) {
+                                const curK = nativeW + "x" + nativeH
+                                if (!seen[curK]) {
+                                    list.push({ w:nativeW, h:nativeH, k:curK }); seen[curK] = true
+                                }
                             }
-                            // Descending by pixel count (native res first)
+
+                            // Tier 2: scaled fallbacks — native × fraction.
+                            // Only add if the result looks like a "real"
+                            // resolution (even pixels, reasonable size).
+                            if (nativeW >= 1280) {
+                                for (const frac of [0.75, 0.667, 0.5]) {
+                                    const sw = Math.round(nativeW * frac / 2) * 2
+                                    const sh = Math.round(nativeH * frac / 2) * 2
+                                    if (sw < 640 || sh < 360) continue
+                                    const k = sw + "x" + sh
+                                    if (!seen[k]) { seen[k] = true; list.push({ w:sw, h:sh, k:k }) }
+                                }
+                            }
+
+                            // Tier 3: common standard resolutions that
+                            // fit within the native panel. Filter to
+                            // ones that actually downscale cleanly.
+                            const standards = [
+                                [3840,2160],[2560,1600],[2560,1440],[2560,1080],
+                                [1920,1200],[1920,1080],[1680,1050],[1600,1200],
+                                [1600,900],[1440,900],[1366,768],[1280,1024],
+                                [1280,800],[1280,720],[1024,768]
+                            ]
+                            for (const [sw, sh] of standards) {
+                                if (sw > nativeW || sh > nativeH) continue
+                                const k = sw + "x" + sh
+                                if (!seen[k]) { seen[k] = true; list.push({ w:sw, h:sh, k:k }) }
+                            }
+
+                            // Descending by pixel count (native first)
                             list.sort(function(a,b){ return (b.w*b.h) - (a.w*a.h) })
-                            // Return as array of strings for ComboBox.model
                             const keys = list.map(function(x){ return x.k })
+                            const curK = nativeW + "x" + nativeH
                             return keys.length > 0 ? keys : [curK]
                         }
                         model: uniqueRes
