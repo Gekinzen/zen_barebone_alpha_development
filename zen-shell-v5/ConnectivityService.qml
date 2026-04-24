@@ -105,10 +105,61 @@ Singleton {
         micMuted = !micMuted
     }
 
-    function connectWifi(ssid, password) {
-        const cmd = password
-            ? "nmcli device wifi connect '" + ssid.replace(/'/g, "'\\''") + "' password '" + password.replace(/'/g, "'\\''") + "'"
-            : "nmcli device wifi connect '" + ssid.replace(/'/g, "'\\''") + "'"
+    // v6.16.4.8: Rewrote from 4.6 — the arg2 type-sniff was
+    // matching "WPA2" exactly but nmcli returns "WPA2 802.1X" /
+    // "WPA1 WPA2" etc., so composite security strings were being
+    // treated as passwords and fed to `nmcli ... password "WPA2 802.1X"`.
+    // That silently failed → button felt broken.
+    //
+    // New approach: named call conventions.
+    //   connectWifi(ssid)                     — auto (open or prompt)
+    //   connectWifi(ssid, "")                 — explicitly open
+    //   connectWifi(ssid, "WPA2 802.1X")      — security string → prompt
+    //   connectWifi(ssid, "", "mypassword")   — explicit password, no prompt
+    //
+    // We also log everything to ~/.cache/zen-shell/wifi.log so when
+    // debugging Paul's setup, we can see exactly what nmcli returned.
+    function connectWifi(ssid, security, password) {
+        const sec = (typeof security === "string") ? security : ""
+        const pwd = (typeof password === "string") ? password : ""
+        const escSsid = ssid.replace(/'/g, "'\\''")
+
+        // Classify: is this network secured? Any non-empty security
+        // string counts as secured. Empty / "--" / "none" / null
+        // all mean open.
+        const isSecured = sec.length > 0
+                       && sec !== "--"
+                       && sec.toLowerCase() !== "none"
+
+        // Build the command
+        let cmd
+        if (pwd.length > 0) {
+            // Explicit password path (no prompt, no preflight)
+            const escPwd = pwd.replace(/'/g, "'\\''")
+            cmd = "nmcli device wifi connect '" + escSsid + "' password '" + escPwd + "'"
+        } else {
+            // Preflight + prompt path (one bash one-liner)
+            const promptBlock = isSecured
+                ? ("PW=$(zenity --password --title='Wi-Fi: " + escSsid.replace(/\$/g, "\\$") + "' 2>/dev/null) || exit 2; " +
+                   "[ -z \"$PW\" ] && exit 2; " +
+                   "nmcli device wifi connect '" + escSsid + "' password \"$PW\"")
+                : "nmcli device wifi connect '" + escSsid + "'"
+
+            cmd =
+                "LOG=\"$HOME/.cache/zen-shell/wifi.log\"; " +
+                "mkdir -p \"$(dirname $LOG)\"; " +
+                "echo \"[$(date +%H:%M:%S)] connect '" + escSsid + "' secured=" + (isSecured?1:0) + "\" >> \"$LOG\"; " +
+                // Saved creds check
+                "if nmcli -t -f NAME connection show 2>/dev/null | grep -qFx '" + escSsid + "'; then " +
+                "  echo \"[$(date +%H:%M:%S)] using saved connection profile\" >> \"$LOG\"; " +
+                "  nmcli connection up '" + escSsid + "' 2>&1 | tee -a \"$LOG\"; " +
+                "  exit $?; " +
+                "fi; " +
+                // No saved creds path
+                "echo \"[$(date +%H:%M:%S)] no saved profile — running prompt/direct\" >> \"$LOG\"; " +
+                promptBlock + " 2>&1 | tee -a \"$LOG\""
+        }
+
         actionRunner.command = ["bash", "-c", cmd]
         actionRunner.running = true
     }

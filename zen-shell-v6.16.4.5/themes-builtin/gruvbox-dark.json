@@ -1,0 +1,25 @@
+{
+  "id": "gruvbox-dark",
+  "name": "Gruvbox Dark",
+  "description": "Retro groove with warm tones",
+  "is_builtin": true,
+  "version": "1.0",
+  "colors": {
+    "bg0": "#282828",
+    "bg1": "#3c3836",
+    "bg2": "#504945",
+    "bg3": "#665c54",
+    "bg4": "#7c6f64",
+    "fg": "#ebdbb2",
+    "grey0": "#928374",
+    "grey1": "#a89984",
+    "grey2": "#bdae93",
+    "red": "#fb4934",
+    "orange": "#fe8019",
+    "yellow": "#fabd2f",
+    "green": "#b8bb26",
+    "aqua": "#8ec07c",
+    "blue": "#83a598",
+    "purple": "#d3869b"
+  }
+}

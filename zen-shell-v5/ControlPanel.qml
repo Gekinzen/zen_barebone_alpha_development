@@ -749,6 +749,75 @@ Rectangle {
                     onClicked: PowerProfileService.toggleGamingBoost()
                 }
             }
+
+            // ── Dark Mode toggle (v6.16.4.7) ──
+            // Syncs gsettings color-scheme + GTK3/4 theme so GTK
+            // apps render dark alongside the Zen Shell palette.
+            // Hidden if zen-darkmode.sh script isn't available
+            // (e.g. user copied QML files manually without running
+            // install.sh, or the script couldn't be written).
+            Rectangle {
+                visible: DarkModeService.available
+                Layout.fillWidth: true
+                Layout.preferredHeight: 40
+                radius: 8
+                color: darkMouse.containsMouse
+                    ? ThemeService.alpha(ThemeService.fg, 0.08)
+                    : ThemeService.alpha(ThemeService.bg2, 0.55)
+
+                Behavior on color { ColorAnimation { duration: 150 } }
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 12
+                    anchors.rightMargin: 12
+                    spacing: 10
+
+                    Text {
+                        text: DarkModeService.isDark ? "🌙" : "☀️"
+                        font.pixelSize: 16
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 0
+
+                        Text {
+                            text: DarkModeService.isDark ? "Dark Mode" : "Light Mode"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 12
+                            font.weight: Font.DemiBold
+                            color: ThemeService.fg
+                        }
+                        Text {
+                            text: DarkModeService.isDark
+                                ? "GTK apps render dark · libadwaita synced"
+                                : "GTK apps render light · libadwaita synced"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 10
+                            color: ThemeService.grey1
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+                    }
+
+                    HMSwitch {
+                        compact: true
+                        activeColor: ThemeService.alpha(ThemeService.blue, 0.85)
+                        checked: DarkModeService.isDark
+                        enabled: false
+                        opacity: 1.0
+                    }
+                }
+
+                MouseArea {
+                    id: darkMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: DarkModeService.toggle()
+                }
+            }
         }
 
         // ═══════════════════════════════════════════════
@@ -1017,7 +1086,7 @@ Rectangle {
                                         anchors.fill: parent
                                         hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
-                                        onClicked: ConnectivityService.connectWifi(modelData.ssid)
+                                        onClicked: ConnectivityService.connectWifi(modelData.ssid, modelData.security)
                                     }
                                 }
                             }
