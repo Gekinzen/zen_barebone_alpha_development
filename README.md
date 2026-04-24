@@ -371,7 +371,81 @@ Result: exactly ONE shell, every time. No more stacked duplicate bars.
 
 ---
 
-## License
 
-Personal project by Paul Hansen Yuki. No license attached at the moment;
-contact Paul (`paulyuki.com`) before redistributing.
+## Credits
+
+### Inspired By
+
+The **Music Strings visualizer** and the **Screenshot Rope overlay** in v6.15+ are heavily inspired by [flickowoa's Zephyr dotfiles](https://github.com/flickowoa/dotfiles/tree/hyprland-zephyr) ([demo video](https://www.youtube.com/watch?v=7Miis9I25q4)).
+
+Huge thanks to **[flickowoa](https://github.com/flickowoa)** for the original design language.
+
+### Built With
+
+- **[Quickshell](https://github.com/quickshell-mirror/quickshell)** — the QML shell framework
+- **[Hyprland](https://hyprland.org/)** — the Wayland compositor
+- **Qt 6 / QML** — declarative UI + runtime
+
+<br/>
+
+---
+
+<br/>
+
+## Platform
+
+<p align="center">
+  <b>Arch Linux / CachyOS</b>
+  &nbsp;·&nbsp;
+  <b>Hyprland 0.54+</b>
+  &nbsp;·&nbsp;
+  <b>Quickshell</b>
+  &nbsp;·&nbsp;
+  <b>QML / JavaScript</b>
+</p>
+
+<p align="center">
+  <sub>Reference hardware: AMD Ryzen 9 5950X &nbsp;·&nbsp; RX 6800 XT &nbsp;·&nbsp; 128&nbsp;GB RAM</sub>
+</p>
+
+<br/>
+
+---
+
+<br/>
+
+## Support
+
+Zen Shell is developed independently, in personal time — late nights, after client work, from a small apartment in the Philippines. If it has helped you, or you just appreciate the craft, a coffee goes a long way.
+
+<p align="center">
+  <a href="https://buymeacoffee.com/zenpy">
+    <img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-0a0a0a?style=for-the-badge&logo=buy-me-a-coffee&logoColor=white" alt="Buy me a coffee"/>
+  </a>
+</p>
+
+<br/>
+
+You can also support via crypto:
+
+| Currency | Address |
+|---|---|
+| **BTC** &nbsp;·&nbsp; Bitcoin | `12Wo7KT9uqKzfZ15ZLugg7yyb3AfsmEVTc` |
+| **BCH** &nbsp;·&nbsp; Bitcoin Cash | `1EBooTk9TuGBEn9bMkQoSs6yAjbCKd2TqQ` |
+| **SOL** &nbsp;·&nbsp; Solana | `2FUpxNPHgAJ7r3VpRWxBJNMFoayoZWeFNV6tVsMPe5QR` |
+
+<br/>
+
+---
+
+<br/>
+
+<p align="center">
+  <b>MIT</b> &nbsp;·&nbsp; Free to use, fork, and make your own. &nbsp;·&nbsp; Star the project if it resonates with you.
+</p>
+
+<br/>
+
+<p align="center">
+  <sub>Designed and built by <a href="https://github.com/Gekinzen">Zenpy</a> &nbsp;·&nbsp; Antipolo, Philippines</sub>
+</p>
