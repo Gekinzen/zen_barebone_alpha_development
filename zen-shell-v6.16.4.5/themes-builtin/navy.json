@@ -1,0 +1,25 @@
+{
+  "id": "navy",
+  "name": "Navy",
+  "description": "Deep navy blue theme",
+  "is_builtin": true,
+  "version": "1.0",
+  "colors": {
+    "bg0": "#0a1628",
+    "bg1": "#0f1d32",
+    "bg2": "#14243c",
+    "bg3": "#1a2b46",
+    "bg4": "#213250",
+    "fg": "#d0e0f0",
+    "grey0": "#4a5a6a",
+    "grey1": "#6a7a8a",
+    "grey2": "#8a9aaa",
+    "red": "#ff6b6b",
+    "orange": "#ffa06b",
+    "yellow": "#ffd56b",
+    "green": "#6bffa0",
+    "aqua": "#6bffd5",
+    "blue": "#6bb5ff",
+    "purple": "#b56bff"
+  }
+}

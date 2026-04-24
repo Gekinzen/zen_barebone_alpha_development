@@ -1,0 +1,422 @@
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import Quickshell
+import Quickshell.Io
+
+/*
+ * NotificationPage v6.13.1 — Settings → Notifications
+ *
+ * Configure SwayNC notification position and display target.
+ * Writes to ~/.config/swaync/config.json → restarts swaync.
+ *
+ * Position options:
+ *   top-left, top-center, top-right (default),
+ *   bottom-left, bottom-center, bottom-right
+ *
+ * Display target:
+ *   "all" — show on all monitors
+ *   "primary" — show only on primary monitor
+ *
+ * v6.13.1 fixes:
+ *   - Process reuse: stop previous run before starting new one
+ *   - _restartSwaync: use SIGTERM instead of SIGKILL
+ *   - Longer patchTimer delay (500ms) for stateSaver to finish
+ *   - Debug logging for state save + patch calls
+ */
+Item {
+    id: root
+
+    property string positionX: "right"   // "left" | "center" | "right"
+    property string positionY: "top"     // "top" | "bottom"
+    property string display: "all"       // "all" | "primary"
+
+    readonly property string statePath: Quickshell.env("HOME") + "/.config/quickshell/zen-shell/notification-state.json"
+    readonly property string swayncConfigPath: Quickshell.env("HOME") + "/.config/swaync/config.json"
+
+    // Position string for SwayNC config
+    readonly property string swayncPosition: positionY + "-" + positionX
+
+    ScrollView {
+        anchors.fill: parent
+        contentWidth: availableWidth
+        clip: true
+
+        ColumnLayout {
+            width: parent.width
+            spacing: 16
+
+            // ── Page header ──
+            Item {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 60
+                Layout.leftMargin: 24
+                Layout.topMargin: 24
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 4
+
+                    Text {
+                        text: "Notifications"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 22
+                        font.weight: Font.Bold
+                        color: ThemeService.fg
+                    }
+
+                    Text {
+                        text: "Position and display settings for SwayNC"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 13
+                        color: ThemeService.grey1
+                    }
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.leftMargin: 24
+                Layout.rightMargin: 24
+                Layout.bottomMargin: 24
+                spacing: 16
+
+                // ═══════════════════════════════════════
+                // POSITION SELECTOR — visual 3x2 grid
+                // ═══════════════════════════════════════
+                SettingsSection {
+                    title: "Notification Position"
+                    subtitle: "Choose where notifications appear on screen"
+
+                    // Visual position grid
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 160
+
+                        // Screen representation
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 280
+                            height: 150
+                            radius: 8
+                            color: ThemeService.alpha(ThemeService.bg2, 0.6)
+                            border.width: 1
+                            border.color: ThemeService.alpha(ThemeService.fg, 0.1)
+
+                            // Grid of 6 position buttons (2 rows × 3 cols)
+                            Grid {
+                                anchors.fill: parent
+                                anchors.margins: 8
+                                columns: 3
+                                rows: 2
+                                spacing: 6
+
+                                Repeater {
+                                    model: [
+                                        { px: "left",   py: "top",    label: "↖" },
+                                        { px: "center", py: "top",    label: "↑" },
+                                        { px: "right",  py: "top",    label: "↗" },
+                                        { px: "left",   py: "bottom", label: "↙" },
+                                        { px: "center", py: "bottom", label: "↓" },
+                                        { px: "right",  py: "bottom", label: "↘" }
+                                    ]
+
+                                    Rectangle {
+                                        required property var modelData
+                                        property bool selected: root.positionX === modelData.px &&
+                                                                root.positionY === modelData.py
+
+                                        width: (280 - 16 - 12) / 3   // parent width minus margins/spacing
+                                        height: (150 - 16 - 6) / 2
+                                        radius: 6
+                                        color: selected
+                                               ? ThemeService.alpha(ThemeService.blue, 0.25)
+                                               : (posBtnMouse.containsMouse
+                                                  ? ThemeService.alpha(ThemeService.fg, 0.08)
+                                                  : "transparent")
+                                        border.width: selected ? 2 : 0
+                                        border.color: ThemeService.blue
+
+                                        ColumnLayout {
+                                            anchors.centerIn: parent
+                                            spacing: 2
+
+                                            Text {
+                                                Layout.alignment: Qt.AlignHCenter
+                                                text: modelData.label
+                                                font.family: Theme.fontFamily
+                                                font.pixelSize: 18
+                                                color: selected ? ThemeService.blue : ThemeService.grey1
+                                            }
+
+                                            Text {
+                                                Layout.alignment: Qt.AlignHCenter
+                                                text: modelData.py + "-" + modelData.px
+                                                font.family: Theme.fontFamily
+                                                font.pixelSize: 9
+                                                color: selected ? ThemeService.fg : ThemeService.grey2
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            id: posBtnMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                root.positionX = modelData.px
+                                                root.positionY = modelData.py
+                                                root._saveAndApply()
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // "Monitor" label at bottom
+                            Text {
+                                anchors.bottom: parent.bottom
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                anchors.bottomMargin: 2
+                                text: "Monitor"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 9
+                                color: ThemeService.grey2
+                            }
+                        }
+                    }
+                }
+
+                // ═══════════════════════════════════════
+                // DISPLAY TARGET
+                // ═══════════════════════════════════════
+                SettingsSection {
+                    title: "Display"
+                    subtitle: "Which monitor shows notifications"
+
+                    SettingRow {
+                        label: "Show on"
+                        description: root.display === "all"
+                                     ? "Notifications appear on all monitors"
+                                     : "Notifications appear on primary monitor only"
+
+                        Row {
+                            spacing: 6
+
+                            Repeater {
+                                model: [
+                                    { id: "all",     label: "All" },
+                                    { id: "primary", label: "Primary" }
+                                ]
+
+                                Rectangle {
+                                    required property var modelData
+                                    property bool selected: root.display === modelData.id
+
+                                    width: 64; height: 28; radius: 6
+                                    color: selected
+                                           ? ThemeService.alpha(ThemeService.blue, 0.2)
+                                           : (dispMouse.containsMouse
+                                              ? ThemeService.alpha(ThemeService.fg, 0.06)
+                                              : ThemeService.alpha(ThemeService.fg, 0.03))
+                                    border.width: selected ? 1 : 0
+                                    border.color: ThemeService.alpha(ThemeService.blue, 0.5)
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: modelData.label
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: 11
+                                        font.weight: selected ? Font.DemiBold : Font.Normal
+                                        color: selected ? ThemeService.blue : ThemeService.grey0
+                                    }
+
+                                    MouseArea {
+                                        id: dispMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            root.display = modelData.id
+                                            root._saveAndApply()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ═══════════════════════════════════════
+                // ACTIONS
+                // ═══════════════════════════════════════
+                SettingsSection {
+                    title: "Actions"
+
+                    SettingRow {
+                        label: "Restart SwayNC"
+                        description: "Apply changes by restarting the notification daemon"
+
+                        Rectangle {
+                            width: 72; height: 28; radius: 6
+                            color: restartMouse.containsMouse
+                                   ? ThemeService.alpha(ThemeService.orange, 0.15)
+                                   : ThemeService.alpha(ThemeService.orange, 0.08)
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "\uf021  Restart"
+                                font.family: "JetBrainsMono Nerd Font"
+                                font.pixelSize: 11
+                                color: ThemeService.orange
+                            }
+
+                            MouseArea {
+                                id: restartMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root._restartSwaync()
+                            }
+                        }
+                    }
+
+                    SettingRow {
+                        label: "Clear All Notifications"
+                        description: "Dismiss all current notifications"
+
+                        Rectangle {
+                            width: 60; height: 28; radius: 6
+                            color: clearMouse.containsMouse
+                                   ? ThemeService.alpha(ThemeService.red, 0.15)
+                                   : ThemeService.alpha(ThemeService.red, 0.08)
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "Clear"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 11
+                                color: ThemeService.red
+                            }
+
+                            MouseArea {
+                                id: clearMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    clearRunner.command = ["bash", "-c", "swaync-client -C"]
+                                    clearRunner.running = true
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Item { Layout.preferredHeight: 16 }
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════
+    // PERSISTENCE + SWAYNC CONFIG WRITER
+    // ═══════════════════════════════════════════════
+
+    Process { id: stateSaver; running: false }
+    Process { id: swayncPatcher; running: false }
+    Process { id: clearRunner; running: false }
+
+    function _saveAndApply() {
+        console.log("[NotificationPage] _saveAndApply: positionX=" + positionX +
+                    " positionY=" + positionY + " display=" + display)
+        // Step 1: Save zen-shell notification state JSON
+        _saveZenState()
+        // Step 2: Patch swaync + restart (with 500ms delay for stateSaver to finish)
+        patchTimer.restart()
+    }
+
+    Timer {
+        id: patchTimer
+        interval: 500
+        repeat: false
+        onTriggered: root._patchAndRestart()
+    }
+
+    function _saveZenState() {
+        const px = positionX
+        const py = positionY
+        const disp = display
+        const sp = statePath
+
+        // Stop previous run if still going
+        if (stateSaver.running) stateSaver.running = false
+
+        // Use printf to avoid heredoc issues
+        stateSaver.command = ["bash", "-c",
+            "mkdir -p \"$(dirname '" + sp + "')\" && " +
+            "printf '%s\\n' '{' " +
+            "'  \"positionX\": \"" + px + "\",' " +
+            "'  \"positionY\": \"" + py + "\",' " +
+            "'  \"display\": \"" + disp + "\"' " +
+            "'}' > '" + sp + "' && " +
+            "echo '[NotificationPage] State saved: " + py + "-" + px + "'"
+        ]
+        stateSaver.running = true
+    }
+
+    function _patchAndRestart() {
+        const px = positionX
+        const py = positionY
+        const script = Quickshell.env("HOME") + "/.local/bin/patch-swaync-position.sh"
+
+        console.log("[NotificationPage] _patchAndRestart: calling script with px=" + px + " py=" + py)
+
+        // Stop previous run if still going (user clicked rapidly)
+        if (swayncPatcher.running) swayncPatcher.running = false
+
+        swayncPatcher.command = ["bash", "-c",
+            "'" + script + "' '" + px + "' '" + py + "'"
+        ]
+        swayncPatcher.running = true
+    }
+
+    function _patchSwayncConfig() {
+        _saveAndApply()
+    }
+
+    function _restartSwaync() {
+        // Stop previous run if still going
+        if (swayncPatcher.running) swayncPatcher.running = false
+
+        swayncPatcher.command = ["bash", "-c",
+            "pkill -TERM swaync 2>/dev/null; sleep 1; " +
+            "if pgrep -x swaync >/dev/null 2>&1; then pkill -9 swaync 2>/dev/null; sleep 0.5; fi; " +
+            "setsid swaync </dev/null >/dev/null 2>&1 & disown 2>/dev/null; " +
+            "sleep 2; notify-send -t 2000 'SwayNC Restarted' '' 2>/dev/null"
+        ]
+        swayncPatcher.running = true
+    }
+
+    function _applyState(text) {
+        if (!text) return
+        try {
+            const s = JSON.parse(text)
+            if (s.positionX) positionX = s.positionX
+            if (s.positionY) positionY = s.positionY
+            if (s.display) display = s.display
+            console.log("[NotificationPage] Loaded state: " + positionY + "-" + positionX +
+                        " display=" + display)
+        } catch (e) {
+            console.error("[NotificationPage] Parse error:", e)
+        }
+    }
+
+    FileView {
+        id: stateLoader
+        path: root.statePath
+        blockLoading: false
+        onLoaded: root._applyState(this.text())
+    }
+
+    Component.onCompleted: stateLoader.reload()
+}
