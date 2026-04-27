@@ -23,6 +23,10 @@ Singleton {
     // ── Panel style mode ──
     property string panelMode: "fullwidth"   // "fullwidth" | "floating" | "island"
 
+    // ── v6.16.4.12: Panel position ──
+    // "bottom" (default) or "top". Left/right reserved for future vertical bar.
+    property string panelPosition: "bottom"
+
     // ── Bar height ──
     property int barHeight: 60
 
@@ -33,7 +37,19 @@ Singleton {
         return 0
     }
 
-    property int panelMarginBottom: panelMode === "fullwidth" ? 0 : 8
+    property int panelMarginBottom: {
+        if (panelPosition === "top") return 0
+        return panelMode === "fullwidth" ? 0 : 8
+    }
+
+    // v6.16.4.12: Top margin (only used when position is "top")
+    property int panelMarginTop: {
+        if (panelPosition === "bottom") return 0
+        return panelMode === "fullwidth" ? 0 : 8
+    }
+
+    // v6.16.4.12: Convenience — true when bar is at the top of screen
+    readonly property bool isTop: panelPosition === "top"
 
     // ── Border ──
     property bool borderEnabled: false
@@ -226,6 +242,7 @@ Singleton {
             // Bump this when introducing a non-idempotent data migration.
             saveVersion: "6.16.0",
             panelMode: panelMode,
+            panelPosition: panelPosition,
             barHeight: barHeight,
             borderEnabled: borderEnabled,
             borderWidth: borderWidth,
@@ -282,6 +299,9 @@ Singleton {
         try {
             const s = JSON.parse(text)
             if (s.panelMode) panelMode = s.panelMode
+            // v6.16.4.12: panel position
+            if (s.panelPosition && (s.panelPosition === "top" || s.panelPosition === "bottom"))
+                panelPosition = s.panelPosition
             if (s.barHeight) barHeight = s.barHeight
             if (typeof s.borderEnabled === "boolean") borderEnabled = s.borderEnabled
             if (s.borderWidth) borderWidth = s.borderWidth
@@ -396,6 +416,7 @@ Singleton {
 
     function resetDefaults() {
         panelMode = "fullwidth"
+        panelPosition = "bottom"
         barHeight = 60
         borderEnabled = false
         borderWidth = 1

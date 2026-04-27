@@ -32,8 +32,14 @@ ScrollView {
     property string weatherLocation: ""
     property bool sysmonEnabled: true
 
-    // v6.11: Widget display
-    property string widgetDisplay: "primary"   // "primary" | "all"
+    // v6.11: Widget display — DEPRECATED, kept for legacy state compat
+    property string widgetDisplay: "primary"   // "primary" | "all" — legacy only
+
+    // v6.9.3: Per-monitor widget display — array of monitor names
+    // e.g. ["HDMI-A-1", "eDP-1"] — widgets show ONLY on these monitors
+    property var widgetMonitors: []
+    // Auto-detected connected monitors
+    property var detectedMonitors: []
 
     // v6.11: Color mode (TEXT color)
     property string colorMode: "default"
@@ -113,6 +119,7 @@ ScrollView {
             weather: { enabled: weatherEnabled, mode: weatherMode, location: weatherLocation },
             sysmon: { enabled: sysmonEnabled },
             widgetDisplay: widgetDisplay,
+            widgetMonitors: widgetMonitors,
             positions: {
                 clockX: posClockX, clockY: posClockY,
                 weatherX: posWeatherX, weatherY: posWeatherY,
@@ -128,6 +135,43 @@ ScrollView {
         stateSaver.running = true
     }
     Process { id: stateSaver; running: false }
+
+    // v6.9.3: Detect connected monitors for per-monitor widget toggles
+    Process {
+        id: monitorDetector
+        command: ["hyprctl", "monitors", "all", "-j"]
+        running: false
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const mons = JSON.parse(this.text)
+                    let detected = []
+                    for (const m of mons) {
+                        detected.push({
+                            name: m.name,
+                            description: m.description || "",
+                            width: m.width || 0,
+                            height: m.height || 0,
+                            disabled: m.disabled || false,
+                            focused: m.focused || false
+                        })
+                    }
+                    root.detectedMonitors = detected
+
+                    // If widgetMonitors is empty (first run or legacy),
+                    // initialize from widgetDisplay for backward compat
+                    if (root.widgetMonitors.length === 0 && detected.length > 0) {
+                        if (root.widgetDisplay === "all") {
+                            root.widgetMonitors = detected.filter(m => !m.disabled).map(m => m.name)
+                        } else {
+                            // "primary" — just first monitor
+                            root.widgetMonitors = [detected[0].name]
+                        }
+                    }
+                } catch (e) { root.detectedMonitors = [] }
+            }
+        }
+    }
 
     FileView {
         id: stateLoader; path: root.statePath; blockLoading: false
@@ -151,6 +195,8 @@ ScrollView {
                 if (s.weather) { if (typeof s.weather.enabled === "boolean") root.weatherEnabled = s.weather.enabled; if (s.weather.mode) root.weatherMode = s.weather.mode; if (s.weather.location) root.weatherLocation = s.weather.location }
                 if (s.sysmon) { if (typeof s.sysmon.enabled === "boolean") root.sysmonEnabled = s.sysmon.enabled }
                 if (s.widgetDisplay) root.widgetDisplay = s.widgetDisplay
+                // v6.9.3: per-monitor array
+                if (s.widgetMonitors && Array.isArray(s.widgetMonitors)) root.widgetMonitors = s.widgetMonitors
                 if (s.positions) {
                     if (typeof s.positions.clockX === "number") root.posClockX = s.positions.clockX
                     if (typeof s.positions.clockY === "number") root.posClockY = s.positions.clockY
@@ -176,7 +222,12 @@ ScrollView {
             } catch (e) {}
         }
     }
-    Component.onCompleted: stateLoader.reload()
+    Component.onCompleted: {
+        stateLoader.reload()
+        // v6.9.3: Detect monitors after state loads (slight delay so
+        // widgetDisplay/widgetMonitors are read first for legacy compat)
+        Qt.callLater(function() { monitorDetector.running = true })
+    }
 
     readonly property int dropdownWidth: 280
 
@@ -189,14 +240,99 @@ ScrollView {
         }
 
         // ═══════════════════════════════════════════════════════
-        // WIDGET DISPLAY
+        // v6.9.3: WIDGET DISPLAY — Per-monitor toggles
+        //
+        // Auto-detects all connected monitors via hyprctl.
+        // Each monitor gets its own toggle — user picks exactly
+        // which monitors show desktop widgets. Replaces the old
+        // binary "Primary / All" dropdown.
         // ═══════════════════════════════════════════════════════
-        HMSection { title: "Widget Display"; subtitle: "Which monitor shows desktop widgets"
-            HMRow { label: "Show Widgets On"; description: "Primary monitor only or all monitors"; icon: "\uf108"; separator: false
-                ZenComboBox { width: root.dropdownWidth; model: ["Primary Monitor", "All Monitors"]
-                    currentIndex: root.widgetDisplay === "primary" ? 0 : 1
-                    onActivated: { root.widgetDisplay = currentIndex === 0 ? "primary" : "all"; root.saveState() }
+        HMSection { title: "Widget Display"; subtitle: "Toggle which monitors show desktop widgets"
+
+            // Quick-action buttons
+            HMRow { label: "Quick Select"; description: "Select all or primary only"; icon: "\uf108"; separator: true
+                RowLayout { spacing: 8
+                    Rectangle {
+                        width: allLabel.implicitWidth + 20; height: 28; radius: 6
+                        color: allMa.containsMouse ? ThemeService.alpha(ThemeService.blue, 0.2) : ThemeService.alpha(ThemeService.bg2, 0.5)
+                        border.width: 1; border.color: ThemeService.alpha(ThemeService.blue, 0.2)
+                        Text { id: allLabel; anchors.centerIn: parent; text: "All Monitors"; font.family: Theme.fontFamily; font.pixelSize: 11; font.weight: Font.DemiBold; color: ThemeService.blue }
+                        MouseArea { id: allMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                root.widgetMonitors = root.detectedMonitors.filter(function(m) { return !m.disabled }).map(function(m) { return m.name })
+                                root.widgetDisplay = "all"
+                                root.saveState()
+                            }
+                        }
+                    }
+                    Rectangle {
+                        width: priLabel.implicitWidth + 20; height: 28; radius: 6
+                        color: priMa.containsMouse ? ThemeService.alpha(ThemeService.fg, 0.1) : ThemeService.alpha(ThemeService.bg2, 0.5)
+                        border.width: 1; border.color: ThemeService.alpha(ThemeService.fg, 0.1)
+                        Text { id: priLabel; anchors.centerIn: parent; text: "Primary Only"; font.family: Theme.fontFamily; font.pixelSize: 11; font.weight: Font.DemiBold; color: ThemeService.fg }
+                        MouseArea { id: priMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (root.detectedMonitors.length > 0) root.widgetMonitors = [root.detectedMonitors[0].name]
+                                root.widgetDisplay = "primary"
+                                root.saveState()
+                            }
+                        }
+                    }
+                    Rectangle {
+                        width: refLabel.implicitWidth + 20; height: 28; radius: 6
+                        color: refMa.containsMouse ? ThemeService.alpha(ThemeService.fg, 0.1) : ThemeService.alpha(ThemeService.bg2, 0.4)
+                        border.width: 1; border.color: ThemeService.alpha(ThemeService.fg, 0.08)
+                        Text { id: refLabel; anchors.centerIn: parent; text: "\uf021 Refresh"; font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 10; color: ThemeService.grey0 }
+                        MouseArea { id: refMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: monitorDetector.running = true
+                        }
+                    }
                 }
+            }
+
+            // Per-monitor toggles
+            Repeater {
+                model: root.detectedMonitors
+                delegate: HMRow {
+                    required property var modelData
+                    required property int index
+                    label: modelData.name
+                    description: (modelData.description || "Unknown") + "  •  " + modelData.width + "×" + modelData.height + (modelData.disabled ? "  •  Disabled" : "") + (modelData.focused ? "  •  Primary" : "")
+                    icon: modelData.focused ? "\uf005" : "\uf26c"
+                    separator: index < root.detectedMonitors.length - 1
+
+                    HMSwitch {
+                        checked: root.widgetMonitors.indexOf(modelData.name) >= 0
+                        activeColor: ThemeService.green
+                        enabled: !modelData.disabled
+                        opacity: modelData.disabled ? 0.4 : 1.0
+                        onToggled: {
+                            let arr = root.widgetMonitors.slice()
+                            const pos = arr.indexOf(modelData.name)
+                            if (pos >= 0) {
+                                // Don't allow removing the last monitor
+                                if (arr.length <= 1) {
+                                    checked = true
+                                    return
+                                }
+                                arr.splice(pos, 1)
+                            } else {
+                                arr.push(modelData.name)
+                            }
+                            root.widgetMonitors = arr
+                            root.widgetDisplay = "custom"
+                            root.saveState()
+                        }
+                    }
+                }
+            }
+
+            // Fallback: no monitors detected yet
+            HMRow {
+                visible: root.detectedMonitors.length === 0
+                label: "No monitors detected"
+                description: "Click Refresh to detect connected monitors"
+                icon: "\uf071"
             }
         }
 
@@ -591,6 +727,7 @@ ScrollView {
                 ]
                 weatherEnabled=true; weatherMode="auto"; weatherLocation=""
                 sysmonEnabled=true; widgetDisplay="primary"
+                widgetMonitors = detectedMonitors.length > 0 ? [detectedMonitors[0].name] : []
                 colorMode="default"; customColor="#ffffff"
                 posClockX=40; posClockY=60; posWeatherX=-1; posWeatherY=40; posSysmonX=-1; posSysmonY=300
                 saveState()

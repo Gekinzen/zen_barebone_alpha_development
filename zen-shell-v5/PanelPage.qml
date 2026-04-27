@@ -109,7 +109,7 @@ ScrollView {
                 color: ThemeService.fg
             }
             Text {
-                text: "Layout, style, border, and colors for the bottom bar"
+                text: "Layout, style, position, border, and colors for the bar"
                 font.family: Theme.fontFamily
                 font.pixelSize: 12
                 color: ThemeService.grey1
@@ -119,6 +119,87 @@ ScrollView {
         ControlCenterBanner {
             feature: "Waybar Module Manager"
             description: "Drag-drop modules, drawer config, theme sync"
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // v6.16.4.12: PANEL POSITION
+        // ═══════════════════════════════════════════════════════
+        SettingsSection {
+            title: "Panel Position"
+            subtitle: "Where the bar sits on your screen"
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 12
+
+                Repeater {
+                    model: [
+                        { pos: "top",    icon: "\uf062", label: "Top" },
+                        { pos: "bottom", icon: "\uf063", label: "Bottom" }
+                    ]
+                    delegate: Rectangle {
+                        required property var modelData
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 80
+                        radius: 10
+                        color: PanelState.panelPosition === modelData.pos
+                               ? ThemeService.alpha(ThemeService.blue, 0.18)
+                               : ThemeService.alpha(ThemeService.bg2, 0.5)
+                        border.width: 2
+                        border.color: PanelState.panelPosition === modelData.pos
+                                      ? ThemeService.blue
+                                      : ThemeService.alpha(ThemeService.fg, 0.12)
+
+                        Behavior on color { ColorAnimation { duration: 200 } }
+                        Behavior on border.color { ColorAnimation { duration: 200 } }
+
+                        ColumnLayout {
+                            anchors.centerIn: parent
+                            spacing: 6
+
+                            // Mini preview
+                            Rectangle {
+                                Layout.alignment: Qt.AlignHCenter
+                                width: 60; height: 40; radius: 4
+                                color: ThemeService.alpha(ThemeService.fg, 0.06)
+                                border.width: 1; border.color: ThemeService.alpha(ThemeService.fg, 0.1)
+
+                                Rectangle {
+                                    width: parent.width - 4
+                                    height: 6; radius: 2
+                                    x: 2
+                                    y: modelData.pos === "top" ? 2 : parent.height - 8
+                                    color: PanelState.panelPosition === modelData.pos
+                                           ? ThemeService.blue
+                                           : ThemeService.alpha(ThemeService.fg, 0.2)
+
+                                    Behavior on y { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                                }
+                            }
+
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: modelData.label
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 11
+                                font.weight: Font.DemiBold
+                                color: PanelState.panelPosition === modelData.pos
+                                       ? ThemeService.blue : ThemeService.fg
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                PanelState.panelPosition = modelData.pos
+                                PanelState.saveState()
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         // ═══════════════════════════════════════════════════════

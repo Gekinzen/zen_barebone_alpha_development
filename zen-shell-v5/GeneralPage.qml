@@ -72,6 +72,12 @@ ScrollView {
         }
 
         // ═════════════════════════════════════════════════════════
+        // v6.16.4.12: PROFILE MANAGER — Hikari 光
+        // Save/load/share entire shell configuration as profiles.
+        // ═════════════════════════════════════════════════════════
+        ProfileManagerSection {}
+
+        // ═════════════════════════════════════════════════════════
         // GAPS
         // ═════════════════════════════════════════════════════════
         HMSection {
@@ -194,22 +200,8 @@ ScrollView {
 
         // ═════════════════════════════════════════════════════════
         // THEME PALETTE (v6.6) — overrides theme colors → custom profile
-        //
-        // v6.16.4.11.1: RELOCATED TO THEMES PAGE. The entire HMSection
-        // below is hidden via `visible: false` + zero height so no
-        // existing code is removed (wala tayong babawasan) — the
-        // bindings, palettedDirty state, and saveAsCustomTheme flow
-        // still exist and stay wired, but the UI no longer renders
-        // here. Users who want to edit palette colors now do it from
-        // Themes page → Palette Preview (clickable swatches) →
-        // Custom Themes section (Save as...).
-        //
-        // Single source of truth is now Themes page, per Paul's request.
         // ═════════════════════════════════════════════════════════
         HMSection {
-            visible: false
-            Layout.preferredHeight: 0
-            implicitHeight: 0
             title: "Theme Palette"
             subtitle: "Override theme colors. Any change auto-saves as a custom profile."
 

@@ -111,7 +111,7 @@ Item {
                                 id: settingsVolSlider
                                 implicitWidth: 180
                                 from: 0
-                                to: 150
+                                to: 100
                                 stepSize: 1
                                 value: ConnectivityService.audioVolume
                                 onMoved: ConnectivityService.setVolume(value)
@@ -130,8 +130,7 @@ Item {
                                         radius: 2
                                         color: ConnectivityService.audioMuted
                                                ? ThemeService.grey2
-                                               : (ConnectivityService.audioVolume > 100
-                                                  ? ThemeService.orange : ThemeService.blue)
+                                               : ThemeService.blue
                                     }
                                 }
 

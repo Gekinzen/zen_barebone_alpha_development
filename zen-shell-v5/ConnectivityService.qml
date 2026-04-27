@@ -44,7 +44,7 @@ Singleton {
     // ═══════════════════════════════════════════════════════════════
     // AUDIO (PipeWire via wpctl)
     // ═══════════════════════════════════════════════════════════════
-    property int audioVolume: 0          // 0-100 (can exceed 100 if boosted)
+    property int audioVolume: 0          // 0-100 (clamped, no boost)
     property bool audioMuted: false
     property string audioSinkName: "Speaker"
     property string audioSinkId: "@DEFAULT_AUDIO_SINK@"
@@ -85,7 +85,7 @@ Singleton {
     }
 
     function setVolume(vol) {
-        const clamped = Math.max(0, Math.min(150, vol))
+        const clamped = Math.max(0, Math.min(100, vol))
         actionRunner.command = ["bash", "-c", "wpctl set-volume @DEFAULT_AUDIO_SINK@ " + (clamped / 100).toFixed(2)]
         actionRunner.running = true
         audioVolume = clamped
@@ -105,62 +105,60 @@ Singleton {
         micMuted = !micMuted
     }
 
-    // v6.16.4.8: Rewrote from 4.6 — the arg2 type-sniff was
-    // matching "WPA2" exactly but nmcli returns "WPA2 802.1X" /
-    // "WPA1 WPA2" etc., so composite security strings were being
-    // treated as passwords and fed to `nmcli ... password "WPA2 802.1X"`.
-    // That silently failed → button felt broken.
+    // v6.16.4.6: Connect Wi-Fi with saved-creds preflight + zenity
+    // password prompt for new secured networks.
     //
-    // New approach: named call conventions.
-    //   connectWifi(ssid)                     — auto (open or prompt)
-    //   connectWifi(ssid, "")                 — explicitly open
-    //   connectWifi(ssid, "WPA2 802.1X")      — security string → prompt
-    //   connectWifi(ssid, "", "mypassword")   — explicit password, no prompt
+    // Bug before: `nmcli device wifi connect <SSID>` silently failed
+    // on secured networks without saved credentials. Paul tapped
+    // Connect, nothing happened, button felt broken.
     //
-    // We also log everything to ~/.cache/zen-shell/wifi.log so when
-    // debugging Paul's setup, we can see exactly what nmcli returned.
-    function connectWifi(ssid, security, password) {
-        const sec = (typeof security === "string") ? security : ""
-        const pwd = (typeof password === "string") ? password : ""
-        const escSsid = ssid.replace(/'/g, "'\\''")
-
-        // Classify: is this network secured? Any non-empty security
-        // string counts as secured. Empty / "--" / "none" / null
-        // all mean open.
-        const isSecured = sec.length > 0
-                       && sec !== "--"
-                       && sec.toLowerCase() !== "none"
-
-        // Build the command
-        let cmd
-        if (pwd.length > 0) {
-            // Explicit password path (no prompt, no preflight)
-            const escPwd = pwd.replace(/'/g, "'\\''")
-            cmd = "nmcli device wifi connect '" + escSsid + "' password '" + escPwd + "'"
-        } else {
-            // Preflight + prompt path (one bash one-liner)
-            const promptBlock = isSecured
-                ? ("PW=$(zenity --password --title='Wi-Fi: " + escSsid.replace(/\$/g, "\\$") + "' 2>/dev/null) || exit 2; " +
-                   "[ -z \"$PW\" ] && exit 2; " +
-                   "nmcli device wifi connect '" + escSsid + "' password \"$PW\"")
-                : "nmcli device wifi connect '" + escSsid + "'"
-
-            cmd =
-                "LOG=\"$HOME/.cache/zen-shell/wifi.log\"; " +
-                "mkdir -p \"$(dirname $LOG)\"; " +
-                "echo \"[$(date +%H:%M:%S)] connect '" + escSsid + "' secured=" + (isSecured?1:0) + "\" >> \"$LOG\"; " +
-                // Saved creds check
-                "if nmcli -t -f NAME connection show 2>/dev/null | grep -qFx '" + escSsid + "'; then " +
-                "  echo \"[$(date +%H:%M:%S)] using saved connection profile\" >> \"$LOG\"; " +
-                "  nmcli connection up '" + escSsid + "' 2>&1 | tee -a \"$LOG\"; " +
-                "  exit $?; " +
-                "fi; " +
-                // No saved creds path
-                "echo \"[$(date +%H:%M:%S)] no saved profile — running prompt/direct\" >> \"$LOG\"; " +
-                promptBlock + " 2>&1 | tee -a \"$LOG\""
+    // New flow:
+    //   1. Check if NetworkManager has saved credentials for this SSID
+    //      via `nmcli -t connection show <SSID>`. If yes, connect
+    //      directly — works for remembered networks.
+    //   2. If no saved creds AND security != "" (secured network),
+    //      prompt for password via zenity, then pass to nmcli.
+    //   3. Open networks (no security): direct connect.
+    //
+    // All wrapped in a single bash one-liner so it runs as one
+    // Process invocation and the zenity dialog doesn't race against
+    // shell state changes.
+    function connectWifi(ssid, security) {
+        // Explicit password path still works (callers can pass one
+        // directly if they want to bypass the prompt).
+        if (arguments.length >= 2 && typeof arguments[1] === "string"
+            && arguments[1].length > 0
+            && !["--", "WPA2", "WPA", "WEP", "WPA3"].includes(arguments[1])) {
+            // Legacy call: connectWifi(ssid, password)
+            const pwd = arguments[1]
+            const escSsidP = ssid.replace(/'/g, "'\\''")
+            const escPwdP  = pwd.replace(/'/g, "'\\''")
+            actionRunner.command = ["bash", "-c",
+                "nmcli device wifi connect '" + escSsidP + "' password '" + escPwdP + "'"]
+            actionRunner.running = true
+            return
         }
 
-        actionRunner.command = ["bash", "-c", cmd]
+        const escSsid = ssid.replace(/'/g, "'\\''")
+        const isSecured = (security && security.length > 0) ? "1" : "0"
+
+        const bashCmd = [
+            // Check for saved credentials
+            "if nmcli -t -f NAME connection show 2>/dev/null | grep -qFx '" + escSsid + "'; then",
+            "  nmcli connection up '" + escSsid + "'",
+            "  exit $?",
+            "fi",
+            // No saved creds: prompt for password if secured
+            "if [ '" + isSecured + "' = '1' ]; then",
+            "  PW=$(zenity --password --title='Wi-Fi: " + escSsid.replace(/\$/g, "\\$") + "' 2>/dev/null) || exit 1",
+            "  [ -z \"$PW\" ] && exit 1",
+            "  nmcli device wifi connect '" + escSsid + "' password \"$PW\"",
+            "else",
+            "  nmcli device wifi connect '" + escSsid + "'",
+            "fi"
+        ].join("\n")
+
+        actionRunner.command = ["bash", "-c", bashCmd]
         actionRunner.running = true
     }
 
@@ -347,7 +345,7 @@ Singleton {
         if (sinkVol) {
             // "Volume: 0.75" or "Volume: 0.75 [MUTED]"
             const vm = sinkVol.match(/Volume:\s+([\d.]+)/)
-            if (vm) audioVolume = Math.round(parseFloat(vm[1]) * 100)
+            if (vm) audioVolume = Math.min(100, Math.round(parseFloat(vm[1]) * 100))
             audioMuted = sinkVol.indexOf("[MUTED]") >= 0
         }
         if (sinkName) audioSinkName = sinkName.substring(0, 30)

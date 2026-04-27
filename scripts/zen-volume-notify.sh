@@ -117,7 +117,7 @@ get_brightness() {
 case "$ACTION" in
     vol-up)
         wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 2>/dev/null || true
-        wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ "${STEP}%+" 2>/dev/null
+        wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ "${STEP}%+" 2>/dev/null
         pct=$(get_volume)
         bar=$(progress_bar "$pct")
         icon="audio-volume-high"

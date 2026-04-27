@@ -108,7 +108,8 @@ Rectangle {
                 // else fullwidth: barScreenX = 0
 
                 const globalX = barScreenX + localCenter.x
-                const globalY = screenH - PanelState.barHeight
+                // v6.16.4.12: Position-aware — bar at top vs bottom
+                const globalY = PanelState.isTop ? PanelState.barHeight : (screenH - PanelState.barHeight)
                 PanelState.reportStartButtonPosition(globalX, globalY, screenW, screenH)
             }
 

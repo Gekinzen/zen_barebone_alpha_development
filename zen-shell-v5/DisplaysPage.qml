@@ -5,12 +5,41 @@ import Quickshell
 import Quickshell.Io
 
 /*
- * DisplaysPage v6.8.1
+ * DisplaysPage v6.9.2
  *
- * v6.8.1: Draggable monitor preview — click+drag to reposition monitors,
- * collision avoidance (no overlap), rotation visual (90°/270° shows
- * portrait aspect ratio), snap-to-grid (10px). Force-apply via hyprctl
- * with explicit position coordinates.
+ * v6.9.2: Fixed drag feedback loop from v6.9.1. Per-monitor
+ * MouseAreas caused coordinate-space compounding (monRect.x
+ * includes dragOffsetX → next dragOffsetX computed from that
+ * → exponential drift). Replaced with single parent-level
+ * MouseArea + hit-testing (same pattern as original Canvas
+ * v6.8.1, but rendering with GPU-composited QML Items).
+ *
+ * v6.9.1: Major preview rewrite + disable display + zoom.
+ *
+ * CHANGELOG from v6.8.1:
+ *   ┌─ SMOOTH DRAG ──────────────────────────────────────────┐
+ *   │ Replaced Canvas-based preview with QML Rectangle items │
+ *   │ (Repeater). Each monitor is a GPU-accelerated Item with│
+ *   │ its own MouseArea — drag offset is tracked via separate │
+ *   │ properties (not model mutation per-frame) so there's no │
+ *   │ binding cascade on every mouse-move. Result: buttery    │
+ *   │ smooth repositioning. Snapping + anti-overlap still run │
+ *   │ at 10px grid, applied only on mouse-release.            │
+ *   └────────────────────────────────────────────────────────┘
+ *   ┌─ ZOOM CONTROLS ───────────────────────────────────────┐
+ *   │ User-adjustable zoom on the preview area. Auto-fit     │
+ *   │ calculates base scale from bounding box; user zoom     │
+ *   │ multiplies on top (0.3× – 2.0× range). +/- buttons    │
+ *   │ and "Fit" reset. Preview area enlarged to 280px.       │
+ *   └────────────────────────────────────────────────────────┘
+ *   ┌─ DISABLE DISPLAY ─────────────────────────────────────┐
+ *   │ Per-monitor "Enabled" toggle (HMSwitch). Toggling off  │
+ *   │ sends `hyprctl keyword monitor <n>,disable`. Toggle    │
+ *   │ on re-applies current resolution/hz/scale/transform.   │
+ *   │ Persisted to hyprland-monitors.conf. Disabled monitors │
+ *   │ show dimmed in preview with strikethrough overlay.      │
+ *   │ Guards against disabling the LAST enabled monitor.     │
+ *   └────────────────────────────────────────────────────────┘
  *
  * WALA TAYONG BABAWASAN.
  */
@@ -29,8 +58,18 @@ ScrollView {
     property real dragStartMouseY: 0
     property int dragStartMonX: 0
     property int dragStartMonY: 0
+    // v6.9.1: Live drag offset — tracked separately from model to avoid
+    // binding cascade on every mouse-move (was the main source of jank
+    // in v6.8.1 Canvas approach).
+    property real dragOffsetX: 0
+    property real dragOffsetY: 0
 
-    // Canvas layout cache
+    // v6.9.1: Zoom
+    property real userZoom: 1.0
+    readonly property real minZoom: 0.3
+    readonly property real maxZoom: 2.0
+
+    // Layout cache (recomputed in updatePreviewLayout)
     property real cScale: 1.0
     property real cOx: 0
     property real cOy: 0
@@ -48,7 +87,7 @@ ScrollView {
                 try {
                     root.monitors = JSON.parse(this.text)
                     if (root.selectedIdx < 0 && root.monitors.length > 0) root.selectedIdx = 0
-                    monitorCanvas.requestPaint()
+                    root.updatePreviewLayout()
                 } catch (e) { root.monitors = [] }
             }
         }
@@ -109,6 +148,45 @@ ScrollView {
         // This file should be `source`d from hyprland.conf:
         //   source = ~/.config/hypr/hyprland-monitors.conf
         _persistMonitorLine(name, cmd)
+    }
+
+    // v6.9.1: Disable a monitor
+    function disableMonitor(name) {
+        applyProc.command = ["hyprctl", "keyword", "monitor", name + ",disable"]
+        applyProc.running = true
+        applyStatus = "Disabling " + name + "..."
+        _persistMonitorLine(name, name + ",disable")
+    }
+
+    // v6.9.1: Count how many monitors are currently enabled
+    function enabledCount() {
+        let count = 0
+        for (let i = 0; i < monitors.length; i++) {
+            if (!monitors[i].disabled) count++
+        }
+        return count
+    }
+
+    // v6.16.4.12: Count physically-connected monitors (have availableModes).
+    // A monitor with empty availableModes is unplugged.
+    function physicallyConnectedCount() {
+        let count = 0
+        for (let i = 0; i < monitors.length; i++) {
+            const m = monitors[i]
+            if (m.availableModes && m.availableModes.length > 0) count++
+        }
+        return count
+    }
+
+    // v6.16.4.12: Count enabled AND physically-connected.
+    // This is the real "do I have a working display" count.
+    function workingDisplayCount() {
+        let count = 0
+        for (let i = 0; i < monitors.length; i++) {
+            const m = monitors[i]
+            if (!m.disabled && m.availableModes && m.availableModes.length > 0) count++
+        }
+        return count
     }
 
     function _persistMonitorLine(name, fullLine) {
@@ -181,6 +259,55 @@ ScrollView {
         nwgLauncher.running = true
     }
 
+    // ═════════════════════════════════════════════════════════
+    // v6.9.1: Compute preview layout from monitors bounding box.
+    // Called on monitors change + zoom change + area resize.
+    // Sets cScale, cOx, cOy, cMinX, cMinY for the preview items.
+    // ═════════════════════════════════════════════════════════
+    function updatePreviewLayout() {
+        const mons = root.monitors
+        if (mons.length === 0) return
+
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+        for (const m of mons) {
+            if (m.disabled) continue  // skip disabled from bounding box
+            const ew = root.effectiveW(m), eh = root.effectiveH(m)
+            if (m.x < minX) minX = m.x
+            if (m.y < minY) minY = m.y
+            if (m.x + ew > maxX) maxX = m.x + ew
+            if (m.y + eh > maxY) maxY = m.y + eh
+        }
+        // If all disabled, fall back to including all
+        if (minX === Infinity) {
+            for (const m of mons) {
+                const ew = root.effectiveW(m), eh = root.effectiveH(m)
+                if (m.x < minX) minX = m.x
+                if (m.y < minY) minY = m.y
+                if (m.x + ew > maxX) maxX = m.x + ew
+                if (m.y + eh > maxY) maxY = m.y + eh
+            }
+        }
+        const tw = maxX - minX, th = maxY - minY
+        if (tw === 0 || th === 0) return
+
+        const areaW = previewArea.width - 32
+        const areaH = previewArea.height - 32
+        if (areaW <= 0 || areaH <= 0) return
+
+        const baseScale = Math.min(areaW / tw, areaH / th)
+        const s = baseScale * root.userZoom
+        const ox = (areaW - tw * s) / 2 + 16
+        const oy = (areaH - th * s) / 2 + 16
+
+        root.cScale = s
+        root.cOx = ox
+        root.cOy = oy
+        root.cMinX = minX
+        root.cMinY = minY
+    }
+
+    onUserZoomChanged: updatePreviewLayout()
+
     Component.onCompleted: refreshMonitors()
     readonly property int dropdownWidth: 240
 
@@ -195,179 +322,302 @@ ScrollView {
         }
 
         // ═══════════════════════════════════════════════════════
-        // VISUAL MONITOR PREVIEW — draggable + rotation-aware
+        // v6.9.1: VISUAL MONITOR PREVIEW — QML Items + zoom
+        //
+        // Replaced Canvas with Repeater of Rectangle delegates.
+        // Each monitor is a separate QML Item = GPU-composited,
+        // smooth transforms, no per-frame JS repaint. Drag
+        // offset tracked separately so model isn't mutated on
+        // every mouse-move (eliminates binding cascade stutter).
         // ═══════════════════════════════════════════════════════
         Rectangle {
+            id: previewArea
             Layout.fillWidth: true
-            Layout.preferredHeight: 220
+            Layout.preferredHeight: 280
             radius: 12
             color: ThemeService.alpha(ThemeService.bg1, 0.5)
             border.width: 1; border.color: ThemeService.alpha(ThemeService.fg, 0.08)
+            clip: true
 
-            Canvas {
-                id: monitorCanvas
-                anchors.fill: parent; anchors.margins: 16
+            onWidthChanged: root.updatePreviewLayout()
+            onHeightChanged: root.updatePreviewLayout()
 
-                onPaint: {
-                    const ctx = getContext("2d")
-                    ctx.clearRect(0, 0, width, height)
-                    const mons = root.monitors
-                    if (mons.length === 0) return
+            // Monitor items — GPU-composited rectangles (purely visual, no MouseArea)
+            Repeater {
+                id: monitorRepeater
+                model: root.monitors
 
-                    // Bounding box
-                    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-                    for (const m of mons) {
-                        const ew = root.effectiveW(m), eh = root.effectiveH(m)
-                        if (m.x < minX) minX = m.x
-                        if (m.y < minY) minY = m.y
-                        if (m.x + ew > maxX) maxX = m.x + ew
-                        if (m.y + eh > maxY) maxY = m.y + eh
+                delegate: Rectangle {
+                    id: monRect
+                    required property var modelData
+                    required property int index
+
+                    readonly property bool isSel: index === root.selectedIdx
+                    readonly property bool isDragging: index === root.dragIdx && root.dragging
+                    readonly property bool isDisabled: modelData.disabled || false
+
+                    // Position from layout computation
+                    readonly property real baseX: root.cOx + (modelData.x - root.cMinX) * root.cScale
+                    readonly property real baseY: root.cOy + (modelData.y - root.cMinY) * root.cScale
+
+                    x: isDragging ? baseX + root.dragOffsetX : baseX
+                    y: isDragging ? baseY + root.dragOffsetY : baseY
+                    width: root.effectiveW(modelData) * root.cScale
+                    height: root.effectiveH(modelData) * root.cScale
+
+                    // Smooth position when NOT dragging (e.g. after snap buttons, zoom change)
+                    Behavior on x { enabled: !monRect.isDragging; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                    Behavior on y { enabled: !monRect.isDragging; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                    Behavior on width { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                    Behavior on height { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+
+                    z: isDragging ? 10 : (isSel ? 5 : 1)
+                    radius: 4
+
+                    color: {
+                        if (isDisabled) return ThemeService.alpha(ThemeService.fg, 0.03)
+                        if (isSel || isDragging)
+                            return ThemeService.alpha(ThemeService.blue, isDragging ? 0.3 : 0.18)
+                        return ThemeService.alpha(ThemeService.fg, 0.05)
                     }
-                    const tw = maxX - minX, th = maxY - minY
-                    if (tw === 0 || th === 0) return
-
-                    const pad = 16
-                    const s = Math.min((width - 2*pad) / tw, (height - 2*pad) / th)
-                    const ox = (width - tw * s) / 2, oy = (height - th * s) / 2
-                    root.cScale = s; root.cOx = ox; root.cOy = oy
-                    root.cMinX = minX; root.cMinY = minY
-
-                    for (let idx = 0; idx < mons.length; idx++) {
-                        const m = mons[idx]
-                        const ew = root.effectiveW(m), eh = root.effectiveH(m)
-                        const mx = ox + (m.x - minX) * s
-                        const my = oy + (m.y - minY) * s
-                        const mw = ew * s, mh = eh * s
-                        const isSel = idx === root.selectedIdx
-                        const isDrag = idx === root.dragIdx && root.dragging
-
-                        // Fill
-                        ctx.fillStyle = isSel || isDrag
-                            ? Qt.rgba(ThemeService.blue.r, ThemeService.blue.g, ThemeService.blue.b, isDrag ? 0.3 : 0.18)
-                            : Qt.rgba(ThemeService.fg.r, ThemeService.fg.g, ThemeService.fg.b, 0.05)
-                        ctx.fillRect(mx, my, mw, mh)
-
-                        // Border
-                        ctx.lineWidth = isSel ? 2.5 : 1.5
-                        ctx.strokeStyle = isSel
-                            ? Qt.rgba(ThemeService.blue.r, ThemeService.blue.g, ThemeService.blue.b, 0.8)
-                            : Qt.rgba(ThemeService.fg.r, ThemeService.fg.g, ThemeService.fg.b, 0.18)
-                        ctx.strokeRect(mx, my, mw, mh)
-
-                        // Name + info
-                        const fontSize = Math.max(10, Math.min(mw, mh) * 0.18)
-                        ctx.fillStyle = isSel
-                            ? Qt.rgba(ThemeService.blue.r, ThemeService.blue.g, ThemeService.blue.b, 0.9)
-                            : Qt.rgba(ThemeService.fg.r, ThemeService.fg.g, ThemeService.fg.b, 0.45)
-                        ctx.font = "bold " + fontSize + "px sans-serif"
-                        ctx.textAlign = "center"; ctx.textBaseline = "middle"
-                        ctx.fillText(m.name, mx + mw/2, my + mh/2 - 8)
-
-                        ctx.font = Math.max(9, fontSize * 0.7) + "px sans-serif"
-                        ctx.fillStyle = Qt.rgba(ThemeService.fg.r, ThemeService.fg.g, ThemeService.fg.b, 0.3)
-                        const rotLabel = (m.transform || 0) > 0 ? " R" + [0,90,180,270][m.transform||0] + "°" : ""
-                        ctx.fillText(m.width + "×" + m.height + "@" + (m.refreshRate||60).toFixed(0) + "Hz" + rotLabel,
-                                     mx + mw/2, my + mh/2 + 10)
+                    border.width: isSel ? 2.5 : 1.5
+                    border.color: {
+                        if (isDisabled) return ThemeService.alpha(ThemeService.fg, 0.08)
+                        if (isSel) return ThemeService.alpha(ThemeService.blue, 0.8)
+                        return ThemeService.alpha(ThemeService.fg, 0.18)
                     }
-                }
+                    opacity: isDisabled ? 0.5 : 1.0
 
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: root.dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                    Behavior on color { ColorAnimation { duration: 150 } }
+                    Behavior on opacity { NumberAnimation { duration: 200 } }
 
-                    function hitTest(mx, my) {
-                        const s = root.cScale
-                        if (s === 0) return -1
-                        for (let i = root.monitors.length - 1; i >= 0; i--) {
-                            const m = root.monitors[i]
-                            const ew = root.effectiveW(m), eh = root.effectiveH(m)
-                            const rx = root.cOx + (m.x - root.cMinX) * s
-                            const ry = root.cOy + (m.y - root.cMinY) * s
-                            if (mx >= rx && mx <= rx + ew*s && my >= ry && my <= ry + eh*s) return i
+                    // Monitor name label
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.verticalCenterOffset: -10
+                        text: monRect.modelData.name
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Math.max(10, Math.min(parent.width, parent.height) * 0.16)
+                        font.weight: Font.Bold
+                        color: {
+                            if (monRect.isDisabled) return ThemeService.alpha(ThemeService.fg, 0.25)
+                            if (monRect.isSel) return ThemeService.alpha(ThemeService.blue, 0.9)
+                            return ThemeService.alpha(ThemeService.fg, 0.45)
                         }
-                        return -1
+                        horizontalAlignment: Text.AlignHCenter
                     }
 
-                    onPressed: function(mouse) {
-                        const idx = hitTest(mouse.x, mouse.y)
-                        if (idx >= 0) {
-                            root.selectedIdx = idx
-                            root.dragIdx = idx
-                            root.dragging = true
-                            root.dragStartMouseX = mouse.x
-                            root.dragStartMouseY = mouse.y
-                            root.dragStartMonX = root.monitors[idx].x
-                            root.dragStartMonY = root.monitors[idx].y
+                    // Resolution + hz info label
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.verticalCenterOffset: 8
+                        text: {
+                            if (monRect.isDisabled) return "Disabled"
+                            const m = monRect.modelData
+                            const rotLabel = (m.transform || 0) > 0 ? " R" + [0,90,180,270][m.transform||0] + "°" : ""
+                            return m.width + "×" + m.height + "@" + (m.refreshRate||60).toFixed(0) + "Hz" + rotLabel
                         }
-                        monitorCanvas.requestPaint()
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Math.max(9, Math.min(parent.width, parent.height) * 0.11)
+                        color: monRect.isDisabled
+                               ? ThemeService.alpha(ThemeService.red, 0.5)
+                               : ThemeService.alpha(ThemeService.fg, 0.3)
+                        horizontalAlignment: Text.AlignHCenter
                     }
 
-                    onPositionChanged: function(mouse) {
-                        if (!root.dragging || root.dragIdx < 0) return
-                        const s = root.cScale
-                        if (s === 0) return
-                        const dx = (mouse.x - root.dragStartMouseX) / s
-                        const dy = (mouse.y - root.dragStartMouseY) / s
-                        // Snap to 10px grid
-                        let nx = Math.round((root.dragStartMonX + dx) / 10) * 10
-                        let ny = Math.round((root.dragStartMonY + dy) / 10) * 10
-
-                        // Simple collision avoidance — push out of overlap
-                        const dm = root.monitors[root.dragIdx]
-                        const dw = root.effectiveW(dm), dh = root.effectiveH(dm)
-                        for (let i = 0; i < root.monitors.length; i++) {
-                            if (i === root.dragIdx) continue
-                            const om = root.monitors[i]
-                            const ow = root.effectiveW(om), oh = root.effectiveH(om)
-                            // AABB overlap?
-                            if (nx < om.x + ow && nx + dw > om.x && ny < om.y + oh && ny + dh > om.y) {
-                                // Push out on shortest axis
-                                const pushL = om.x - (nx + dw)
-                                const pushR = (om.x + ow) - nx
-                                const pushU = om.y - (ny + dh)
-                                const pushD = (om.y + oh) - ny
-                                const minH = Math.abs(pushL) < Math.abs(pushR) ? pushL : pushR
-                                const minV = Math.abs(pushU) < Math.abs(pushD) ? pushU : pushD
-                                if (Math.abs(minH) < Math.abs(minV)) {
-                                    nx += minH
-                                } else {
-                                    ny += minV
-                                }
-                            }
-                        }
-
-                        // Update monitor position in-memory for live preview
-                        let updated = []
-                        for (let i = 0; i < root.monitors.length; i++) {
-                            const m = root.monitors[i]
-                            if (i === root.dragIdx) {
-                                const copy = Object.assign({}, m)
-                                copy.x = nx; copy.y = ny
-                                updated.push(copy)
-                            } else {
-                                updated.push(m)
-                            }
-                        }
-                        root.monitors = updated
-                        monitorCanvas.requestPaint()
-                    }
-
-                    onReleased: function(mouse) {
-                        if (root.dragging && root.dragIdx >= 0) {
-                            // Apply the final position via hyprctl
-                            root.applyDragPosition(root.dragIdx)
-                        }
-                        root.dragging = false
-                        root.dragIdx = -1
+                    // v6.9.1: Disabled strikethrough overlay
+                    Rectangle {
+                        visible: monRect.isDisabled
+                        anchors.centerIn: parent
+                        width: parent.width * 0.7
+                        height: 2
+                        radius: 1
+                        color: ThemeService.alpha(ThemeService.red, 0.35)
+                        rotation: -15
                     }
                 }
             }
 
+            // ── v6.9.2: Single parent-level MouseArea for all drag/click ──
+            //
+            // v6.9.1 had per-monitor MouseAreas but that caused a coordinate
+            // feedback loop: monRect.x includes dragOffsetX, so computing
+            // the next dragOffsetX from (mouse.x + monRect.x) compounds the
+            // offset recursively → monitors fly off screen.
+            //
+            // Fix: one MouseArea at the previewArea level. Coordinates are
+            // always in previewArea-space (stable, never moves). Hit-test
+            // done via the same AABB check as the old Canvas approach.
+            MouseArea {
+                id: previewMouse
+                anchors.fill: parent
+                z: 50  // above monitor rectangles but below zoom controls
+                cursorShape: root.dragging ? Qt.ClosedHandCursor : Qt.ArrowCursor
+                hoverEnabled: true
+
+                // Hit-test: which monitor (if any) is under (mx, my)?
+                function hitTest(mx, my) {
+                    const s = root.cScale
+                    if (s === 0) return -1
+                    // Check in reverse order so topmost (highest z) wins
+                    for (let i = root.monitors.length - 1; i >= 0; i--) {
+                        const m = root.monitors[i]
+                        const ew = root.effectiveW(m), eh = root.effectiveH(m)
+                        const rx = root.cOx + (m.x - root.cMinX) * s
+                        const ry = root.cOy + (m.y - root.cMinY) * s
+                        if (mx >= rx && mx <= rx + ew*s && my >= ry && my <= ry + eh*s) return i
+                    }
+                    return -1
+                }
+
+                onPressed: function(mouse) {
+                    const idx = hitTest(mouse.x, mouse.y)
+                    if (idx >= 0) {
+                        root.selectedIdx = idx
+                        const m = root.monitors[idx]
+                        if (!(m.disabled || false)) {
+                            root.dragIdx = idx
+                            root.dragging = true
+                            // mouse.x/y are in previewArea-space — stable!
+                            root.dragStartMouseX = mouse.x
+                            root.dragStartMouseY = mouse.y
+                            root.dragStartMonX = m.x
+                            root.dragStartMonY = m.y
+                            root.dragOffsetX = 0
+                            root.dragOffsetY = 0
+                        }
+                    } else {
+                        root.selectedIdx = -1
+                    }
+                }
+
+                onPositionChanged: function(mouse) {
+                    if (!root.dragging || root.dragIdx < 0) return
+                    // Pure delta from press point — no coordinate-space issues
+                    root.dragOffsetX = mouse.x - root.dragStartMouseX
+                    root.dragOffsetY = mouse.y - root.dragStartMouseY
+                }
+
+                onReleased: function(mouse) {
+                    if (root.dragging && root.dragIdx >= 0) {
+                        const s = root.cScale
+                        if (s > 0) {
+                            // Convert pixel offset to monitor-space, snap to 10px grid
+                            const dx = root.dragOffsetX / s
+                            const dy = root.dragOffsetY / s
+                            let nx = Math.round((root.dragStartMonX + dx) / 10) * 10
+                            let ny = Math.round((root.dragStartMonY + dy) / 10) * 10
+
+                            // Simple collision avoidance — push out of overlap
+                            const dm = root.monitors[root.dragIdx]
+                            const dw = root.effectiveW(dm), dh = root.effectiveH(dm)
+                            for (let i = 0; i < root.monitors.length; i++) {
+                                if (i === root.dragIdx) continue
+                                const om = root.monitors[i]
+                                if (om.disabled) continue
+                                const ow = root.effectiveW(om), oh = root.effectiveH(om)
+                                // AABB overlap?
+                                if (nx < om.x + ow && nx + dw > om.x && ny < om.y + oh && ny + dh > om.y) {
+                                    const pushL = om.x - (nx + dw)
+                                    const pushR = (om.x + ow) - nx
+                                    const pushU = om.y - (ny + dh)
+                                    const pushD = (om.y + oh) - ny
+                                    const minH = Math.abs(pushL) < Math.abs(pushR) ? pushL : pushR
+                                    const minV = Math.abs(pushU) < Math.abs(pushD) ? pushU : pushD
+                                    if (Math.abs(minH) < Math.abs(minV)) {
+                                        nx += minH
+                                    } else {
+                                        ny += minV
+                                    }
+                                }
+                            }
+
+                            // Update model with final snapped position
+                            let updated = []
+                            for (let i = 0; i < root.monitors.length; i++) {
+                                const m = root.monitors[i]
+                                if (i === root.dragIdx) {
+                                    const copy = Object.assign({}, m)
+                                    copy.x = nx; copy.y = ny
+                                    updated.push(copy)
+                                } else {
+                                    updated.push(m)
+                                }
+                            }
+                            root.monitors = updated
+                            root.updatePreviewLayout()
+                            root.applyDragPosition(root.dragIdx)
+                        }
+                    }
+                    root.dragging = false
+                    root.dragIdx = -1
+                    root.dragOffsetX = 0
+                    root.dragOffsetY = 0
+                }
+            }
+
+            // Hint text
             Text {
                 anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter
-                anchors.bottomMargin: 2
+                anchors.bottomMargin: 4
                 text: root.monitors.length > 1 ? "Drag to reposition • positions snap to 10px grid" : ""
                 font.family: Theme.fontFamily; font.pixelSize: 10; color: ThemeService.grey1
+            }
+
+            // ── v6.9.1: Zoom controls (top-right corner) ──
+            Row {
+                anchors.top: parent.top; anchors.right: parent.right
+                anchors.topMargin: 8; anchors.rightMargin: 8
+                spacing: 4
+                z: 60  // above previewMouse (z:50)
+
+                Repeater {
+                    model: [
+                        { label: "\uf068", action: "out" },
+                        { label: "Fit",    action: "fit" },
+                        { label: "\uf067", action: "in" }
+                    ]
+                    delegate: Rectangle {
+                        required property var modelData
+                        width: modelData.action === "fit" ? 36 : 28; height: 26; radius: 6
+                        color: zoomMa.containsMouse
+                               ? ThemeService.alpha(ThemeService.fg, 0.12)
+                               : ThemeService.alpha(ThemeService.bg2, 0.6)
+                        border.width: 1; border.color: ThemeService.alpha(ThemeService.fg, 0.1)
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: modelData.label
+                            font.family: modelData.action === "fit" ? Theme.fontFamily : "JetBrainsMono Nerd Font"
+                            font.pixelSize: modelData.action === "fit" ? 10 : 11
+                            font.weight: Font.DemiBold
+                            color: ThemeService.fg
+                        }
+                        MouseArea {
+                            id: zoomMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (modelData.action === "in") {
+                                    root.userZoom = Math.min(root.maxZoom, root.userZoom + 0.15)
+                                } else if (modelData.action === "out") {
+                                    root.userZoom = Math.max(root.minZoom, root.userZoom - 0.15)
+                                } else {
+                                    root.userZoom = 1.0
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // v6.9.1: Zoom level indicator (bottom-right, only when zoomed)
+            Text {
+                anchors.bottom: parent.bottom; anchors.right: parent.right
+                anchors.bottomMargin: 6; anchors.rightMargin: 10
+                visible: Math.abs(root.userZoom - 1.0) > 0.05
+                text: (root.userZoom * 100).toFixed(0) + "%"
+                font.family: Theme.fontFamily; font.pixelSize: 9; color: ThemeService.grey1
             }
         }
 
@@ -431,13 +681,45 @@ ScrollView {
                 required property var modelData
                 required property int index
 
-                title: modelData.name + (modelData.focused ? "  ● Primary" : "") + (index === root.selectedIdx ? "  ◆ Selected" : "")
+                title: modelData.name + (modelData.focused ? "  ● Primary" : "") + (index === root.selectedIdx ? "  ◆ Selected" : "") + ((modelData.disabled || false) ? "  ○ Disabled" : "")
                 subtitle: (modelData.description || "") + "  •  " + modelData.width + "×" + modelData.height +
                           "@" + (modelData.refreshRate||60).toFixed(0) + "Hz  •  pos " + (modelData.x||0) + "," + (modelData.y||0) +
-                          ((modelData.transform||0) > 0 ? "  •  rot " + [0,90,180,270][modelData.transform||0] + "°" : "")
+                          ((modelData.transform||0) > 0 ? "  •  rot " + [0,90,180,270][modelData.transform||0] + "°" : "") +
+                          ((modelData.disabled || false) ? "  •  DISABLED" : "")
+
+                // v6.9.1: Enable/Disable toggle
+                HMRow { label: "Enabled"; description: "Turn display on or off"; icon: "\uf26c"; separator: true
+                    HMSwitch {
+                        checked: !(modelData.disabled || false)
+                        activeColor: ThemeService.green
+                        onToggled: {
+                            if (modelData.disabled) {
+                                // Re-enable: apply current settings
+                                const hz = modelData.refreshRate || 60
+                                root.applyMonitor(modelData.name, modelData.width, modelData.height,
+                                                  hz, modelData.scale || 1, modelData.transform || 0,
+                                                  modelData.x || 0, modelData.y || 0)
+                            } else {
+                                // v6.16.4.12: Stronger guard.
+                                // Refuse if disabling this would leave NO enabled
+                                // physically-connected monitors. The old check only
+                                // counted enabled — but a "phantom" enabled monitor
+                                // (e.g. previously-connected DP-1 that's now unplugged)
+                                // doesn't actually give the user a screen.
+                                if (root.workingDisplayCount() <= 1) {
+                                    root.applyStatus = "⚠ Cannot disable — this is your only working display"
+                                    checked = true
+                                    return
+                                }
+                                root.disableMonitor(modelData.name)
+                            }
+                        }
+                    }
+                }
 
                 HMRow { label: "Resolution"; description: "Output resolution"; icon: "\uf26c"; separator: true
                     ZenComboBox { id: resCombo; width: root.dropdownWidth
+                        enabled: !(modelData.disabled || false)
 
                         // ─────────────────────────────────────────────
                         // v6.16.3.3 — Resolution enumeration fix
@@ -570,6 +852,7 @@ ScrollView {
 
                 HMRow { label: "Refresh rate"; description: "Monitor Hz"; icon: "\uf0e4"; separator: true
                     ZenComboBox { id: hzCombo; width: root.dropdownWidth
+                        enabled: !(modelData.disabled || false)
 
                         // ─────────────────────────────────────────────
                         // v6.16.3.3 — Refresh rate enumeration fix
@@ -639,6 +922,7 @@ ScrollView {
 
                 HMRow { label: "Scale"; description: "HiDPI scaling"; icon: "\uf00e"; separator: true
                     ZenComboBox { id: scaleCombo; width: root.dropdownWidth
+                        enabled: !(modelData.disabled || false)
                         property var scales: ["1.0","1.25","1.5","1.75","2.0"]; model: scales
                         currentIndex: { const s=(modelData.scale||1.0).toFixed(2); for(let i=0;i<scales.length;i++) if(Math.abs(parseFloat(scales[i])-parseFloat(s))<0.05) return i; return 0 }
                     }
@@ -646,6 +930,7 @@ ScrollView {
 
                 HMRow { label: "Rotation"; description: "Transform"; icon: "\uf2f1"; separator: true
                     ZenComboBox { id: rotCombo; width: root.dropdownWidth; model: ["Normal (0°)","90°","180°","270°"]
+                        enabled: !(modelData.disabled || false)
                         currentIndex: Math.min(3, modelData.transform || 0)
                     }
                 }
@@ -659,6 +944,7 @@ ScrollView {
                                : (primaryMa.containsMouse ? ThemeService.alpha(ThemeService.fg, 0.08) : "transparent")
                         border.width: 1
                         border.color: modelData.focused ? ThemeService.alpha(ThemeService.green, 0.3) : ThemeService.alpha(ThemeService.fg, 0.1)
+                        opacity: (modelData.disabled || false) ? 0.4 : 1.0
 
                         Text {
                             id: primaryLabel; anchors.centerIn: parent
@@ -668,6 +954,7 @@ ScrollView {
                         }
                         MouseArea {
                             id: primaryMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            enabled: !(modelData.disabled || false)
                             onClicked: {
                                 if (!modelData.focused) {
                                     primarySetter.command = ["hyprctl", "dispatch", "focusmonitor", modelData.name]
@@ -685,11 +972,13 @@ ScrollView {
                         Rectangle { Layout.preferredWidth: applyR.implicitWidth + 32; Layout.preferredHeight: 36; radius: 8
                             color: applyM.containsMouse ? ThemeService.alpha(ThemeService.blue, 0.28) : ThemeService.alpha(ThemeService.blue, 0.16)
                             border.width: 1; border.color: ThemeService.alpha(ThemeService.blue, 0.4)
+                            opacity: (modelData.disabled || false) ? 0.4 : 1.0
                             RowLayout { id: applyR; anchors.centerIn: parent; spacing: 6
                                 Text { text: "\uf00c"; font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 11; color: ThemeService.blue }
                                 Text { text: "Apply " + modelData.name; font.family: Theme.fontFamily; font.pixelSize: 12; font.weight: Font.DemiBold; color: ThemeService.blue }
                             }
                             MouseArea { id: applyM; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                enabled: !(modelData.disabled || false)
                                 onClicked: { const p=resCombo.currentText.split("x"); root.applyMonitor(modelData.name, parseInt(p[0]), parseInt(p[1]),
                                     hzCombo.hzList[Math.max(0,hzCombo.currentIndex)].hz, parseFloat(scaleCombo.currentText), rotCombo.currentIndex, modelData.x||0, modelData.y||0) }
                             }

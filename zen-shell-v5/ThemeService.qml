@@ -447,51 +447,6 @@ Singleton {
         deleter.running = true
     }
 
-    // v6.16.4.11: Rename a custom theme by rewriting its JSON with
-    // new name/id fields and moving the file. Safe — doesn't affect
-    // builtin themes. If the renamed theme is currently active,
-    // re-saves current-theme.json with the new name too.
-    function renameCustomTheme(theme, newName) {
-        if (!theme || theme.is_builtin) {
-            statusMsg = "Cannot rename builtin"
-            return
-        }
-        if (!newName || newName.length === 0) {
-            statusMsg = "Name required"
-            return
-        }
-        const newId = newName.replace(/[^a-zA-Z0-9_-]/g, "-").toLowerCase()
-        const newPath = customDir + "/" + newId + ".json"
-        const oldPath = theme.path
-        // Rewrite JSON with new id + name, then move file
-        const jqExpr = ".id = \"" + newId + "\" | .name = \"" + newName.replace(/"/g, '\\"') + "\""
-        renamer.command = ["bash", "-c",
-            "jq '" + jqExpr + "' '" + oldPath + "' > '" + newPath + ".tmp' && " +
-            "mv '" + newPath + ".tmp' '" + newPath + "' && " +
-            "if [ '" + oldPath + "' != '" + newPath + "' ]; then rm -f '" + oldPath + "'; fi && " +
-            // If this was the active theme, also update current-theme.json
-            "if grep -q '\"id\"[[:space:]]*:[[:space:]]*\"" + theme.id + "\"' '" + currentThemePath + "' 2>/dev/null; then " +
-            "  cp '" + newPath + "' '" + currentThemePath + "'; " +
-            "fi && echo OK"]
-        renamer.running = true
-    }
-
-    Process {
-        id: renamer
-        running: false
-        stdout: StdioCollector {
-            onStreamFinished: {
-                if (this.text.trim() === "OK") {
-                    root.statusMsg = "Renamed"
-                    root.refreshThemeList()
-                    root.currentThemeFile.reload()
-                } else {
-                    root.statusMsg = "Rename failed"
-                }
-            }
-        }
-    }
-
     Process {
         id: deleter
         running: false

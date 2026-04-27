@@ -152,6 +152,8 @@ Item {
     property bool weatherEnabled: true
     property bool sysmonEnabled: true
     property string widgetDisplay: "primary"
+    // v6.9.3: Per-monitor array — which monitors show widgets
+    property var widgetMonitors: []
     property bool clockGlow: true
 
     property real clockPosX: 40
@@ -357,6 +359,8 @@ Item {
             if (s.weather) weatherEnabled = s.weather.enabled !== false
             if (s.sysmon) sysmonEnabled = s.sysmon.enabled !== false
             if (s.widgetDisplay) widgetDisplay = s.widgetDisplay
+            // v6.9.3: per-monitor array
+            if (s.widgetMonitors && Array.isArray(s.widgetMonitors)) widgetMonitors = s.widgetMonitors
             if (typeof s.clockGlow === "boolean") clockGlow = s.clockGlow
             if (s.positions) {
                 if (typeof s.positions.clockX === "number") clockPosX = s.positions.clockX
@@ -408,6 +412,7 @@ Item {
                 weather: { enabled: dw.weatherEnabled },
                 sysmon: { enabled: dw.sysmonEnabled },
                 widgetDisplay: dw.widgetDisplay,
+                widgetMonitors: dw.widgetMonitors,
                 clockGlow: dw.clockGlow,
                 positions: { clockX: dw.clockPosX, clockY: dw.clockPosY, weatherX: dw.weatherPosX, weatherY: dw.weatherPosY, sysmonX: dw.sysmonPosX, sysmonY: dw.sysmonPosY },
                 colorMode: dw.colorMode,

@@ -107,6 +107,8 @@ Rectangle {
     // Hides itself when neither powerprofilesctl nor multi-GPU
     // detection succeeds (single-GPU desktop with no PPD = invisible).
     Component { id: cPowerBadge;  PowerBadge {} }
+    // v6.16.4.12: Calendar + notification center button (Hikari)
+    Component { id: cCalendar;    CalendarButton {} }
 
     // v6.15: music slot — toggles between MusicWidget and MusicStrings
     // musicSlotLocalX / musicSlotLocalWidth: bar-local coordinates of the
@@ -551,6 +553,8 @@ Rectangle {
             case "battery":       return cBattery
             // v6.16.3.4: power profile + GPU mode badge
             case "powerbadge":    return cPowerBadge
+            // v6.16.4.12: calendar + notif center (Hikari)
+            case "calendar":      return cCalendar
         }
         console.warn("[Bar] Unknown module:", name)
         return null

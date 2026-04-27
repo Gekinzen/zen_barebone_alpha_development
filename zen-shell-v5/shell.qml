@@ -55,6 +55,13 @@ ShellRoot {
         powerConfirmVisible = true
     }
 
+    // v6.16.4.12 Hikari: MonitorRecoveryService — auto-recovers from
+    // "I disabled my external monitor and now my laptop has no screen"
+    // panics. Reads MonitorRecoveryService property to force the
+    // singleton to instantiate on shell load (Quickshell singletons
+    // are lazy by default — bind reference = instantiation).
+    readonly property var _monitorRecoveryActivator: MonitorRecoveryService
+
     // v6.15: Screenshot rope monitor state — populated at trigger time
     // from hyprctl. Used by ZenScreenshotOverlay to compute correct
     // global screen coordinates when calling grim on multi-monitor setups.
@@ -428,7 +435,9 @@ ShellRoot {
                 return modelData.name === target
             }
 
-            anchors.bottom: true
+            // v6.16.4.12: Position-aware anchoring
+            anchors.bottom: !PanelState.isTop
+            anchors.top: PanelState.isTop
 
             // Horizontal anchoring:
             //   fullwidth → anchored left+right (stretch)
@@ -441,7 +450,7 @@ ShellRoot {
             WlrLayershell.namespace: "zen-shell-bar"
 
             // Original height — unchanged
-            implicitHeight: PanelState.barHeight + PanelState.panelMarginBottom
+            implicitHeight: PanelState.barHeight + (PanelState.isTop ? PanelState.panelMarginTop : PanelState.panelMarginBottom)
 
             // Width strategy per mode:
             //   fullwidth → 0 (auto-stretch via anchors.left+right)
@@ -464,7 +473,8 @@ ShellRoot {
 
             color: "transparent"
 
-            margins.bottom: PanelState.panelMarginBottom
+            margins.bottom: PanelState.isTop ? 0 : PanelState.panelMarginBottom
+            margins.top: PanelState.isTop ? PanelState.panelMarginTop : 0
             margins.left: PanelState.panelMode === "fullwidth" ? 0
                           : (PanelState.panelMode === "floating" ? PanelState.panelMarginSide : 0)
             margins.right: PanelState.panelMode === "fullwidth" ? 0
@@ -712,10 +722,9 @@ ShellRoot {
                 return PanelState.panelMarginSide
             }
 
-            anchors.bottom: true
+            anchors.bottom: !PanelState.isTop
+            anchors.top: PanelState.isTop
             anchors.left: true
-
-            // v6.15.1: Changed from Overlay → Top so strings hide
             // together with the bar when a window goes fullscreen.
             // WlrLayer.Overlay stays visible over fullscreen windows.
             // Strings render on top of bar because they're mapped after
@@ -750,11 +759,10 @@ ShellRoot {
             }
 
             // Vertical: sit over the bar, extending vPad above and below
-            // barWindow is anchored to screen bottom with margin panelMarginBottom.
-            // Strings window bottom edge = panelMarginBottom - vPad
-            // (so the string extends vPad BELOW the bar's bottom edge too,
-            //  which is fine because exclusionMode is Ignore).
-            margins.bottom: Math.max(0, PanelState.panelMarginBottom - vPad)
+            // barWindow is anchored to screen edge with margin.
+            // Strings window edge = margin - vPad
+            margins.bottom: PanelState.isTop ? 0 : Math.max(0, PanelState.panelMarginBottom - vPad)
+            margins.top: PanelState.isTop ? Math.max(0, PanelState.panelMarginTop - vPad) : 0
 
             implicitWidth: ZenStringsState.musicSlotLocalWidth
             implicitHeight: PanelState.barHeight + vPad * 2
@@ -834,7 +842,9 @@ ShellRoot {
 
             visible: root.startMenuScreen === modelData
 
-            anchors.bottom: true
+            // v6.16.4.12: Position-aware — start menu opens from bar edge
+            anchors.bottom: !PanelState.isTop
+            anchors.top: PanelState.isTop
             anchors.left: true
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "zen-shell-startmenu"
@@ -857,7 +867,9 @@ ShellRoot {
                 const maxLeft = screenW - w - 8
                 return Math.max(8, Math.min(maxLeft, desired))
             }
-            margins.bottom: PanelState.barHeight + 8 + PanelState.panelMarginBottom
+            // v6.16.4.12: Sticky to bar — 2px gap for visual separation
+            margins.bottom: PanelState.isTop ? 0 : (PanelState.barHeight + 2 + PanelState.panelMarginBottom)
+            margins.top: PanelState.isTop ? (PanelState.barHeight + 2 + PanelState.panelMarginTop) : 0
 
             HyprlandFocusGrab {
                 // v6.16.2.3.1: Suspend focus grab while the StartMenuPanel
@@ -1163,17 +1175,20 @@ ShellRoot {
 
             visible: root.calendarVisible && isFocusedMonitor
 
-            anchors.bottom: true
+            // v6.16.4.12: Position-aware
+            anchors.bottom: !PanelState.isTop
+            anchors.top: PanelState.isTop
             anchors.right: true
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "zen-shell-calendar"
             exclusionMode: ExclusionMode.Ignore
             color: "transparent"
 
-            implicitWidth: 300
-            implicitHeight: 340
+            implicitWidth: 330
+            implicitHeight: 520
 
-            margins.bottom: PanelState.barHeight + 12 + PanelState.panelMarginBottom
+            margins.bottom: PanelState.isTop ? 0 : (PanelState.barHeight + 12 + PanelState.panelMarginBottom)
+            margins.top: PanelState.isTop ? (PanelState.barHeight + 12 + PanelState.panelMarginTop) : 0
             margins.right: 12
 
             HyprlandFocusGrab {
@@ -1182,7 +1197,10 @@ ShellRoot {
                 onCleared: root.calendarVisible = false
             }
 
-            ZenCalendar {
+            // v6.16.4.12: Replaced standalone ZenCalendar with
+            // ZenNotificationCenter — notifications top, calendar
+            // center, system quick-action icons bottom.
+            ZenNotificationCenter {
                 anchors.fill: parent
                 visible: calendarWindow.visible
 
@@ -1194,6 +1212,10 @@ ShellRoot {
                 }
 
                 onCloseRequested: root.calendarVisible = false
+                onPowerActionRequested: (action, command) => {
+                    root.calendarVisible = false
+                    root.triggerPowerAction(action, command)
+                }
             }
         }
     }
@@ -1257,9 +1279,17 @@ ShellRoot {
             required property var modelData
             screen: modelData
 
-            // v6.11b: "primary" means first screen always — NOT focusedMonitor
-            // This prevents widgets from disappearing when cursor moves
-            visible: dwInstance.widgetDisplay === "all" ? true : (Quickshell.screens[0] === modelData)
+            // v6.9.3: per-monitor control via widgetMonitors array.
+            // If the array has entries, show only on listed monitors.
+            // Fall back to legacy widgetDisplay for backward compat
+            // (empty array = legacy state hasn't been migrated yet).
+            visible: {
+                if (dwInstance.widgetMonitors.length > 0) {
+                    return dwInstance.widgetMonitors.indexOf(modelData.name) >= 0
+                }
+                // Legacy fallback
+                return dwInstance.widgetDisplay === "all" ? true : (Quickshell.screens[0] === modelData)
+            }
 
             anchors.top: true
             anchors.bottom: true

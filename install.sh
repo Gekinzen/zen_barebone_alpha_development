@@ -927,8 +927,7 @@ for script in \
     zs-restart.sh \
     zen-volume-notify.sh zen-power-profile-restore.sh zen-lid-handler.sh \
     zen-resume-handler.sh zen-lock.sh zen-lock-message.sh zen-hypridle-sync.sh zen-panic.sh zen-bar-add-powerbadge.sh \
-    zen-game-watcher.sh prime-run \
-    zen-terminal.sh zen-darkmode.sh
+    zen-game-watcher.sh prime-run
 do
     src="$SCRIPT_DIR/scripts/$script"
     if [ -f "$src" ]; then
@@ -1616,6 +1615,6 @@ else
 fi
 echo ""
 
-echo "  ✅  Done. Enjoy Zen Shell v6.16.4.11.2, pre."
+echo "  ✅  Done. Enjoy Zen Shell v6.16.4.5, pre."
 echo ""
 exit 0
