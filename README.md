@@ -1,6 +1,6 @@
 # Zen Shell — Quickshell-native desktop for Hyprland
 
-**Current version: v6.16.4.12.5 "Hikari" (光)** — alpha
+**Current version: Alpha-v6.16.4.12.5 "Hikari" (光)** — alpha
 **Repo branch:** `main` (promoted 2026-04-26)
 **Author:** P.Yuki ([Gekinzen](https://github.com/Gekinzen))
 
