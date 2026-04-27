@@ -2,7 +2,7 @@
 
 **Current version: v6.16.4.12.5 "Hikari" (光)** — alpha
 **Repo branch:** `main` (promoted 2026-04-26)
-**Author:** Paul Hansen Yuki ([Gekinzen](https://github.com/Gekinzen))
+**Author:** P.Yuki ([Gekinzen](https://github.com/Gekinzen))
 
 A QML desktop environment built on [Quickshell](https://quickshell.outfoxxed.me/)
 for [Hyprland](https://hyprland.org/) 0.54+. Includes a configurable bar,
@@ -397,5 +397,5 @@ Result: exactly ONE shell, every time. No more stacked duplicate bars.
 
 ## License
 
-Personal project by Paul Hansen Yuki. No license attached at the moment;
-contact Paul (`paulyuki.com`) before redistributing.
+Personal project by Zenpy Gekinzen. No license attached at the moment;
+
