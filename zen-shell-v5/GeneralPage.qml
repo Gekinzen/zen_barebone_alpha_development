@@ -201,7 +201,14 @@ ScrollView {
         // ═════════════════════════════════════════════════════════
         // THEME PALETTE (v6.6) — overrides theme colors → custom profile
         // ═════════════════════════════════════════════════════════
+        //
+        // v6.16.4.12.6.1: hidden via `visible: false`. The editable palette
+        // is now in Settings → Themes → Palette Editor (single source of
+        // truth, matches v6.16.4.11.2's documented intent that never
+        // actually shipped). Section preserved here for rollback safety —
+        // wala tayo babawasan. To restore: flip visible back to true.
         HMSection {
+            visible: false
             title: "Theme Palette"
             subtitle: "Override theme colors. Any change auto-saves as a custom profile."
 

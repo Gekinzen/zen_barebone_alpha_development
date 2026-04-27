@@ -1,8 +1,8 @@
 # Zen Shell — Quickshell-native desktop for Hyprland
 
-**Current version: Alpha-v6.16.4.12.5 "Hikari" (光)** — alpha
-**Repo branch:** `main` (promoted 2026-04-26)
-**Author:** P.Yuki ([Gekinzen](https://github.com/Gekinzen))
+**Current version: v6.16.4.12.6 "Hikari · Frosted" (光)** — alpha
+**Repo branch:** `main` (continuing the v4.12 Hikari series)
+**Author:** Paul Hansen Yuki ([Gekinzen](https://github.com/Gekinzen))
 
 A QML desktop environment built on [Quickshell](https://quickshell.outfoxxed.me/)
 for [Hyprland](https://hyprland.org/) 0.54+. Includes a configurable bar,
@@ -131,7 +131,26 @@ Historical reference from the pre-Quickshell lineage. Hyprland 0.52 era. Python 
 
 ---
 
-## What v6.16.4.12.5 "Hikari" ships
+## What v6.16.4.12.6 "Hikari · Frosted" ships
+
+Polish + opt-in features on top of v6.16.4.12.5. Wala tayo babawasan.
+
+| Area | Change |
+|---|---|
+| **Frosted bar modules** | Music / Tray / Notification / PowerBadge / Taskbar bg dropped from alpha 0.9 → 0.32. Now sit below Hyprland's `ignore_alpha 0.5` blur threshold for the `zen-shell-bar` layer (with bar's own 0.5 fill they composite to ~0.66 — frosted, not transparent). Modules read as part of the bar instead of solid embedded pills. |
+| **Start menu polish** | Root alpha 0.92 → 0.72 + footer rebound to ThemeService. Live theme switches and Matugen repaint instantly. |
+| **Pkill close** | Taskbar Close-all path: graceful `requestClose()` first, then 250 ms watchdog runs `pkill -f -- <appId>` then `pkill -9 -f -- <appId>`. Stuck Electron / Lark windows can no longer ignore the close. AppId sanitized before bash. Per-window X stays graceful-only. |
+| **Clock CPU/RAM/GPU peek** | Hover popup adds a live stats row from `SystemMonitorService` — CPU%, RAM% + GB used, GPU% + temp. Same 350 ms hover-intent delay. GPU column hides on undetected systems. |
+| **Matugen toggle** | New opt-in: when ON, every wallpaper switch regenerates the theme from its dominant colors via `matugen image <path> --json hex`. When OFF, your selected theme is preserved. Settings → Themes → Matugen. Includes a "Re-apply now" button for the current wallpaper. Auto-detects matugen at init; toggle disabled with install hint when binary missing. |
+
+Full changelog: `CHANGELOG-v6.16.4.12.6.md`.
+
+### Previous: v6.16.4.12.5 "Hikari"
+
+<details>
+<summary>Click to expand v6.16.4.12.5 changelog</summary>
+
+## What v6.16.4.12.5 ships
 
 This release opens the Hikari (光 — "Light") cycle. Illumination across every surface.
 
@@ -147,6 +166,8 @@ This release opens the Hikari (光 — "Light") cycle. Illumination across every
 | **Start menu sticky** | Menu gap reduced to 2px — feels attached to bar. Position-aware for top/bottom. |
 
 Full changelog: `CHANGELOG-v6.16.4.12.5.md`.
+
+</details>
 
 ### Previous: v6.16.4.11.2 "Kintsugi"
 
@@ -397,5 +418,5 @@ Result: exactly ONE shell, every time. No more stacked duplicate bars.
 
 ## License
 
-Personal project by Zenpy Gekinzen. No license attached at the moment;
-
+Personal project by Paul Hansen Yuki. No license attached at the moment;
+contact Paul (`paulyuki.com`) before redistributing.

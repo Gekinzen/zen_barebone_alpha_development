@@ -732,6 +732,16 @@ check_cmd hypridle hypridle
 echo "  v6.16.3.4.3 — Laptop brightness control:"
 check_cmd brightnessctl brightnessctl
 
+# v6.16.4.12.6 — Matugen (Material You wallpaper-driven theming)
+# ────────────────────────────────────────────────────────────────
+# Optional. When installed + the toggle is ON in Settings → Themes,
+# every wallpaper switch regenerates the theme from the wallpaper's
+# dominant colors. Shell works fine without it (toggle hides itself
+# when the binary is missing). AUR package: matugen-bin (recommended,
+# pre-compiled) or matugen (source build, slower).
+echo "  v6.16.4.12.6 — Matugen wallpaper-driven theming (optional):"
+check_cmd matugen matugen-bin
+
 # v6.16.3.7 — Font packages for lock screen + bar parity
 # ────────────────────────────────────────────────────────────────
 # zen-lock.sh maps fontFamilyId → "Adwaita Sans Black" / "Inter Black"
@@ -927,7 +937,8 @@ for script in \
     zs-restart.sh \
     zen-volume-notify.sh zen-power-profile-restore.sh zen-lid-handler.sh \
     zen-resume-handler.sh zen-lock.sh zen-lock-message.sh zen-hypridle-sync.sh zen-panic.sh zen-bar-add-powerbadge.sh \
-    zen-game-watcher.sh prime-run
+    zen-game-watcher.sh prime-run \
+    zen-matugen-bootstrap.sh
 do
     src="$SCRIPT_DIR/scripts/$script"
     if [ -f "$src" ]; then
@@ -1199,6 +1210,26 @@ echo "[8/9] First-run tasks..."
     echo "    regen-swaync-theme.sh..."
     timeout 10s "$BIN_DIR/regen-swaync-theme.sh" 2>&1 | sed 's/^/    /' || true
 }
+
+# ─────────────────────────────────────────────────────────────────
+# v6.16.4.12.6 — Matugen config bootstrap (smart-detect, idempotent)
+# ─────────────────────────────────────────────────────────────────
+# Run zen-matugen-bootstrap.sh whenever matugen is on PATH and the
+# bootstrap script is installed. The bootstrap is fully idempotent:
+#   - First run: writes ~/.config/matugen/config.toml from template
+#   - Re-run: leaves existing config alone IF it has [templates]
+#   - v6.16.4.12.6.3: HEALS configs from earlier v6.16.4.12.6 installs
+#     that lack [templates] (matugen 2.x requires it). Original is
+#     backed up to config.toml.bak-zenheal-<timestamp>.
+#
+# Safe to run on every install — that's the whole point of the heal
+# branch. The earlier `[ ! -f config.toml ]` guard is gone for that
+# reason.
+if command -v matugen >/dev/null 2>&1 \
+   && [ -x "$BIN_DIR/zen-matugen-bootstrap.sh" ]; then
+    echo "    zen-matugen-bootstrap.sh (idempotent setup + heal)..."
+    timeout 5s "$BIN_DIR/zen-matugen-bootstrap.sh" 2>&1 | sed 's/^/    /' || true
+fi
 
 # ─────────────────────────────────────────────────────────────────
 # v6.16.3.4.5 — One-shot bar-layout migrations

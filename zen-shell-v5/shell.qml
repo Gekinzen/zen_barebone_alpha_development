@@ -329,6 +329,35 @@ ShellRoot {
     }
     // ═══════════════════════════════════════════════════════════════════
 
+    // ═══════════════════════════════════════════════════════════════════
+    // v6.16.4.12.6.6 → .6.7: Matugen wallpaper-sync hook
+    // When ThemeService.matugenEnabled is true, every wallpaper switch
+    // regenerates the theme from the new wallpaper's dominant colors.
+    //
+    // .6.7 made this loudly diagnostic — every fire logs to journalctl
+    // (look for "[MatugenAutoHook]") AND increments a counter in
+    // ThemeService that the Themes page surfaces in the status banner.
+    // That way you can SEE the hook fire even before matugen finishes.
+    // ═══════════════════════════════════════════════════════════════════
+    Connections {
+        target: WallpaperServiceV5
+        function onWallpaperApplied(path) {
+            const ts = new Date().toISOString().substring(11, 19)
+            console.log("[MatugenAutoHook]", ts,
+                        "wallpaperApplied:", path,
+                        "| matugenEnabled=" + ThemeService.matugenEnabled,
+                        "matugenAvailable=" + ThemeService.matugenAvailable)
+            ThemeService.recordWallpaperHook(path)   // increments counter, updates status
+            if (ThemeService.matugenEnabled && ThemeService.matugenAvailable) {
+                console.log("[MatugenAutoHook] guards OK → calling applyMatugenFromWallpaper")
+                ThemeService.applyMatugenFromWallpaper(path)
+            } else {
+                console.log("[MatugenAutoHook] guards BLOCKED — toggle off or matugen missing")
+            }
+        }
+    }
+    // ═══════════════════════════════════════════════════════════════════
+
     IpcHandler {
         target: "zen"
 

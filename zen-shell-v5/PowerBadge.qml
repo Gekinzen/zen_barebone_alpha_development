@@ -69,7 +69,10 @@ Rectangle {
     height: Theme.moduleHeight
     visible: anyVisible
     radius: Theme.styleMode === "round" ? height / 2 : Theme.moduleRadius
-    color: Theme.alpha(Theme.bg0, 0.9)
+    // v6.16.4.12.6: Frosted bg matching the rest of the right-side modules.
+    // Bar bg @ 0.50 + this @ 0.32 composites to ~0.66 → above
+    // `ignore_alpha 0.5` blur threshold, so Hyprland blur applies.
+    color: Qt.rgba(ThemeService.bg0.r, ThemeService.bg0.g, ThemeService.bg0.b, 0.32)
     border.width: 1
     border.color: badgeRoot._accentColor
     Behavior on border.color { ColorAnimation { duration: 220 } }

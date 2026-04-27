@@ -6,7 +6,18 @@ import Quickshell.Wayland
 import Quickshell.Hyprland
 
 /*
- * Taskbar.qml v6.12
+ * Taskbar.qml v6.16.4.12.6 (Hikari · Frosted)
+ *
+ * v6.16.4.12.6:
+ *   - Background switched to ThemeService.bg0 @ alpha 0.32 so it falls
+ *     below Hyprland's `ignore_alpha 0.5` blur threshold for the
+ *     zen-shell-bar layer. Frosted look matches the rest of the bar.
+ *   - Close path is now graceful-then-pkill: requestClose() fires first
+ *     (preserves "Save changes?" dialogs in well-behaved apps), then a
+ *     250 ms watchdog calls `pkill -f <appId>` if the toplevel is still
+ *     alive. Per-window close (the X button in the popup) keeps just
+ *     the graceful path because pkill -f the appId would also kill
+ *     sibling windows. Wala tayo babawasan — old safeClose preserved.
  *
  * v6.12: Fixed context menu — removed HyprlandFocusGrab that killed
  * popups before clicks could register. Added overflow auto-collapse
@@ -35,9 +46,22 @@ Rectangle {
     implicitWidth: Math.min(taskbarRow.implicitWidth + 60, maxVisibleWidth + (hasOverflow ? chevronWidth * 2 + 16 : 0) + 24)
     height: 48
     radius: Theme.moduleRadius
-    color: Theme.alpha(Theme.bg0, 0.9)
+
+    // v6.16.4.12.6: Frosted bg — alpha 0.32 lets Hyprland layer blur through
+    color: Qt.rgba(ThemeService.bg0.r, ThemeService.bg0.g, ThemeService.bg0.b, 0.32)
     border.width: 1
-    border.color: Theme.bg1
+    border.color: ThemeService.alpha(ThemeService.fg, 0.10)
+
+    // Subtle inner highlight for depth
+    Rectangle {
+        anchors.fill: parent
+        anchors.margins: 1
+        radius: parent.radius - 1
+        color: "transparent"
+        border.width: 1
+        border.color: ThemeService.alpha(ThemeService.fg, 0.04)
+        z: 0
+    }
 
     readonly property string nfPin: "\uf0403"
     readonly property string nfUnpin: "\uf0404"
@@ -120,6 +144,9 @@ Rectangle {
     }
 
     // ── v6.9: Safe close — try requestClose first, fallback to hyprctl ──
+    // Used by the per-window X button inside the popup (single window
+    // close — never falls through to pkill because pkill -f appId would
+    // also kill sibling windows of the same app).
     function safeClose(toplevel) {
         if (!toplevel) return
         // Try Quickshell Wayland API methods in order of preference
@@ -144,12 +171,60 @@ Rectangle {
         }
     }
 
+    // v6.16.4.12.6: graceful-then-pkill close-all path.
+    //
+    // Some apps refuse to die from requestClose() — Lark, electron apps
+    // running a render-process freeze, anything stuck in a sync ipc
+    // round-trip. Old behavior: dialog hung in the bar, Paul reaches
+    // for kitty + pkill manually. New behavior: 250 ms after the
+    // graceful attempt, watchdog fires `pkill -f <appId>`. Apps that
+    // closed cleanly are no-ops for pkill (process already gone). Apps
+    // still alive get killed without the user having to ctrl-shift-esc.
+    //
+    // Why pkill -f and not pkill: many Wayland appIds don't match the
+    // process basename (firefox-esr → /usr/lib/firefox/firefox; lark
+    // → larkmail). -f matches the full command line and catches both.
+    function pkillByAppId(appId) {
+        if (!appId) return
+        // Sanitize — only allow alphanumerics, dash, underscore, dot.
+        // Anything else gets stripped so the appId can't escape into the
+        // bash command line.
+        const safe = String(appId).replace(/[^a-zA-Z0-9_\-\.]/g, "")
+        if (!safe) return
+        pkillHelper.command = ["bash", "-c",
+            "pkill -f -- '" + safe + "' 2>/dev/null; " +
+            "sleep 0.2; " +
+            "pkill -9 -f -- '" + safe + "' 2>/dev/null; " +
+            "true"]
+        pkillHelper.running = true
+    }
+
+    // v6.16.4.12.6: Renamed from immediate-loop close to graceful-then-pkill.
+    // Step 1: fire requestClose() on every window of this app (gives well-
+    //         behaved apps a chance to show "Save changes?" dialogs).
+    // Step 2: watchdog timer fires after 250 ms, runs pkill -f appId.
     function safeCloseAll(appId) {
         const ws = groupedApps[appId.toLowerCase()] || []
         for (const w of ws) safeClose(w)
+        // Arm the pkill watchdog
+        pkillWatchdog.targetAppId = appId
+        pkillWatchdog.restart()
     }
 
     Process { id: closeHelper; running: false }
+    Process { id: pkillHelper; running: false }
+
+    // Watchdog: 250 ms after graceful close, force-kill anything still alive
+    Timer {
+        id: pkillWatchdog
+        interval: 250
+        repeat: false
+        property string targetAppId: ""
+        onTriggered: {
+            if (targetAppId) taskbarRoot.pkillByAppId(targetAppId)
+            targetAppId = ""
+        }
+    }
 
     function pinApp(appId) {
         if (pinnedApps.indexOf(appId) === -1) {

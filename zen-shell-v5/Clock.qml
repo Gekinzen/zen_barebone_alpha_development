@@ -237,8 +237,11 @@ Item {
         // proper popup sizing in current Quickshell, even though it warns
         // that width is deprecated. The deprecation is forward-looking;
         // implicitWidth currently isn't honored for PopupWindow sizing.
+        //
+        // v6.16.4.12.6: Height bumped 590 → 660 to fit the new CPU/RAM/GPU
+        // stats strip between the calendar grid and the quick-action icons.
         width: 330
-        height: 590
+        height: 660
         color: "transparent"
 
         // v6.16.4.12.3: Pure hover-driven, same exact pattern as SysRowIcon.
@@ -512,6 +515,154 @@ Item {
                                 font.pixelSize: 12
                                 font.weight: isToday ? Font.Bold : Font.Normal
                                 color: isToday ? Theme.fg : (modelData.current ? Theme.grey0 : Theme.grey2)
+                            }
+                        }
+                    }
+                }
+
+                // ─── SEPARATOR ───
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 1
+                    Layout.topMargin: 4
+                    color: Theme.alpha(Theme.fg, 0.08)
+                }
+
+                // ─── v6.16.4.12.6: SYSTEM STATS STRIP ───
+                // Live CPU / RAM / GPU readout from SystemMonitorService
+                // singleton (already polls every 2 s — we just bind, no
+                // extra timer). Sits between the calendar grid and the
+                // quick-action icons so hover reveals stats without a
+                // separate widget. GPU column hides when gpuName is the
+                // "GPU" placeholder (no detection yet — VMs / headless).
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 50
+                    spacing: 8
+
+                    // CPU pill
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        radius: 8
+                        color: Theme.alpha(Theme.fg, 0.04)
+                        border.width: 1
+                        border.color: Theme.alpha(Theme.fg, 0.08)
+
+                        ColumnLayout {
+                            anchors.centerIn: parent
+                            spacing: 1
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: "CPU"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 9
+                                font.weight: Font.DemiBold
+                                color: ThemeService.grey1
+                            }
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: SystemMonitorService.cpuPercent + "%"
+                                font.family: Theme.monoFont
+                                font.pixelSize: 13
+                                font.weight: Font.DemiBold
+                                color: SystemMonitorService.cpuPercent > 80 ? ThemeService.red
+                                     : SystemMonitorService.cpuPercent > 50 ? ThemeService.yellow
+                                     : ThemeService.green
+                            }
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: SystemMonitorService.cpuTemp > 0
+                                      ? (SystemMonitorService.cpuTemp + "°C")
+                                      : "—"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 9
+                                color: ThemeService.grey0
+                            }
+                        }
+                    }
+
+                    // RAM pill
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        radius: 8
+                        color: Theme.alpha(Theme.fg, 0.04)
+                        border.width: 1
+                        border.color: Theme.alpha(Theme.fg, 0.08)
+
+                        ColumnLayout {
+                            anchors.centerIn: parent
+                            spacing: 1
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: "RAM"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 9
+                                font.weight: Font.DemiBold
+                                color: ThemeService.grey1
+                            }
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: SystemMonitorService.ramPercent + "%"
+                                font.family: Theme.monoFont
+                                font.pixelSize: 13
+                                font.weight: Font.DemiBold
+                                color: SystemMonitorService.ramPercent > 85 ? ThemeService.red
+                                     : SystemMonitorService.ramPercent > 65 ? ThemeService.yellow
+                                     : ThemeService.green
+                            }
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: SystemMonitorService.ramUsedGb.toFixed(1)
+                                    + "/" + SystemMonitorService.ramTotalGb.toFixed(0) + "GB"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 9
+                                color: ThemeService.grey0
+                            }
+                        }
+                    }
+
+                    // GPU pill — hidden when no detection
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        radius: 8
+                        color: Theme.alpha(Theme.fg, 0.04)
+                        border.width: 1
+                        border.color: Theme.alpha(Theme.fg, 0.08)
+                        visible: SystemMonitorService.gpuName.length > 0
+                              && SystemMonitorService.gpuName !== "GPU"
+
+                        ColumnLayout {
+                            anchors.centerIn: parent
+                            spacing: 1
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: "GPU"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 9
+                                font.weight: Font.DemiBold
+                                color: ThemeService.grey1
+                            }
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: SystemMonitorService.gpuUsage + "%"
+                                font.family: Theme.monoFont
+                                font.pixelSize: 13
+                                font.weight: Font.DemiBold
+                                color: SystemMonitorService.gpuUsage > 80 ? ThemeService.red
+                                     : SystemMonitorService.gpuUsage > 50 ? ThemeService.yellow
+                                     : ThemeService.green
+                            }
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: SystemMonitorService.gpuTemp > 0
+                                      ? (SystemMonitorService.gpuTemp + "°C")
+                                      : "—"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 9
+                                color: ThemeService.grey0
                             }
                         }
                     }

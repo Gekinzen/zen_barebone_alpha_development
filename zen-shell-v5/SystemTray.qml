@@ -3,15 +3,40 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Services.SystemTray
 
+/*
+ * SystemTray v6.16.4.12.6 (Hikari · Frosted)
+ *
+ * v6.16.4.12.6:
+ *   - Background switched from Theme.alpha(Theme.bg0, 0.9) → ThemeService.bg0
+ *     at alpha 0.32 so it falls below Hyprland's `ignore_alpha 0.5` blur
+ *     threshold for the zen-shell-bar layer. The tray now reads as part of
+ *     the frosted bar instead of a solid pill.
+ *   - Border + hover highlight bind to ThemeService so live theme switches
+ *     and matugen wallpaper-sync repaint the tray immediately.
+ *   - Layout, click handling, icon rendering, and SystemTray model bindings
+ *     untouched. Wala tayo babawasan.
+ */
 Rectangle {
     id: trayRoot
     visible: SystemTray.items && SystemTray.items.values.length > 0
     implicitWidth: visible ? trayRow.implicitWidth + 20 : 0
     height: 40
     radius: Theme.styleMode === "round" ? height / 2 : Theme.moduleRadius
-    color: Theme.alpha(Theme.bg0, 0.9)
+
+    // Frosted: low alpha so Hyprland layer blur passes through
+    color: Qt.rgba(ThemeService.bg0.r, ThemeService.bg0.g, ThemeService.bg0.b, 0.32)
     border.width: 1
-    border.color: Theme.bg1
+    border.color: ThemeService.alpha(ThemeService.fg, 0.10)
+
+    // Subtle inner highlight for depth
+    Rectangle {
+        anchors.fill: parent
+        anchors.margins: 1
+        radius: parent.radius - 1
+        color: "transparent"
+        border.width: 1
+        border.color: ThemeService.alpha(ThemeService.fg, 0.04)
+    }
 
     RowLayout {
         id: trayRow
@@ -27,7 +52,9 @@ Rectangle {
                 Layout.preferredWidth: 24
                 Layout.preferredHeight: 24
                 radius: Theme.styleMode === "round" ? 12 : 6
-                color: trayMa.containsMouse ? Theme.alpha(Theme.fg, 0.1) : "transparent"
+                color: trayMa.containsMouse
+                       ? ThemeService.alpha(ThemeService.fg, 0.10)
+                       : "transparent"
                 Behavior on color { ColorAnimation { duration: 150 } }
 
                 Image {
