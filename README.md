@@ -425,7 +425,7 @@ v6.16.4.11.2 is the current stable, promoted from the `alpha-v6.16.4.11.2` branc
 #### Palette relocation &nbsp;·&nbsp; v6.16.4.11.2
 
 - Theme Palette editor **moved** from General page → Themes page. Single source of truth for theme customization.
-- Old General-page `HMSection` preserved via `visible: false` + zero height (*wala tayong babawasan* literal — every binding, state, and callback stays wired)
+- Old General-page `HMSection` preserved via `visible: false` + zero height (literal — every binding, state, and callback stays wired)
 - New **`PaletteBox.qml`** component — compact 60×60 clickable swatches with hover pencil overlay
 - Click any palette box → opens Quickshell PopupWindow picker → HS canvas + Lightness slider + live hex + Apply/Cancel
 - Commits to `ThemeService.setAccent(key, hex)` — live re-render across the entire shell
