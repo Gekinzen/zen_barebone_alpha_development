@@ -399,20 +399,26 @@ Rectangle {
                 }
 
                 // ── Window List Popup ──
+                // v6.16.4.12.6.51 (Hikari):
+                //   • Theme-synced via ThemeService (was Theme.alpha/Theme.bg1)
+                //   • Repeater wrapped in Flickable for scrolling when many
+                //     windows of the same app are open. Max popup height
+                //     bumped from 300 → 420 with internal scroll past that.
                 PopupWindow {
                     anchor.item: appBtn
                     anchor.edges: Edges.Top
                     anchor.gravity: Edges.Top
                     visible: taskbarRoot.popupAppId === appId && windowCount > 1
                     width: 240
-                    height: Math.min(winCol.implicitHeight + 16, 300)
+                    height: Math.min(winCol.implicitHeight + 16, 420)
                     color: "transparent"
 
                     Rectangle {
                         anchors.fill: parent
                         radius: 12
-                        color: Theme.alpha(Theme.bg0, 0.95)
-                        border.width: 1; border.color: Theme.bg1
+                        color: Qt.rgba(ThemeService.bg0.r, ThemeService.bg0.g, ThemeService.bg0.b, 0.96)
+                        border.width: 1
+                        border.color: ThemeService.alpha(ThemeService.fg, 0.12)
 
                         ColumnLayout {
                             id: winCol
@@ -420,60 +426,100 @@ Rectangle {
 
                             Text {
                                 text: entry ? entry.name : appId
-                                color: Theme.fgDim; font.family: Theme.fontFamily
+                                color: ThemeService.alpha(ThemeService.fg, 0.7)
+                                font.family: Theme.fontFamily
                                 font.pixelSize: 11; font.bold: true; leftPadding: 4
                             }
 
-                            Repeater {
-                                model: taskbarRoot.groupedApps[appId.toLowerCase()] || []
+                            // Scrollable list — Flickable with content column.
+                            // Allows >7 windows of the same app to be reachable
+                            // via mouse-wheel or drag scroll.
+                            Flickable {
+                                id: winFlick
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                Layout.preferredHeight: Math.min(winListCol.implicitHeight, 360)
+                                contentWidth: width
+                                contentHeight: winListCol.implicitHeight
+                                clip: true
+                                boundsBehavior: Flickable.StopAtBounds
+                                flickableDirection: Flickable.VerticalFlick
 
-                                Rectangle {
-                                    Layout.fillWidth: true; height: 32; radius: 8
-                                    color: wma.containsMouse ? Theme.bg2 : "transparent"
-                                    property var tl: modelData
+                                ColumnLayout {
+                                    id: winListCol
+                                    width: winFlick.width
+                                    spacing: 2
 
-                                    // v6.9: wma FIRST (bottom of z-stack) so close X button is on top
-                                    MouseArea {
-                                        id: wma
-                                        anchors.fill: parent; hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: { tl.activate(); taskbarRoot.popupAppId = "" }
-                                    }
+                                    Repeater {
+                                        model: taskbarRoot.groupedApps[appId.toLowerCase()] || []
 
-                                    RowLayout {
-                                        anchors.fill: parent
-                                        anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
-                                        // z above wma so children receive clicks first
-                                        z: 1
-
-                                        Text {
-                                            Layout.fillWidth: true
-                                            text: { const t = tl.title || "Untitled"; return t.length > 28 ? t.substring(0, 25) + "..." : t }
-                                            color: tl.activated ? Theme.blue : Theme.fg
-                                            elide: Text.ElideRight; font.family: Theme.fontFamily; font.pixelSize: 12
-                                        }
-
-                                        // Close button — larger click area, on top of wma
                                         Rectangle {
-                                            Layout.preferredWidth: 24; Layout.preferredHeight: 24
-                                            radius: 12
-                                            color: closeWinMa.containsMouse ? Theme.alpha(Theme.red, 0.2) : "transparent"
+                                            Layout.fillWidth: true; height: 32; radius: 8
+                                            color: wma.containsMouse
+                                                   ? ThemeService.alpha(ThemeService.fg, 0.08)
+                                                   : "transparent"
+                                            property var tl: modelData
 
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: "\u2715"
-                                                color: closeWinMa.containsMouse ? Theme.red : Theme.fgDim
-                                                font.pixelSize: 11
-                                            }
+                                            // wma FIRST (bottom of z-stack) so close X is on top
                                             MouseArea {
-                                                id: closeWinMa
-                                                anchors.fill: parent
-                                                hoverEnabled: true
+                                                id: wma
+                                                anchors.fill: parent; hoverEnabled: true
                                                 cursorShape: Qt.PointingHandCursor
-                                                onClicked: taskbarRoot.safeClose(tl)
+                                                onClicked: { tl.activate(); taskbarRoot.popupAppId = "" }
+                                            }
+
+                                            RowLayout {
+                                                anchors.fill: parent
+                                                anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
+                                                z: 1
+
+                                                Text {
+                                                    Layout.fillWidth: true
+                                                    text: { const t = tl.title || "Untitled"; return t.length > 28 ? t.substring(0, 25) + "..." : t }
+                                                    color: tl.activated ? ThemeService.blue : ThemeService.fg
+                                                    elide: Text.ElideRight
+                                                    font.family: Theme.fontFamily; font.pixelSize: 12
+                                                }
+
+                                                // Close button — larger click area, on top of wma
+                                                Rectangle {
+                                                    Layout.preferredWidth: 24; Layout.preferredHeight: 24
+                                                    radius: 12
+                                                    color: closeWinMa.containsMouse
+                                                           ? ThemeService.alpha(ThemeService.red, 0.2)
+                                                           : "transparent"
+
+                                                    Text {
+                                                        anchors.centerIn: parent
+                                                        text: "\u2715"
+                                                        color: closeWinMa.containsMouse
+                                                               ? ThemeService.red
+                                                               : ThemeService.alpha(ThemeService.fg, 0.55)
+                                                        font.pixelSize: 11
+                                                    }
+                                                    MouseArea {
+                                                        id: closeWinMa
+                                                        anchors.fill: parent
+                                                        hoverEnabled: true
+                                                        cursorShape: Qt.PointingHandCursor
+                                                        onClicked: taskbarRoot.safeClose(tl)
+                                                    }
+                                                }
                                             }
                                         }
                                     }
+                                }
+
+                                // Slim scrollbar — only visible when content overflows
+                                Rectangle {
+                                    visible: winFlick.contentHeight > winFlick.height
+                                    width: 3
+                                    height: Math.max(20, winFlick.height * (winFlick.height / winFlick.contentHeight))
+                                    radius: 1.5
+                                    color: ThemeService.alpha(ThemeService.fg, 0.25)
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: 1
+                                    y: winFlick.contentY * (winFlick.height / winFlick.contentHeight)
                                 }
                             }
                         }
@@ -481,6 +527,9 @@ Rectangle {
                 }
 
                 // ── Context Menu ──
+                // v6.16.4.12.6.51 (Hikari): theme-synced via ThemeService
+                // (was Theme.alpha/Theme.bg1/Theme.bg2). Same approach as
+                // start menu and ZenNotificationCenter.
                 PopupWindow {
                     anchor.item: appBtn
                     anchor.edges: Edges.Top
@@ -493,8 +542,9 @@ Rectangle {
                     Rectangle {
                         anchors.fill: parent
                         radius: 12
-                        color: Theme.alpha(Theme.bg0, 0.95)
-                        border.width: 1; border.color: Theme.bg1
+                        color: Qt.rgba(ThemeService.bg0.r, ThemeService.bg0.g, ThemeService.bg0.b, 0.96)
+                        border.width: 1
+                        border.color: ThemeService.alpha(ThemeService.fg, 0.12)
 
                         ColumnLayout {
                             id: ctxCol
@@ -503,11 +553,11 @@ Rectangle {
                             // Pin/Unpin
                             Rectangle {
                                 Layout.fillWidth: true; height: 32; radius: 8
-                                color: pma.containsMouse ? Theme.bg2 : "transparent"
+                                color: pma.containsMouse ? ThemeService.alpha(ThemeService.fg, 0.08) : "transparent"
                                 RowLayout {
                                     anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 8
-                                    Text { text: isPinned ? taskbarRoot.nfUnpin : taskbarRoot.nfPin; color: "#ffffff"; font.family: Theme.monoFont; font.pixelSize: 14 }
-                                    Text { text: isPinned ? "Unpin" : "Pin to taskbar"; color: Theme.fg; font.family: Theme.fontFamily; font.pixelSize: 12 }
+                                    Text { text: isPinned ? taskbarRoot.nfUnpin : taskbarRoot.nfPin; color: ThemeService.fg; font.family: Theme.monoFont; font.pixelSize: 14 }
+                                    Text { text: isPinned ? "Unpin" : "Pin to taskbar"; color: ThemeService.fg; font.family: Theme.fontFamily; font.pixelSize: 12 }
                                 }
                                 MouseArea { id: pma; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                     onClicked: { if (isPinned) taskbarRoot.unpinApp(appId); else taskbarRoot.pinApp(appId); taskbarRoot.ctxAppId = "" }
@@ -518,28 +568,28 @@ Rectangle {
                             Rectangle {
                                 visible: entry !== null
                                 Layout.fillWidth: true; height: 32; radius: 8
-                                color: nma.containsMouse ? Theme.bg2 : "transparent"
+                                color: nma.containsMouse ? ThemeService.alpha(ThemeService.fg, 0.08) : "transparent"
                                 RowLayout {
                                     anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 8
-                                    Text { text: taskbarRoot.nfWindow; color: "#ffffff"; font.family: Theme.monoFont; font.pixelSize: 14 }
-                                    Text { text: "New window"; color: Theme.fg; font.family: Theme.fontFamily; font.pixelSize: 12 }
+                                    Text { text: taskbarRoot.nfWindow; color: ThemeService.fg; font.family: Theme.monoFont; font.pixelSize: 14 }
+                                    Text { text: "New window"; color: ThemeService.fg; font.family: Theme.fontFamily; font.pixelSize: 12 }
                                 }
                                 MouseArea { id: nma; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                     onClicked: { if (entry) entry.execute(); taskbarRoot.ctxAppId = "" }
                                 }
                             }
 
-                            Rectangle { Layout.fillWidth: true; height: 1; color: Theme.alpha(Theme.fg, 0.08) }
+                            Rectangle { Layout.fillWidth: true; height: 1; color: ThemeService.alpha(ThemeService.fg, 0.08) }
 
                             // v6.9: Close all — uses safeCloseAll
                             Rectangle {
                                 visible: isRunning
                                 Layout.fillWidth: true; height: 32; radius: 8
-                                color: cma.containsMouse ? Theme.alpha(Theme.red, 0.15) : "transparent"
+                                color: cma.containsMouse ? ThemeService.alpha(ThemeService.red, 0.15) : "transparent"
                                 RowLayout {
                                     anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 8
-                                    Text { text: taskbarRoot.nfClose; color: Theme.red; font.family: Theme.monoFont; font.pixelSize: 14 }
-                                    Text { text: windowCount > 1 ? "Close all (" + windowCount + ")" : "Close"; color: Theme.red; font.family: Theme.fontFamily; font.pixelSize: 12 }
+                                    Text { text: taskbarRoot.nfClose; color: ThemeService.red; font.family: Theme.monoFont; font.pixelSize: 14 }
+                                    Text { text: windowCount > 1 ? "Close all (" + windowCount + ")" : "Close"; color: ThemeService.red; font.family: Theme.fontFamily; font.pixelSize: 12 }
                                 }
                                 MouseArea { id: cma; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                     onClicked: { taskbarRoot.safeCloseAll(appId); taskbarRoot.ctxAppId = "" }

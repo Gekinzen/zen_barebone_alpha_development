@@ -1218,7 +1218,32 @@ ShellRoot {
 
             margins.bottom: PanelState.isTop ? 0 : (PanelState.barHeight + 12 + PanelState.panelMarginBottom)
             margins.top: PanelState.isTop ? (PanelState.barHeight + 12 + PanelState.panelMarginTop) : 0
-            margins.right: 12
+
+            // v6.16.4.12.6.53 (Hiraki hotfix 1): margins.right now
+            // tracks the clock module's right edge so the popup
+            // appears directly above (or below, on top bars) the
+            // clock instead of pinned to the screen edge. Falls back
+            // to the historical 12px-from-screen-edge if Clock.qml
+            // hasn't reported a position yet (clockRightEdgeX == -1).
+            //
+            // Layout math:
+            //   With anchors.right: true, the popup's right edge sits
+            //   at `screenW - margins.right`. We want that edge to
+            //   align with the clock's right edge:
+            //     margins.right = screenW - clockRightEdgeX
+            //   Then clamp so:
+            //     - margins.right >= 12         (always 12px from screen right)
+            //     - popup's left edge >= 12     → margins.right <= screenW - 330 - 12
+            //   so the 330px-wide popup never overflows the left edge
+            //   on a narrow monitor or when the clock sits very close
+            //   to the screen's right edge.
+            margins.right: {
+                const sw = (PanelState.screenWidth > 0) ? PanelState.screenWidth : 1920
+                if (PanelState.clockRightEdgeX <= 0) return 12   // unreported → fallback
+                const want = sw - PanelState.clockRightEdgeX
+                const maxRight = sw - calendarWindow.implicitWidth - 12
+                return Math.max(12, Math.min(want, maxRight))
+            }
 
             HyprlandFocusGrab {
                 active: calendarWindow.visible

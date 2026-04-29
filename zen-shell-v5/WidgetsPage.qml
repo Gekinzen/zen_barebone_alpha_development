@@ -390,7 +390,7 @@ ScrollView {
         // ═══════════════════════════════════════════════════════
         HMSection { title: "Widget Colors"; subtitle: "Text color mode for desktop widgets"
             HMRow { label: "Color Mode"; description: "Default (white), Theme (auto-sync), or Custom"; icon: "\uf53f"; separator: true
-                ZenComboBox { width: root.dropdownWidth; model: { const m=[]; for(const c of root.colorModes) m.push(c.label); return m }
+                ZenDropdown { width: root.dropdownWidth; model: { const m=[]; for(const c of root.colorModes) m.push(c.label); return m }
                     currentIndex: root.colorModeIndex(root.colorMode)
                     onActivated: { root.colorMode = root.colorModes[currentIndex].id; root.saveState() }
                 }
@@ -434,7 +434,7 @@ ScrollView {
             subtitle: "Background color + opacity for the weather overlay"
 
             HMRow { label: "Mode"; description: "Default / Theme-synced / Custom color"; icon: "\uf53f"; separator: true
-                ZenComboBox {
+                ZenDropdown {
                     width: root.dropdownWidth
                     model: ["Default (Dark)", "Theme (Auto-sync)", "Custom Color"]
                     readonly property var ids: ["default", "theme", "custom"]
@@ -523,7 +523,7 @@ ScrollView {
             subtitle: "Background color + opacity for the sysmon overlay"
 
             HMRow { label: "Mode"; description: "Default / Theme-synced / Custom color"; icon: "\uf53f"; separator: true
-                ZenComboBox {
+                ZenDropdown {
                     width: root.dropdownWidth
                     model: ["Default (Dark)", "Theme (Auto-sync)", "Custom Color"]
                     readonly property var ids: ["default", "theme", "custom"]
@@ -625,7 +625,7 @@ ScrollView {
                     }
                 }
                 HMRow { label: "Timezone"; description: modelData.label || "Select timezone"; icon: "\uf0ac"; separator: true
-                    ZenComboBox { width: root.dropdownWidth; model: { const m=[]; for(const tz of root.timezones) m.push(tz.label); return m }
+                    ZenDropdown { width: root.dropdownWidth; model: { const m=[]; for(const tz of root.timezones) m.push(tz.label); return m }
                         currentIndex: root.tzIndex(modelData.timezone)
                         onActivated: root.updateClock(index, "timezone", root.timezones[currentIndex].id)
                     }
@@ -650,7 +650,7 @@ ScrollView {
                 }
             }
             HMRow { label: "Location mode"; description: "Auto-detect or manual"; icon: "\uf3c5"; separator: true
-                ZenComboBox { width: root.dropdownWidth; model: ["Auto-detect (IP)", "Manual"]
+                ZenDropdown { width: root.dropdownWidth; model: ["Auto-detect (IP)", "Manual"]
                     currentIndex: root.weatherMode === "auto" ? 0 : 1
                     onActivated: { root.weatherMode = currentIndex === 0 ? "auto" : "manual"; root.saveState() }
                 }

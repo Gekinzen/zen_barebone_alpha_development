@@ -294,7 +294,7 @@ ScrollView {
                 label: "Display mode"
                 description: "How the battery shows in the panel"
                 icon: "\uf240"; separator: true
-                ZenComboBox {
+                ZenDropdown {
                     id: modeCombo
                     width: root.dropdownWidth
                     model: ["Icon only", "Text percentage", "Progress bar"]
@@ -460,7 +460,7 @@ ScrollView {
                 description: "Which backlight surface the slider controls"
                 icon: "\uf26c"; separator: true   // fa-tv
 
-                ZenComboBox {
+                ZenDropdown {
                     width: root.dropdownWidth
                     model: {
                         const out = []
@@ -793,7 +793,7 @@ ScrollView {
                 label: "Active profile"
                 description: "Managed by power-profiles-daemon. Persists across reboots."
                 icon: "\uf0e7"; separator: true
-                ZenComboBox {
+                ZenDropdown {
                     width: root.dropdownWidth
                     model: ["Power Saver", "Balanced", "Performance"]
                     readonly property var ids: ["power-saver", "balanced", "performance"]
@@ -870,7 +870,7 @@ ScrollView {
                 description: "Controls which GPU new app launches use. "
                              + "Takes effect on next app start (or next login for env-based mode)."
                 icon: "\uf1b2"; separator: true
-                ZenComboBox {
+                ZenDropdown {
                     width: root.dropdownWidth
                     model: [
                         "Auto (default)",
@@ -971,7 +971,7 @@ ScrollView {
                 label: "Lock after idle"
                 description: "Time before the lock screen appears automatically"
                 icon: "\uf023"; separator: true
-                ZenComboBox {
+                ZenDropdown {
                     width: root.dropdownWidth
                     model: ["30 seconds", "1 minute", "30 minutes", "1 hour", "3 hours", "5 hours", "Never"]
                     readonly property var ids: [30, 60, 1800, 3600, 10800, 18000, 0]
@@ -991,7 +991,7 @@ ScrollView {
                 label: "Sleep after idle"
                 description: "Time before systemctl suspend fires. Pick 'Never' on desktops."
                 icon: "\uf186"; separator: true
-                ZenComboBox {
+                ZenDropdown {
                     width: root.dropdownWidth
                     model: ["30 seconds", "1 minute", "30 minutes", "1 hour", "3 hours", "5 hours", "Never"]
                     readonly property var ids: [30, 60, 1800, 3600, 10800, 18000, 0]
@@ -1041,7 +1041,7 @@ ScrollView {
                 label: "On lid close"
                 description: "System action when you close the laptop lid"
                 icon: "\uf011"; separator: true
-                ZenComboBox {
+                ZenDropdown {
                     width: root.dropdownWidth
                     model: ["Sleep (suspend + lock on wake)", "Lock only (stay on)", "Do nothing"]
                     readonly property var ids: ["suspend", "lock", "ignore"]
@@ -1060,7 +1060,7 @@ ScrollView {
                 label: "When the laptop lid closes"
                 description: "Fixes the 'external monitor goes black when I close the lid' bug"
                 icon: "\uf109"; separator: true
-                ZenComboBox {
+                ZenDropdown {
                     width: root.dropdownWidth
                     model: ["Mirror to external monitor", "Keep internal display on", "Turn off internal (default)"]
                     readonly property var ids: ["mirror", "keep", "off"]

@@ -35,11 +35,11 @@ import QtQuick
 Singleton {
     id: root
 
-    readonly property string version:        "v6.16.4.12.5"
-    readonly property string versionRaw:     "6.16.4.12.5"
-    readonly property string releaseDate:    "2026-04-26"
+    readonly property string version:        "v6.16.4.12.6.53"
+    readonly property string versionRaw:     "6.16.4.12.6.53"
+    readonly property string releaseDate:    "2026-04-29"
     readonly property string channel:        "alpha"
-    readonly property string codename:       "Hikari"
+    readonly property string codename:       "Hiraki"
     readonly property string fullLabel:      version + " · " + channel + " · " + codename
 
     // Short release-series label ("6.16.3.4 series", "6.16.1 series") —

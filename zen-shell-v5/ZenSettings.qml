@@ -80,6 +80,16 @@ Rectangle {
         { id: "battery",     label: "Battery & Power",    icon: "\uf240" },  // battery
         // v6.16.4: User Profile — avatar upload + system info
         { id: "userprofile", label: "User Profile",       icon: "\uf007" },  // user
+        // v6.16.4.12.6.51 (Hikari): Hyprland Plugins page TEMPORARILY HIDDEN.
+        // The hyprpm sub-system needs more stability work before being
+        // surfaced again — toggling currently requires a sudo-prompting
+        // terminal popup and individual plugin builds can still fail
+        // against newer Hyprland versions. Page implementation kept on
+        // disk (PluginsPage.qml) and instantiated below for completeness,
+        // but no sidebar entry — users will not see it.
+        // To re-enable: uncomment the line below + uncomment the
+        // "case 'plugins':" line in the StackLayout currentIndex switch.
+        // { id: "plugins",     label: "Hyprland Plugins",   icon: "\uf12e" },  // puzzle-piece
         { header: "OTHER" },
         { id: "widgets",     label: "Desktop Widgets",    icon: "\uf1b2" },  // cube
         { id: "wallpaper",   label: "Wallpaper",          icon: "\uf03e" }   // image
@@ -426,6 +436,7 @@ Rectangle {
                             case "userprofile":   return 12   // v6.16.4 (was 11)
                             case "widgets":       return 13
                             case "wallpaper":     return 14
+                            case "plugins":       return 15   // v6.16.4.12.6.19 — Hyprland plugins
                             default:              return 0
                         }
                     }
@@ -445,6 +456,7 @@ Rectangle {
                     UserProfilePage { }                // v6.16.4 (now index 12)
                     WidgetsPage { }
                     WallpaperPage { }
+                    PluginsPage { }                    // v6.16.4.12.6.19 (index 15)
                 }
             }
         }

@@ -4,28 +4,37 @@ import Quickshell
 import Quickshell.Io
 
 /*
- * ZenNotificationCenter v6.16.4.12
+ * ZenNotificationCenter v6.16.4.12.6.51 (Hikari)
  *
  * Unified panel that opens on clock click:
  *   ┌──────────────────────────┐
- *   │ 🔔 Notifications  [N]   │  ← count + open swaync
+ *   │ 🔔 Notifications  [N]   │  ← count + open swaync   (full mode)
  *   ├──────────────────────────┤
- *   │    ◀ April 2026 ▶       │  ← full calendar
+ *   │    ◀ April 2026 ▶       │  ← full calendar       (always)
  *   │   Su Mo Tu We Th Fr Sa  │
  *   │   ...                   │
  *   ├──────────────────────────┤
- *   │ BT  WiFi  Lock  Logout  │  ← system quick-actions
+ *   │ BT  WiFi  Lock  Logout  │  ← system quick-actions (full mode)
  *   │ Restart   Shutdown       │
  *   └──────────────────────────┘
  *
- * Replaces the old standalone ZenCalendar popup.
- * Notifications top, calendar center, system icons bottom.
+ * v6.16.4.12.6.51: Added `compactMode` property. When TRUE, the
+ * notifications strip + system quick-actions section + their
+ * separator are hidden — only the calendar grid is visible. Used by
+ * the Clock module's hover popup: peek = compact (calendar only),
+ * click-pin = full (notif + calendar + buttons).
  */
 Rectangle {
     id: root
 
     signal closeRequested()
     signal powerActionRequested(string action, string command)
+
+    // v6.16.4.12.6.51 (Hikari): when true, hide notifications + system
+    // quick-action buttons. Calendar grid stays visible. Used by Clock
+    // module's hover-peek state — full state (click-pinned) sets this
+    // back to false to reveal everything.
+    property bool compactMode: false
 
     // ── Calendar state ──
     property int viewYear: new Date().getFullYear()
@@ -128,8 +137,10 @@ Rectangle {
         // NOTIFICATIONS — top section
         // ═══════════════════════════════════════════════
         Rectangle {
+            // v6.16.4.12.6.51: hidden in compactMode (hover-peek state)
+            visible: !root.compactMode
             Layout.fillWidth: true
-            Layout.preferredHeight: 44
+            Layout.preferredHeight: visible ? 44 : 0
             radius: 10
             color: ThemeService.alpha(ThemeService.bg1, 0.5)
             border.width: 1; border.color: ThemeService.alpha(ThemeService.fg, 0.06)
@@ -259,12 +270,20 @@ Rectangle {
         // ═══════════════════════════════════════════════
         // SEPARATOR
         // ═══════════════════════════════════════════════
-        Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: ThemeService.alpha(ThemeService.fg, 0.08) }
+        Rectangle {
+            // v6.16.4.12.6.51: hidden in compactMode
+            visible: !root.compactMode
+            Layout.fillWidth: true
+            Layout.preferredHeight: visible ? 1 : 0
+            color: ThemeService.alpha(ThemeService.fg, 0.08)
+        }
 
         // ═══════════════════════════════════════════════
         // SYSTEM QUICK-ACTIONS — bottom section
         // ═══════════════════════════════════════════════
         GridLayout {
+            // v6.16.4.12.6.51: hidden in compactMode (hover-peek state)
+            visible: !root.compactMode
             Layout.fillWidth: true
             columns: 4
             rowSpacing: 6

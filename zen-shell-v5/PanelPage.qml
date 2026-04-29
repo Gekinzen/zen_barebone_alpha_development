@@ -213,7 +213,7 @@ ScrollView {
                 label: "Show Bar On"
                 description: "All monitors, primary only, or a specific display"
 
-                ZenComboBox {
+                ZenDropdown {
                     id: displayTargetCombo
                     width: 260
 
@@ -505,7 +505,7 @@ ScrollView {
                 label: "Module Shape"
                 description: "Round (circular) or pill (elongated)"
 
-                ZenComboBox {
+                ZenDropdown {
                     width: 140
                     model: ["Round", "Pill"]
                     currentIndex: Theme.styleMode === "round" ? 0 : 1
@@ -604,7 +604,7 @@ ScrollView {
                 description: "Auto-detect your distro, pick from the built-in set, or use a custom image"
                 Row {
                     spacing: 8
-                    ZenComboBox {
+                    ZenDropdown {
                         id: logoModeCombo
                         width: 180
                         model: ["Auto (detect distro)", "Built-in logo", "Custom image"]
@@ -1096,7 +1096,7 @@ ScrollView {
                         Layout.fillWidth: true
                         spacing: 8
 
-                        ZenComboBox {
+                        ZenDropdown {
                             id: addCombo
                             Layout.preferredWidth: 180
                             // v6.16.3.5.2: dedup across ALL zones.

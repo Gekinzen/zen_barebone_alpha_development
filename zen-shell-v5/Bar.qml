@@ -98,6 +98,12 @@ Rectangle {
     Component { id: cSysRow;      SysRow {} }
     Component { id: cTray;        SystemTray {} }
     Component { id: cNotif;       NotificationIcon {} }
+    // v6.16.4.12.6.51 (Hikari): cClock and cCalendar are now the SAME
+    // component. Clock.qml is a fork of CalendarButton.qml with a live
+    // time display in place of the static date label, plus right-click
+    // format-cycle and scroll-wheel month navigation. Both barLayout
+    // tokens "clock" and "calendar" resolve to the same module so
+    // existing user layouts keep working without migration.
     Component { id: cClock;       Clock {} }
     Component { id: cWeather;     ZenWeather {} }
     Component { id: cSysMonitor;  ZenSysMonitor {} }
@@ -107,8 +113,10 @@ Rectangle {
     // Hides itself when neither powerprofilesctl nor multi-GPU
     // detection succeeds (single-GPU desktop with no PPD = invisible).
     Component { id: cPowerBadge;  PowerBadge {} }
-    // v6.16.4.12: Calendar + notification center button (Hikari)
-    Component { id: cCalendar;    CalendarButton {} }
+    // v6.16.4.12.6.51 (Hikari): "calendar" now resolves to the same
+    // merged Clock component as "clock" — keeping the symbol so
+    // existing barLayouts that include "calendar" still work.
+    Component { id: cCalendar;    Clock {} }
 
     // v6.15: music slot — toggles between MusicWidget and MusicStrings
     // musicSlotLocalX / musicSlotLocalWidth: bar-local coordinates of the
@@ -280,7 +288,7 @@ Rectangle {
             // several intermediate sizes/positions before settling in the
             // new mode. If we write to musicSlotLocalX during this
             // transition, we commit STALE coordinates that may match the
-            // old mode's geometry — causing the orphaned-string bug Paul
+            // old mode's geometry — causing the orphaned-string bug we
             // reported during rapid Island→FW→Float→Island cycling.
             //
             // v6.15.8: Enhanced with stable-read verification. The 300ms
@@ -574,14 +582,40 @@ Rectangle {
             Repeater {
                 model: Theme.barLayout.left || []
                 Loader {
+                    id: modLoader
                     sourceComponent: barRoot.getComponent(modelData)
                     Layout.alignment: Qt.AlignVCenter
                     active: sourceComponent !== null
+
+                    // v6.16.4.12.6.51 (Hikari) hotfix: forward the loaded
+                    // item's implicit size up to the Loader's Layout
+                    // properties. Without this, RowLayout sizes the Loader
+                    // by its own implicitWidth (which is 0 for an unsized
+                    // Loader), and the loaded module gets 0×0 — killing
+                    // the MouseArea input area silently. This is why the
+                    // Clock module's hover/click never registered despite
+                    // Layout hints inside the loaded item itself: those
+                    // hints don't propagate UP through the Loader.
+                    Layout.preferredWidth:  item ? Math.max(item.implicitWidth,  item.width  || 0) : 0
+                    Layout.preferredHeight: item ? Math.max(item.implicitHeight, item.height || 0) : 0
                 }
             }
         }
 
-        Item { Layout.fillWidth: true }
+        // v6.16.4.12.6.51 (Hikari): leftSpacer is now a PURE layout
+        // placeholder. Previous v6.16.4.12.6.19 had a hover-tinted
+        // Rectangle + MouseArea here that opened PanelState.calendarVisible
+        // on click — an invisible empty-bar click target. The calendar
+        // trigger now lives exclusively on the visible Clock module
+        // (anchored hover/click popup, same pattern as CalendarButton).
+        // Item retained (Layout.fillWidth/fillHeight) so the bar's row
+        // spacing still works exactly as before; only the click region
+        // was removed.
+        Item {
+            id: leftSpacer
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+        }
 
         RowLayout {
             id: centerRow
@@ -590,14 +624,34 @@ Rectangle {
             Repeater {
                 model: Theme.barLayout.center || []
                 Loader {
+                    id: modLoader
                     sourceComponent: barRoot.getComponent(modelData)
                     Layout.alignment: Qt.AlignVCenter
                     active: sourceComponent !== null
+
+                    // v6.16.4.12.6.51 (Hikari) hotfix: forward the loaded
+                    // item's implicit size up to the Loader's Layout
+                    // properties. Without this, RowLayout sizes the Loader
+                    // by its own implicitWidth (which is 0 for an unsized
+                    // Loader), and the loaded module gets 0×0 — killing
+                    // the MouseArea input area silently. This is why the
+                    // Clock module's hover/click never registered despite
+                    // Layout hints inside the loaded item itself: those
+                    // hints don't propagate UP through the Loader.
+                    Layout.preferredWidth:  item ? Math.max(item.implicitWidth,  item.width  || 0) : 0
+                    Layout.preferredHeight: item ? Math.max(item.implicitHeight, item.height || 0) : 0
                 }
             }
         }
 
-        Item { Layout.fillWidth: true }
+        // v6.16.4.12.6.51 (Hikari): rightSpacer is now a PURE layout
+        // placeholder (see leftSpacer above for rationale). Calendar
+        // trigger lives exclusively on the Clock module now.
+        Item {
+            id: rightSpacer
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+        }
 
         RowLayout {
             id: rightRow
@@ -606,9 +660,22 @@ Rectangle {
             Repeater {
                 model: Theme.barLayout.right || []
                 Loader {
+                    id: modLoader
                     sourceComponent: barRoot.getComponent(modelData)
                     Layout.alignment: Qt.AlignVCenter
                     active: sourceComponent !== null
+
+                    // v6.16.4.12.6.51 (Hikari) hotfix: forward the loaded
+                    // item's implicit size up to the Loader's Layout
+                    // properties. Without this, RowLayout sizes the Loader
+                    // by its own implicitWidth (which is 0 for an unsized
+                    // Loader), and the loaded module gets 0×0 — killing
+                    // the MouseArea input area silently. This is why the
+                    // Clock module's hover/click never registered despite
+                    // Layout hints inside the loaded item itself: those
+                    // hints don't propagate UP through the Loader.
+                    Layout.preferredWidth:  item ? Math.max(item.implicitWidth,  item.width  || 0) : 0
+                    Layout.preferredHeight: item ? Math.max(item.implicitHeight, item.height || 0) : 0
                 }
             }
         }

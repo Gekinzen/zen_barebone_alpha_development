@@ -335,23 +335,54 @@ ScrollView {
                     label: "Select Preset"
                     description: "Writes to ~/.config/hypr/modules/animations.conf + hyprctl reload"
 
-                    // v6.16.3.4.5: Uses shared ZenComboBox component — the
-                    // scrollable popup logic lives in ZenComboBox.qml now.
-                    // Previously this file had an inline Popup override that
-                    // we've retired in favor of the shared implementation.
-                    ZenComboBox {
+                    // v6.16.4.12.6.14: Migrated to ZenDropdown for the modern
+                    // Justinmind-style look (fade-on-hover, search bar at 6+
+                    // items, smooth open/close).
+                    //
+                    // Wala tayo babawasan: ZenComboBox.qml itself is untouched;
+                    // pages that haven't migrated still use it. Only this one
+                    // page was changed in this version. All preset behavior
+                    // (Custom external edit detection, applyPreset wiring) is
+                    // preserved byte-for-byte. The model now uses the rich
+                    // entry shape so we can mark "Custom (External Edit)" with
+                    // a meta hint, but the values still round-trip through
+                    // root.applyPreset() unchanged.
+                    ZenDropdown {
                         id: presetCombo
                         width: 220
-                        model: root.displayPresetNames
+                        model: {
+                            const out = []
+                            const list = root.displayPresetNames || []
+                            for (var i = 0; i < list.length; i++) {
+                                const name = list[i]
+                                if (name === "Custom (External Edit)") {
+                                    out.push({
+                                        text: name,
+                                        value: name,
+                                        meta: "external",
+                                        // Greyed but selectable so user can
+                                        // see why it's there. Not enabled-false
+                                        // because we still want the row
+                                        // focusable to convey the state.
+                                        enabled: true
+                                    })
+                                } else {
+                                    out.push({ text: name, value: name })
+                                }
+                            }
+                            return out
+                        }
                         currentIndex: {
-                            const idx = model ? model.indexOf(root.currentPreset) : -1
+                            const list = root.displayPresetNames || []
+                            const idx = list.indexOf(root.currentPreset)
                             return idx >= 0 ? idx : 0
                         }
-                        onActivated: {
-                            const name = currentText
-                            // "Custom (External Edit)" is a synthetic entry; selecting
-                            // it re-applies itself (no-op) rather than calling
-                            // applyPreset() which would fail the presets[] lookup.
+                        onSelected: (entry) => {
+                            const name = entry.value
+                            // "Custom (External Edit)" is a synthetic entry;
+                            // selecting it re-applies itself (no-op) rather
+                            // than calling applyPreset() which would fail
+                            // the presets[] lookup.
                             if (name === "Custom (External Edit)") return
                             root.applyPreset(name)
                         }

@@ -2,7 +2,16 @@ import QtQuick
 import Quickshell
 
 /*
- * StartMenu.qml v6.9
+ * StartMenu.qml v6.16.4.12.6.52 (Hiraki 開き)
+ *
+ * v6.16.4.12.6.52 (Hiraki): Click-only behaviour confirmed and
+ * documented as the canonical pattern. Hover highlights the button
+ * visually (background + border tint), but the start menu only opens
+ * on explicit left-click. Same approach the Clock module adopted in
+ * this drop. Also added `z: 1` so the start button always wins click
+ * hits over any sibling Loader/Item in the bar's left zone — matching
+ * the user's request that the trigger modules sit on top of the bar
+ * row's stacking order.
  *
  * v6.9: Fixed start menu alignment in island mode. Layer shell windows
  * report win.x=0 regardless of actual screen position, so for island
@@ -10,9 +19,17 @@ import Quickshell
  * screen width. Also made the button slightly larger (configurable).
  *
  * v6.4: Dynamic positioning via PanelState.reportStartButtonPosition()
+ *
+ * Wala tayong babawasan — all v6.9 / v6.16.2 / v6.16.3.5 logic
+ * (logo resolver, fallback chain, auto-fit, opacity tint, status
+ * fallback) preserved verbatim.
  */
 Rectangle {
     id: startBtn
+
+    // v6.16.4.12.6.52 (Hiraki): z-stack — start button always on top
+    // of the bar's left zone. Same value used on Clock.
+    z: 1
 
     // v6.9: Slightly larger button — user can adjust via Theme.moduleHeight
     width: Theme.moduleHeight + 4
@@ -77,10 +94,16 @@ Rectangle {
         }
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // INPUT — hover (visual only), click opens menu
+    // ─────────────────────────────────────────────────────────────
+    // Same pattern as Clock.qml in this drop: hoverEnabled drives
+    // the visual highlight, but the start menu only opens on
+    // explicit left-click. No onEntered / onExited handlers.
     MouseArea {
         id: ma
         anchors.fill: parent
-        hoverEnabled: true
+        hoverEnabled: true                     // ← still true, for visual highlight
         cursorShape: Qt.PointingHandCursor
         onClicked: {
             const win = QsWindow.window

@@ -65,7 +65,7 @@ ColumnLayout {
         HMRow {
             label: "Active Profile"
             description: UserProfileExportService.activeProfileName || "default"
-            icon: "\uf2c1"
+            icon: "\udb80\udc04"
             separator: true
 
             RowLayout {
@@ -76,7 +76,7 @@ ColumnLayout {
                     width: saveL.implicitWidth + 20; height: 30; radius: 6
                     color: saveMa.containsMouse ? ThemeService.alpha(ThemeService.green, 0.2) : ThemeService.alpha(ThemeService.bg2, 0.5)
                     border.width: 1; border.color: ThemeService.alpha(ThemeService.green, 0.3)
-                    Text { id: saveL; anchors.centerIn: parent; text: "\uf0c7  Save"; font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 11; color: ThemeService.green }
+                    Text { id: saveL; anchors.centerIn: parent; text: "\udb80\udd93  Save"; font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 12; color: ThemeService.green }
                     MouseArea { id: saveMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onClicked: saveNamePrompt.running = true
                     }
@@ -87,7 +87,7 @@ ColumnLayout {
                     width: overL.implicitWidth + 20; height: 30; radius: 6
                     color: overMa.containsMouse ? ThemeService.alpha(ThemeService.blue, 0.2) : ThemeService.alpha(ThemeService.bg2, 0.5)
                     border.width: 1; border.color: ThemeService.alpha(ThemeService.blue, 0.2)
-                    Text { id: overL; anchors.centerIn: parent; text: "\uf021  Overwrite"; font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 11; color: ThemeService.blue }
+                    Text { id: overL; anchors.centerIn: parent; text: "\udb81\udc50  Overwrite"; font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 12; color: ThemeService.blue }
                     MouseArea { id: overMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onClicked: UserProfileExportService.exportProfile(UserProfileExportService.activeProfileName)
                     }
@@ -99,7 +99,7 @@ ColumnLayout {
         HMRow {
             label: "Share"
             description: "Import from file or export to ~/Downloads"
-            icon: "\uf56e"
+            icon: "\udb81\udc97"
             separator: true
 
             RowLayout {
@@ -108,7 +108,7 @@ ColumnLayout {
                     width: impL.implicitWidth + 20; height: 30; radius: 6
                     color: impMa.containsMouse ? ThemeService.alpha(ThemeService.purple, 0.2) : ThemeService.alpha(ThemeService.bg2, 0.5)
                     border.width: 1; border.color: ThemeService.alpha(ThemeService.purple, 0.2)
-                    Text { id: impL; anchors.centerIn: parent; text: "\uf56f  Import"; font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 11; color: ThemeService.purple }
+                    Text { id: impL; anchors.centerIn: parent; text: "\udb83\udfaa  Import"; font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 12; color: ThemeService.purple }
                     MouseArea { id: impMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onClicked: importFilePicker.running = true
                     }
@@ -117,7 +117,7 @@ ColumnLayout {
                     width: expL.implicitWidth + 20; height: 30; radius: 6
                     color: expMa.containsMouse ? ThemeService.alpha(ThemeService.orange, 0.2) : ThemeService.alpha(ThemeService.bg2, 0.5)
                     border.width: 1; border.color: ThemeService.alpha(ThemeService.orange, 0.2)
-                    Text { id: expL; anchors.centerIn: parent; text: "\uf56e  Export"; font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 11; color: ThemeService.orange }
+                    Text { id: expL; anchors.centerIn: parent; text: "\udb83\udfab  Export"; font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 12; color: ThemeService.orange }
                     MouseArea { id: expMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             const src = UserProfileExportService.profileDir + "/" + UserProfileExportService.activeProfileName + ".json"
@@ -141,7 +141,7 @@ ColumnLayout {
 
                 label: modelData
                 description: modelData === UserProfileExportService.activeProfileName ? "● Active" : ""
-                icon: modelData === UserProfileExportService.activeProfileName ? "\uf005" : "\uf15b"
+                icon: modelData === UserProfileExportService.activeProfileName ? "\udb80\udcce" : "\udb80\udd9f"
                 separator: index < UserProfileExportService.profileList.length - 1
 
                 RowLayout {
@@ -165,7 +165,7 @@ ColumnLayout {
                         width: delL.implicitWidth + 16; height: 26; radius: 5
                         color: delMa.containsMouse ? ThemeService.alpha(ThemeService.red, 0.2) : "transparent"
                         border.width: 1; border.color: ThemeService.alpha(ThemeService.red, 0.15)
-                        Text { id: delL; anchors.centerIn: parent; text: "\uf1f8"; font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 10; color: ThemeService.red }
+                        Text { id: delL; anchors.centerIn: parent; text: "\udb80\udc6c"; font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 12; color: ThemeService.red }
                         MouseArea { id: delMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onClicked: UserProfileExportService.deleteProfile(modelData)
                         }

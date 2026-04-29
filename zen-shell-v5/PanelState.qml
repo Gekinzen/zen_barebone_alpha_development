@@ -73,6 +73,16 @@ Singleton {
     property int screenWidth: 1920
     property int screenHeight: 1080
 
+    // ── v6.16.4.12.6.53 (Hiraki hotfix 1): Dynamic calendar positioning ──
+    // Updated by Clock.qml on every click. Stored as the clock's
+    // CENTER-X and RIGHT-EDGE-X in GLOBAL (screen) coordinates so
+    // shell.qml's `calendarWindow` can anchor its right edge to the
+    // clock instead of the screen edge. Runtime-only — not persisted.
+    // -1 = unknown → calendarWindow falls back to the historical
+    // 12px-from-right-screen-edge anchor.
+    property real clockCenterX:    -1
+    property real clockRightEdgeX: -1
+
     // ── v6.4: Style-mode propagation flag ──
     // When true (default), derived modules (start menu, taskbar wrapper,
     // settings window) read their radius/shape from Theme.barRadius +
@@ -435,6 +445,20 @@ Singleton {
         startButtonCenterY = y
         if (sw > 0) screenWidth = sw
         if (sh > 0) screenHeight = sh
+    }
+
+    // v6.16.4.12.6.53 (Hiraki hotfix 1): Called by Clock.qml when
+    // clicked, just before the calendar opens. centerX is the clock
+    // module's center-X in GLOBAL (screen) coordinates, rightX is its
+    // right-edge X. shell.qml's calendarWindow uses rightX to set
+    // `margins.right` so the popup's right edge aligns with the
+    // clock's right edge — i.e. the calendar appears directly above
+    // (or below for top bars) the clock instead of pinned to the
+    // screen edge. sw is the screen width, used for clamping logic.
+    function reportClockPosition(centerX: real, rightX: real, sw: int) {
+        clockCenterX    = centerX
+        clockRightEdgeX = rightX
+        if (sw > 0) screenWidth = sw
     }
 
     Component.onCompleted: {

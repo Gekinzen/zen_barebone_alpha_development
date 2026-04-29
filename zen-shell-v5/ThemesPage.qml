@@ -158,20 +158,77 @@ ScrollView {
                 RowLayout {
                     spacing: 8
 
-                    ZenComboBox {
+                    // v6.16.4.12.6.14: Migrated to ZenDropdown — rich entry
+                    // shape with built-in/custom sections, color swatches
+                    // taken from each theme's primary color, and per-item
+                    // disabled state for the matugen-auto entry when the
+                    // toggle is OFF.
+                    //
+                    // Wala tayo babawasan: behavior preserved exactly:
+                    //   - same disabled binding (matugenEnabled gates everything)
+                    //   - same currentIndex resolution
+                    //   - same onActivated → applyTheme() flow
+                    ZenDropdown {
                         id: themeCombo
                         Layout.preferredWidth: 260
                         enabled: !ThemeService.matugenEnabled
                         opacity: enabled ? 1.0 : 0.45
                         Behavior on opacity { NumberAnimation { duration: 150 } }
-                        model: ThemeService.availableThemes.map(t =>
-                            (t.is_builtin ? "● " : "◆ ") + t.name)
-                        currentIndex: {
-                            const idx = ThemeService.availableThemes.findIndex(t => t.id === ThemeService.themeId)
-                            return idx >= 0 ? idx : 0
+                        model: {
+                            const out = []
+                            const themes = ThemeService.availableThemes || []
+                            const builtins = themes.filter(t => t.is_builtin)
+                            const customs  = themes.filter(t => !t.is_builtin)
+                            if (builtins.length > 0) {
+                                out.push({ kind: "section", text: "Built-in" })
+                                for (var i = 0; i < builtins.length; i++) {
+                                    const t = builtins[i]
+                                    out.push({
+                                        text: t.name,
+                                        value: t.id,
+                                        swatch: (t.colors && t.colors.blue)
+                                                ? t.colors.blue : ""
+                                    })
+                                }
+                            }
+                            if (customs.length > 0) {
+                                out.push({ kind: "section", text: "Custom" })
+                                for (var j = 0; j < customs.length; j++) {
+                                    const c = customs[j]
+                                    out.push({
+                                        text: c.name,
+                                        value: c.id,
+                                        swatch: (c.colors && c.colors.blue)
+                                                ? c.colors.blue : ""
+                                    })
+                                }
+                            }
+                            return out
                         }
-                        onActivated: {
-                            const theme = ThemeService.availableThemes[currentIndex]
+                        currentIndex: {
+                            // Need to translate from the ID-indexed
+                            // availableThemes array to our model index, since
+                            // section headers shift the indices.
+                            const themes = ThemeService.availableThemes || []
+                            const id = ThemeService.themeId
+                            var ix = 0
+                            const builtins = themes.filter(t => t.is_builtin)
+                            const customs  = themes.filter(t => !t.is_builtin)
+                            if (builtins.length > 0) ix++   // section header
+                            for (var i = 0; i < builtins.length; i++) {
+                                if (builtins[i].id === id) return ix
+                                ix++
+                            }
+                            if (customs.length > 0) ix++    // section header
+                            for (var j = 0; j < customs.length; j++) {
+                                if (customs[j].id === id) return ix
+                                ix++
+                            }
+                            return 0
+                        }
+                        onSelected: (entry) => {
+                            const theme = (ThemeService.availableThemes || [])
+                                .find(t => t.id === entry.value)
                             if (theme) ThemeService.applyTheme(theme)
                         }
                     }

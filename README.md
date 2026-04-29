@@ -1,8 +1,7 @@
 # Zen Shell — Quickshell-native desktop for Hyprland
 
-**Current version: v6.16.4.12.6 "Hikari · Frosted" (光)** — alpha
-**Repo branch:** `main` (continuing the v4.12 Hikari series)
-**Author:** P.Yuki ([Gekinzen](https://github.com/Gekinzen))
+**Current version: v6.16.4.12.6.53 "Hiraki" (開き)** — alpha · hotfix 1
+**Repo branch:** `alpha-v6.16.4.12.6.53` (Hiraki series)
 
 A QML desktop environment built on [Quickshell](https://quickshell.outfoxxed.me/)
 for [Hyprland](https://hyprland.org/) 0.54+. Includes a configurable bar,
@@ -10,11 +9,298 @@ start menu, control panel, settings UI, system monitoring, wallpaper
 manager, audio-reactive music visualization, unified theme engine, and
 on-the-fly dark mode toggle synced across GTK3/4/libadwaita apps.
 
-![Zen Shell Kintsugi desktop](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_16_4_11_2_demo_2026/hero_desktop.jpg)
+> **v6.16.4.12.6.53 note** — Hiraki hotfix 1. Two fixes on top of .52:
+> the install.sh size-aware auto-applier no longer clobbers the new
+> Clock.qml with the legacy ZenClock.qml (the .52 click-to-open
+> behaviour was being silently overwritten on every install); and the
+> calendar popup now anchors directly above (or below, on top bars)
+> the clock module instead of pinning to the screen's right edge. The
+> built-in Hyprland plugin manager remains temporarily hidden — same
+> `if false; then ... fi` guard around `[8.7/9]` in install.sh.
+
+![Zen Shell desktop](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_16_4_11_2_demo_2026/hero_desktop.jpg)
 
 ---
 
-## Showcase
+## What's new in Hiraki hotfix 1 (v6.16.4.12.6.53) — alpha
+
+Two follow-up fixes on top of the .52 click-to-open drop. Both
+reported against .52: the new Clock.qml wasn't clickable after
+running `install.sh` (manual copy worked), and the calendar popup
+appeared near the screen's right edge instead of above the clock.
+
+### 1. install.sh no longer clobbers the new Clock.qml
+
+The size-aware module auto-applier (introduced in v6.16.4.12.6.13
+to keep `Clock.qml` and the legacy `ZenClock.qml` in lockstep
+during early Hikari development) was actively breaking the .52
+install. Mechanism:
+
+1. Tarball unpacks the new 10KB `Clock.qml` and the legacy 43KB
+   `ZenClock.qml` into `~/.config/quickshell/zen-shell/`.
+2. Auto-applier compares sizes: `ratio = 43000 * 100 / 10000 ≈ 430`.
+3. Heuristic: ratio ≥ 80 → "src is canonical" → copy `ZenClock.qml`
+   over `Clock.qml`. The new click-to-open `Clock.qml` is replaced
+   with the stale legacy version. The clock is now non-clickable
+   because the legacy ZenClock.qml has different binding plumbing.
+4. User does `cp Clock.qml ~/.config/quickshell/zen-shell/`
+   manually after the install completes — works, because they're
+   bypassing the auto-applier.
+
+Fix: drop the `ZenClock.qml:Clock.qml` pair from the auto-applier
+loop. Since Hikari (.51), `Clock.qml` is the canonical module —
+forked from `CalendarButton.qml` — and `ZenClock.qml` is unused at
+runtime (`Bar.qml` uses `Clock {}` directly). The pair entry is
+preserved as a comment block in `install.sh` for reference. The
+`Workspaces` and `SysMonitor` pairs still go through the heuristic
+since those modules haven't diverged the same way.
+
+### 2. Calendar popup now appears directly above the clock
+
+Previously `calendarWindow` in `shell.qml` was anchored to the
+right edge of the screen with `margins.right: 12`. Visually
+correct in the common case (clock is rightmost), but wrong
+whenever the user adds a system tray, weather widget, or any
+module to the right of the clock — the popup floats away from
+its trigger.
+
+Fix:
+
+- `PanelState.qml` adds two runtime properties — `clockCenterX`
+  and `clockRightEdgeX` — plus a `reportClockPosition(centerX,
+  rightX, sw)` function. Mirrors the existing
+  `reportStartButtonPosition` plumbing.
+- `Clock.qml` computes its global screen-X (center and right
+  edge) on every click using `mapToItem(null, ...)` and the same
+  panel-mode offset reconstruction the `StartMenu` already uses
+  (layer-shell windows always report `win.x = 0`, so the bar's
+  actual screen-X has to be reconstructed from `panelMode`).
+  Reports the position **before** toggling the calendar, so
+  `calendarWindow` positions itself correctly on the very first
+  frame it becomes visible.
+- `shell.qml`'s `calendarWindow.margins.right` is now a binding:
+  `screenW - clockRightEdgeX`, clamped between `12` and
+  `screenW - calendarWindow.implicitWidth - 12` so the 330px-wide
+  popup never overflows the left edge of a narrow monitor.
+  Falls back to the historical `12` when `clockRightEdgeX == -1`
+  (the clock hasn't been clicked since the shell started, or
+  PanelState was reset).
+
+Result: regardless of where the clock sits in the bar, the
+calendar popup's right edge aligns with the clock's right edge —
+the popup grows leftward from the clock. Both top-bar and
+bottom-bar layouts are handled by the existing
+`anchors.top`/`anchors.bottom` switches.
+
+Files changed: `install.sh` (auto-applier loop), `Clock.qml`
+(position reporter), `PanelState.qml` (2 props + 1 function),
+`shell.qml` (margins.right binding), `ZenVersion.qml`,
+`README.md`.
+
+Wala tayong babawasan — every Hiraki .52 behaviour is preserved
+verbatim. .53 only adds the position reporter and removes the
+broken auto-applier pair.
+
+---
+
+## What was new in Hiraki (v6.16.4.12.6.52) — alpha
+
+The **Hiraki** drop (開き — "opening") follows directly from Hikari and
+focuses on bar-trigger UX. Two changes:
+
+### 1. Calendar opens on click, not hover
+
+The bar's `Clock` module no longer pops the calendar / notification
+center on hover. Hover keeps the visual highlight (theme blue tint
+on background + border) so the module still feels reactive — but
+the popup itself only appears when you actually **click** the clock.
+This makes date selection feel deliberate again — the popup doesn't
+flash up while you're panning the cursor past the clock to reach the
+system tray.
+
+The 150ms `hoverShowDelay` Timer in `Clock.qml` is gone. Scroll-wheel
+month-cycling no longer auto-opens the calendar either; scroll over a
+closed clock is a no-op so it doesn't accidentally summon the popup.
+Left-click toggles, right-click cycles format, scroll cycles months
+**only when the calendar is already open** — same as before.
+
+### 2. Same approach on StartMenu (canonical pattern)
+
+`StartMenu.qml` already opened only on click — Hiraki documents this
+as the canonical Zen-bar trigger pattern (hover → visual highlight,
+click → action) and adds the matching `z: 1` so the start button
+always wins click hits over any sibling Loader/Item in the bar's
+left zone. The Clock module gets the same `z: 1`. This satisfies
+the "clock variable nasa top" request — the trigger modules sit on
+top of the bar row's stacking order, so neither neighbouring
+modules nor future widgets can shadow their hit areas.
+
+Files changed: `Clock.qml`, `StartMenu.qml`, `ZenVersion.qml`,
+`install.sh` (banner only), `README.md`.
+
+Wala tayong babawasan — only hover-to-open behaviour was removed.
+All Hikari plumbing (format cycle, wheel-month, theme sync, sizing
+fix, layer-overlay calendar window) preserved verbatim.
+
+---
+
+## What was new in Hikari (v6.16.4.12.6.51)
+
+The **Hikari** drop focuses on bar/clock UX cleanup and plugin-system
+stabilisation. Three changes:
+
+### 1. Clock is the calendar surface
+
+The bar's `Clock` module is now the sole calendar trigger in the bar.
+Hover the clock label → the calendar/notifications popup opens
+(anchored to the clock, same pattern as `CalendarButton` and the
+`SysRowIcon` tooltips). Click the clock → the popup pins open until you
+click again or click outside. Right-click still cycles clock format,
+scroll wheel still cycles calendar months when the popup is open.
+
+The previous invisible click region in the empty bar gap between the
+left zone (start, taskbar) and the centre zone (workspaces, window) —
+and the equivalent gap on the right — has been removed. The
+`leftSpacer` and `rightSpacer` items are now pure layout placeholders
+(`Layout.fillWidth: true`); no hover tint, no MouseArea, no calendar
+trigger. Bar row spacing is unchanged.
+
+### 2. Plugin toggle no longer kills sibling plugins
+
+Two issues that surfaced together in v6.16.4.12.6.49 are fixed:
+
+- Toggling one plugin off would sometimes also stop a sibling plugin
+  from loading after the next reload.
+- Changing hyprbars button alignment (or any hyprbars option) would
+  occasionally cause the toggle to flip back to OFF.
+
+Root cause: the previous toggle/apply sequence was
+`hyprpm enable X` → write `plugins.conf` → `hyprpm reload` → `hyprctl reload`.
+The `hyprpm reload` step is redundant — `hyprpm enable/disable` already
+loads/unloads the plugin (it prints `✔ Loaded <plugin>` or `✔ Unloaded
+<plugin>`). Calling `hyprpm reload` afterwards triggers a full
+unload-everything → re-load-from-state cycle. If anything fails or
+partially executes during that cycle (sudo prompt missing a TTY, build
+state mismatch, race), other currently-loaded plugins drop out and
+don't come back.
+
+Fix: trust `hyprpm enable/disable` for load state. Skip `hyprpm reload`.
+`hyprctl reload` at the end is enough to re-source `plugins.conf` for
+option changes — the plugin is already loaded; it just picks up new
+option values.
+
+The toggle command also now spawns a real terminal
+(`alacritty` → `kitty` → `foot` → `wezterm`, headless fallback writes
+to `/tmp/zen-plugin-toggle.log` + `notify-send`) so sudo prompts are
+interactive when `hyprpm` requires them (e.g. system-installed plugin
+.so files at `/usr/lib` symlinked into hyprpm's data dir).
+
+### 3. Plugin manager temporarily hidden
+
+The Settings → **Hyprland Plugins** sidebar entry is commented out and
+the installer's `[8.7/9] hyprpm auto-install` step is wrapped in
+`if false; then ... fi`. The page implementation (`PluginsPage.qml`)
+and the installer block are kept on disk so re-enabling is a one-line
+diff in each. Manual install is still possible:
+
+```bash
+hyprpm add https://github.com/hyprwm/hyprland-plugins
+hyprpm update
+hyprpm enable hyprbars     # or any plugin
+hyprpm reload
+```
+
+---
+
+## What was new in Tsubasa (v6.16.4.12.6.40)
+
+The **Tsubasa · Plumage** release introduces a complete Hyprland plugin
+manager built into the Settings UI. Five official plugins from the
+`hyprwm/hyprland-plugins` repository can be installed, enabled,
+configured, and themed from the new **Settings → Hyprland Plugins**
+page — no terminal commands, no manual config editing, no hand-rolled
+keybinds.
+
+### Hyprland Plugins page
+
+A new sidebar entry under **INPUT & DISPLAY** lists all five supported
+plugins. Each row shows the plugin name, description, install status
+(green badge), and an enable/disable toggle. When a plugin is enabled,
+its `hyprpm` state is updated and `plugins.conf` is regenerated with the
+correct configuration block — both in one click.
+
+Supported plugins:
+
+| Plugin | What it does |
+|---|---|
+| `hyprbars` | Title bars on floating windows with min/max/close buttons |
+| `hyprexpo` | Mission Control style workspace overview (Super + Tab) |
+| `hyprwinwrap` | Use any window as a live wallpaper |
+| `borders-plus-plus` | Add one or two extra configurable borders to windows |
+| `xtra-dispatchers` | Additional keybind dispatchers (e.g. `movetoworkspacesilent` variants) |
+
+### Hyprbars sub-section (theme-synced)
+
+Toggling `hyprbars` ON reveals a highlighted blue **HYPRBARS SETTINGS**
+sub-section directly below the toggle row, containing:
+
+- **Buttons position** dropdown — choose `right` or `left` alignment for the
+  min/max/close buttons. Applied live (no retoggle).
+- **Bar height** slider — 20 to 40 pixels, applied live with a 400 ms debounce.
+- **Theme-synced colors** — the title bar background, text color, and button
+  colors automatically follow the active Zen Shell theme. When you change
+  themes (Settings → Themes, or matugen-from-wallpaper), `plugins.conf` is
+  regenerated and `hyprctl reload` is fired so floating windows pick up the
+  new colors immediately. No manual sync needed.
+
+The three buttons are themed as a traffic-light cluster:
+
+- **Close** — soft red (`rgb(ee5555)`), runs `hyprctl dispatch killactive`
+- **Maximize** — teal (`rgb(33ccaa)`), toggles fullscreen mode 1
+- **Minimize** — amber (`rgb(eeaa33)`), moves the window to the
+  `special:minimized` workspace (restore by clicking its taskbar pill)
+
+Tiled windows, Zen Shell popups (`zen-shell-*`), and the Zen quickprompt
+terminal automatically skip the title bar via window rules — only true
+floating windows get bars.
+
+### Hyprexpo Super + Tab keybind
+
+When `hyprexpo` is enabled, the keybind `SUPER + TAB` is added to
+`plugins.conf` and bound to `hyprexpo:expo, toggle`. Three-finger swipe
+gestures are also enabled by default. Disabling `hyprexpo` removes the
+keybind cleanly — no orphaned bindings.
+
+### Architecture
+
+Plugin loading is delegated entirely to `hyprpm`. The previous approach
+of writing `plugin = <name>` directives into `plugins.conf` is broken
+since Hyprland 0.53 (the directive requires an absolute path, and that
+path lives inside `~/.local/share/hyprpm/...` which is fragile). Instead:
+
+- `plugins.conf` carries **configuration only** — `plugin:hyprbars:*`
+  options, window rules, plugin-specific keybinds.
+- Plugin loading is handled by `exec-once = hyprpm reload -n` in
+  `autostart.conf`, which calls `hyprctl plugin load <absolute_path>`
+  internally for every plugin marked enabled in the `hyprpm` state.
+- Toggling a plugin in Settings runs `hyprpm enable <name>; hyprpm reload`
+  and rewrites `plugins.conf` in one transaction.
+
+If you ever hit the `[hyprpm] Couldn't update headers` or
+`Failed to load plugin: Outdated headers` errors after a Hyprland
+upgrade, the **Run recovery** button in the Plugins page footer opens a
+terminal that runs `zen-hyprpm-fix.sh` — purges the hyprpm cache,
+rebuilds the headers, and re-enables your plugins.
+
+### Standalone hyprbars installer
+
+For users on AUR-only setups where the `hyprland-plugins` repo doesn't
+build cleanly through `hyprpm`, a fallback script `install-hyprbars.sh`
+in `~/.local/bin/` installs `hyprland-plugin-hyprbars-git` from the AUR
+and wires it into `hyprpm`'s state without rebuilding headers from
+source.
+
+
 
 Live captures from v6.16.4.12 running on Hyprland 0.54 with the Kintsugi Dark theme.
 
@@ -199,7 +485,6 @@ Each release era gets a codename from Japanese zen vocabulary.
 
 | Codename | Kanji | Meaning | Versions |
 |---|---|---|---|
-| **Hikari** | 光 | Light — illumination across every surface | v6.16.4.12.5 (alpha) |
 | Wakaba | 若葉 | Young leaf | Alpha v0.91 — Waybar + Python + rofi |
 | Koke | 苔 | Moss | Alpha v2.x (v2.1.3) — GTK4 / Libadwaita era |
 | Yugen | 幽玄 | Subtle profound grace | v6.10 – v6.14 — QML rewrite |
@@ -207,9 +492,39 @@ Each release era gets a codename from Japanese zen vocabulary.
 | Ma | 間 | The space between | v6.16.1.x — cascade Control Panel |
 | Shibui | 渋い | Understated refinement | v6.16.2.3.x — click-through masks |
 | Sabi | 寂 | Beauty of age & patina | v6.16.3.x — lock screen, PowerBadge |
-| **Kintsugi** | **金継ぎ** | **Golden-repair** | **v6.16.4.x · v6.16.4.11.2** — current |
-| Hikari *(next)* | 光 | Light · clarity | v6.16.4.12 — Profile Export/Import |
+| Kintsugi | 金継ぎ | Golden-repair | v6.16.4.x · v6.16.4.11.2 |
+| Hikari | 光 | Light — illumination across every surface | v6.16.4.12.5 – v6.16.4.12.6 · v6.16.4.12.6.51 |
+| Tsubasa | 翼 | Wings · plumage — title bars take flight | v6.16.4.12.6.40 – v6.16.4.12.6.49 (interlude) |
+| Hiraki | 開き | Opening — click-to-open bar triggers | v6.16.4.12.6.52 |
+| **Hiraki** *(hotfix 1)* | **開き** | **Opening — popup-above-clock + installer fix** | **v6.16.4.12.6.53 — current alpha** |
 | Michi *(planned)* | 道 | The way | v6.16.5 — in-app Updates Manager |
+
+---
+
+## Hikari version timeline
+
+The **Hikari** (光 — "Light") cycle opened in v6.16.4.12.5 and ran
+through v6.16.4.12.6 with a Tsubasa interlude in the late .6.x range,
+then returned for the Clock-as-calendar UX cleanup at v6.16.4.12.6.51
+before handing off to **Hiraki** (this drop). For convenience here is
+the full chain — the changelog files for every entry below are
+shipped in the project root and named `CHANGELOG-<version>.md`.
+
+| Version | Codename | Theme of the drop |
+|---|---|---|
+| v6.16.4.12.5 | Hikari opens | Illumination cycle begins; lighting pass across every surface (bar, control panel, start menu, settings). |
+| v6.16.4.12.6 | Hikari · Frosted | Frosted-glass material — translucent backgrounds across overlay surfaces. |
+| v6.16.4.12.6.40 | Tsubasa (Wings/Plumage) | Hyprbars plugin manager built into Settings; title bars take flight. |
+| v6.16.4.12.6.46 | Tsubasa (cont.) | Five official `hyprwm/hyprland-plugins` integrations (hyprbars, hyprexpo, hyprwinwrap, csgo-vulkan-fix, hyprtrails). |
+| v6.16.4.12.6.49 | Tsubasa (late) | Last Tsubasa hotfix before the Hikari return; revealed the plugin-toggle sibling-kill bug. |
+| v6.16.4.12.6.51 | Hikari (returns) | Bar/clock UX cleanup: Clock becomes the sole calendar surface; invisible spacer triggers removed; `hyprpm reload` redundancy fixed; plugin manager temporarily hidden behind `if false`. |
+| v6.16.4.12.6.52 | Hiraki (opens) | Click-to-open: hover-to-open removed from Clock; canonical click-only pattern documented on StartMenu; `z: 1` on both trigger modules. |
+| **v6.16.4.12.6.53** | **Hiraki (hotfix 1)** | **install.sh no longer clobbers Clock.qml with the legacy ZenClock.qml; calendar popup now anchors above the clock module instead of the screen edge.** |
+
+Hiraki sits at the seam — same major (6.16.4.12.6) as the Hikari /
+Tsubasa drops, branching off the Hikari .51 endpoint. The next
+codename change (Michi 道 — "the way") is reserved for v6.16.5 when
+the in-app Updates Manager lands.
 
 ---
 
@@ -418,5 +733,6 @@ Result: exactly ONE shell, every time. No more stacked duplicate bars.
 
 ## License
 
-Personal project by Zenpy Gekinzen. No license attached at the moment;
-
+Personal project by [Gekinzen / zenpy](https://github.com/Gekinzen).
+No license attached at the moment; please open an issue or contact via
+GitHub before redistributing.

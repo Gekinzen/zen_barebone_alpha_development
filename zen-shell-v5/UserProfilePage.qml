@@ -86,14 +86,14 @@ Flickable {
 
                     // v6.16.2.3: Large live circular avatar preview.
                     // Previous layer.enabled approach didn't produce a
-                    // proper circle in Paul's setup. This version uses
+                    // proper circle in some setups. This version uses
                     // the "Rectangle with layer.enabled + radius" pattern
                     // that's known to work reliably when antialiasing is
                     // explicitly enabled and the Rectangle has a solid
                     // color (not transparent).
                     // v6.16.2.3.2-hotfix4: OpacityMask circular avatar.
                     // Replaces the v6.16.2.3 shader approach which silently
-                    // failed on Paul's Qt build (file loaded, shader compiled
+                    // failed on some Qt builds (file loaded, shader compiled
                     // to no-op, image rendered as raw square or invisible).
                     // OpacityMask is the canonical Qt 5/6 circular-mask
                     // pattern and uses the same Qt5Compat.GraphicalEffects
@@ -341,7 +341,7 @@ Flickable {
                         Layout.preferredWidth: 140
                     }
 
-                    ZenComboBox {
+                    ZenDropdown {
                         Layout.preferredWidth: 200
                         model: ["Neutral (they / friend)", "Male (man / bro)", "Female (miss / queen)"]
                         readonly property var ids: ["neutral", "male", "female"]

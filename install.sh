@@ -175,48 +175,33 @@ else
 fi
 
 echo ""
-echo "    Zen Shell v6.16.2.3.7"
+echo "    Zen Shell v6.16.4.12.6.53"
 echo "    ─────────────────────────────────────────────────────"
 echo ""
 echo "    Quickshell-native desktop environment for Hyprland."
 echo ""
 cat << 'ZSCHANGELOG'
+    v6.16.4.12.6.20 — Plugins auto-install + Hyprland 0.54+ syntax fix
+
+      [8.7/9] hyprpm auto-install   Auto-installs hyprbars, hyprexpo,
+                                    hyprexpo, hyprwinwrap, borders++ via hyprpm if
+                                    Hyprland is running. User can opt out
+                                    via ZEN_NO_PLUGIN_INSTALL=1. Skipped
+                                    if hyprpm not in PATH. Idempotent —
+                                    safe to re-run.
+
+      Hyprland 0.54+ syntax fix     `noborder on` (removed PR #12269)
+                                    AND `bordersize 0` (no underscore,
+                                    invalid) → `border_size 0` per official
+                                    0.54 wiki. The earlier two attempts
+                                    were both wrong — third time's the
+                                    charm. Verified against
+                                    wiki.hypr.land/0.54.0/Configuring/
+                                    Window-Rules/.
+
     v6.16.2.3.7 — Single-instance launch (fix double bar on re-install)
-
-      Step [9/9] kill-only         The legacy 'setsid qs -c zen-shell ...'
-                                    spawn at the bottom of step [9/9] used
-                                    the OLD invocation pattern (qs not
-                                    quickshell). The end-of-install kill
-                                    loop in v6.16.2.3.6 used a tightened
-                                    'quickshell.*zen-shell' pattern, so it
-                                    never matched the qs spawn from
-                                    step [9/9] — net result was TWO bars
-                                    on every fresh install / re-install
-                                    (one from step 9, one from end-of-
-                                    install). Step [9/9] now ONLY kills
-                                    existing shells; the single canonical
-                                    spawn happens at end-of-install.
-
-      Catch-all kill pattern       New _zen_kill_all_shells() kills BOTH
-                                    pattern variants — 'qs.*zen-shell'
-                                    AND 'quickshell.*zen-shell' — across
-                                    SIGTERM x3 then SIGKILL x2 attempts,
-                                    plus zombie clear of /run/user/UID/
-                                    quickshell/by-id/. Shared between
-                                    step [9/9] and end-of-install so
-                                    behavior is consistent.
-
-      End-of-install verifies      Spawn refuses to fire if any shell
-                                    process is still alive after kill loop
-                                    (prevents stacked bars even if user
-                                    runs ./install.sh while two shells
-                                    are already up from prior bug). Prints
-                                    actionable diagnostic lines.
-
-    v6.16.2.3.6 — auto-restart at end of install (kill loop + verify)
-    v6.16.2.3.2 — Window click-through + avatar cache + wallpaper repo + mouse tuning
-    v6.16.2.3.1 — Click-through rope + clock hover + island persist
     (older changelog truncated for brevity — see CHANGELOG.md)
+
 ZSCHANGELOG
 echo ""
 echo "    ─────────────────────────────────────────────────────"
@@ -247,10 +232,14 @@ _zen_kill_all_shells() {
         initial=$(( initial + n ))
     done
 
+    # Status messages MUST go to stderr — stdout is captured by $() callers
+    # for the final survivor count. Mixing them produces shell errors like
+    # `[: 0: integer expected` because the caller tries to compare the
+    # echo'd "[label] nothing to kill." text as a number.
     if [ "$initial" -gt 0 ]; then
-        echo "    [$label] $initial existing zen-shell process(es) found, terminating..."
+        echo "    [$label] $initial existing zen-shell process(es) found, terminating..." >&2
     else
-        echo "    [$label] nothing to kill."
+        echo "    [$label] nothing to kill." >&2
     fi
 
     # 5 rounds: 3x SIGTERM, then 2x SIGKILL
@@ -279,7 +268,7 @@ _zen_kill_all_shells() {
     # Clear stale IPC sockets so the next quickshell can claim the id
     rm -rf "/run/user/$(id -u)/quickshell/by-id"/* 2>/dev/null || true
 
-    # Final survivor count
+    # Final survivor count — stdout-only, single integer for $() callers
     local survivors=0
     for p in "${patterns[@]}"; do
         local n
@@ -732,6 +721,60 @@ check_cmd hypridle hypridle
 echo "  v6.16.3.4.3 — Laptop brightness control:"
 check_cmd brightnessctl brightnessctl
 
+# v6.16.4.12.6.23 — Hyprland plugin build dependencies
+# hyprpm needs cmake/meson/g++/make to compile plugins from source.
+# Most Arch/CachyOS systems have these via base-devel, pero some minimal
+# installs missing them. Auto-install via pacman if user agrees (skip if
+# ZEN_NO_PLUGIN_INSTALL=1 — assume they don't want plugins).
+echo "  v6.16.4.12.6.23 — Hyprland plugin build deps:"
+HYPRPM_DEPS_MISSING=""
+for cmd in cmake meson make gcc g++ pkg-config; do
+    if command -v "$cmd" >/dev/null 2>&1; then
+        echo "    ✓ $cmd"
+    else
+        echo "  ○ $cmd missing (needed by hyprpm to compile plugins)"
+        HYPRPM_DEPS_MISSING="$HYPRPM_DEPS_MISSING $cmd"
+    fi
+done
+
+if [ -n "$HYPRPM_DEPS_MISSING" ] && [ "${ZEN_NO_PLUGIN_INSTALL:-}" != "1" ]; then
+    echo ""
+    echo "    Hyprland plugins (hyprbars, hyprexpo, hyprwinwrap, borders++, xtra-dispatchers)"
+    echo "    require these tools. Without them, plugin auto-install will"
+    echo "    skip later in [8.7/9]."
+    echo ""
+    if command -v pacman >/dev/null 2>&1; then
+        # Try to auto-install (will prompt for sudo password)
+        echo "    Attempting auto-install via pacman..."
+        if [ "${ZEN_AUTO_INSTALL_DEPS:-1}" = "1" ]; then
+            if sudo -n true 2>/dev/null || [ -t 0 ]; then
+                # Either passwordless sudo OR interactive terminal
+                sudo pacman -S --needed --noconfirm base-devel cmake meson 2>&1 \
+                    | sed 's/^/      /' || \
+                    echo "      (auto-install failed — install manually below)"
+                # Re-check
+                STILL_MISSING=""
+                for cmd in cmake meson make gcc g++ pkg-config; do
+                    command -v "$cmd" >/dev/null 2>&1 || STILL_MISSING="$STILL_MISSING $cmd"
+                done
+                if [ -z "$STILL_MISSING" ]; then
+                    echo "    ✓ Build deps now installed"
+                else
+                    echo "  ⚠ Still missing:$STILL_MISSING"
+                    echo "    Manual install: sudo pacman -S --needed base-devel cmake meson"
+                fi
+            else
+                echo "  ⚠ No interactive terminal for sudo prompt"
+                echo "    Manual install: sudo pacman -S --needed base-devel cmake meson"
+            fi
+        fi
+    else
+        echo "  ⚠ pacman not found — install manually:"
+        echo "    apt: sudo apt install build-essential cmake meson pkg-config"
+        echo "    dnf: sudo dnf groupinstall 'Development Tools' && sudo dnf install cmake meson"
+    fi
+fi
+
 # v6.16.4.12.6 — Matugen (Material You wallpaper-driven theming)
 # ────────────────────────────────────────────────────────────────
 # Optional. When installed + the toggle is ON in Settings → Themes,
@@ -741,6 +784,15 @@ check_cmd brightnessctl brightnessctl
 # pre-compiled) or matugen (source build, slower).
 echo "  v6.16.4.12.6 — Matugen wallpaper-driven theming (optional):"
 check_cmd matugen matugen-bin
+
+# v6.16.4.12.6.10 — Monitor auto-enable watcher (laptop-recommended)
+# ────────────────────────────────────────────────────────────────
+# socat is required by zen-monitor-watcher.sh to subscribe to
+# Hyprland's socket2 IPC. Without it, the watcher won't start and
+# the auto-re-enable behavior is unavailable. Shell still works
+# fine — this only affects the monitor automation.
+echo "  v6.16.4.12.6.10 — Monitor auto-enable watcher (laptop-recommended):"
+check_cmd socat socat
 
 # v6.16.3.7 — Font packages for lock screen + bar parity
 # ────────────────────────────────────────────────────────────────
@@ -906,22 +958,80 @@ fi
 
 echo ""
 echo "    Auto-applying bar modules..."
-for pair in "ZenClock.qml:Clock.qml" "ZenWorkspaces.qml:Workspaces.qml" "ZenSysMonitor.qml:SysMonitor.qml"; do
+# v6.16.4.12.6.13: Auto-applier is now SIZE-AWARE. The earlier logic
+# blindly overwrote Clock.qml with ZenClock.qml every install — but
+# Clock.qml is the LIVE module that gets edits during development,
+# while ZenClock.qml has often been a stale earlier copy. When the
+# two diverge significantly (>20% size diff), we take the larger
+# file as canonical to both sides. This protects against:
+#   - clobbering live Clock.qml edits with stale ZenClock.qml content
+#   - clobbering live ZenClock.qml edits with stale Clock.qml content
+# Wala tayo babawasan: backups still made for whichever side gets
+# overwritten so revert is one `mv` away.
+#
+# v6.16.4.12.6.53 (Hiraki hotfix 1): the `ZenClock.qml:Clock.qml`
+# pair has been REMOVED from this loop. Since Hikari (.51), Clock.qml
+# is the canonical clock module — a forked, focused module that's
+# significantly smaller than the legacy 43KB ZenClock.qml. The
+# size-aware heuristic above backfires: it sees the bigger
+# (legacy) ZenClock.qml as canonical and clobbers the new Clock.qml
+# from the tarball, breaking the click-to-open behaviour at install
+# time. Bar.qml uses `Clock {}` directly; ZenClock.qml is unused at
+# runtime and only kept on disk for back-compat. The pair entry is
+# kept in this comment block as documentation; the loop now only
+# handles Workspaces and SysMonitor pairs.
+for pair in "ZenWorkspaces.qml:Workspaces.qml" "ZenSysMonitor.qml:SysMonitor.qml"; do
     src="${pair%%:*}"; dst="${pair##*:}"
     [ -f "$SHELL_DIR/$src" ] || continue
+
     if [ -f "$SHELL_DIR/$dst" ]; then
-        if ! diff -q "$SHELL_DIR/$src" "$SHELL_DIR/$dst" >/dev/null 2>&1; then
+        if diff -q "$SHELL_DIR/$src" "$SHELL_DIR/$dst" >/dev/null 2>&1; then
+            echo "      $dst up to date"
+            continue
+        fi
+
+        # Compare sizes and timestamps to decide direction.
+        src_size=$(wc -c <"$SHELL_DIR/$src")
+        dst_size=$(wc -c <"$SHELL_DIR/$dst")
+        # Files differ — pick canonical = whichever is larger if the
+        # gap is substantial (≥20%). Otherwise default to src→dst (old
+        # behavior) since src was just freshly copied from the tarball.
+        if [ "$dst_size" -gt 0 ]; then
+            ratio=$(( src_size * 100 / dst_size ))
+        else
+            ratio=200
+        fi
+
+        if [ "$ratio" -lt 80 ]; then
+            # src is significantly SMALLER than dst — dst is likely the
+            # live edited copy with new features. Promote dst → src so
+            # ZenClock.qml stays in sync with edits to Clock.qml.
+            cp "$SHELL_DIR/$src" "$SHELL_DIR/$src.bak-$TS"
+            cp "$SHELL_DIR/$dst" "$SHELL_DIR/$src"
+            echo "      $dst → $src (live $dst is newer/bigger; old $src backed up)"
+        else
+            # src is same-or-larger than dst — go with src→dst (the
+            # canonical path, preserves the new tarball's content).
             cp "$SHELL_DIR/$dst" "$SHELL_DIR/$dst.bak-$TS"
             cp "$SHELL_DIR/$src" "$SHELL_DIR/$dst"
-            echo "      $src → $dst (backed up old)"
-        else
-            echo "      $dst up to date"
+            echo "      $src → $dst (backed up old $dst)"
         fi
     else
         cp "$SHELL_DIR/$src" "$SHELL_DIR/$dst"
         echo "      $src → $dst (new)"
     fi
 done
+
+# v6.16.4.12.6.53 (Hiraki hotfix 1): Clock.qml is now ALWAYS taken
+# straight from the tarball — no size heuristic, no ZenClock.qml
+# pairing. The freshly-unpacked tarball Clock.qml is already in
+# place at $SHELL_DIR/Clock.qml at this point (copied by the QML
+# bulk-copy step earlier in this script), so this is a no-op except
+# for the user-visible echo. Old Clock.qml backups from earlier
+# installs (Clock.qml.bak-*) are left on disk untouched.
+if [ -f "$SHELL_DIR/Clock.qml" ]; then
+    echo "      Clock.qml installed direct from tarball (no auto-applier — Hikari/Hiraki canonical)"
+fi
 
 # ═══════════════════════════════════════════════════════════════
 # [5/9] Install scripts
@@ -938,7 +1048,11 @@ for script in \
     zen-volume-notify.sh zen-power-profile-restore.sh zen-lid-handler.sh \
     zen-resume-handler.sh zen-lock.sh zen-lock-message.sh zen-hypridle-sync.sh zen-panic.sh zen-bar-add-powerbadge.sh \
     zen-game-watcher.sh prime-run \
-    zen-matugen-bootstrap.sh
+    zen-matugen-bootstrap.sh \
+    zen-monitor-watcher.sh \
+    zen-quickprompt.sh \
+    zen-hyprpm-fix.sh \
+    install-hyprbars.sh
 do
     src="$SCRIPT_DIR/scripts/$script"
     if [ -f "$src" ]; then
@@ -950,6 +1064,50 @@ do
         echo "  ⚠ missing: $script"
     fi
 done
+
+# ─────────────────────────────────────────────────────────────────
+# v6.16.4.12.6.10 → .6.11 — Monitor auto-enable watcher (smart memory)
+# ─────────────────────────────────────────────────────────────────
+# Solves the "disabled internal display + external unplug = no display"
+# scenario, AND adds per-topology state memory so docked configs auto-
+# restore on re-dock. Safety: never permits 0 enabled monitors — force-
+# enables the configured MAIN if a user/state would leave nothing on.
+#
+# Watcher subscribes to Hyprland's socket2 IPC. State snapshots get saved
+# to ~/.config/hypr/zen-monitor-states/topology-<key>.json — one per
+# unique combination of physically-connected monitors.
+#
+# Idempotent re-install: enable --now is safe to repeat. Disable with:
+#   systemctl --user disable --now zen-monitor-watcher
+SYSTEMD_USER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+SERVICE_SRC="$SCRIPT_DIR/scripts/zen-monitor-watcher.service"
+if [ -f "$SERVICE_SRC" ]; then
+    mkdir -p "$SYSTEMD_USER_DIR"
+    cp "$SERVICE_SRC" "$SYSTEMD_USER_DIR/zen-monitor-watcher.service"
+    echo "    $SYSTEMD_USER_DIR/zen-monitor-watcher.service"
+
+    # Drop the example env file alongside hyprland configs so the user
+    # can copy + edit. We DON'T install it directly to its active location
+    # because we don't want to overwrite a user-customized env file.
+    HYPR_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/hypr"
+    ENV_EXAMPLE_SRC="$SCRIPT_DIR/scripts/zen-monitor-watcher.env.example"
+    if [ -f "$ENV_EXAMPLE_SRC" ]; then
+        mkdir -p "$HYPR_CONFIG_DIR"
+        cp "$ENV_EXAMPLE_SRC" "$HYPR_CONFIG_DIR/zen-monitor-watcher.env.example"
+        echo "    $HYPR_CONFIG_DIR/zen-monitor-watcher.env.example"
+        echo "      (desktop users: copy to zen-monitor-watcher.env and set ZEN_MONITOR_MAIN)"
+    fi
+
+    # Reload systemd user manager so the new unit is visible
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl --user daemon-reload 2>/dev/null || true
+        # Enable but don't start mid-install — the unit is gated by
+        # graphical-session.target and HYPRLAND_INSTANCE_SIGNATURE,
+        # so it'll start on the next Hyprland session login.
+        systemctl --user enable zen-monitor-watcher.service 2>&1 \
+            | sed 's/^/    /' || true
+    fi
+fi
 
 [ -f "$SCRIPT_DIR/bin/swww-test" ] && \
     cp "$SCRIPT_DIR/bin/swww-test" "$BIN_DIR/swww-test" && \
@@ -1030,6 +1188,93 @@ if ! echo "$PATH" | grep -q "$BIN_DIR"; then
 fi
 
 # ═══════════════════════════════════════════════════════════════
+# [5.9/9] Detect existing user settings profile (v6.16.4.12.6.51)
+# ═══════════════════════════════════════════════════════════════
+# Inspect the user's existing Hyprland + Zen Shell configs so the
+# installer reports what will be PRESERVED vs INSTALLED-AS-DEFAULT.
+# Nothing is overwritten here — this is read-only detection. The
+# actual preservation logic lives in [6/9] (per-file: copy default
+# only if missing; touch nothing if present).
+#
+# Detected:
+#   • general:gaps_in / gaps_out / border_size  (from look_and_feel.conf)
+#   • general:layout                             (from look_and_feel.conf)
+#   • decoration:rounding                        (from look_and_feel.conf)
+#   • Hyprland version                           (from hyprctl)
+#   • Zen Shell panel position / panel mode      (from panel-state.json)
+#   • Zen Shell selected theme                   (from theme state)
+echo ""
+echo "[5.9/9] Detecting existing user settings..."
+
+# Helper: extract first matching value from an .conf file (key = value).
+# Tolerates whitespace and inline comments. Empty string if no match.
+# Portable: uses POSIX awk only (works on mawk, gawk, busybox awk).
+_zen_detect_conf_val() {
+    local file="$1"
+    local key="$2"
+    [ -f "$file" ] || { echo ""; return; }
+    awk -v k="$key" '
+        /^[[:space:]]*#/ { next }
+        {
+            sub(/#.*$/, "")
+            line = $0
+            sub(/^[[:space:]]+/, "", line)
+            if (substr(line, 1, length(k)) != k) next
+            rest = substr(line, length(k) + 1)
+            sub(/^[[:space:]]*=[[:space:]]*/, "", rest)
+            sub(/[[:space:]]+$/, "", rest)
+            if (rest != "") { print rest; exit }
+        }
+    ' "$file" 2>/dev/null
+}
+
+# Helper: extract a JSON string field via a conservative regex (no jq dep).
+_zen_detect_json_str() {
+    local file="$1"
+    local key="$2"
+    [ -f "$file" ] || { echo ""; return; }
+    grep -oE "\"$key\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" "$file" 2>/dev/null \
+        | head -1 \
+        | sed -E "s/.*\"$key\"[[:space:]]*:[[:space:]]*\"([^\"]*)\".*/\1/"
+}
+
+LAF="$HOME/.config/hypr/modules/look_and_feel.conf"
+PANEL_STATE="$HOME/.config/quickshell/zen-shell/panel-state.json"
+SETTINGS_STATE="$HOME/.config/quickshell/zen-shell/settings-state.json"
+
+DETECT_GAPS_IN=$(_zen_detect_conf_val "$LAF" "gaps_in")
+DETECT_GAPS_OUT=$(_zen_detect_conf_val "$LAF" "gaps_out")
+DETECT_BORDER=$(_zen_detect_conf_val "$LAF" "border_size")
+DETECT_LAYOUT=$(_zen_detect_conf_val "$LAF" "layout")
+DETECT_ROUNDING=$(_zen_detect_conf_val "$LAF" "rounding")
+DETECT_PANEL_POS=$(_zen_detect_json_str "$PANEL_STATE" "panelPosition")
+DETECT_PANEL_MODE=$(_zen_detect_json_str "$PANEL_STATE" "panelMode")
+DETECT_THEME=$(_zen_detect_json_str "$SETTINGS_STATE" "themeId")
+
+if command -v hyprctl >/dev/null 2>&1; then
+    DETECT_HYPR_VER=$(hyprctl version 2>/dev/null | grep -oE 'Tag: v?[0-9.]+' | head -1)
+fi
+
+if [ -f "$LAF" ] || [ -f "$PANEL_STATE" ] || [ -f "$SETTINGS_STATE" ]; then
+    echo "    Existing config found — the following will be PRESERVED on re-install:"
+    [ -n "$DETECT_GAPS_IN" ]    && echo "      gaps_in        = $DETECT_GAPS_IN  (look_and_feel.conf)"
+    [ -n "$DETECT_GAPS_OUT" ]   && echo "      gaps_out       = $DETECT_GAPS_OUT  (look_and_feel.conf)"
+    [ -n "$DETECT_BORDER" ]     && echo "      border_size    = $DETECT_BORDER  (look_and_feel.conf)"
+    [ -n "$DETECT_LAYOUT" ]     && echo "      layout         = $DETECT_LAYOUT  (look_and_feel.conf)"
+    [ -n "$DETECT_ROUNDING" ]   && echo "      rounding       = $DETECT_ROUNDING  (look_and_feel.conf)"
+    [ -n "$DETECT_PANEL_POS" ]  && echo "      panel position = $DETECT_PANEL_POS  (panel-state.json)"
+    [ -n "$DETECT_PANEL_MODE" ] && echo "      panel mode     = $DETECT_PANEL_MODE  (panel-state.json)"
+    [ -n "$DETECT_THEME" ]      && echo "      theme          = $DETECT_THEME  (settings-state.json)"
+    [ -n "${DETECT_HYPR_VER:-}" ] && echo "      Hyprland       = $DETECT_HYPR_VER"
+    echo ""
+    echo "    The installer will skip these files (idempotent merge in [6/9])."
+    echo "    To force a reset to defaults: delete the file before running again."
+else
+    echo "    No prior configuration detected — defaults will be installed."
+    [ -n "${DETECT_HYPR_VER:-}" ] && echo "      Hyprland = $DETECT_HYPR_VER"
+fi
+
+# ═══════════════════════════════════════════════════════════════
 # [6/9] Hyprland configs
 # ═══════════════════════════════════════════════════════════════
 echo ""
@@ -1049,7 +1294,7 @@ echo "[6/9] Hyprland configs..."
 # v6.16.0 : + lid-behavior.conf
 # These are USER-CUSTOMIZABLE — install default only if missing.
 # ─────────────────────────────────────────────────────────────────
-for mod in animations.conf autostart.conf look_and_feel.conf lid-behavior.conf; do
+for mod in animations.conf autostart.conf look_and_feel.conf lid-behavior.conf plugins.conf; do
     src="$SCRIPT_DIR/hypr-config/$mod"
     dst="$HYPR_DIR/modules/$mod"
     if [ -f "$src" ]; then
@@ -1061,6 +1306,61 @@ for mod in animations.conf autostart.conf look_and_feel.conf lid-behavior.conf; 
         fi
     fi
 done
+
+# ─────────────────────────────────────────────────────────────────
+# v6.16.4.12.6.51 (Hikari): Sync saved profile values back into
+# look_and_feel.conf so the FILE matches the user's saved profile.
+#
+# Why: the Settings UI applies gaps/border changes via
+# `hyprctl keyword general:gaps_in N` (runtime only) and saves them
+# to settings-state.json (the profile). It does NOT rewrite
+# look_and_feel.conf. Result: after Hyprland reload, the file values
+# reload first and override the runtime values — until SettingsStateV2
+# re-applies the profile from settings-state.json on QML startup.
+# That brief window lost the user's saved gaps to whatever the file
+# had (often defaults from a prior install), and the user reported
+# "nawala yun gap settings ko".
+#
+# Fix: after preserving look_and_feel.conf, read settings-state.json
+# and rewrite the gaps_in / gaps_out / border_size lines in the file
+# to match the saved profile. Only touches those three lines; the
+# rest of look_and_feel.conf (decoration, animations, etc.) is left
+# alone. Idempotent — re-running the installer just no-ops if values
+# already match.
+# ─────────────────────────────────────────────────────────────────
+LAF_NOW="$HYPR_DIR/modules/look_and_feel.conf"
+SETTINGS_STATE_NOW="$SHELL_DIR/settings-state.json"
+if [ -f "$LAF_NOW" ] && [ -f "$SETTINGS_STATE_NOW" ]; then
+    # Helper: extract integer field from JSON (no jq dependency)
+    _zen_json_int() {
+        grep -oE "\"$1\"[[:space:]]*:[[:space:]]*-?[0-9]+" "$SETTINGS_STATE_NOW" 2>/dev/null \
+            | head -1 \
+            | sed -E "s/.*:[[:space:]]*//"
+    }
+    PROF_GAPS_IN=$(_zen_json_int "gapsIn")
+    PROF_GAPS_OUT=$(_zen_json_int "gapsOut")
+    PROF_BORDER=$(_zen_json_int "borderSize")
+
+    sync_count=0
+    if [ -n "$PROF_GAPS_IN" ]; then
+        sed -i -E "s/^([[:space:]]*)gaps_in[[:space:]]*=.*/\\1gaps_in = $PROF_GAPS_IN/" "$LAF_NOW"
+        sync_count=$((sync_count+1))
+    fi
+    if [ -n "$PROF_GAPS_OUT" ]; then
+        sed -i -E "s/^([[:space:]]*)gaps_out[[:space:]]*=.*/\\1gaps_out = $PROF_GAPS_OUT/" "$LAF_NOW"
+        sync_count=$((sync_count+1))
+    fi
+    if [ -n "$PROF_BORDER" ]; then
+        sed -i -E "s/^([[:space:]]*)border_size[[:space:]]*=.*/\\1border_size = $PROF_BORDER/" "$LAF_NOW"
+        sync_count=$((sync_count+1))
+    fi
+    if [ "$sync_count" -gt 0 ]; then
+        echo "    look_and_feel.conf — synced $sync_count value(s) from saved profile:"
+        [ -n "$PROF_GAPS_IN" ]  && echo "      gaps_in    = $PROF_GAPS_IN"
+        [ -n "$PROF_GAPS_OUT" ] && echo "      gaps_out   = $PROF_GAPS_OUT"
+        [ -n "$PROF_BORDER" ]   && echo "      border_size = $PROF_BORDER"
+    fi
+fi
 
 # ─────────────────────────────────────────────────────────────────
 # v6.15.15: hyprland.conf — canonical template install
@@ -1121,6 +1421,10 @@ if [ -f "$TEMPLATE" ]; then
         # Placed LAST so it overrides look_and_feel.conf's animations{}.
         grep -q "modules/animations.conf" "$HCONF" || {
             echo "source = ~/.config/hypr/modules/animations.conf" >> "$HCONF"
+            added=$((added+1)); }
+        # v6.16.4.12.6.19: Hyprland plugins config (managed by Settings)
+        grep -q "modules/plugins.conf" "$HCONF" || {
+            echo "source = ~/.config/hypr/modules/plugins.conf" >> "$HCONF"
             added=$((added+1)); }
         grep -q "keybinds-update.conf" "$HCONF" || {
             echo "source = ~/.config/quickshell/zen-shell/config/keybinds-update.conf" >> "$HCONF"
@@ -1297,8 +1601,456 @@ if [ -d "$SHELL_DIR" ]; then
 fi
 
 # ═══════════════════════════════════════════════════════════════
-# [9/9] Pre-launch cleanup — KILL ONLY (v6.16.2.3.7)
+# [8.7/9] Hyprland plugins auto-install (v6.16.4.12.6.22+ smart)
 # ═══════════════════════════════════════════════════════════════
+# Smart auto-install with retry-on-header-failure logic. Common
+# failure modes handled:
+#
+#   1. Outdated headers:        run `hyprpm purge-cache` then retry
+#   2. Missing base-devel:      detect + offer to install via pacman
+#   3. Missing meson/cmake:     specific package suggestion
+#   4. Wrong Hyprland source:   suggest reinstalling hyprland-headers
+#   5. Permission/polkit issue: clearly explain need for auth daemon
+#
+# Skip conditions (still respected):
+#   - ZEN_NO_PLUGIN_INSTALL=1  → user opt-out
+#   - hyprpm not in PATH       → silent skip with hint
+#   - Not inside Hyprland      → skip (hyprpm needs active instance)
+#
+# Plugins (4 from 2 repos):
+#   - hyprland-plugins repo: hyprbars, hyprexpo, hyprwinwrap, borders++, xtra-dispatchers
+#
+# v6.16.4.12.6.51 (Hikari): TEMPORARILY DISABLED. The hyprpm sub-system
+# needs more stability work before being re-enabled by the installer.
+# The QML-side Plugins page is also hidden (see ZenSettings.qml). To
+# re-enable the auto-install: change `if false` to `if true` below.
+# Manual install is still possible:
+#     hyprpm add https://github.com/hyprwm/hyprland-plugins
+#     hyprpm update
+#     hyprpm enable hyprbars     # (or any plugin)
+#     hyprpm reload
+
+echo ""
+echo "[8.7/9] Hyprland plugins auto-install... SKIPPED (temporarily disabled in v6.16.4.12.6.51)"
+
+if false; then   # ── BEGIN temporarily-disabled block ──
+
+# ── Helpers (scoped to this step) ──────────────────────────────────
+_hyprpm_check_deps() {
+    local missing=""
+    for cmd in cmake meson make gcc g++ pkg-config; do
+        if ! command -v "$cmd" >/dev/null 2>&1; then
+            missing="$missing $cmd"
+        fi
+    done
+    if [ -n "$missing" ]; then
+        echo "    ⚠ Missing build tools:$missing"
+        echo "      hyprpm needs them to compile plugins."
+        echo "      Install with: sudo pacman -S --needed base-devel cmake meson"
+        return 1
+    fi
+    return 0
+}
+
+# Run hyprpm with -v (verbose) so user sees real-time progress.
+# Captures full output for parsing while ALSO streaming it live to
+# stdout. Done via process substitution + tee.
+_hyprpm_run_update() {
+    local LOG=$(mktemp)
+    echo "    [verbose mode — full hyprpm output below]"
+    echo "    ────────────────────────────────────────────"
+    if hyprpm -v update 2>&1 | tee "$LOG" | sed 's/^/      │ /'; then
+        :
+    fi
+    echo "    ────────────────────────────────────────────"
+    local OUT
+    OUT=$(cat "$LOG")
+    rm -f "$LOG"
+    if echo "$OUT" | grep -qE "error code|Failed|Headers (version mismatch|outdated|missing|corrupted)|Couldn't update headers"; then
+        return 1
+    fi
+    return 0
+}
+
+# Detect plugins that are already enabled in hyprpm — for `--needed`
+# semantics. Returns space-separated list.
+_hyprpm_already_enabled() {
+    hyprpm list 2>/dev/null \
+        | awk '/Plugin / {p=$NF; next} /enabled: true/ {print p}' \
+        | tr '\n' ' '
+}
+
+# Interactive Y/n/skip prompt — only asks if stdin is a TTY (not piped).
+# Defaults to YES if no stdin (e.g. piped install).
+# Honors ZEN_NO_PLUGIN_INSTALL=1 (auto-skip) and ZEN_AUTO_PLUGIN_INSTALL=1
+# (auto-yes, no prompt).
+_ask_install_plugins() {
+    if [ "${ZEN_NO_PLUGIN_INSTALL:-}" = "1" ]; then
+        echo "    [auto-skip via ZEN_NO_PLUGIN_INSTALL=1]"
+        return 1
+    fi
+    if [ "${ZEN_AUTO_PLUGIN_INSTALL:-}" = "1" ]; then
+        echo "    [auto-yes via ZEN_AUTO_PLUGIN_INSTALL=1]"
+        return 0
+    fi
+    if [ ! -t 0 ]; then
+        # Non-interactive — default to yes
+        echo "    [non-interactive — defaulting to YES]"
+        return 0
+    fi
+    # Interactive prompt
+    echo ""
+    echo "    Install Hyprland plugins (hyprbars, hyprexpo, hyprwinwrap, borders++, xtra-dispatchers)?"
+    echo "      Y/y/[Enter] = Install (default)"
+    echo "      N/n         = Skip plugins entirely"
+    echo "      S/s         = Skip plugins this run, ask again next install"
+    echo ""
+    local ans
+    read -r -p "    Your choice [Y/n/s]: " ans
+    case "$ans" in
+        ""|"y"|"Y"|"yes"|"YES")
+            echo "    → Will install plugins."
+            return 0
+            ;;
+        "n"|"N"|"no"|"NO")
+            echo "    → Skipping plugins. Set ZEN_NO_PLUGIN_INSTALL=1 to skip silently next time."
+            return 1
+            ;;
+        "s"|"S"|"skip"|"SKIP")
+            echo "    → Skipping for this run only."
+            return 1
+            ;;
+        *)
+            echo "    → Unrecognized answer '$ans' — defaulting to YES."
+            return 0
+            ;;
+    esac
+}
+
+# ── Main flow ─────────────────────────────────────────────────────
+if [ "${ZEN_NO_PLUGIN_INSTALL:-}" = "1" ]; then
+    echo "    Skipped (ZEN_NO_PLUGIN_INSTALL=1 in env)"
+elif ! command -v hyprpm >/dev/null 2>&1; then
+    echo "    Skipped — hyprpm not found in PATH"
+    echo "    Most CachyOS / Arch Hyprland packages include hyprpm."
+    echo "    If you need it, install Hyprland from official repos:"
+    echo "      sudo pacman -S hyprland"
+elif [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+    echo "    Skipped — not running inside Hyprland session"
+    echo "    Re-run install.sh from inside Hyprland to auto-install plugins."
+elif ! _hyprpm_check_deps; then
+    echo ""
+    echo "    Skipping plugin install due to missing build tools."
+    echo "    After installing them, re-run this installer."
+elif ! _ask_install_plugins; then
+    echo "    Plugin install skipped by user choice."
+    echo "    You can install later via Settings → Hyprland Plugins"
+    echo "    or by running: ZEN_AUTO_PLUGIN_INSTALL=1 ./install.sh"
+else
+    # ── Detect what's already enabled — skip those (--needed semantics) ──
+    ALREADY_ENABLED=$(_hyprpm_already_enabled)
+    if [ -n "$ALREADY_ENABLED" ]; then
+        echo ""
+        echo "    Already-enabled plugins (will use --needed semantics, won't reinstall):"
+        echo "$ALREADY_ENABLED" | tr ' ' '\n' | sed 's/^/      ✓ /' | head -10
+    fi
+
+    PLUGIN_REPOS=(
+        "https://github.com/hyprwm/hyprland-plugins"
+    )
+    PLUGINS_TO_ENABLE=(
+        "hyprbars"
+        "hyprexpo"
+        "hyprwinwrap"
+        "borders-plus-plus"
+        "xtra-dispatchers"
+    )
+
+    # ── PHASE 0: Purge non-official sources (v6.16.4.12.6.29) ──
+    # If user previously installed any of our managed plugins from AUR
+    # or manually-symlinked sources, remove them so hyprwm/hyprland-plugins
+    # is the SOLE source of truth. This prevents version drift between
+    # the official repo and shadow installations that confuse hyprpm.
+    echo ""
+    echo "    Phase 0/4: Detect + purge non-official plugin sources..."
+
+    PURGED_ANY=0
+    HYPRPM_PLUGINS_DIR="$HOME/.local/share/hyprpm/hyprland-plugins"
+
+    # Check for AUR-installed per-plugin packages
+    if command -v pacman >/dev/null 2>&1; then
+        for plugin in "${PLUGINS_TO_ENABLE[@]}"; do
+            for pkg in "hyprland-plugin-${plugin}-git" "hyprland-plugin-${plugin}"; do
+                if pacman -Qi "$pkg" >/dev/null 2>&1; then
+                    echo "      → Found AUR package: $pkg"
+                    echo "        (will keep package, but ensure hyprpm uses official repo)"
+                    PURGED_ANY=1
+                fi
+            done
+        done
+    fi
+
+    # Check for symlinks in hyprpm dir pointing OUTSIDE hyprpm
+    # (e.g. → /usr/lib/hyprland-plugins/*.so from AUR)
+    if [ -d "$HYPRPM_PLUGINS_DIR" ]; then
+        for plugin in "${PLUGINS_TO_ENABLE[@]}"; do
+            so="$HYPRPM_PLUGINS_DIR/$plugin/$plugin.so"
+            if [ -L "$so" ]; then
+                # It's a symlink — is target inside hyprpm dir?
+                target=$(readlink -f "$so" 2>/dev/null || echo "")
+                if [ -n "$target" ] && [[ ! "$target" =~ ^"$HYPRPM_PLUGINS_DIR" ]]; then
+                    echo "      ✗ Removing rogue symlink: $plugin.so → $target"
+                    rm -f "$so"
+                    PURGED_ANY=1
+                fi
+            fi
+        done
+    fi
+
+    if [ "$PURGED_ANY" = "1" ]; then
+        echo "      ✓ Cleanup done. Will rebuild from hyprwm/hyprland-plugins"
+    else
+        echo "      ✓ No conflicting sources detected"
+    fi
+
+    # ── PHASE 1: hyprpm update with smart retry ──
+    echo ""
+    echo "    Phase 1/4: Updating hyprpm headers (may prompt for sudo)..."
+    if _hyprpm_run_update; then
+        echo "    ✓ Headers updated successfully"
+    else
+        echo ""
+        echo "    ⚠ hyprpm update failed (likely outdated/mismatched headers)"
+        echo "    Auto-recovery: running hyprpm purge-cache then retrying..."
+        echo ""
+        hyprpm purge-cache 2>&1 | sed 's/^/      /' || \
+            echo "      (purge-cache may not exist on older hyprpm)"
+
+        # Also clean up stale cache directories (older hyprpm versions)
+        rm -rf "$HOME/.local/share/hyprpm/headersRoot" 2>/dev/null || true
+        rm -rf "/tmp/hyprpm" 2>/dev/null || true
+
+        echo "    Phase 1 retry: hyprpm update..."
+        if _hyprpm_run_update; then
+            echo "    ✓ Headers updated successfully (after purge)"
+        else
+            echo ""
+            echo "    ✗ hyprpm update STILL failed after purge-cache."
+            echo ""
+            echo "    Common causes + fixes:"
+            echo "      • Hyprland version mismatch with hyprland-headers"
+            echo "        → Reinstall: sudo pacman -S --needed hyprland"
+            echo "      • Missing polkit/auth daemon (sudo prompt didn't show)"
+            echo "        → Check polkit running: systemctl status polkit"
+            echo "      • Custom Hyprland build (git/AUR) without matching headers"
+            echo "        → Use official repo Hyprland or build headers manually"
+            echo ""
+            echo "    For verbose error: hyprpm -v update"
+            echo "    Then check: tail -50 ~/.local/share/hyprpm/state.toml"
+            echo ""
+            echo "    Skipping plugin install — you can retry later via Settings"
+            echo "    → Hyprland Plugins → Copy install command per plugin."
+            HYPRPM_OK=0
+        fi
+    fi
+
+    # ── PHASE 2: Add plugin repos (verbose, --needed semantics) ──
+    if [ "${HYPRPM_OK:-1}" = "1" ]; then
+        echo ""
+        echo "    Phase 2/4: Adding plugin repositories (verbose mode)..."
+        # Detect existing repos so we can apply --needed semantics
+        EXISTING_REPOS=$(hyprpm list 2>/dev/null \
+            | awk '/^→ Repository/ {print $3}' \
+            | tr '\n' ' ' || echo "")
+        for repo in "${PLUGIN_REPOS[@]}"; do
+            repo_name=$(basename "$repo")
+            # --needed check: skip if repo already added
+            if echo " $EXISTING_REPOS " | grep -q " $repo_name "; then
+                echo "      ✓ $repo_name (already added, --needed skip)"
+                continue
+            fi
+            echo ""
+            echo "      Adding: $repo_name"
+            echo "      ────────────────────────────────────────────"
+            # Use -v for verbose, tee to capture for parsing while streaming
+            ADD_LOG=$(mktemp)
+            hyprpm -v add "$repo" 2>&1 | tee "$ADD_LOG" | sed 's/^/        │ /'
+            echo "      ────────────────────────────────────────────"
+            ADD_OUT=$(cat "$ADD_LOG")
+            rm -f "$ADD_LOG"
+            if echo "$ADD_OUT" | grep -qE "already (exists|added)"; then
+                echo "      ✓ $repo_name (already present)"
+            elif echo "$ADD_OUT" | grep -qE "fail|error" && \
+                 ! echo "$ADD_OUT" | grep -qE "all plugins built|installed repository"; then
+                echo "      ⚠ $repo_name had errors (some plugins may have failed to build)"
+            else
+                echo "      ✓ $repo_name added"
+            fi
+        done
+
+        # ── PHASE 3: Enable each plugin (with build-status detection) ──
+        echo ""
+        echo "    Phase 3/4: Enabling plugins (smart build detection)..."
+
+        # First: capture which plugins ACTUALLY built successfully via hyprpm list.
+        # Output format includes lines like:
+        #   │ Plugin hyprbars
+        #   └─ enabled: false
+        # OR for failed builds:
+        #   └─ enabled: Plugin failed to build
+        BUILT_PLUGINS=$(hyprpm list 2>/dev/null \
+            | awk '/Plugin / {p=$NF; next} /enabled:/ {if (!/failed/) print p}' \
+            | tr '\n' ' ')
+        FAILED_PLUGINS=$(hyprpm list 2>/dev/null \
+            | awk '/Plugin / {p=$NF; next} /enabled:.*failed/ {print p}' \
+            | tr '\n' ' ')
+
+        echo "      Built successfully:${BUILT_PLUGINS:- (none)}"
+        if [ -n "$FAILED_PLUGINS" ]; then
+            echo "      Build failed (will retry via AUR fallback if available):"
+            echo "$FAILED_PLUGINS" | tr ' ' '\n' | sed 's/^/        ✗ /' | head -10
+        fi
+
+        # ── No AUR fallback (v6.16.4.12.6.28: simplified) ──
+        # We rely solely on hyprwm/hyprland-plugins official repo. If a
+        # plugin fails to build, we just report it. User can manually
+        # install AUR per-plugin packages if needed (rare).
+        if [ -n "$FAILED_PLUGINS" ]; then
+            echo ""
+            echo "    Note: ${FAILED_PLUGINS}failed to build (Hyprland version mismatch with official repo)."
+            echo "    These will retry on next install. Manual fix if urgent:"
+            echo "      paru -S hyprland-plugin-<name>-git    # per-plugin AUR fallback"
+        fi
+
+        # ── PHASE 3b: Enable the plugins that DID build ──
+        echo ""
+        echo "    Phase 3b/4: Enabling successfully-built plugins (verbose, --needed)..."
+        # Re-snapshot already-enabled (may have changed after AUR fallback)
+        ALREADY_ENABLED=$(_hyprpm_already_enabled)
+        enabled_count=0
+        skipped_count=0
+        already_count=0
+        for plugin in "${PLUGINS_TO_ENABLE[@]}"; do
+            # --needed: skip if already enabled
+            if echo " $ALREADY_ENABLED " | grep -q " $plugin "; then
+                echo "      ✓ $plugin (already enabled, --needed skip)"
+                already_count=$((already_count+1))
+                continue
+            fi
+            # Check if built
+            if echo " $BUILT_PLUGINS " | grep -q " $plugin "; then
+                echo "      → enabling $plugin..."
+                EN_OUT=$(hyprpm enable "$plugin" 2>&1)
+                echo "$EN_OUT" | sed 's/^/        │ /'
+                if echo "$EN_OUT" | grep -qiE "enabled|loaded|already enabled|plugin load state ensured"; then
+                    echo "      ✓ $plugin enabled"
+                    enabled_count=$((enabled_count+1))
+                else
+                    echo "      ⚠ $plugin enable returned unexpected output (see above)"
+                fi
+            else
+                echo "      ⊘ $plugin (build failed — skipping enable)"
+                skipped_count=$((skipped_count+1))
+            fi
+        done
+
+        # ── Write a state file the QML PluginsPage will read ──
+        # This lets the UI show which plugins are actually available vs
+        # which ones failed to build, with a clear explanation per plugin.
+        STATE_DIR="$HOME/.config/quickshell/zen-shell"
+        mkdir -p "$STATE_DIR"
+        STATE_FILE="$STATE_DIR/hyprpm-state.json"
+        {
+            echo "{"
+            echo "  \"updated_at\": \"$(date -Iseconds)\","
+            echo "  \"hyprland_version\": \"$(hyprctl version 2>/dev/null | head -1 | sed 's/.*Hyprland \\([0-9.]*\\).*/\\1/' || echo unknown)\","
+            echo "  \"built\": ["
+            FIRST=1
+            for p in $BUILT_PLUGINS; do
+                [ "$FIRST" = 1 ] || echo ","
+                printf '    "%s"' "$p"
+                FIRST=0
+            done
+            echo ""
+            echo "  ],"
+            echo "  \"failed\": ["
+            FIRST=1
+            for p in $FAILED_PLUGINS; do
+                # Skip if it's now in built list (AUR fallback rescued it)
+                if echo " $BUILT_PLUGINS " | grep -q " $p "; then continue; fi
+                [ "$FIRST" = 1 ] || echo ","
+                printf '    "%s"' "$p"
+                FIRST=0
+            done
+            echo ""
+            echo "  ]"
+            echo "}"
+        } > "$STATE_FILE"
+        echo "      ↳ wrote state to $STATE_FILE"
+
+        # ── PHASE 4: Reload ──
+        echo ""
+        echo "    Phase 4/4: Reloading hyprpm..."
+        hyprpm reload 2>&1 | sed 's/^/      /' || \
+            echo "      (reload skipped — Hyprland will pick up plugins on next config reload)"
+
+        echo ""
+        echo "    Plugin install summary:"
+        echo "      ✓ Newly enabled:    $enabled_count"
+        if [ "${already_count:-0}" -gt 0 ]; then
+            echo "      ✓ Already enabled:  $already_count (--needed, no reinstall)"
+        fi
+        if [ "${skipped_count:-0}" -gt 0 ]; then
+            echo "      ⊘ Build skipped:    $skipped_count (see Settings → Plugins for help)"
+        fi
+        echo "      ↳ Total available:  ${#PLUGINS_TO_ENABLE[@]} plugin(s) defined in Zen Shell"
+        echo "      ↳ Toggle ON/OFF live in Settings → Hyprland Plugins"
+
+        # ── Final verification: show hyprpm list output ──
+        # User specifically asked: "kapag ng hyprpm list ako makita ko lahat"
+        # So we run hyprpm list at the end and highlight expected plugins.
+        echo ""
+        echo "    ┌─────────────────────────────────────────────────────────┐"
+        echo "    │ Verification: hyprpm list output                        │"
+        echo "    └─────────────────────────────────────────────────────────┘"
+        HYPRPM_LIST=$(hyprpm list 2>&1)
+        echo "$HYPRPM_LIST" | sed 's/^/      /'
+
+        # Check each managed plugin appears in the list
+        echo ""
+        echo "    ┌─────────────────────────────────────────────────────────┐"
+        echo "    │ Per-plugin status check                                 │"
+        echo "    └─────────────────────────────────────────────────────────┘"
+        for plugin in "${PLUGINS_TO_ENABLE[@]}"; do
+            if echo "$HYPRPM_LIST" | grep -q "Plugin $plugin"; then
+                # Found in list — check enabled state
+                state=$(echo "$HYPRPM_LIST" | grep -A1 "Plugin $plugin" | grep "enabled:" | head -1 | sed 's/.*enabled:\s*//')
+                case "$state" in
+                    *"true"*)   echo "      ✓ $plugin    listed + enabled" ;;
+                    *"false"*)  echo "      ○ $plugin    listed (not enabled — toggle ON in Settings)" ;;
+                    *"failed"*) echo "      ✗ $plugin    build failed (Hyprland version mismatch)" ;;
+                    *)          echo "      ? $plugin    listed, state: $state" ;;
+                esac
+            else
+                echo "      ✗ $plugin    NOT in hyprpm list (something went wrong)"
+            fi
+        done
+        echo ""
+
+        if [ -n "$FAILED_PLUGINS" ] && ! (command -v paru >/dev/null 2>&1 || command -v yay >/dev/null 2>&1); then
+            echo ""
+            echo "      Tip: Install an AUR helper (paru or yay) so the next install"
+            echo "           can auto-fallback to per-plugin AUR packages for missing"
+            echo "           plugins:"
+            echo "           sudo pacman -S --needed base-devel git"
+            echo "           git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si"
+        fi
+    fi
+fi
+
+fi   # ── END temporarily-disabled block (v6.16.4.12.6.51) ──
+
+
 # v6.16.2.3.6 and earlier ALSO spawned a 'qs -c zen-shell' here, then
 # the end-of-install block at the bottom of the file spawned ANOTHER
 # 'quickshell -p ...' instance. The end-of-install kill loop only
@@ -1307,13 +2059,152 @@ fi
 #
 # v6.16.2.3.7 makes step [9/9] kill-only. The single canonical spawn
 # is owned by the v6.16.2.3.7 launch block at the end of the file.
+
+# ═══════════════════════════════════════════════════════════════
+# [8.9/9] Restore user profile settings to Hyprland (v6.16.4.12.6.51)
+# ═══════════════════════════════════════════════════════════════
+# After all the .conf files are in place but BEFORE the shell relaunch,
+# push the user's saved settings-state.json values back to Hyprland via
+# `hyprctl --batch keyword …`. This mirrors what SettingsState.qml does
+# on shell startup, but does it eagerly here so the gaps/border/
+# rounding/opacity/blur values from the saved profile are visible
+# immediately instead of waiting for the user to change a theme to
+# trigger a re-apply.
+#
+# This step is read-only on the JSON files — it never writes them back.
+# If the JSON is missing or empty, it skips silently (genuine fresh
+# install case where SettingsState seeds from Hyprland on first run).
+echo ""
+echo "[8.9/9] Restoring user profile settings to Hyprland..."
+
+SETTINGS_JSON="$HOME/.config/quickshell/zen-shell/settings-state.json"
+SETTINGS_V2_JSON="$HOME/.config/quickshell/zen-shell/settings-state-v2.json"
+
+# Helper: extract a numeric value from the JSON. Greps the line
+# containing  "key": <number>  and pulls out the number. Tolerates
+# integer or float, with or without trailing comma.
+_zen_json_num() {
+    local file="$1"
+    local key="$2"
+    [ -f "$file" ] || { echo ""; return; }
+    grep -oE "\"$key\"[[:space:]]*:[[:space:]]*-?[0-9]+(\.[0-9]+)?" "$file" 2>/dev/null \
+        | head -1 \
+        | sed -E "s/.*:[[:space:]]*//"
+}
+
+# Helper: extract a boolean value (true/false) from the JSON.
+_zen_json_bool() {
+    local file="$1"
+    local key="$2"
+    [ -f "$file" ] || { echo ""; return; }
+    grep -oE "\"$key\"[[:space:]]*:[[:space:]]*(true|false)" "$file" 2>/dev/null \
+        | head -1 \
+        | sed -E "s/.*:[[:space:]]*//"
+}
+
+if [ ! -f "$SETTINGS_JSON" ] && [ ! -f "$SETTINGS_V2_JSON" ]; then
+    echo "    No saved settings profile found — skipping (fresh install)"
+elif ! command -v hyprctl >/dev/null 2>&1; then
+    echo "    Skipped — hyprctl not in PATH"
+elif [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+    echo "    Skipped — not running inside a live Hyprland session"
+    echo "    (your settings will still apply automatically next time the shell starts)"
+else
+    # Pull the values from whichever JSON file exists (V2 takes priority)
+    SRC="$SETTINGS_JSON"
+    [ -f "$SETTINGS_V2_JSON" ] && SRC="$SETTINGS_V2_JSON"
+
+    SAVED_GAPS_IN=$(_zen_json_num "$SRC" "gapsIn")
+    SAVED_GAPS_OUT=$(_zen_json_num "$SRC" "gapsOut")
+    SAVED_BORDER=$(_zen_json_num "$SRC" "borderSize")
+    SAVED_ROUNDING=$(_zen_json_num "$SRC" "rounding")
+    SAVED_ACTIVE_OPACITY=$(_zen_json_num "$SRC" "activeOpacity")
+    SAVED_INACTIVE_OPACITY=$(_zen_json_num "$SRC" "inactiveOpacity")
+    SAVED_BLUR_ENABLED=$(_zen_json_bool "$SRC" "blurEnabled")
+    SAVED_BLUR_SIZE=$(_zen_json_num "$SRC" "blurSize")
+    SAVED_BLUR_PASSES=$(_zen_json_num "$SRC" "blurPasses")
+
+    BATCH=""
+    APPLIED_LIST=""
+    if [ -n "$SAVED_GAPS_IN" ]; then
+        BATCH="${BATCH}keyword general:gaps_in $SAVED_GAPS_IN;"
+        APPLIED_LIST="${APPLIED_LIST}      gaps_in        = $SAVED_GAPS_IN
+"
+    fi
+    if [ -n "$SAVED_GAPS_OUT" ]; then
+        BATCH="${BATCH}keyword general:gaps_out $SAVED_GAPS_OUT;"
+        APPLIED_LIST="${APPLIED_LIST}      gaps_out       = $SAVED_GAPS_OUT
+"
+    fi
+    if [ -n "$SAVED_BORDER" ]; then
+        BATCH="${BATCH}keyword general:border_size $SAVED_BORDER;"
+        APPLIED_LIST="${APPLIED_LIST}      border_size    = $SAVED_BORDER
+"
+    fi
+    if [ -n "$SAVED_ROUNDING" ]; then
+        BATCH="${BATCH}keyword decoration:rounding $SAVED_ROUNDING;"
+        APPLIED_LIST="${APPLIED_LIST}      rounding       = $SAVED_ROUNDING
+"
+    fi
+    if [ -n "$SAVED_ACTIVE_OPACITY" ]; then
+        BATCH="${BATCH}keyword decoration:active_opacity $SAVED_ACTIVE_OPACITY;"
+        APPLIED_LIST="${APPLIED_LIST}      active_opacity = $SAVED_ACTIVE_OPACITY
+"
+    fi
+    if [ -n "$SAVED_INACTIVE_OPACITY" ]; then
+        BATCH="${BATCH}keyword decoration:inactive_opacity $SAVED_INACTIVE_OPACITY;"
+        APPLIED_LIST="${APPLIED_LIST}      inactive_opacity = $SAVED_INACTIVE_OPACITY
+"
+    fi
+    if [ -n "$SAVED_BLUR_ENABLED" ]; then
+        BATCH="${BATCH}keyword decoration:blur:enabled $SAVED_BLUR_ENABLED;"
+        APPLIED_LIST="${APPLIED_LIST}      blur:enabled   = $SAVED_BLUR_ENABLED
+"
+    fi
+    if [ -n "$SAVED_BLUR_SIZE" ]; then
+        BATCH="${BATCH}keyword decoration:blur:size $SAVED_BLUR_SIZE;"
+        APPLIED_LIST="${APPLIED_LIST}      blur:size      = $SAVED_BLUR_SIZE
+"
+    fi
+    if [ -n "$SAVED_BLUR_PASSES" ]; then
+        BATCH="${BATCH}keyword decoration:blur:passes $SAVED_BLUR_PASSES;"
+        APPLIED_LIST="${APPLIED_LIST}      blur:passes    = $SAVED_BLUR_PASSES
+"
+    fi
+
+    if [ -n "$BATCH" ]; then
+        # Strip the trailing semicolon then push to Hyprland in one batch
+        BATCH="${BATCH%;}"
+        if hyprctl --batch "$BATCH" >/dev/null 2>&1; then
+            echo "    Applied saved profile values to running Hyprland session:"
+            printf "%s" "$APPLIED_LIST"
+            echo "    (Source: $(basename "$SRC"))"
+        else
+            echo "    ⚠ hyprctl --batch failed — values will reapply on next shell start."
+        fi
+    else
+        echo "    No numeric values found in saved profile — skipping (defaults stay in place)"
+    fi
+fi
+
 echo ""
 echo "[9/9] Pre-launch cleanup — kill any running zen-shell instances..."
-SURV1=$(_zen_kill_all_shells "step9")
-if [ "$SURV1" -gt 0 ]; then
-    echo "    ⚠ $SURV1 process(es) survived — end-of-install spawn will refuse to start a duplicate."
+# v6.16.4.12.6.31: Use the proven kill recipe — pkill -9 + sleep 2.
+# Previous SIGTERM-then-SIGKILL loop was unreliable, leading to double
+# bars after install.
+pkill -9 -f 'quickshell' 2>/dev/null || true
+pkill -9 -x qs 2>/dev/null || true
+pkill -9 -f 'qs.*zen-shell' 2>/dev/null || true
+rm -rf "/run/user/$(id -u)/quickshell/by-id"/* 2>/dev/null || true
+sleep 2
+
+SURV1=$(pgrep -f 'quickshell.*zen-shell' 2>/dev/null | wc -l)
+SURV1=$(echo "$SURV1" | tr -cd '0-9' | head -c 6)
+SURV1=${SURV1:-0}
+if [ "$SURV1" -gt 0 ] 2>/dev/null; then
+    echo "    ⚠ $SURV1 process(es) survived SIGKILL — end-of-install spawn will refuse to start a duplicate."
 else
-    echo "    ✓ All previous zen-shell instances stopped cleanly."
+    echo "    ✓ All previous zen-shell instances stopped cleanly (SIGKILL + 2s wait)."
 fi
 
 # Best-effort: start swww-daemon if it's not already running. The shell
@@ -1347,7 +2238,7 @@ PCTL_OK="no";      command -v playerctl >/dev/null 2>&1 && PCTL_OK="yes"
 echo ""
 echo "╔═══════════════════════════════════════════════════════════════╗"
 echo "║                                                               ║"
-echo "║         🎉  ZEN SHELL v6.16.2.3.7 INSTALLED SUCCESSFULLY  🎉   ║"
+echo "║     🎉  ZEN SHELL v6.16.4.12.6.53 · HIRAKI INSTALLED  🎉      ║"
 echo "║                                                               ║"
 echo "╚═══════════════════════════════════════════════════════════════╝"
 echo ""
@@ -1609,33 +2500,60 @@ echo ""
 ZEN_QS_PATH="${HOME}/.config/quickshell/zen-shell"
 
 if command -v quickshell >/dev/null 2>&1; then
-    # Final kill pass — should be a no-op after step [9/9] but covers
-    # the edge case where something respawned in the meantime.
-    SURVIVED=$(_zen_kill_all_shells "launch")
+    # v6.16.4.12.6.31: NUCLEAR kill approach (proven recipe)
+    # The previous SIGTERM-then-SIGKILL loop wasn't reliably terminating
+    # the prior shell before the new spawn — result was DOUBLE BARS.
+    # User's tested-and-working recipe:
+    #
+    #   pkill -9 quickshell; sleep 2
+    #   quickshell -p ~/.config/quickshell/zen-shell > /tmp/qs.log 2>&1 &
+    #   sleep 5
+    #
+    # We do exactly this — straightforward, no clever process-substitution
+    # tricks that may eat the kill signal under fish/bash differences.
+    echo "    [launch] Force-killing all quickshell instances (SIGKILL)..."
+    pkill -9 -f 'quickshell' 2>/dev/null || true
+    pkill -9 -x qs 2>/dev/null || true
+    pkill -9 -f 'qs.*zen-shell' 2>/dev/null || true
+    # Clear stale IPC sockets so fresh shell can claim its by-id slot
+    rm -rf "/run/user/$(id -u)/quickshell/by-id"/* 2>/dev/null || true
+    sleep 2
 
-    if [ "$SURVIVED" -gt 0 ]; then
-        echo "    ⚠️   $SURVIVED zen-shell process(es) survived SIGKILL — REFUSING"
+    # Verify nothing survived the SIGKILL
+    REMAINING=$(pgrep -f 'quickshell.*zen-shell' 2>/dev/null | wc -l)
+    REMAINING=$(echo "$REMAINING" | tr -cd '0-9' | head -c 6)
+    REMAINING=${REMAINING:-0}
+
+    if [ "$REMAINING" -gt 0 ] 2>/dev/null; then
+        echo "    ⚠️   $REMAINING zen-shell process(es) survived SIGKILL — REFUSING"
         echo "         to spawn another (would result in stacked bars)."
         echo "         Diagnose with:"
         echo "           pgrep -fa 'quickshell.*zen-shell|qs.*zen-shell'"
         echo "         Then manually:"
-        echo "           pkill -9 -f 'zen-shell'"
-        echo "           quickshell -p ${ZEN_QS_PATH} &"
+        echo "           pkill -9 -f quickshell; sleep 2"
+        echo "           quickshell -p ${ZEN_QS_PATH} > /tmp/qs.log 2>&1 &"
     else
+        echo "    [launch] All previous instances killed cleanly."
         # All clear — spawn exactly ONE detached zen-shell.
+        echo "    [launch] Spawning fresh quickshell..."
         if command -v setsid >/dev/null 2>&1; then
             setsid -f quickshell -p "${ZEN_QS_PATH}" </dev/null >/tmp/zen-shell.log 2>&1
         else
             nohup quickshell -p "${ZEN_QS_PATH}" </dev/null >/tmp/zen-shell.log 2>&1 &
             disown
         fi
-        # Verify exactly one is running after spawn settles
-        sleep 0.6
+        # CRITICAL: 5 seconds for shell to fully boot — was 0.6s before
+        # which was racing the QML load and reporting wrong instance count.
+        echo "    [launch] Waiting 5s for shell to boot..."
+        sleep 5
         FINAL=$(pgrep -f 'quickshell.*zen-shell' 2>/dev/null | wc -l)
-        if [ "$FINAL" -eq 1 ]; then
+        FINAL=$(echo "$FINAL" | tr -cd '0-9' | head -c 6)
+        FINAL=${FINAL:-0}
+        if [ "$FINAL" -eq 1 ] 2>/dev/null; then
             echo "    ✅  spawned: quickshell -p ${ZEN_QS_PATH}  (1 instance, verified)"
-        elif [ "$FINAL" -eq 0 ]; then
+        elif [ "$FINAL" -eq 0 ] 2>/dev/null; then
             echo "    ⚠️   spawn did not stick — check /tmp/zen-shell.log"
+            echo "         tail -30 /tmp/zen-shell.log"
         else
             echo "    ⚠️   $FINAL instances detected after spawn (expected 1) — check"
             echo "         pgrep -fa 'quickshell.*zen-shell|qs.*zen-shell'"
@@ -1646,6 +2564,20 @@ else
 fi
 echo ""
 
-echo "  ✅  Done. Enjoy Zen Shell v6.16.4.5, pre."
+# v6.16.4.12.6.49: Remove standalone "calendar" bar widget if present.
+# The Clock module now has built-in calendar popup (click clock → calendar
+# opens) — the separate CalendarButton widget became redundant and confused
+# users who saw two clock-like things in the bar.
+PANEL_STATE_FILE="$SHELL_DIR/panel-state.json"
+if [ -f "$PANEL_STATE_FILE" ] && grep -q '"calendar"' "$PANEL_STATE_FILE"; then
+    cp "$PANEL_STATE_FILE" "$PANEL_STATE_FILE.bak-$TS"
+    # Remove "calendar" entries from any of the layout arrays
+    # (use sed to handle JSON cleanly — supports both with and without trailing comma)
+    sed -i 's/"calendar",\?\s*//g; s/,\s*"calendar"//g' "$PANEL_STATE_FILE"
+    echo "    🧹  Removed standalone calendar widget from panel layout"
+    echo "        Calendar popup now built into Clock module (click clock to open)"
+fi
+
+echo "  ✅  Done. Enjoy Zen Shell v6.16.4.12.6.51 Hikari (光)."
 echo ""
 exit 0
