@@ -97,7 +97,7 @@ Files changed: `install.sh` (auto-applier loop), `Clock.qml`
 `shell.qml` (margins.right binding), `ZenVersion.qml`,
 `README.md`.
 
-Wala tayong babawasan — every Hiraki .52 behaviour is preserved
+every Hiraki .52 behaviour is preserved
 verbatim. .53 only adds the position reporter and removes the
 broken auto-applier pair.
 
@@ -138,7 +138,7 @@ modules nor future widgets can shadow their hit areas.
 Files changed: `Clock.qml`, `StartMenu.qml`, `ZenVersion.qml`,
 `install.sh` (banner only), `README.md`.
 
-Wala tayong babawasan — only hover-to-open behaviour was removed.
+only hover-to-open behaviour was removed.
 All Hikari plumbing (format cycle, wheel-month, theme sync, sizing
 fix, layer-overlay calendar window) preserved verbatim.
 
@@ -419,7 +419,7 @@ Historical reference from the pre-Quickshell lineage. Hyprland 0.52 era. Python 
 
 ## What v6.16.4.12.6 "Hikari · Frosted" ships
 
-Polish + opt-in features on top of v6.16.4.12.5. Wala tayo babawasan.
+Polish + opt-in features on top of v6.16.4.12.5.
 
 | Area | Change |
 |---|---|
