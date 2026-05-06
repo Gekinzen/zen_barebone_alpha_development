@@ -84,8 +84,7 @@ Singleton {
 
     function toggleWifi() {
         const cmd = wifiEnabled ? "nmcli radio wifi off" : "nmcli radio wifi on"
-        actionRunner.command = ["bash", "-c", cmd]
-        actionRunner.running = true
+        _runAction(["bash", "-c", cmd])
         // Optimistic toggle + refresh after 1s
         wifiEnabled = !wifiEnabled
         Qt.callLater(function() { refreshTimer.restart() })
@@ -93,30 +92,26 @@ Singleton {
 
     function toggleBluetooth() {
         const cmd = btPowered ? "bluetoothctl power off" : "bluetoothctl power on"
-        actionRunner.command = ["bash", "-c", cmd]
-        actionRunner.running = true
+        _runAction(["bash", "-c", cmd])
         btPowered = !btPowered
         Qt.callLater(function() { refreshTimer.restart() })
     }
 
     function setVolume(vol) {
         const clamped = Math.max(0, Math.min(100, vol))
-        actionRunner.command = ["bash", "-c", "wpctl set-volume @DEFAULT_AUDIO_SINK@ " + (clamped / 100).toFixed(2)]
-        actionRunner.running = true
+        _runAction(["bash", "-c", "wpctl set-volume @DEFAULT_AUDIO_SINK@ " + (clamped / 100).toFixed(2)])
         audioVolume = clamped
         _updateAudioIcon()
     }
 
     function toggleMute() {
-        actionRunner.command = ["bash", "-c", "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"]
-        actionRunner.running = true
+        _runAction(["bash", "-c", "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"])
         audioMuted = !audioMuted
         _updateAudioIcon()
     }
 
     function toggleMicMute() {
-        actionRunner.command = ["bash", "-c", "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"]
-        actionRunner.running = true
+        _runAction(["bash", "-c", "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"])
         micMuted = !micMuted
     }
 
@@ -149,9 +144,8 @@ Singleton {
             const pwd = arguments[1]
             const escSsidP = ssid.replace(/'/g, "'\\''")
             const escPwdP  = pwd.replace(/'/g, "'\\''")
-            actionRunner.command = ["bash", "-c",
-                "nmcli device wifi connect '" + escSsidP + "' password '" + escPwdP + "'"]
-            actionRunner.running = true
+            _runAction(["bash", "-c",
+                "nmcli device wifi connect '" + escSsidP + "' password '" + escPwdP + "'"])
             return
         }
 
@@ -179,39 +173,54 @@ Singleton {
         stdout: StdioCollector {
             onStreamFinished: {
                 const result = text.trim()
+                // v6.16.4.12.9.11: route-metric tail. Appended to every
+                // connect command so that explicit user-tap to connect
+                // makes WiFi the preferred default route even when LAN
+                // is plugged in. Default NetworkManager metrics are
+                // ethernet=100, wifi=600 (LAN wins). We set wifi to 50
+                // so wifi wins. Persistent — also applied to future
+                // auto-reconnects of this saved network.
+                //
+                // Non-fatal: chained with `;` not `&&` so a metric-set
+                // failure (e.g. connection profile not yet visible
+                // immediately after connect) doesn't roll back the
+                // connect itself. Worst case: connected but metric
+                // unchanged, default route still uses LAN. The next
+                // tap or background sweep will retry.
+                const metricTail = " ; nmcli connection modify '" + savedCredsCheck.escSsid + "' ipv4.route-metric 50 ipv6.route-metric 50 2>/dev/null"
+
                 if (result === "SAVED") {
                     // Saved network — reconnect directly
-                    actionRunner.command = ["bash", "-c",
-                        "nmcli connection up '" + savedCredsCheck.escSsid + "'"]
-                    actionRunner.running = true
+                    _runAction(["bash", "-c",
+                        "nmcli connection up '" + savedCredsCheck.escSsid + "'" + metricTail])
                     return
                 }
                 // New network
                 if (!savedCredsCheck.isSecured) {
                     // Open network — direct connect
-                    actionRunner.command = ["bash", "-c",
-                        "nmcli device wifi connect '" + savedCredsCheck.escSsid + "'"]
-                    actionRunner.running = true
+                    _runAction(["bash", "-c",
+                        "nmcli device wifi connect '" + savedCredsCheck.escSsid + "'" + metricTail])
                     return
                 }
                 // Secured + new → in-shell password prompt
                 if (typeof PasswordPromptService === "undefined") {
                     console.warn("[ConnectivityService] PasswordPromptService unavailable — falling back to zenity")
-                    actionRunner.command = ["bash", "-c",
+                    _runAction(["bash", "-c",
                         "PW=$(zenity --password --title='Wi-Fi: " + savedCredsCheck.escSsid.replace(/\$/g, "\\$") + "' 2>/dev/null) || exit 1; " +
                         "[ -z \"$PW\" ] && exit 1; " +
-                        "nmcli device wifi connect '" + savedCredsCheck.escSsid + "' password \"$PW\""]
-                    actionRunner.running = true
+                        "nmcli device wifi connect '" + savedCredsCheck.escSsid + "' password \"$PW\"" + metricTail])
                     return
                 }
                 const ssidForCb = savedCredsCheck.targetSsid
                 const escForCb = savedCredsCheck.escSsid
+                const metricTailForCb = metricTail   // capture for closure
                 PasswordPromptService.requestPassword(ssidForCb, function(password) {
-                    // User submitted — run the connect with their password
+                    // User submitted — run the connect with their password,
+                    // then chain the metric set so wifi takes precedence
+                    // over ethernet on default route.
                     const escPw = password.replace(/'/g, "'\\''")
-                    actionRunner.command = ["bash", "-c",
-                        "nmcli device wifi connect '" + escForCb + "' password '" + escPw + "'"]
-                    actionRunner.running = true
+                    _runAction(["bash", "-c",
+                        "nmcli device wifi connect '" + escForCb + "' password '" + escPw + "'" + metricTailForCb])
                 }, function() {
                     // User cancelled — no action needed
                     console.log("[ConnectivityService] WiFi password prompt cancelled by user")
@@ -222,18 +231,15 @@ Singleton {
 
 
     function disconnectWifi() {
-        actionRunner.command = ["bash", "-c", "nmcli device disconnect wlan0 2>/dev/null || nmcli device disconnect wlp* 2>/dev/null"]
-        actionRunner.running = true
+        _runAction(["bash", "-c", "nmcli device disconnect wlan0 2>/dev/null || nmcli device disconnect wlp* 2>/dev/null"])
     }
 
     function connectBtDevice(mac) {
-        actionRunner.command = ["bash", "-c", "bluetoothctl connect " + mac]
-        actionRunner.running = true
+        _runAction(["bash", "-c", "bluetoothctl connect " + mac])
     }
 
     function disconnectBtDevice(mac) {
-        actionRunner.command = ["bash", "-c", "bluetoothctl disconnect " + mac]
-        actionRunner.running = true
+        _runAction(["bash", "-c", "bluetoothctl disconnect " + mac])
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -254,15 +260,13 @@ Singleton {
 
     function forgetWifi(ssid) {
         const escSsid = ssid.replace(/'/g, "'\\''")
-        actionRunner.command = ["bash", "-c",
-            "nmcli connection delete '" + escSsid + "' 2>/dev/null"]
-        actionRunner.running = true
+        _runAction(["bash", "-c",
+            "nmcli connection delete '" + escSsid + "' 2>/dev/null"])
     }
 
     function scanWifi() {
-        actionRunner.command = ["bash", "-c",
-            "nmcli device wifi rescan 2>/dev/null; sleep 0.4"]
-        actionRunner.running = true
+        _runAction(["bash", "-c",
+            "nmcli device wifi rescan 2>/dev/null; sleep 0.4"])
         // Trigger an immediate poll so the UI refreshes ASAP.
         // The actionRunner finish handler also calls update() but
         // that's after the rescan delay; this gets the user a
@@ -272,9 +276,12 @@ Singleton {
 
     function reconnectWifi(ssid) {
         const escSsid = ssid.replace(/'/g, "'\\''")
-        actionRunner.command = ["bash", "-c",
-            "nmcli connection up '" + escSsid + "' 2>/dev/null"]
-        actionRunner.running = true
+        // v6.16.4.12.9.11: same metric chain as connectWifi — explicit
+        // tap-to-reconnect signals user preference, so make wifi the
+        // preferred default route over LAN.
+        _runAction(["bash", "-c",
+            "nmcli connection up '" + escSsid + "' 2>/dev/null" +
+            " ; nmcli connection modify '" + escSsid + "' ipv4.route-metric 50 ipv6.route-metric 50 2>/dev/null"])
     }
 
     function startBtScan() {
@@ -295,15 +302,13 @@ Singleton {
         // pair + trust + connect chain. trust is critical — without
         // it, the device disconnects after first sleep cycle and
         // user has to re-enter the pair PIN.
-        actionRunner.command = ["bash", "-c",
-            "echo -e 'pair " + mac + "\\ntrust " + mac + "\\nconnect " + mac + "\\nquit\\n' | bluetoothctl"]
-        actionRunner.running = true
+        _runAction(["bash", "-c",
+            "echo -e 'pair " + mac + "\\ntrust " + mac + "\\nconnect " + mac + "\\nquit\\n' | bluetoothctl"])
     }
 
     function unpairBtDevice(mac) {
-        actionRunner.command = ["bash", "-c",
-            "bluetoothctl remove " + mac + " 2>/dev/null"]
-        actionRunner.running = true
+        _runAction(["bash", "-c",
+            "bluetoothctl remove " + mac + " 2>/dev/null"])
     }
 
     // BT scan runner — runs `bluetoothctl scan on` detached.
@@ -358,7 +363,63 @@ Singleton {
         onTriggered: root.update()
     }
 
-    Process { id: actionRunner; running: false }
+    // ═══════════════════════════════════════════════════════════════
+    // v6.16.4.12.9.11 (Modori) — actionRunner improvements
+    //
+    // Fixes two real-world issues:
+    //
+    // 1. **Re-entry bug**. When a click fires while a previous
+    //    actionRunner invocation is still pending (running=true),
+    //    setting running=true again is a no-op — Qt sees the
+    //    property going from true→true and skips the change.
+    //    Result: the second click is silently dropped.
+    //    Fix: _runAction() helper resets running to false first,
+    //    THEN sets command + running=true. Forces Qt to fire the
+    //    change.
+    //
+    // 2. **Stale state after action**. nmcli connect/disconnect
+    //    takes ~1-3s to settle. The next regular poll happens
+    //    every 5s (refreshTimer interval). User taps Connect,
+    //    sees nothing for 5s, thinks the action failed.
+    //    Fix: actionRunner.onExited triggers an immediate update()
+    //    + a delayed update() at +1.5s (catches slow nmcli
+    //    convergence).
+    // ═══════════════════════════════════════════════════════════════
+    function _runAction(cmdArr) {
+        // Reset to force re-trigger even if previous still pending.
+        // Setting running=true while it's already true is a no-op
+        // in Qt (property change suppressed because old===new), so
+        // a quick double-tap was silently dropping the second call.
+        if (actionRunner.running) {
+            actionRunner.running = false
+        }
+        actionRunner.command = cmdArr
+        actionRunner.running = true
+    }
+
+    Process {
+        id: actionRunner
+        running: false
+        // After any action completes, refresh state immediately +
+        // again at +1.5s (nmcli convergence delay).
+        onExited: function(exitCode, exitStatus) {
+            root.update()
+            postActionRefreshTimer.restart()
+        }
+        stderr: StdioCollector {
+            onStreamFinished: {
+                if (text.length > 0) {
+                    console.warn("[ConnectivityService action stderr]:", text.trim())
+                }
+            }
+        }
+    }
+    Timer {
+        id: postActionRefreshTimer
+        interval: 1500
+        repeat: false
+        onTriggered: root.update()
+    }
     Process { id: settingsLauncher; running: false }
 
     Process {
@@ -473,7 +534,14 @@ Singleton {
                     const active = parts[0] === "yes"
                     const ssid = parts[1]
                     const signal = parseInt(parts[2]) || 0
-                    const security = parts[3] || ""
+                    // v6.16.4.12.9.11: nmcli -t outputs literal "--"
+                    // for null security on open networks. The string "--"
+                    // has length 2 → previous code thought open networks
+                    // were secured and showed the lock icon + tried to
+                    // prompt for a password. Normalize "--" to "" so
+                    // downstream isSecured checks work correctly.
+                    let security = parts[3] || ""
+                    if (security === "--") security = ""
                     if (ssid) {
                         networks.push({ ssid: ssid, signal: signal, security: security, active: active })
                         if (active) {

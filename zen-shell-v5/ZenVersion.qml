@@ -35,8 +35,8 @@ import QtQuick
 Singleton {
     id: root
 
-    readonly property string version:        "v6.16.4.12.9.10"
-    readonly property string versionRaw:     "6.16.4.12.9.10"
+    readonly property string version:        "v6.16.4.12.9.12"
+    readonly property string versionRaw:     "6.16.4.12.9.12"
     readonly property string releaseDate:    "2026-05-06"
     readonly property string channel:        "alpha"
     readonly property string codename:       "Modori"

@@ -175,7 +175,7 @@ else
 fi
 
 echo ""
-echo "    Zen Shell v6.16.4.12.9.10 — Modori (戻り) hotfix 10"
+echo "    Zen Shell v6.16.4.12.9.12 — Modori (戻り) hotfix 12"
 echo "    ─────────────────────────────────────────────────────"
 echo ""
 echo "    Quickshell-native desktop environment for Hyprland."
@@ -2348,7 +2348,7 @@ PCTL_OK="no";      command -v playerctl >/dev/null 2>&1 && PCTL_OK="yes"
 echo ""
 echo "╔═══════════════════════════════════════════════════════════════╗"
 echo "║                                                               ║"
-echo "║    🎉  ZEN SHELL v6.16.4.12.9.10 · MODORI HF10 INSTALLED  🎉   ║"
+echo "║    🎉  ZEN SHELL v6.16.4.12.9.12 · MODORI HF12 INSTALLED  🎉   ║"
 echo "║                                                               ║"
 echo "╚═══════════════════════════════════════════════════════════════╝"
 echo ""
@@ -2724,6 +2724,6 @@ if [ -f "$PANEL_STATE_FILE" ] && grep -q '"calendar"' "$PANEL_STATE_FILE"; then
     echo "        Calendar popup now built into Clock module (click clock to open)"
 fi
 
-echo "  ✅  Done. Enjoy Zen Shell v6.16.4.12.9.10 Modori (戻り)."
+echo "  ✅  Done. Enjoy Zen Shell v6.16.4.12.9.12 Modori (戻り)."
 echo ""
 exit 0

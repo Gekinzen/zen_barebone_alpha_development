@@ -1072,6 +1072,7 @@ Rectangle {
                                 MouseArea {
                                     id: wifiRefreshMouse
                                     anchors.fill: parent
+                                    preventStealing: true   // hf11: stop Flickable from eating the tap
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: ConnectivityService.scanWifi()
@@ -1211,6 +1212,7 @@ Rectangle {
                                         MouseArea {
                                             id: forgetMouse
                                             anchors.fill: parent
+                                    preventStealing: true   // hf11: stop Flickable from eating the tap
                                             hoverEnabled: true
                                             cursorShape: Qt.PointingHandCursor
                                             onClicked: ConnectivityService.forgetWifi(savedRow.modelData)
@@ -1222,6 +1224,7 @@ Rectangle {
                                 MouseArea {
                                     id: savedRowMouse
                                     anchors.fill: parent
+                                    preventStealing: true   // hf11: stop Flickable from eating the tap
                                     anchors.rightMargin: 38
                                     hoverEnabled: true
                                     cursorShape: savedRow.isActive
@@ -1321,6 +1324,7 @@ Rectangle {
                                 MouseArea {
                                     id: availRowMouse
                                     anchors.fill: parent
+                                    preventStealing: true   // hf11: stop Flickable from eating the tap
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: ConnectivityService.connectWifi(
@@ -1404,6 +1408,7 @@ Rectangle {
                                 MouseArea {
                                     id: btScanMouse
                                     anchors.fill: parent
+                                    preventStealing: true   // hf11: stop Flickable from eating the tap
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
@@ -1534,6 +1539,7 @@ Rectangle {
                                         MouseArea {
                                             id: btDiscMouse
                                             anchors.fill: parent
+                                    preventStealing: true   // hf11: stop Flickable from eating the tap
                                             hoverEnabled: true
                                             cursorShape: Qt.PointingHandCursor
                                             onClicked: ConnectivityService.disconnectBtDevice(connectedRow.modelData.mac)
@@ -1629,6 +1635,7 @@ Rectangle {
                                         MouseArea {
                                             id: btForgetMouse
                                             anchors.fill: parent
+                                    preventStealing: true   // hf11: stop Flickable from eating the tap
                                             hoverEnabled: true
                                             cursorShape: Qt.PointingHandCursor
                                             onClicked: ConnectivityService.unpairBtDevice(pairedRow.modelData.mac)
@@ -1639,6 +1646,7 @@ Rectangle {
                                 MouseArea {
                                     id: pairedRowMouse
                                     anchors.fill: parent
+                                    preventStealing: true   // hf11: stop Flickable from eating the tap
                                     anchors.rightMargin: 38
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
@@ -1720,6 +1728,7 @@ Rectangle {
                                 MouseArea {
                                     id: nearbyRowMouse
                                     anchors.fill: parent
+                                    preventStealing: true   // hf11: stop Flickable from eating the tap
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: ConnectivityService.pairBtDevice(nearbyRow.modelData.mac)
