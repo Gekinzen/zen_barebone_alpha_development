@@ -1,7 +1,8 @@
 # Zen Shell — Quickshell-native desktop for Hyprland
 
-**Current version: v6.16.4.12.9.10 "Modori" (戻り)** — alpha
-**Repo branch:** `alpha-v6.16.4.12.9.10` (Modori series)
+**Current release: v6.16.4.12.9.10 "Modori" (戻り)** — **stable**
+**Branch:** [`main`](https://github.com/Gekinzen/zen_barebone_alpha_development/tree/main)
+**Release tag:** [`v6.16.4.12.9.10`](https://github.com/Gekinzen/zen_barebone_alpha_development/tree/v6.16.4.12.9.10)
 
 A QML desktop environment built on [Quickshell](https://quickshell.outfoxxed.me/)
 for [Hyprland](https://hyprland.org/) 0.54+. Includes a configurable bar,
@@ -11,12 +12,12 @@ manager, audio-reactive music visualization, unified theme engine with
 proper Wayland-overlay password prompt, and on-the-fly dark mode toggle
 synced across GTK3/4/libadwaita apps.
 
-> **v6.16.4.12.9.10 note** — Modori ("return / coming back"). After
-> the Tategaki vertical-bar attempt hit three startup-blocking parser
-> errors and a broken empty-bar render, we rolled the bar code back
-> to the proven Tachiagari .7.1 base. Modori then added back ONLY
-> the narrowly-scoped, low-risk fixes that solved real user-reported
-> bugs, plus shipped a series of UX-completeness drops:
+> **Modori is now the stable channel.** After the Tategaki vertical-bar
+> attempt hit three startup-blocking parser errors and a broken
+> empty-bar render, we rolled the bar code back to the proven
+> Tachiagari .7.1 base. Modori then added back only the narrowly
+> scoped, low-risk fixes that solved real user-reported bugs, plus
+> shipped a series of UX-completeness drops:
 >
 > - **Smart-contrast theme engine** that detects light vs dark
 >   backgrounds and auto-adjusts foreground tones to ensure readable
@@ -26,37 +27,68 @@ synced across GTK3/4/libadwaita apps.
 > - **Bulletproof sidebar user labels** that survive monitor crossings
 >   and singleton transients (env-fallback resolution)
 > - **GTK Dark Mode toggle** in the Control Panel that syncs gsettings
->   + GTK3/4 settings.ini + libadwaita in one tap
-> - **Convenient WiFi+BT redesign** — saved/available split, larger
->   tap targets, refresh button, forget button, BT scan + pair flow
-> - **In-shell password prompt** at WlrLayer.Overlay — replaces the
+>   and GTK3/4 settings.ini and libadwaita in one tap
+> - **Convenient WiFi+BT redesign** with saved/available split, larger
+>   tap targets, refresh button, forget button, BT scan and pair flow
+> - **In-shell password prompt** at WlrLayer.Overlay that replaces the
 >   zenity dialog that was getting hidden behind the Control Panel
+> - **WiFi takes preferred default route over LAN** when the user
+>   explicitly taps a network (route metric override)
+>
+> The official release name is **v6.16.4.12.9.10**. Subsequent minor
+> patches (.11, .12) are bundled into the same release and applied
+> on top — they are bug fixes that do not change the public API,
+> behavior, or visible feature set, only how reliably those features
+> work end-to-end.
 
 ![Zen Shell Modori desktop](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_16_4_12_9_3/139a7e9c-15f9-4a32-bf1c-01af9e733206.jpeg)
 
 ---
 
-## What's new in Modori (v6.16.4.12.9.x) — alpha
+## What's new in Modori — stable
 
 | Area | Change |
 |---|---|
-| **In-shell WiFi password prompt (NEW · .9.10)** | Replaces `zenity --password` with a proper Wayland overlay popup at `WlrLayer.Overlay`. Floats above all other surfaces including the Control Panel that triggered it — impossible to hide. Centered on focused monitor with dimmed backdrop. Auto-focuses password field on open, Enter to submit, Esc to cancel. Show/hide password toggle (eye icon). Click outside backdrop or any surface outside the prompt → cancel via `HyprlandFocusGrab`. Uses theme-aware colors so it matches the rest of the shell. |
-| **Convenient WiFi+BT redesign (NEW · .9.9)** | Major Control Panel WiFi + Bluetooth tab redesign. WiFi: Saved Networks section at top (tap to reconnect, trash to forget), Available Networks below sorted by signal, larger 44px rows, signal-strength colored icons (green ≥60%, yellow ≥35%, grey below), lock icon for secured, whole-row tap targets, explicit Rescan button. Bluetooth: Connected/Paired/Nearby section split, scan toggle button, tap-to-reconnect for paired-but-disconnected devices, tap-to-pair for nearby (pair + trust + connect chain), trash button to unpair. New ConnectivityService API: `forgetWifi`, `scanWifi`, `reconnectWifi`, `startBtScan` / `stopBtScan`, `pairBtDevice`, `unpairBtDevice`, `savedWifiNetworks`, `btPairedDevices`, `btNearbyDevices`, `btScanning`. |
-| **GTK Dark Mode toggle (NEW · .9.8)** | Toggle row in Control Panel (Super+C) right after Gaming Boost. One tap flips four sync points atomically: `gsettings color-scheme` (libadwaita + GTK4), `gsettings gtk-theme` (legacy GTK3), `~/.config/gtk-3.0/settings.ini`, `~/.config/gtk-4.0/settings.ini`. State persists to `~/.local/share/zen-shell/darkmode.state`. Affects every GTK3/4/libadwaita app that respects gsettings or settings.ini — Thunar, Nautilus, GNOME Settings, Geary, GIMP, gnome-text-editor. Apps with their own theme preference (Firefox, Chromium) are unaffected by design. Custom GTK theme override via `$ZEN_GTK_DARK` / `$ZEN_GTK_LIGHT` env vars (defaults `Adwaita-dark` / `Adwaita`). |
-| **Bulletproof sidebar user labels (.9.7)** | Username + @hostname text labels in the Settings sidebar bottom row are now structurally guaranteed to render. Three-step fix: (1) MouseArea moved out of the RowLayout (it was inside, with `anchors.fill: parent`, which corrupted the RowLayout's space distribution and collapsed the text container to 0 width), (2) Item with explicit `Math.max(60, sidebarUserBg.width - 32 - 26)` width math + 60px floor as a sanity net, (3) env-fallback resolution — labels read from `Quickshell.env("USER")` and `Quickshell.env("HOSTNAME")` if `UserProfileService` transiently empties (e.g. after window-monitor crossing). Avatar still uses the service's `effectiveAvatarSource` with the blue fallback glyph. |
-| **Smart contrast theme engine (.9.4)** | `ThemeService.qml` runs every loaded theme through a luminance check. If `bg0` is light and `fg`/`grey0`/`grey1`/`grey2` would be unreadable against it (or the inverse for dark themes), the foreground tones get auto-nudged toward black/white using a binary search until the WCAG 4.5:1 contrast ratio is reached. Themes that are already correct pass through unchanged. Custom user themes get the same protection on import. Accent colors (red/orange/blue/etc.) are deliberately NOT corrected — those are decorative-fill, not body-text, and their hue is part of the theme's identity. |
-| **Modori Dark + Light themes (.9.2)** | Two new built-in themes (under `themes-builtin/`) sharing the same persimmon accent (`#e87554`) for visual continuity. Modori Dark: deep midnight indigo bg, bone-white fg. Modori Light: warm washi cream bg, sumi-ink black fg. |
-| **Modori Dark + Light wallpapers (.9.2)** | Two paired procedural wallpapers (2560×1440 PNG, ~5MB each) in `wallpapers-builtin/`. Composition: imperfect enso (zen circle, open at bottom-left) drawn with multi-layer ink wash + "Sho" calligraphic pressure curve, persimmon dot inside marking "home", subtle 戻 kanji watermark. Both share the same composition — same scene at different times of day. Dark variant has scattered star specks; light variant has paper fiber texture. |
-| **Settings persistence fix (.9)** | `Theme.qml`'s layout loader stopped reading stale `style` from `bar-layout.json`. Module Shape (Pill/Round), Bar Opacity, Bar Corner Radius are owned by PanelState exclusively now. The clobber bug that silently reverted these on restart is dead. |
-| **Slider-drag save corruption fix (.9)** | `PanelState.saveState()` is debounced through a 200ms Timer. Rapid slider drags previously fired `saveState()` ~60×/second, each spawning an overlapping bash heredoc write — corrupting the JSON. Now one bash spawn per gesture. |
-| **Fresh-install default wallpaper (.9.4)** | `install.sh` detects "no existing user wallpaper" via `wallpaper-state.json` absence/staleness and applies `modori-wallpaper-dark.png` automatically via swww. Fetched from `Gekinzen/images-demo` if curl is available; falls back to the local copy in `wallpapers-builtin/` if offline. Existing user wallpapers are NEVER overwritten on re-install. |
-| **L/R panel position (hidden) (.9.3)** | Settings → Panel → Panel Position no longer shows Left or Right cards. Vertical bar rendering is deferred to a properly-validated future drop. Top + Bottom only. PanelState includes a migration safety net: any saved `panelPosition: "left"/"right"` from previous testing auto-migrates to `"bottom"` on load. |
+| **Action layer reliability (.12 patch)** | Critical fix to the `_runAction` helper introduced in the .11 patch. The helper was accidentally recursive (the bulk-rewrite that introduced it also pattern-matched its own body), which silently broke every WiFi/Bluetooth/audio toggle and every tap-to-connect flow. Restored the actual command-dispatch body. After this fix, all the WiFi/BT improvements from .11 take effect for the first time. |
+| **WiFi route-metric preference (.11 patch)** | Every explicit user-tap to connect now chains `nmcli connection modify '<SSID>' ipv4.route-metric 50 ipv6.route-metric 50` after the connect itself. Default NetworkManager metrics are ethernet=100 and wifi=600 (LAN wins by default). Setting wifi to 50 makes wifi the preferred default route even when an ethernet cable is plugged in. The chain uses `;` not `&&` so a metric-set failure does not roll back the connect. Persistent — applied to future auto-reconnects of that saved connection. |
+| **Tap target reliability (.11 patch)** | `preventStealing: true` added to all 9 WiFi/Bluetooth row MouseAreas. Without it, the parent `Flickable` was intercepting tap events as drag-to-scroll candidates whenever the list overflowed, silently dropping the tap. Affected rows: WiFi saved, WiFi forget button, WiFi available, WiFi rescan, BT disconnect, BT paired tap-to-reconnect, BT forget, BT scan toggle, BT nearby tap-to-pair. |
+| **Open networks parsing (.11 patch)** | `nmcli -t` outputs the literal string `"--"` for null security on open networks. The previous parser saw `"--".length > 0` and treated open networks as secured — showed a lock icon and tried to open the password prompt for them. Now `"--"` is normalized to empty string. Open networks show no lock and connect directly. |
+| **Action exit refresh (.11 patch)** | `actionRunner.onExited` now triggers an immediate `update()` plus a delayed `update()` at +1.5s. User taps Connect, sees the result within 1-2 seconds instead of waiting for the next 5-second poll. Action stderr is now collected and warned to the console (visible in `journalctl --user -t quickshell`) instead of being hidden. |
+| **In-shell WiFi password prompt (.10)** | Replaces `zenity --password` with a proper Wayland overlay popup at `WlrLayer.Overlay`. Floats above all other surfaces including the Control Panel that triggered it — impossible to hide. Centered on focused monitor with dimmed backdrop. Auto-focuses the password field on open, Enter to submit, Esc to cancel. Show/hide password toggle (eye icon). Click outside backdrop or any surface outside the prompt cancels via `HyprlandFocusGrab`. Uses theme-aware colors so it matches the rest of the shell. |
+| **Convenient WiFi+BT redesign (.9)** | Major Control Panel WiFi and Bluetooth tab redesign. WiFi: Saved Networks section at top (tap to reconnect, trash to forget), Available Networks below sorted by signal, larger 44px rows, signal-strength colored icons (green ≥60%, yellow ≥35%, grey below), lock icon for secured, whole-row tap targets, explicit Rescan button. Bluetooth: Connected/Paired/Nearby section split, scan toggle button, tap-to-reconnect for paired-but-disconnected devices, tap-to-pair for nearby (pair + trust + connect chain), trash button to unpair. New ConnectivityService API: `forgetWifi`, `scanWifi`, `reconnectWifi`, `startBtScan` / `stopBtScan`, `pairBtDevice`, `unpairBtDevice`, `savedWifiNetworks`, `btPairedDevices`, `btNearbyDevices`, `btScanning`. |
+| **GTK Dark Mode toggle (.8)** | Toggle row in Control Panel (Super+C) right after Gaming Boost. One tap flips four sync points atomically: `gsettings color-scheme` (libadwaita and GTK4), `gsettings gtk-theme` (legacy GTK3), `~/.config/gtk-3.0/settings.ini`, and `~/.config/gtk-4.0/settings.ini`. State persists to `~/.local/share/zen-shell/darkmode.state`. Affects every GTK3/4/libadwaita app that respects gsettings or settings.ini — Thunar, Nautilus, GNOME Settings, Geary, GIMP, gnome-text-editor. Apps with their own theme preference (Firefox, Chromium) are unaffected by design. Custom GTK theme override via `$ZEN_GTK_DARK` and `$ZEN_GTK_LIGHT` env vars (defaults `Adwaita-dark` and `Adwaita`). |
+| **Bulletproof sidebar user labels (.7)** | Username and @hostname text labels in the Settings sidebar bottom row are now structurally guaranteed to render. Three-step fix: (1) MouseArea moved out of the RowLayout (it was inside, with `anchors.fill: parent`, which corrupted the RowLayout's space distribution and collapsed the text container to 0 width), (2) Item with explicit `Math.max(60, sidebarUserBg.width - 32 - 26)` width math plus a 60px floor as a sanity net, (3) env-fallback resolution — labels read from `Quickshell.env("USER")` and `Quickshell.env("HOSTNAME")` if `UserProfileService` transiently empties (e.g. after a window-monitor crossing). Avatar still uses the service's `effectiveAvatarSource` with the blue fallback glyph. |
+| **Smart contrast theme engine (.4)** | `ThemeService.qml` runs every loaded theme through a luminance check. If `bg0` is light and `fg`/`grey0`/`grey1`/`grey2` would be unreadable against it (or the inverse for dark themes), the foreground tones get auto-nudged toward black/white using a binary search until the WCAG 4.5:1 contrast ratio is reached. Themes that are already correct pass through unchanged. Custom user themes get the same protection on import. Accent colors (red/orange/blue/etc.) are deliberately NOT corrected — those are decorative-fill, not body-text, and their hue is part of the theme's identity. |
+| **Modori Dark + Light themes (.2)** | Two new built-in themes (under `themes-builtin/`) sharing the same persimmon accent (`#e87554`) for visual continuity. Modori Dark: deep midnight indigo background, bone-white foreground. Modori Light: warm washi cream background, sumi-ink black foreground. |
+| **Modori Dark + Light wallpapers (.2)** | Two paired procedural wallpapers (2560×1440 PNG, ~5MB each) in `wallpapers-builtin/`. Composition: imperfect enso (zen circle, open at bottom-left) drawn with multi-layer ink wash and a "Sho" calligraphic pressure curve, persimmon dot inside marking "home", subtle 戻 kanji watermark. Both share the same composition — same scene at different times of day. Dark variant has scattered star specks; light variant has paper fiber texture. |
+| **Settings persistence fix (.0)** | `Theme.qml`'s layout loader stopped reading stale `style` from `bar-layout.json`. Module Shape (Pill/Round), Bar Opacity, and Bar Corner Radius are owned by PanelState exclusively now. The clobber bug that silently reverted these on restart is fixed. |
+| **Slider-drag save corruption fix (.0)** | `PanelState.saveState()` is debounced through a 200ms Timer. Rapid slider drags previously fired `saveState()` ~60×/second, each spawning an overlapping bash heredoc write — corrupting the JSON. Now one bash spawn per gesture. |
+| **Fresh-install default wallpaper (.4)** | `install.sh` detects "no existing user wallpaper" via `wallpaper-state.json` absence/staleness and applies `modori-wallpaper-dark.png` automatically via swww. Fetched from `Gekinzen/images-demo` if curl is available; falls back to the local copy in `wallpapers-builtin/` if offline. Existing user wallpapers are NEVER overwritten on re-install. |
+| **L/R panel position hidden (.3)** | Settings → Panel → Panel Position no longer shows Left or Right cards. Vertical bar rendering is deferred to a properly-validated future release. Top and Bottom only. PanelState includes a migration safety net: any saved `panelPosition: "left"/"right"` from previous testing auto-migrates to `"bottom"` on load. |
 
-Wala tayong babawasan — every Tachiagari .7.1 feature is preserved
-verbatim. Smart-contrast logic is additive (themes with already-good
-contrast pass through unchanged). The L/R picker hide is a UI
-visibility change; the underlying popup-direction logic for vertical
-bars stays in PanelState ready for the future drop.
+Every Tachiagari .7.1 feature is preserved verbatim. Smart-contrast
+logic is additive (themes with already-good contrast pass through
+unchanged). The L/R picker hide is a UI visibility change; the
+underlying popup-direction logic for vertical bars stays in PanelState
+ready for the future release.
+
+---
+
+## Patch history within v6.16.4.12.9.10
+
+The official release is **v6.16.4.12.9.10**. Patches that bundle on
+top of this release (without changing the release name) are tracked
+here:
+
+| Patch | What it brought |
+|---|---|
+| **.12** | Critical regression fix. The `_runAction` helper introduced in .11 was accidentally recursive (the bulk-rewrite that introduced it also pattern-matched its own body), silently breaking every WiFi/Bluetooth/audio toggle and every tap-to-connect flow. One-line restore of the helper body. After this patch, all the .11 fixes take effect for the first time. |
+| **.11** | Three real-world bug fixes on the .10 WiFi/BT redesign: (1) `preventStealing: true` on row taps so Flickable does not eat them when list overflows; (2) Open networks no longer treated as secured (parser normalizes `nmcli`'s `"--"` null marker to empty string); (3) WiFi takes preferred default route over LAN on user-tap connect (route metric override). Also added action exit refresh + delayed refresh + stderr logging. |
+| **.10** | In-shell WiFi password prompt at WlrLayer.Overlay (replaces zenity that was hiding behind the Control Panel). |
+
+If you are using the GitHub tag [`v6.16.4.12.9.10`](https://github.com/Gekinzen/zen_barebone_alpha_development/tree/v6.16.4.12.9.10),
+you have all three patches above bundled. The `main` branch tracks
+the latest patch level.
 
 ---
 
@@ -64,23 +96,15 @@ bars stays in PanelState ready for the future drop.
 
 | Version | Codename | Channel | What it brought |
 |---|---|---|---|
-| **v6.16.4.12.9.10** | **Modori (戻り) hf10** | alpha | In-shell WiFi password prompt at WlrLayer.Overlay (replaces zenity that was hiding behind the Control Panel) |
-| v6.16.4.12.9.9      | Modori (戻り) hf9       | alpha | WiFi+BT Control Panel redesign — saved/available split, refresh, forget, BT scan+pair, larger tap targets |
-| v6.16.4.12.9.8      | Modori (戻り) hf8       | alpha | GTK Dark Mode toggle wired into Control Panel (DarkModeService + zen-darkmode.sh ported from Kintsugi line) |
-| v6.16.4.12.9.7      | Modori (戻り) hf7       | alpha | Sidebar user labels structurally fixed (MouseArea moved out of RowLayout — was corrupting flow) |
-| v6.16.4.12.9.6      | Modori (戻り) hf6       | alpha | Bulletproof sidebar user labels (env-fallback) + README image URLs corrected to actual demo repo files |
-| v6.16.4.12.9.5      | Modori (戻り) hf5       | alpha | First sidebar label fix attempt (Layout-system races) — incomplete, deeper structural issue surfaced |
-| v6.16.4.12.9.4      | Modori (戻り) hf4       | alpha | Smart-contrast theme engine + fresh-install default-wallpaper switch to Modori Dark + comprehensive README rewrite |
-| v6.16.4.12.9.3      | Modori (戻り) hf3       | alpha | Hide Left/Right panel-position cards (broke Settings sidebar) + L/R-to-Bottom migration safety net |
-| v6.16.4.12.9.2      | Modori (戻り) hf2       | alpha | Modori Dark + Light wallpapers (procedural enso) + matching themes |
-| v6.16.4.12.9.1      | Modori (戻り) hf1       | alpha | Removed redundant title-bar user pill (sidebar bottom row was already showing it — was double) |
-| v6.16.4.12.9        | **Modori (戻り)**        | alpha | Rolled back Tategaki vertical-bar attempt; kept settings-persistence fix + debounced save + title-bar user pill |
-| v6.16.4.12.8.x      | Tategaki (縦書き) ❌    | alpha (rolled back) | Vertical bar rendering attempt — 3 startup crashes; reverted in Modori .9 |
-| v6.16.4.12.7.1      | Tachiagari (立ち上がり) hf1 | alpha | 4-direction popup edge logic (Top/Bottom/Left/Right anchor flips) |
-| v6.16.4.12.7        | **Tachiagari (立ち上がり)** | alpha | Pill fix + sidebar user row + smart gaming + start-button border + top-bar popup adaptation + monitor-fix-v2 merge |
-| v6.16.4.12.6.53     | Hiraki (開き) hf1       | alpha | install.sh ZenClock-clobber fix + calendar popup x-tracks-clock |
-| v6.16.4.12.6.52     | Hiraki (開き)           | alpha | Click-to-open Clock + StartMenu (no hover open) |
-| v6.16.4.12.6.51     | Hikari (光)             | alpha | Bar/clock UX cleanup, plugin system overhaul |
+| **v6.16.4.12.9.10** | **Modori (戻り)** | **stable** | In-shell WiFi password prompt at WlrLayer.Overlay (replaces zenity); WiFi+BT Control Panel redesign; GTK Dark Mode toggle; sidebar user labels structurally fixed; smart-contrast theme engine; Modori Dark+Light themes and wallpapers; settings persistence fix; debounced save. Promoted to stable from alpha after the .11 and .12 reliability patches. |
+| v6.16.4.12.8.x      | Tategaki (縦書き)      | rolled back | Vertical bar rendering attempt — 3 startup crashes; reverted in Modori. |
+| v6.16.4.12.7.1      | Tachiagari (立ち上がり) hf1 | alpha | 4-direction popup edge logic (Top/Bottom/Left/Right anchor flips). |
+| v6.16.4.12.7        | **Tachiagari (立ち上がり)** | alpha | Pill fix; sidebar user row; smart gaming; start-button border; top-bar popup adaptation; monitor-fix-v2 merge. |
+| v6.16.4.12.6.53     | Hiraki (開き) hf1       | alpha | install.sh ZenClock-clobber fix; calendar popup x-tracks-clock. |
+| v6.16.4.12.6.52     | Hiraki (開き)           | alpha | Click-to-open Clock and StartMenu (no hover open). |
+| v6.16.4.12.6.51     | Hikari (光)             | alpha | Bar/clock UX cleanup; plugin system overhaul. |
+| v6.16.4.12.6.40     | Tsubasa (翼)            | alpha | Hyprland Plugins page in Settings. |
+| v6.16.4.12.5        | Kintsugi (金継ぎ)       | alpha | First Dark Mode toggle landing (later not carried into Tachiagari, re-ported in Modori .8). |
 
 ---
 
@@ -90,9 +114,9 @@ The previous WiFi connect flow used `zenity --password` to prompt for
 new secured-network credentials. zenity opens its own X11/XWayland
 window which, on Hyprland (and most wlroots compositors without
 strict focus stealing), often landed BEHIND the Control Panel that
-the user had just clicked. User clicked Connect, nothing visible
-happened, the connect attempt felt broken — they had to alt-tab
-to find the prompt.
+the user had just clicked. The user clicked Connect, nothing visible
+happened, the connect attempt felt broken — they had to alt-tab to
+find the prompt.
 
 The new prompt is a Quickshell `PanelWindow` rendered at
 `WlrLayer.Overlay` (the topmost compositor layer). It cannot be
@@ -124,9 +148,9 @@ Behavior:
 - **Enter** submits, **Esc** cancels
 - **Eye icon** toggles show/hide password (between `TextInput.Password`
   and `TextInput.Normal` echoMode)
-- **Click outside** the card on the dimmed backdrop → cancel
+- **Click outside** the card on the dimmed backdrop cancels
 - **Click any other surface** outside the overlay window
-  (e.g. the bar, a desktop widget) → cancel via
+  (e.g. the bar, a desktop widget) cancels via
   `HyprlandFocusGrab.onCleared`
 - **Connect button** is disabled while the password field is empty
 - **Themed colors** match the active Zen Shell theme (uses
@@ -139,8 +163,8 @@ Architecture:
   `ssid`, `errorMessage` reactive properties. Public API:
   `requestPassword(ssid, onSubmit, onCancel)`. Callbacks are
   stored as JS function refs and invoked safely with try/catch.
-- **`PasswordPromptPanel.qml`** — visual content (backdrop +
-  centered card with TextField + buttons). Reads service state
+- **`PasswordPromptPanel.qml`** — visual content (backdrop and
+  centered card with TextField and buttons). Reads service state
   reactively.
 - **`shell.qml`** — `Variants { model: Quickshell.screens }` block
   mounts a `PanelWindow` per screen, but only the focused-monitor
@@ -151,12 +175,64 @@ Architecture:
   pipeline: saved-creds check → branch (saved → reconnect; new
   + open → connect; new + secured → request password via service
   with callback that runs the actual `nmcli device wifi connect ...
-  password ...`).
+  password ...`). Plus a route-metric chain that makes the new wifi
+  the preferred default route.
 
 If `PasswordPromptService` is somehow undefined (extremely unlikely
 since it's a singleton auto-discovered by Quickshell), the code
 falls back to the old zenity invocation. Worst-case regression =
 behaves like before.
+
+---
+
+## WiFi takes preferred default route over LAN
+
+Default NetworkManager IPv4 route metrics:
+
+- Ethernet: **100** (lowest = highest priority)
+- WiFi: **600**
+- WWAN: **700**
+
+Lower metric = higher priority. So when both ethernet and WiFi are
+connected, the kernel picks ethernet for the default route unless
+explicitly told otherwise. This is documented NM behavior — when
+you plug in the cable, NM assumes you want the faster, more
+reliable link.
+
+For a workflow where the user explicitly taps a WiFi network because
+they want to USE that WiFi (e.g. troubleshooting, testing, or because
+the LAN is going to be unplugged soon), having the route stay on LAN
+is the wrong default.
+
+Every explicit tap-to-connect path in the Control Panel now chains:
+
+```bash
+nmcli connection modify '<SSID>' ipv4.route-metric 50 ipv6.route-metric 50
+```
+
+after the connect itself. With wifi metric 50 < ethernet metric 100,
+the kernel picks wifi for the default route. This is persistent —
+also applied to future auto-reconnects of that saved connection.
+
+The chain uses `;` not `&&` so a metric-set failure does not roll
+back the connect itself. Worst case is "connected but metric
+unchanged, default route still LAN" — the same as the previous
+behavior. Safe degradation.
+
+To revert a specific network back to NM's default metric:
+
+```bash
+nmcli connection modify '<SSID>' ipv4.route-metric "" ipv6.route-metric ""
+```
+
+Empty string clears the override. Falls back to NM defaults.
+
+To verify which interface owns the default route after a connect:
+
+```bash
+ip route | grep default
+ip route get 1.1.1.1
+```
 
 ---
 
@@ -208,7 +284,7 @@ as a tone instead.
 
 ---
 
-## Modori built-in wallpapers + themes
+## Modori built-in wallpapers and themes
 
 Two paired wallpapers ship under `wallpapers-builtin/`, automatically
 copied to `~/.config/zen-shell/wallpapers/` on `./install.sh`. Both
@@ -237,9 +313,9 @@ codename.
 
 ---
 
-## Modori demo gallery — v6.16.4.12.9.x
+## Modori demo gallery — v6.16.4.12.9.10
 
-Live captures from the Modori release cycle. Browse the full set in
+Live captures from the Modori release. Browse the full set in
 the [`zen_6_16_4_12_9_3/` folder of `Gekinzen/images-demo`](https://github.com/Gekinzen/images-demo/tree/main/zen_6_16_4_12_9_3):
 
 ![Modori demo 1](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_16_4_12_9_3/139a7e9c-15f9-4a32-bf1c-01af9e733206.jpeg)
@@ -268,10 +344,10 @@ the [`zen_6_16_4_12_9_3/` folder of `Gekinzen/images-demo`](https://github.com/G
 
 ---
 
-## Upcoming alpha — coming soon
+## Upcoming features — coming soon
 
-Next items planned for the alpha series. Order is approximate; some
-may shuffle based on user feedback.
+Items planned for the next release. Order is approximate; some may
+shuffle based on user feedback.
 
 ### Wrong-password feedback
 
@@ -307,7 +383,7 @@ will require entering the password again next time."
 
 ### Auto-rescan WiFi every 30s while tab is open
 
-Currently the WiFi list updates only on initial poll + manual
+Currently the WiFi list updates only on initial poll plus manual
 Rescan button click. While the user has the WiFi tab open, a
 periodic background rescan (every 30s) would keep the signal
 strengths and discovered networks fresh without manual action.
@@ -357,8 +433,7 @@ The plugin manager was hidden in Hikari .51 because the plugin
 loading interface was being reworked. v2 brings: signed-manifest
 plugins (avoid arbitrary code execution surprises), per-plugin
 sandboxing for QML scope, dependency declaration, and a community
-registry. Target: a properly-stable plugin API by the time the
-beta channel opens.
+registry.
 
 ### Tategaki redux (vertical bar rendering, properly)
 
@@ -371,7 +446,7 @@ differently:
 1. **One module at a time.** Convert `Workspaces` to vertical-aware,
    ship, validate. Then `SysRow` alone, ship, validate. Then
    `Taskbar` (the trickiest — has chevron-paginated scroll). Each
-   module becomes a separate drop within the cycle.
+   module becomes a separate release within the cycle.
 2. **Bar.qml uses Loader-driven RowLayout/ColumnLayout swap**, not
    GridLayout flow tricks. The flow-swap approach didn't size
    children the way RowLayout did in the live Quickshell build,
@@ -381,7 +456,7 @@ differently:
    and just stack icons; the rotation is a stylistic choice that
    adds risk without strong UX justification.
 4. **MusicStrings stays auto-hidden on vertical** for the early
-   drops. Rotating PanelWindow surfaces is delicate; revisit only
+   releases. Rotating PanelWindow surfaces is delicate; revisit only
    after the bar itself is solid.
 5. **Audit every `PanelState.isVertical` consumer outside the bar**
    — the Modori .9.3 hotfix had to hide Left/Right cards because
@@ -389,15 +464,7 @@ differently:
    stayed horizontal after rollback. That kind of inconsistency
    needs to be impossible by design before the cards return.
 
-### Beta channel preparation
-
-The current alpha line aims to converge by **v6.17.x** with a
-beta-stable cut. Concrete blockers tracked in `BETA-BLOCKERS.md`:
-plugin system v2, Tategaki redux complete, Matugen polish, the
-Wayland layer-shell positioning math reconciled with multi-monitor
-edge cases, and a complete settings-persistence audit (the kind of
-thing that surfaced the bar-layout.json clobber bug in Modori).
-
+---
 
 ## What's new in Hiraki hotfix 1 (v6.16.4.12.6.53) — alpha
 
