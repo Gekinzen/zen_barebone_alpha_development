@@ -299,6 +299,138 @@ Singleton {
         onFileChanged: this.reload()
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // v6.16.4.12.9.4 (Modori) — Smart contrast auto-correction
+    //
+    // Themes ship with colors that may or may not have been tested
+    // for WCAG-style readability. Light themes especially are prone
+    // to subtle traps: a designer picks a light grey for `grey0` that
+    // looks fine against the dark `bg0` they were designing on, but
+    // when applied against a LIGHT bg0 the contrast collapses and
+    // text becomes unreadable.
+    //
+    // This helper layer computes the BACKGROUND luminance (via WCAG
+    // relative-luminance formula), detects whether the theme is
+    // effectively light or dark, then auto-adjusts foreground tones
+    // (fg + grey0/1/2) to ensure a minimum 4.5:1 contrast ratio
+    // against bg0. If a theme already has good contrast, it passes
+    // through unchanged.
+    //
+    // We deliberately DON'T auto-correct accent colors (red, orange,
+    // yellow, green, aqua, blue, purple). Those are used as fills,
+    // borders, and badges — not primary readable text — and the
+    // accent's HUE is part of the theme's identity. Foreground tones
+    // on the other hand are pure greyscale-functional and always
+    // safe to nudge.
+    //
+    // The correction is conservative: we lerp toward black/white
+    // only enough to reach 4.5:1, not all the way. Light themes
+    // keep their warmth, dark themes keep their depth.
+    // ═══════════════════════════════════════════════════════════════
+
+    function _hexToRgb(h) {
+        const s = String(h).replace("#", "")
+        if (s.length !== 6) return [0, 0, 0]
+        return [
+            parseInt(s.substr(0, 2), 16),
+            parseInt(s.substr(2, 2), 16),
+            parseInt(s.substr(4, 2), 16),
+        ]
+    }
+
+    function _rgbToHex(rgb) {
+        const c = (n) => {
+            const clamped = Math.max(0, Math.min(255, Math.round(n)))
+            const h = clamped.toString(16)
+            return h.length === 1 ? "0" + h : h
+        }
+        return "#" + c(rgb[0]) + c(rgb[1]) + c(rgb[2])
+    }
+
+    // WCAG relative luminance — input is sRGB 0-255, output is 0..1
+    function _luminance(rgb) {
+        const linearize = (c) => {
+            const cs = c / 255
+            return cs <= 0.03928 ? cs / 12.92 : Math.pow((cs + 0.055) / 1.055, 2.4)
+        }
+        const r = linearize(rgb[0])
+        const g = linearize(rgb[1])
+        const b = linearize(rgb[2])
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    }
+
+    function _contrastRatio(rgb1, rgb2) {
+        const l1 = _luminance(rgb1)
+        const l2 = _luminance(rgb2)
+        const bright = Math.max(l1, l2)
+        const dark   = Math.min(l1, l2)
+        return (bright + 0.05) / (dark + 0.05)
+    }
+
+    // Lerp two RGB colors. t=0 returns a, t=1 returns b.
+    function _lerpRgb(a, b, t) {
+        return [
+            a[0] + (b[0] - a[0]) * t,
+            a[1] + (b[1] - a[1]) * t,
+            a[2] + (b[2] - a[2]) * t,
+        ]
+    }
+
+    // Push `fg` toward black (light bg) or white (dark bg) just
+    // enough to clear `targetRatio` against `bg`. Returns hex string.
+    // Conservative: stops AT the threshold rather than overshooting.
+    function _ensureContrast(fgHex, bgHex, targetRatio) {
+        const fgRgb = _hexToRgb(fgHex)
+        const bgRgb = _hexToRgb(bgHex)
+        const current = _contrastRatio(fgRgb, bgRgb)
+        if (current >= targetRatio) return fgHex   // already readable
+
+        // Decide push direction based on bg luminance
+        const bgLum = _luminance(bgRgb)
+        const target = bgLum > 0.5 ? [0, 0, 0] : [255, 255, 255]
+
+        // Binary search for the smallest lerp that reaches targetRatio
+        let lo = 0.0
+        let hi = 1.0
+        for (let i = 0; i < 14; i++) {
+            const mid = (lo + hi) / 2
+            const candidate = _lerpRgb(fgRgb, target, mid)
+            const ratio = _contrastRatio(candidate, bgRgb)
+            if (ratio >= targetRatio) {
+                hi = mid
+            } else {
+                lo = mid
+            }
+        }
+        return _rgbToHex(_lerpRgb(fgRgb, target, hi))
+    }
+
+    // Apply smart-contrast pass to a parsed colors object IN PLACE.
+    // Returns the same object so callers can chain. Modifies fg +
+    // grey0/1/2 only; bg* and accents pass through.
+    function _autoContrast(c) {
+        if (!c.bg0) return c   // nothing to anchor against
+        const bg = c.bg0
+
+        // Foreground: 4.5:1 (WCAG AA for body text)
+        if (c.fg) c.fg = _ensureContrast(c.fg, bg, 4.5)
+
+        // grey0 = primary secondary text (subtitles, descriptions).
+        // Keep at 4.5:1 — these are still meant to be read.
+        if (c.grey0) c.grey0 = _ensureContrast(c.grey0, bg, 4.5)
+
+        // grey1 = tertiary text (placeholders, helper text). 3:1 is
+        // WCAG AA for "large text" — acceptable for short labels but
+        // we'd rather err high. Use 3.5:1.
+        if (c.grey1) c.grey1 = _ensureContrast(c.grey1, bg, 3.5)
+
+        // grey2 = decorative dim (borders, dividers, disabled states).
+        // Don't push too hard or borders disappear into bg. 2.5:1.
+        if (c.grey2) c.grey2 = _ensureContrast(c.grey2, bg, 2.5)
+
+        return c
+    }
+
     function applyJson(text) {
         if (!text) return
         try {
@@ -308,7 +440,12 @@ Singleton {
             if (data.description !== undefined) themeDescription = data.description
             if (typeof data.is_builtin === "boolean") currentIsBuiltin = data.is_builtin
 
-            const c = data.colors || {}
+            // Run the smart-contrast pass before applying. Themes that
+            // already have good contrast pass through unchanged; themes
+            // with traps (light-on-light, dark-on-dark) get nudged toward
+            // readability without losing the designer's intent.
+            const c = _autoContrast(data.colors || {})
+
             if (c.bg0) bg0 = c.bg0
             if (c.bg1) bg1 = c.bg1
             if (c.bg2) bg2 = c.bg2

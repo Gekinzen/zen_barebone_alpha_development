@@ -3,7 +3,7 @@ Description=Zen Shell — Hyprland monitor auto-enable watcher
 Documentation=https://github.com/Gekinzen/zen_barebone_alpha_development
 PartOf=graphical-session.target
 After=graphical-session.target
-# Only relevant when Hyprland is up — graphical-session.target gates this
+# Only relevant when Hyprland is up — without this var, the watcher exits cleanly
 ConditionEnvironment=HYPRLAND_INSTANCE_SIGNATURE
 
 [Service]
@@ -11,8 +11,8 @@ Type=simple
 ExecStart=%h/.local/bin/zen-monitor-watcher.sh
 Restart=on-failure
 RestartSec=3
-# Keep the log fresh on every restart by truncating; the script itself
-# does `: > "$LOG"` at start so this is belt-and-suspenders.
+# Make sure the watcher inherits the Hyprland session env (HYPRLAND_INSTANCE_SIGNATURE)
+PassEnvironment=HYPRLAND_INSTANCE_SIGNATURE XDG_RUNTIME_DIR
 
 [Install]
 WantedBy=graphical-session.target

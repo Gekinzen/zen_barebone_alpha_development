@@ -32,14 +32,29 @@ Singleton {
     property string wifiIcon: "\uf1eb"   // nerd: 
     property var wifiNetworks: []        // [{ssid, signal, security, active}]
 
+    // v6.16.4.12.9.9 (Modori): saved networks for the convenient
+    // "Saved Networks" section in the Control Panel WiFi tab. Read
+    // via `nmcli connection show` filtered to type=802-11-wireless.
+    // Updated alongside wifiNetworks during the regular update poll.
+    property var savedWifiNetworks: []   // ["SSID1", "SSID2", ...]
+
     // ═══════════════════════════════════════════════════════════════
     // BLUETOOTH
     // ═══════════════════════════════════════════════════════════════
     property bool btPowered: false
     property bool btConnected: false
     property string btConnectedName: ""
-    property var btDevices: []           // [{name, mac, connected, type}]
+    property var btDevices: []           // [{name, mac, connected, type}] - currently connected
     property string btIcon: "\uf293"     // nerd: 
+
+    // v6.16.4.12.9.9 (Modori): all-known-devices list (paired but
+    // possibly not currently connected) and nearby-scan results.
+    // Lets the Control Panel show "tap to reconnect" for paired
+    // devices that aren't currently connected, and a Pair button
+    // for nearby unknown devices.
+    property var btPairedDevices: []     // [{name, mac}] - paired (may or may not be connected)
+    property var btNearbyDevices: []     // [{name, mac}] - scan results, not yet paired
+    property bool btScanning: false      // true while bluetoothctl scan on is active
 
     // ═══════════════════════════════════════════════════════════════
     // AUDIO (PipeWire via wpctl)
@@ -105,31 +120,32 @@ Singleton {
         micMuted = !micMuted
     }
 
-    // v6.16.4.6: Connect Wi-Fi with saved-creds preflight + zenity
-    // password prompt for new secured networks.
+    // v6.16.4.6: Connect Wi-Fi with saved-creds preflight.
+    // v6.16.4.12.9.10 (Modori): Replaced zenity password prompt with
+    // in-shell PasswordPromptService. The previous zenity --password
+    // dialog opened in a SEPARATE window that often landed behind
+    // the Control Panel on Wayland WMs without strict focus
+    // stealing — user clicked Connect, nothing visible happened.
+    // The in-shell prompt is a Quickshell PanelWindow at
+    // WlrLayer.Overlay, always rendered above every other surface.
     //
-    // Bug before: `nmcli device wifi connect <SSID>` silently failed
-    // on secured networks without saved credentials. Paul tapped
-    // Connect, nothing happened, button felt broken.
-    //
-    // New flow:
-    //   1. Check if NetworkManager has saved credentials for this SSID
-    //      via `nmcli -t connection show <SSID>`. If yes, connect
-    //      directly — works for remembered networks.
+    // Flow:
+    //   1. Check if NetworkManager has saved credentials for this
+    //      SSID via `nmcli -t connection show`. If yes, connect
+    //      directly — skips the prompt entirely.
     //   2. If no saved creds AND security != "" (secured network),
-    //      prompt for password via zenity, then pass to nmcli.
+    //      open the in-shell PasswordPromptService prompt. The
+    //      callback fires with the typed password and runs the
+    //      actual connect command.
     //   3. Open networks (no security): direct connect.
     //
-    // All wrapped in a single bash one-liner so it runs as one
-    // Process invocation and the zenity dialog doesn't race against
-    // shell state changes.
+    // Legacy (ssid, password) string call still supported for
+    // direct programmatic invocation (e.g. unit tests).
     function connectWifi(ssid, security) {
-        // Explicit password path still works (callers can pass one
-        // directly if they want to bypass the prompt).
+        // Legacy direct-password path
         if (arguments.length >= 2 && typeof arguments[1] === "string"
             && arguments[1].length > 0
             && !["--", "WPA2", "WPA", "WEP", "WPA3"].includes(arguments[1])) {
-            // Legacy call: connectWifi(ssid, password)
             const pwd = arguments[1]
             const escSsidP = ssid.replace(/'/g, "'\\''")
             const escPwdP  = pwd.replace(/'/g, "'\\''")
@@ -140,27 +156,70 @@ Singleton {
         }
 
         const escSsid = ssid.replace(/'/g, "'\\''")
-        const isSecured = (security && security.length > 0) ? "1" : "0"
+        const isSecured = (security && security.length > 0)
 
-        const bashCmd = [
-            // Check for saved credentials
-            "if nmcli -t -f NAME connection show 2>/dev/null | grep -qFx '" + escSsid + "'; then",
-            "  nmcli connection up '" + escSsid + "'",
-            "  exit $?",
-            "fi",
-            // No saved creds: prompt for password if secured
-            "if [ '" + isSecured + "' = '1' ]; then",
-            "  PW=$(zenity --password --title='Wi-Fi: " + escSsid.replace(/\$/g, "\\$") + "' 2>/dev/null) || exit 1",
-            "  [ -z \"$PW\" ] && exit 1",
-            "  nmcli device wifi connect '" + escSsid + "' password \"$PW\"",
-            "else",
-            "  nmcli device wifi connect '" + escSsid + "'",
-            "fi"
-        ].join("\n")
-
-        actionRunner.command = ["bash", "-c", bashCmd]
-        actionRunner.running = true
+        // Step 1: try saved credentials first via a quick async check.
+        // We run it as a small Process and dispatch based on result.
+        savedCredsCheck.targetSsid = ssid
+        savedCredsCheck.escSsid = escSsid
+        savedCredsCheck.isSecured = isSecured
+        savedCredsCheck.command = ["bash", "-c",
+            "if nmcli -t -f NAME connection show 2>/dev/null | grep -qFx '" + escSsid + "'; then echo SAVED; else echo NEW; fi"]
+        savedCredsCheck.running = true
     }
+
+    // Async helper: checks saved-creds, then either reconnects
+    // directly OR opens the in-shell password prompt.
+    Process {
+        id: savedCredsCheck
+        property string targetSsid: ""
+        property string escSsid: ""
+        property bool isSecured: false
+        running: false
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const result = text.trim()
+                if (result === "SAVED") {
+                    // Saved network — reconnect directly
+                    actionRunner.command = ["bash", "-c",
+                        "nmcli connection up '" + savedCredsCheck.escSsid + "'"]
+                    actionRunner.running = true
+                    return
+                }
+                // New network
+                if (!savedCredsCheck.isSecured) {
+                    // Open network — direct connect
+                    actionRunner.command = ["bash", "-c",
+                        "nmcli device wifi connect '" + savedCredsCheck.escSsid + "'"]
+                    actionRunner.running = true
+                    return
+                }
+                // Secured + new → in-shell password prompt
+                if (typeof PasswordPromptService === "undefined") {
+                    console.warn("[ConnectivityService] PasswordPromptService unavailable — falling back to zenity")
+                    actionRunner.command = ["bash", "-c",
+                        "PW=$(zenity --password --title='Wi-Fi: " + savedCredsCheck.escSsid.replace(/\$/g, "\\$") + "' 2>/dev/null) || exit 1; " +
+                        "[ -z \"$PW\" ] && exit 1; " +
+                        "nmcli device wifi connect '" + savedCredsCheck.escSsid + "' password \"$PW\""]
+                    actionRunner.running = true
+                    return
+                }
+                const ssidForCb = savedCredsCheck.targetSsid
+                const escForCb = savedCredsCheck.escSsid
+                PasswordPromptService.requestPassword(ssidForCb, function(password) {
+                    // User submitted — run the connect with their password
+                    const escPw = password.replace(/'/g, "'\\''")
+                    actionRunner.command = ["bash", "-c",
+                        "nmcli device wifi connect '" + escForCb + "' password '" + escPw + "'"]
+                    actionRunner.running = true
+                }, function() {
+                    // User cancelled — no action needed
+                    console.log("[ConnectivityService] WiFi password prompt cancelled by user")
+                })
+            }
+        }
+    }
+
 
     function disconnectWifi() {
         actionRunner.command = ["bash", "-c", "nmcli device disconnect wlan0 2>/dev/null || nmcli device disconnect wlp* 2>/dev/null"]
@@ -175,6 +234,97 @@ Singleton {
     function disconnectBtDevice(mac) {
         actionRunner.command = ["bash", "-c", "bluetoothctl disconnect " + mac]
         actionRunner.running = true
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // v6.16.4.12.9.9 (Modori) — Convenient WiFi+BT helpers
+    //
+    // Adds the missing primitives that the Control Panel's WiFi+BT
+    // tabs need to feel like a real network selector instead of a
+    // bare list:
+    //
+    //   - forgetWifi(ssid)     — delete saved connection
+    //   - scanWifi()           — explicit rescan (refresh button)
+    //   - reconnectWifi(ssid)  — quick re-up of saved connection
+    //                            (skips zenity preflight)
+    //   - startBtScan() / stopBtScan() — toggle bluetoothctl scan on/off
+    //   - pairBtDevice(mac)    — pair + trust + connect in one shot
+    //   - unpairBtDevice(mac)  — remove a paired device
+    // ═══════════════════════════════════════════════════════════════
+
+    function forgetWifi(ssid) {
+        const escSsid = ssid.replace(/'/g, "'\\''")
+        actionRunner.command = ["bash", "-c",
+            "nmcli connection delete '" + escSsid + "' 2>/dev/null"]
+        actionRunner.running = true
+    }
+
+    function scanWifi() {
+        actionRunner.command = ["bash", "-c",
+            "nmcli device wifi rescan 2>/dev/null; sleep 0.4"]
+        actionRunner.running = true
+        // Trigger an immediate poll so the UI refreshes ASAP.
+        // The actionRunner finish handler also calls update() but
+        // that's after the rescan delay; this gets the user a
+        // visual response sooner.
+        Qt.callLater(update)
+    }
+
+    function reconnectWifi(ssid) {
+        const escSsid = ssid.replace(/'/g, "'\\''")
+        actionRunner.command = ["bash", "-c",
+            "nmcli connection up '" + escSsid + "' 2>/dev/null"]
+        actionRunner.running = true
+    }
+
+    function startBtScan() {
+        // bluetoothctl scan blocks until cancelled, so we run it
+        // detached and track the PID. The scan runner polls the
+        // bluetoothctl devices output during the scan to populate
+        // btNearbyDevices.
+        btScanProc.running = true
+        root.btScanning = true
+    }
+
+    function stopBtScan() {
+        btScanStopProc.running = true
+        root.btScanning = false
+    }
+
+    function pairBtDevice(mac) {
+        // pair + trust + connect chain. trust is critical — without
+        // it, the device disconnects after first sleep cycle and
+        // user has to re-enter the pair PIN.
+        actionRunner.command = ["bash", "-c",
+            "echo -e 'pair " + mac + "\\ntrust " + mac + "\\nconnect " + mac + "\\nquit\\n' | bluetoothctl"]
+        actionRunner.running = true
+    }
+
+    function unpairBtDevice(mac) {
+        actionRunner.command = ["bash", "-c",
+            "bluetoothctl remove " + mac + " 2>/dev/null"]
+        actionRunner.running = true
+    }
+
+    // BT scan runner — runs `bluetoothctl scan on` detached.
+    // The actual device discovery is read by the regular update()
+    // poller (which queries `bluetoothctl devices` to get all
+    // known-and-nearby devices).
+    Process {
+        id: btScanProc
+        command: ["bash", "-c",
+            // Run scan in background, save PID for stop.
+            "pkill -f 'bluetoothctl scan on' 2>/dev/null; " +
+            "(bluetoothctl scan on >/dev/null 2>&1 &) ; " +
+            "sleep 0.2"]
+        running: false
+    }
+
+    Process {
+        id: btScanStopProc
+        command: ["bash", "-c",
+            "pkill -f 'bluetoothctl scan on' 2>/dev/null; true"]
+        running: false
     }
 
     function openWifiSettings() {
@@ -228,12 +378,30 @@ Singleton {
             "echo '---WIFI_STATUS---'; " +
             "nmcli -t -f active,ssid,signal,security device wifi list 2>/dev/null | head -20; " +
 
+            // v6.16.4.12.9.9: saved wifi connection list
+            "echo '---WIFI_SAVED---'; " +
+            "nmcli -t -f NAME,TYPE connection show 2>/dev/null | " +
+            "awk -F: '$2 == \"802-11-wireless\" {print $1}'; " +
+
             // ── BLUETOOTH ──
             "echo '---BT_POWER---'; " +
             "bluetoothctl show 2>/dev/null | grep -i 'Powered:' | awk '{print $2}'; " +
 
             "echo '---BT_DEVICES---'; " +
             "bluetoothctl devices Connected 2>/dev/null; " +
+
+            // v6.16.4.12.9.9: all paired devices (may not be currently
+            // connected). Lets the Control Panel show "tap to reconnect"
+            // for known devices that are off/asleep.
+            "echo '---BT_PAIRED---'; " +
+            "bluetoothctl devices Paired 2>/dev/null; " +
+
+            // v6.16.4.12.9.9: nearby devices (visible during scan).
+            // Subset = (devices) - (Paired). The scan runs separately
+            // via startBtScan(); this just picks up the discovery
+            // results that bluetoothctl already cached.
+            "echo '---BT_NEARBY---'; " +
+            "bluetoothctl devices 2>/dev/null; " +
 
             // ── AUDIO (PipeWire / wpctl) ──
             "echo '---AUDIO_SINK---'; " +
@@ -267,8 +435,8 @@ Singleton {
 
     function _parseAll(text) {
         const sections = text.split("---")
-        let wifiRadio = "", wifiStatus = ""
-        let btPower = "", btDevs = ""
+        let wifiRadio = "", wifiStatus = "", wifiSaved = ""
+        let btPower = "", btDevs = "", btPaired = "", btNearby = ""
         let sinkVol = "", sinkName = "", sourceVol = "", sourceName = ""
         let lanLines = "", lanIp = ""
 
@@ -278,8 +446,11 @@ Singleton {
             switch (tag) {
                 case "WIFI_RADIO":       wifiRadio = val; break
                 case "WIFI_STATUS":      wifiStatus = val; break
+                case "WIFI_SAVED":       wifiSaved = val; break
                 case "BT_POWER":         btPower = val; break
                 case "BT_DEVICES":       btDevs = val; break
+                case "BT_PAIRED":        btPaired = val; break
+                case "BT_NEARBY":        btNearby = val; break
                 case "AUDIO_SINK":       sinkVol = val; break
                 case "AUDIO_SINK_NAME":  sinkName = val; break
                 case "AUDIO_SOURCE":     sourceVol = val; break
@@ -323,6 +494,19 @@ Singleton {
         wifiNetworks = networks
         _updateWifiIcon()
 
+        // v6.16.4.12.9.9 — saved wifi networks
+        // Each line is the connection name (which == SSID for normal
+        // networks). We just collect the non-empty lines.
+        const saved = []
+        if (wifiSaved) {
+            const sLines = wifiSaved.split("\n")
+            for (const line of sLines) {
+                const trimmed = line.trim()
+                if (trimmed) saved.push(trimmed)
+            }
+        }
+        savedWifiNetworks = saved
+
         // ── Bluetooth ──
         btPowered = (btPower.toLowerCase() === "yes")
         const devList = []
@@ -340,6 +524,40 @@ Singleton {
         btConnected = devList.length > 0
         btConnectedName = devList.length > 0 ? devList[0].name : ""
         _updateBtIcon()
+
+        // v6.16.4.12.9.9 — paired devices (may not be currently connected)
+        // Filter out the currently-connected ones so the UI can show
+        // them in a separate "tap to reconnect" section.
+        const connectedMacs = new Set(devList.map(d => d.mac))
+        const paired = []
+        if (btPaired) {
+            const lines = btPaired.split("\n")
+            for (const line of lines) {
+                const m = line.match(/Device\s+([0-9A-Fa-f:]{17})\s+(.+)/)
+                if (m && !connectedMacs.has(m[1])) {
+                    paired.push({ mac: m[1], name: m[2].trim() })
+                }
+            }
+        }
+        btPairedDevices = paired
+
+        // v6.16.4.12.9.9 — nearby (scan-discovered) devices
+        // Filter out anything already paired or connected.
+        const knownMacs = new Set([
+            ...devList.map(d => d.mac),
+            ...paired.map(d => d.mac),
+        ])
+        const nearby = []
+        if (btNearby) {
+            const lines = btNearby.split("\n")
+            for (const line of lines) {
+                const m = line.match(/Device\s+([0-9A-Fa-f:]{17})\s+(.+)/)
+                if (m && !knownMacs.has(m[1])) {
+                    nearby.push({ mac: m[1], name: m[2].trim() })
+                }
+            }
+        }
+        btNearbyDevices = nearby
 
         // ── Audio sink ──
         if (sinkVol) {

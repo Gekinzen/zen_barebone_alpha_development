@@ -175,7 +175,7 @@ else
 fi
 
 echo ""
-echo "    Zen Shell v6.16.4.12.6.53"
+echo "    Zen Shell v6.16.4.12.9.10 — Modori (戻り) hotfix 10"
 echo "    ─────────────────────────────────────────────────────"
 echo ""
 echo "    Quickshell-native desktop environment for Hyprland."
@@ -1050,8 +1050,11 @@ for script in \
     zen-game-watcher.sh prime-run \
     zen-matugen-bootstrap.sh \
     zen-monitor-watcher.sh \
+    zen-monitor-profile \
+    zen-smart-game-watcher.sh \
     zen-quickprompt.sh \
     zen-hyprpm-fix.sh \
+    zen-darkmode.sh \
     install-hyprbars.sh
 do
     src="$SCRIPT_DIR/scripts/$script"
@@ -1067,14 +1070,30 @@ done
 
 # ─────────────────────────────────────────────────────────────────
 # v6.16.4.12.6.10 → .6.11 — Monitor auto-enable watcher (smart memory)
+# v6.16.4.12.7 (Tachiagari) — merged in zen-monitor-fix-v2:
+#                            stateful per-topology profiles +
+#                            zen-monitor-profile helper CLI +
+#                            system-level resume hook +
+#                            monitors.conf fallback seed.
 # ─────────────────────────────────────────────────────────────────
 # Solves the "disabled internal display + external unplug = no display"
 # scenario, AND adds per-topology state memory so docked configs auto-
 # restore on re-dock. Safety: never permits 0 enabled monitors — force-
 # enables the configured MAIN if a user/state would leave nothing on.
 #
+# v6.16.4.12.7 additions on top of the v1 watcher:
+#   • Profiles auto-saved to ~/.config/hypr/monitor-profiles/<topology>.conf
+#   • Each unique combination of connected outputs gets its own profile
+#   • `zen-monitor-profile` CLI for inspect/save/list/clear/edit
+#   • `/etc/systemd/system/zen-monitor-resume.service` to fire SIGUSR1
+#     after suspend → resume so the right profile re-applies even when
+#     no socket2 event arrives (some hardware doesn't emit one)
+#   • `~/.config/hypr/monitors.conf` minimal fallback seed (empty file)
+#     ensures hyprland.conf can `source = ~/.config/hypr/monitors.conf`
+#     without erroring on first run.
+#
 # Watcher subscribes to Hyprland's socket2 IPC. State snapshots get saved
-# to ~/.config/hypr/zen-monitor-states/topology-<key>.json — one per
+# to ~/.config/hypr/monitor-profiles/<topology-key>.conf — one per
 # unique combination of physically-connected monitors.
 #
 # Idempotent re-install: enable --now is safe to repeat. Disable with:
@@ -1098,6 +1117,84 @@ if [ -f "$SERVICE_SRC" ]; then
         echo "      (desktop users: copy to zen-monitor-watcher.env and set ZEN_MONITOR_MAIN)"
     fi
 
+    # ── v6.16.4.12.7 (Tachiagari): monitor-fix v2 additions ──────
+    #
+    # 1. Profiles directory — created early so the watcher's first
+    #    autosave doesn't have to mkdir -p (avoids any race where
+    #    socket2 fires faster than the daemon's internal init).
+    PROFILES_DIR="$HYPR_CONFIG_DIR/monitor-profiles"
+    mkdir -p "$PROFILES_DIR"
+    echo "    $PROFILES_DIR/  (per-topology profiles)"
+
+    # 2. monitors.conf minimal fallback seed. Only installed if absent
+    #    so we never trample a user-tuned config. The seed contains
+    #    only `monitor=,preferred,auto,1` — matches Hyprland's own
+    #    default and gives the system something to load on a fresh box
+    #    while the watcher captures the first real topology.
+    MONITORS_SEED="$SCRIPT_DIR/hypr-config/monitor-v2-config/monitors.conf"
+    MONITORS_DST="$HYPR_CONFIG_DIR/monitors.conf"
+    if [ -f "$MONITORS_SEED" ]; then
+        if [ -f "$MONITORS_DST" ]; then
+            echo "    $MONITORS_DST  (existing — preserved)"
+        else
+            cp "$MONITORS_SEED" "$MONITORS_DST"
+            echo "    $MONITORS_DST  (seed)"
+        fi
+
+        # Ensure hyprland.conf sources monitors.conf (idempotent grep guard)
+        HYPR_CONF="$HYPR_CONFIG_DIR/hyprland.conf"
+        if [ -f "$HYPR_CONF" ]; then
+            if ! grep -qE '^[[:space:]]*source[[:space:]]*=.*monitors\.conf' "$HYPR_CONF"; then
+                {
+                    echo ""
+                    echo "# Sourced by zen-shell installer — monitor-fix v2 ($(date '+%Y-%m-%d'))"
+                    echo "source = ~/.config/hypr/monitors.conf"
+                } >> "$HYPR_CONF"
+                echo "    appended 'source = monitors.conf' to hyprland.conf"
+            fi
+        fi
+    fi
+
+    # 3. v2 watcher env file (different schema from v1's
+    #    .env.example — adds ZEN_MONITOR_PROFILES_DIR and
+    #    ZEN_MONITOR_AUTOSAVE_SEC). Only seeded if absent so users
+    #    keep their tuning between upgrades.
+    V2_ENV_SRC="$SCRIPT_DIR/hypr-config/monitor-v2-config/zen-monitor-watcher.env"
+    V2_ENV_DST="$HYPR_CONFIG_DIR/zen-monitor-watcher.env"
+    if [ -f "$V2_ENV_SRC" ]; then
+        if [ -f "$V2_ENV_DST" ]; then
+            echo "    $V2_ENV_DST  (existing — preserved)"
+        else
+            cp "$V2_ENV_SRC" "$V2_ENV_DST"
+            echo "    $V2_ENV_DST  (v2 env seed)"
+        fi
+    fi
+
+    # 4. System-level resume hook. Requires sudo. If sudo isn't
+    #    available non-interactively, we print the exact commands
+    #    so the user can run them manually — same approach as the
+    #    standalone monitor-fix-v2 installer.
+    SYS_RESUME_SRC="$SCRIPT_DIR/scripts/zen-monitor-resume.service"
+    SYS_RESUME_DST="/etc/systemd/system/zen-monitor-resume.service"
+    if [ -f "$SYS_RESUME_SRC" ]; then
+        if [ -f "$SYS_RESUME_DST" ] && cmp -s "$SYS_RESUME_SRC" "$SYS_RESUME_DST"; then
+            echo "    $SYS_RESUME_DST  (already present)"
+        else
+            if sudo -n true 2>/dev/null; then
+                sudo cp "$SYS_RESUME_SRC" "$SYS_RESUME_DST"
+                sudo systemctl daemon-reload 2>/dev/null || true
+                sudo systemctl enable zen-monitor-resume.service 2>/dev/null || true
+                echo "    $SYS_RESUME_DST  (installed + enabled, sudo)"
+            else
+                echo "    ⚠ skipped $SYS_RESUME_DST — passwordless sudo unavailable."
+                echo "      Run manually to enable resume-from-suspend monitor recovery:"
+                echo "        sudo cp $SYS_RESUME_SRC $SYS_RESUME_DST"
+                echo "        sudo systemctl daemon-reload"
+                echo "        sudo systemctl enable zen-monitor-resume.service"
+            fi
+        fi
+    fi
+
     # Reload systemd user manager so the new unit is visible
     if command -v systemctl >/dev/null 2>&1; then
         systemctl --user daemon-reload 2>/dev/null || true
@@ -1106,6 +1203,19 @@ if [ -f "$SERVICE_SRC" ]; then
         # so it'll start on the next Hyprland session login.
         systemctl --user enable zen-monitor-watcher.service 2>&1 \
             | sed 's/^/    /' || true
+
+        # If we're already inside a Hyprland session, restart the
+        # watcher in-place so it picks up the v2 logic without
+        # waiting for a re-login. Mirrors the stand-alone v2
+        # installer's restart step.
+        if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+            systemctl --user restart zen-monitor-watcher.service 2>/dev/null || true
+            sleep 0.3
+            if systemctl --user is-active --quiet zen-monitor-watcher.service 2>/dev/null; then
+                pid=$(systemctl --user show -p MainPID zen-monitor-watcher.service 2>/dev/null | cut -d= -f2)
+                echo "    ✓ watcher restarted (now running v2, PID ${pid:-?})"
+            fi
+        fi
     fi
 fi
 
@@ -2238,7 +2348,7 @@ PCTL_OK="no";      command -v playerctl >/dev/null 2>&1 && PCTL_OK="yes"
 echo ""
 echo "╔═══════════════════════════════════════════════════════════════╗"
 echo "║                                                               ║"
-echo "║     🎉  ZEN SHELL v6.16.4.12.6.53 · HIRAKI INSTALLED  🎉      ║"
+echo "║    🎉  ZEN SHELL v6.16.4.12.9.10 · MODORI HF10 INSTALLED  🎉   ║"
 echo "║                                                               ║"
 echo "╚═══════════════════════════════════════════════════════════════╝"
 echo ""
@@ -2301,14 +2411,50 @@ echo ""
 
 # ═══════════════════════════════════════════════════════════════════════
 # v6.16.2.3.2: DEFAULT WALLPAPER FETCH
+# v6.16.4.12.9.4 (Modori) — switched to modori-wallpaper-dark.png as the
+# canonical default. The image is hosted on Gekinzen/images-demo (same
+# repo that hosted the previous default), so the fetch path stays
+# identical — only the filename changes. The local copy in
+# wallpapers-builtin/ ships with the tarball and is the offline fallback
+# (curl-less environments still get a working wallpaper because the
+# built-in wallpaper pass above already cp'd it into ZEN_WP_DIR).
 # ═══════════════════════════════════════════════════════════════════════
 ZEN_WP_DIR="${HOME}/.config/zen-shell/wallpapers"
 ZEN_WP_STATE="${HOME}/.config/quickshell/zen-shell/wallpaper-state.json"
-ZEN_DEFAULT_WP_NAME="123824383_p0 (Edited) compressed.png"
-ZEN_DEFAULT_WP_URL="https://raw.githubusercontent.com/Gekinzen/images-demo/main/wallpapers/123824383_p0%20(Edited)%20compressed.png"
+ZEN_DEFAULT_WP_NAME="modori-wallpaper-dark.png"
+ZEN_DEFAULT_WP_URL="https://raw.githubusercontent.com/Gekinzen/images-demo/main/wallpapers/modori-wallpaper-dark.png"
 ZEN_DEFAULT_WP_LOCAL="${ZEN_WP_DIR}/${ZEN_DEFAULT_WP_NAME}"
 
 mkdir -p "${ZEN_WP_DIR}"
+
+# ─────────────────────────────────────────────────────────────────
+# v6.16.4.12.9.1 (Modori) — Built-in wallpapers
+#
+# Ship the Modori-codename wallpapers (dark + light variants) as
+# part of the installer. They land in the same directory the
+# wallpaper picker reads from, so users see them in the picker UI
+# alongside any wallpapers they've added themselves. Existing files
+# are preserved (no clobber on re-install).
+#
+# The Modori themes (modori-dark.json / modori-light.json under
+# themes-builtin/) are designed to color-harmonize with these
+# wallpapers — same persimmon accent (#e87554), same cool indigo
+# bg/dark or warm washi bg/light.
+# ─────────────────────────────────────────────────────────────────
+echo "  ── Built-in Modori wallpapers ──"
+for wp_variant in modori-dark modori-light; do
+    src="$SCRIPT_DIR/wallpapers-builtin/${wp_variant}.png"
+    dst="${ZEN_WP_DIR}/${wp_variant}.png"
+    if [ -f "$src" ]; then
+        if [ ! -f "$dst" ]; then
+            cp "$src" "$dst"
+            echo "    ✓ ${dst}"
+        else
+            echo "    · ${dst} (already present, preserved)"
+        fi
+    fi
+done
+echo ""
 
 _is_fresh_wallpaper() {
     [ ! -f "${ZEN_WP_STATE}" ] && return 0
@@ -2346,7 +2492,7 @@ if command -v curl >/dev/null 2>&1; then
             cat > "${ZEN_WP_STATE}" << JSONEOF
 {
   "currentPath": "${ZEN_DEFAULT_WP_LOCAL}",
-  "appliedBy": "install.sh-v6.16.2.3.7"
+  "appliedBy": "install.sh-v6.16.4.12.9.4"
 }
 JSONEOF
             echo "    ✅  Default wallpaper applied via swww."
@@ -2578,6 +2724,6 @@ if [ -f "$PANEL_STATE_FILE" ] && grep -q '"calendar"' "$PANEL_STATE_FILE"; then
     echo "        Calendar popup now built into Clock module (click clock to open)"
 fi
 
-echo "  ✅  Done. Enjoy Zen Shell v6.16.4.12.6.51 Hikari (光)."
+echo "  ✅  Done. Enjoy Zen Shell v6.16.4.12.9.10 Modori (戻り)."
 echo ""
 exit 0

@@ -224,8 +224,9 @@ Item {
         // never fired (see shell.qml stringsWindow mask fix). This anchor
         // was always geometrically correct; it just never had a chance
         // to show because _peekPending never became true.
-        anchor.edges: Edges.Top
-        anchor.gravity: Edges.Top
+        // v6.16.4.12.7.1: 4-direction-aware popup edges.
+        anchor.edges: PanelState.popupAnchorEdges
+        anchor.gravity: PanelState.popupAnchorGravity
         // v6.16.4.12.2: Disabled — replaced by full calendar popup which
         // also opens on hover. The old single-line "Today is X" peek is
         // redundant when the full calendar shows the same info.
@@ -303,8 +304,9 @@ Item {
     PopupWindow {
         id: calPopup
         anchor.item: clockRoot
-        anchor.edges: Edges.Top
-        anchor.gravity: Edges.Top
+        // v6.16.4.12.7.1: 4-direction-aware popup edges.
+        anchor.edges: PanelState.popupAnchorEdges
+        anchor.gravity: PanelState.popupAnchorGravity
 
         // v6.16.4.12.4: Use width/height (matches SysRowIcon pattern that
         // actually works on Wayland). implicitWidth alone doesn't trigger

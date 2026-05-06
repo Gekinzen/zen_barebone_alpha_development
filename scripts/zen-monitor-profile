@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+# ═══════════════════════════════════════════════════════════════════════════════
+# Zen Monitor Profile — companion CLI
+# Path: ~/.local/bin/zen-monitor-profile
+#
+# Usage:
+#   zen-monitor-profile save        # force-save current state to current topology profile
+#   zen-monitor-profile show        # show current topology + path to its profile
+#   zen-monitor-profile list        # list all saved profiles
+#   zen-monitor-profile clear       # delete all saved profiles (factory reset)
+#   zen-monitor-profile cat         # cat current topology's profile
+#   zen-monitor-profile edit        # open current topology's profile in $EDITOR
+#   zen-monitor-profile reload      # re-apply current topology's profile right now
+#
+# These work by signalling the running zen-monitor-watcher.sh service:
+#   save  → SIGUSR2
+#   clear → SIGHUP
+# ═══════════════════════════════════════════════════════════════════════════════
+
+set -e
+
+PROFILES_DIR="${ZEN_MONITOR_PROFILES_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/hypr/monitor-profiles}"
+INTERNAL="${ZEN_MONITOR_INTERNAL:-eDP-1}"
+mkdir -p "$PROFILES_DIR"
+
+# ── Helpers (mirror of watcher's logic for standalone use) ────────────────────
+
+get_topology_key() {
+    hyprctl monitors all -j 2>/dev/null | jq -r '.[].name' | sort -u | paste -sd '+' -
+}
+
+profile_path_for() {
+    local key="$1"
+    local safe="${key//[^a-zA-Z0-9+\-]/_}"
+    echo "$PROFILES_DIR/${safe:-empty}.conf"
+}
+
+current_profile_path() {
+    profile_path_for "$(get_topology_key)"
+}
+
+watcher_pid() {
+    pgrep -f "zen-monitor-watcher.sh" | head -1
+}
+
+# ── Commands ──────────────────────────────────────────────────────────────────
+
+cmd="${1:-show}"
+
+case "$cmd" in
+    save|s)
+        pid=$(watcher_pid || true)
+        if [ -n "$pid" ]; then
+            kill -USR2 "$pid"
+            echo "✓ sent SIGUSR2 to watcher (PID $pid) — current state saved as profile for topology '$(get_topology_key)'"
+            echo "  → $(current_profile_path)"
+        else
+            echo "✗ watcher not running. Start with:"
+            echo "    systemctl --user start zen-monitor-watcher"
+            exit 1
+        fi
+        ;;
+
+    show|info)
+        key=$(get_topology_key)
+        path=$(profile_path_for "$key")
+        echo "Topology key: $key"
+        echo "Profile path: $path"
+        if [ -f "$path" ]; then
+            echo "Status:       saved ✓ ($(wc -l < "$path") lines)"
+        else
+            echo "Status:       not saved yet — will autosave in a few seconds, or run \`zen-monitor-profile save\`"
+        fi
+        echo ""
+        echo "Watcher PID:  $(watcher_pid || echo 'not running')"
+        ;;
+
+    list|ls)
+        echo "Saved profiles in $PROFILES_DIR:"
+        echo ""
+        if [ -z "$(ls -A "$PROFILES_DIR" 2>/dev/null)" ]; then
+            echo "  (none saved yet)"
+        else
+            current_key=$(get_topology_key)
+            current_path=$(profile_path_for "$current_key")
+            for f in "$PROFILES_DIR"/*.conf; do
+                [ -f "$f" ] || continue
+                key=$(basename "$f" .conf)
+                if [ "$f" = "$current_path" ]; then
+                    echo "  ★ $key  (← current topology)"
+                else
+                    echo "    $key"
+                fi
+            done
+        fi
+        ;;
+
+    cat|view)
+        path=$(current_profile_path)
+        if [ -f "$path" ]; then
+            cat "$path"
+        else
+            echo "✗ no profile yet for topology: $(get_topology_key)"
+            exit 1
+        fi
+        ;;
+
+    edit|e)
+        path=$(current_profile_path)
+        : "${EDITOR:=nano}"
+        if [ ! -f "$path" ]; then
+            echo "Creating new profile: $path"
+        fi
+        $EDITOR "$path"
+        echo "✓ edited. Re-apply with: zen-monitor-profile reload"
+        ;;
+
+    clear|reset)
+        read -rp "Delete ALL saved profiles in $PROFILES_DIR? [y/N] " ans
+        if [ "${ans,,}" = "y" ]; then
+            pid=$(watcher_pid || true)
+            if [ -n "$pid" ]; then
+                kill -HUP "$pid"
+                echo "✓ sent SIGHUP to watcher — all profiles cleared and topology re-reconciled"
+            else
+                rm -f "$PROFILES_DIR"/*.conf
+                echo "✓ all profiles deleted (watcher was not running)"
+            fi
+        else
+            echo "cancelled"
+        fi
+        ;;
+
+    reload|apply)
+        path=$(current_profile_path)
+        if [ ! -f "$path" ]; then
+            echo "✗ no profile for topology: $(get_topology_key)"
+            exit 1
+        fi
+        echo "Applying profile: $path"
+        while IFS= read -r line; do
+            case "$line" in
+                ''|\#*) continue ;;
+            esac
+            echo "  $ $line"
+            eval "$line"
+        done < "$path"
+        echo "✓ reloaded"
+        ;;
+
+    *)
+        cat <<EOF
+Usage: zen-monitor-profile <command>
+
+Commands:
+  show     show current topology + saved-state info (default)
+  list     list all saved profiles, mark the current one
+  save     force-save current monitor state as profile for current topology
+  cat      print the current topology's profile to stdout
+  edit     open current topology's profile in \$EDITOR (default: nano)
+  reload   re-apply current topology's profile right now
+  clear    delete ALL saved profiles (asks for confirmation)
+EOF
+        exit 1
+        ;;
+esac

@@ -748,6 +748,88 @@ Rectangle {
                     onClicked: PowerProfileService.toggleGamingBoost()
                 }
             }
+
+            // ═══════════════════════════════════════════════════════
+            // ── Dark Mode toggle (v6.16.4.12.9.8 / Modori) ──
+            //
+            // Toggles GTK3 + GTK4 + libadwaita color-scheme in one
+            // tap. Script `zen-darkmode.sh` is the source of truth
+            // for application — this row is just the visual surface
+            // and click target. Auto-hides if the script isn't
+            // installed yet (the install.sh phase that drops the
+            // script may have been skipped on legacy installs).
+            //
+            // Affects every GTK3/GTK4 application that respects
+            // either gsettings or settings.ini — Thunar, Nautilus,
+            // GNOME Settings, GIMP (GTK port), Geary, etc. Apps
+            // that have their own theme preference (Firefox,
+            // Chromium with their own dark mode) are unaffected.
+            // ═══════════════════════════════════════════════════════
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 40
+                visible: DarkModeService.available
+                radius: 8
+                color: darkmodeMouse.containsMouse
+                       ? ThemeService.alpha(ThemeService.fg, 0.08)
+                       : ThemeService.alpha(ThemeService.bg2, 0.55)
+
+                Behavior on color { ColorAnimation { duration: 150 } }
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 12
+                    anchors.rightMargin: 12
+                    spacing: 10
+
+                    Text {
+                        text: DarkModeService.isDark ? "🌙" : "☀️"
+                        font.pixelSize: 16
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 0
+
+                        Text {
+                            text: DarkModeService.isDark ? "Dark Mode" : "Light Mode"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 12
+                            font.weight: Font.DemiBold
+                            color: ThemeService.fg
+                        }
+                        Text {
+                            text: DarkModeService.isDark
+                                  ? "GTK3 / GTK4 / libadwaita apps using dark theme"
+                                  : "GTK3 / GTK4 / libadwaita apps using light theme"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 10
+                            color: ThemeService.grey1
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+                    }
+
+                    // Visual switch. The outer row MouseArea handles
+                    // the click; we gate the switch's own MouseArea
+                    // off (enabled:false) so it doesn't intercept.
+                    HMSwitch {
+                        compact: true
+                        activeColor: ThemeService.alpha(ThemeService.blue, 0.85)
+                        checked: DarkModeService.isDark
+                        enabled: false
+                        opacity: 1.0
+                    }
+                }
+
+                MouseArea {
+                    id: darkmodeMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: DarkModeService.toggle()
+                }
+            }
         }
 
         // ═══════════════════════════════════════════════
@@ -927,9 +1009,77 @@ Rectangle {
                         id: wifiCol
                         // v6.16.1.9: explicit id ref instead of parent.parent.width
                         // which was unreliable across Quickshell versions.
+                        // v6.16.4.12.9.9 (Modori): full WiFi UI redesign —
+                        // saved/available split, larger tap targets,
+                        // refresh button, forget button, signal-bars icon.
                         width: wifiFlick.width - 24
                         spacing: 4
 
+                        // ── Computed properties for section split ──
+                        // Saved networks that are CURRENTLY visible in
+                        // the scan results. Hide the saved section
+                        // entirely when out of range.
+                        readonly property var _savedAndVisible: {
+                            const saved = ConnectivityService.savedWifiNetworks || []
+                            const visible = ConnectivityService.wifiNetworks || []
+                            const visibleSsids = new Set(visible.map(n => n.ssid))
+                            return saved.filter(s => visibleSsids.has(s))
+                        }
+                        // Available (not-saved, not-active) networks.
+                        readonly property var _availableNew: {
+                            const all = ConnectivityService.wifiNetworks || []
+                            const savedSet = new Set(ConnectivityService.savedWifiNetworks || [])
+                            return all.filter(n => !savedSet.has(n.ssid) && !n.active)
+                        }
+
+                        // ── Refresh button row (always visible when wifi is on) ──
+                        RowLayout {
+                            visible: ConnectivityService.wifiEnabled
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 28
+                            spacing: 8
+
+                            Item { Layout.fillWidth: true }   // spacer
+
+                            Rectangle {
+                                Layout.preferredWidth: 80
+                                Layout.preferredHeight: 26
+                                radius: 6
+                                color: wifiRefreshMouse.containsMouse
+                                    ? ThemeService.alpha(ThemeService.blue, 0.2)
+                                    : ThemeService.alpha(ThemeService.bg2, 0.5)
+                                border.width: 1
+                                border.color: ThemeService.alpha(ThemeService.fg, 0.08)
+
+                                RowLayout {
+                                    anchors.centerIn: parent
+                                    spacing: 6
+
+                                    Text {
+                                        text: "\uf021"   // fa-refresh
+                                        font.family: "JetBrainsMono Nerd Font"
+                                        font.pixelSize: 11
+                                        color: ThemeService.blue
+                                    }
+                                    Text {
+                                        text: "Rescan"
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: 10
+                                        color: ThemeService.fg
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: wifiRefreshMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: ConnectivityService.scanWifi()
+                                }
+                            }
+                        }
+
+                        // ── WiFi off state ──
                         Text {
                             visible: !ConnectivityService.wifiEnabled
                             text: "Wi-Fi is off"
@@ -940,6 +1090,7 @@ Rectangle {
                             Layout.topMargin: 20
                         }
 
+                        // ── Empty state ──
                         Text {
                             visible: ConnectivityService.wifiEnabled
                                      && ConnectivityService.wifiNetworks.length === 0
@@ -951,73 +1102,229 @@ Rectangle {
                             Layout.topMargin: 20
                         }
 
+                        // ═══════════════════════════════════════
+                        // SAVED NETWORKS section
+                        // ═══════════════════════════════════════
+                        Text {
+                            visible: ConnectivityService.wifiEnabled
+                                     && wifiCol._savedAndVisible.length > 0
+                            text: "SAVED NETWORKS"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 9
+                            font.weight: Font.DemiBold
+                            color: ThemeService.grey1
+                            Layout.fillWidth: true
+                            Layout.topMargin: 4
+                        }
+
                         Repeater {
                             model: ConnectivityService.wifiEnabled
-                                   ? ConnectivityService.wifiNetworks : []
+                                   ? wifiCol._savedAndVisible : []
 
-                            RowLayout {
+                            Rectangle {
+                                id: savedRow
                                 required property var modelData
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 36
-                                spacing: 8
+                                Layout.preferredHeight: 44
+                                radius: 8
 
-                                Text {
-                                    text: modelData.active ? "\uf00c" : "\uf1eb"
-                                    font.family: "JetBrainsMono Nerd Font"
-                                    font.pixelSize: 12
-                                    color: modelData.active ? ThemeService.green : ThemeService.grey1
-                                    Layout.preferredWidth: 20
+                                readonly property bool isActive: ConnectivityService.wifiSSID === modelData
+                                readonly property var _scanInfo: {
+                                    const list = ConnectivityService.wifiNetworks || []
+                                    for (let i = 0; i < list.length; i++) {
+                                        if (list[i].ssid === modelData) return list[i]
+                                    }
+                                    return { signal: 0, security: "" }
                                 }
 
-                                Text {
-                                    text: modelData.ssid
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: 12
-                                    font.weight: modelData.active ? Font.DemiBold : Font.Normal
-                                    color: modelData.active ? ThemeService.fg : ThemeService.grey0
-                                    Layout.fillWidth: true
-                                    elide: Text.ElideRight
-                                }
+                                color: savedRow.isActive
+                                    ? ThemeService.alpha(ThemeService.green, 0.12)
+                                    : (savedRowMouse.containsMouse
+                                        ? ThemeService.alpha(ThemeService.fg, 0.06)
+                                        : ThemeService.alpha(ThemeService.bg2, 0.4))
+                                border.width: savedRow.isActive ? 1 : 0
+                                border.color: savedRow.isActive
+                                    ? ThemeService.alpha(ThemeService.green, 0.4)
+                                    : "transparent"
 
-                                Text {
-                                    text: modelData.signal + "%"
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: 11
-                                    color: ThemeService.grey1
-                                }
+                                Behavior on color { ColorAnimation { duration: 120 } }
 
-                                Text {
-                                    text: modelData.security ? "\uf023" : ""
-                                    font.family: "JetBrainsMono Nerd Font"
-                                    font.pixelSize: 10
-                                    color: ThemeService.grey1
-                                    visible: modelData.security.length > 0
-                                }
-
-                                Rectangle {
-                                    visible: !modelData.active
-                                    Layout.preferredWidth: 60
-                                    Layout.preferredHeight: 24
-                                    radius: 6
-                                    color: wifiConnMouse.containsMouse
-                                        ? ThemeService.alpha(ThemeService.blue, 0.2)
-                                        : ThemeService.alpha(ThemeService.blue, 0.1)
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 10
+                                    anchors.rightMargin: 8
+                                    spacing: 10
 
                                     Text {
-                                        anchors.centerIn: parent
-                                        text: "Connect"
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: 10
-                                        color: ThemeService.blue
+                                        text: savedRow.isActive ? "\uf00c" : "\uf1eb"
+                                        font.family: "JetBrainsMono Nerd Font"
+                                        font.pixelSize: 14
+                                        color: savedRow.isActive
+                                            ? ThemeService.green : ThemeService.blue
+                                        Layout.preferredWidth: 22
                                     }
 
-                                    MouseArea {
-                                        id: wifiConnMouse
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: ConnectivityService.connectWifi(modelData.ssid, modelData.security)
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 1
+
+                                        Text {
+                                            text: savedRow.modelData
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: 13
+                                            font.weight: Font.DemiBold
+                                            color: ThemeService.fg
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                        }
+                                        Text {
+                                            text: savedRow.isActive
+                                                ? "Connected · " + savedRow._scanInfo.signal + "%"
+                                                : "Saved · tap to reconnect · " + savedRow._scanInfo.signal + "%"
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: 10
+                                            color: savedRow.isActive
+                                                ? ThemeService.green : ThemeService.grey1
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                        }
                                     }
+
+                                    // Forget button
+                                    Rectangle {
+                                        Layout.preferredWidth: 30
+                                        Layout.preferredHeight: 30
+                                        radius: 6
+                                        color: forgetMouse.containsMouse
+                                            ? ThemeService.alpha(ThemeService.red, 0.18)
+                                            : "transparent"
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "\uf2ed"   // fa-trash
+                                            font.family: "JetBrainsMono Nerd Font"
+                                            font.pixelSize: 12
+                                            color: forgetMouse.containsMouse
+                                                ? ThemeService.red : ThemeService.grey1
+                                        }
+
+                                        MouseArea {
+                                            id: forgetMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: ConnectivityService.forgetWifi(savedRow.modelData)
+                                        }
+                                    }
+                                }
+
+                                // Row click → reconnect (entire row except forget btn)
+                                MouseArea {
+                                    id: savedRowMouse
+                                    anchors.fill: parent
+                                    anchors.rightMargin: 38
+                                    hoverEnabled: true
+                                    cursorShape: savedRow.isActive
+                                        ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                    enabled: !savedRow.isActive
+                                    onClicked: ConnectivityService.reconnectWifi(savedRow.modelData)
+                                }
+                            }
+                        }
+
+                        // ═══════════════════════════════════════
+                        // AVAILABLE NETWORKS section
+                        // ═══════════════════════════════════════
+                        Text {
+                            visible: ConnectivityService.wifiEnabled
+                                     && wifiCol._availableNew.length > 0
+                            text: "AVAILABLE NETWORKS"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 9
+                            font.weight: Font.DemiBold
+                            color: ThemeService.grey1
+                            Layout.fillWidth: true
+                            Layout.topMargin: 12
+                        }
+
+                        Repeater {
+                            model: ConnectivityService.wifiEnabled
+                                   ? wifiCol._availableNew : []
+
+                            Rectangle {
+                                id: availRow
+                                required property var modelData
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 44
+                                radius: 8
+
+                                color: availRowMouse.containsMouse
+                                    ? ThemeService.alpha(ThemeService.fg, 0.06)
+                                    : ThemeService.alpha(ThemeService.bg2, 0.4)
+
+                                Behavior on color { ColorAnimation { duration: 120 } }
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 10
+                                    anchors.rightMargin: 10
+                                    spacing: 10
+
+                                    // Signal-strength colored icon
+                                    Text {
+                                        text: "\uf1eb"   // fa-wifi
+                                        font.family: "JetBrainsMono Nerd Font"
+                                        font.pixelSize: 14
+                                        color: {
+                                            const s = availRow.modelData.signal
+                                            if (s >= 60) return ThemeService.green
+                                            if (s >= 35) return ThemeService.yellow
+                                            return ThemeService.grey1
+                                        }
+                                        Layout.preferredWidth: 22
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 1
+
+                                        Text {
+                                            text: availRow.modelData.ssid
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: 13
+                                            color: ThemeService.fg
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                        }
+                                        Text {
+                                            text: availRow.modelData.signal + "% · "
+                                                  + (availRow.modelData.security
+                                                     && availRow.modelData.security.length > 0
+                                                     ? availRow.modelData.security : "Open")
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: 10
+                                            color: ThemeService.grey1
+                                        }
+                                    }
+
+                                    // Lock icon for secured networks
+                                    Text {
+                                        text: "\uf023"   // fa-lock
+                                        font.family: "JetBrainsMono Nerd Font"
+                                        font.pixelSize: 11
+                                        color: ThemeService.grey1
+                                        visible: availRow.modelData.security
+                                                 && availRow.modelData.security.length > 0
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: availRowMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: ConnectivityService.connectWifi(
+                                        availRow.modelData.ssid, availRow.modelData.security)
                                 }
                             }
                         }
@@ -1040,9 +1347,76 @@ Rectangle {
                     ColumnLayout {
                         id: btCol
                         // v6.16.1.9: explicit id ref
+                        // v6.16.4.12.9.9 (Modori): full BT UI redesign —
+                        // connected/paired/nearby split, scan toggle,
+                        // pair button, larger tap targets.
                         width: btFlick.width - 24
                         spacing: 6
 
+                        // ── Scan toggle button row (when BT is on) ──
+                        RowLayout {
+                            visible: ConnectivityService.btPowered
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 28
+                            spacing: 8
+
+                            Item { Layout.fillWidth: true }   // spacer
+
+                            Rectangle {
+                                Layout.preferredWidth: 100
+                                Layout.preferredHeight: 26
+                                radius: 6
+                                color: btScanMouse.containsMouse
+                                    ? ThemeService.alpha(ThemeService.blue, 0.25)
+                                    : (ConnectivityService.btScanning
+                                        ? ThemeService.alpha(ThemeService.blue, 0.18)
+                                        : ThemeService.alpha(ThemeService.bg2, 0.5))
+                                border.width: ConnectivityService.btScanning ? 1 : 1
+                                border.color: ConnectivityService.btScanning
+                                    ? ThemeService.blue
+                                    : ThemeService.alpha(ThemeService.fg, 0.08)
+
+                                Behavior on color { ColorAnimation { duration: 120 } }
+
+                                RowLayout {
+                                    anchors.centerIn: parent
+                                    spacing: 6
+
+                                    Text {
+                                        text: ConnectivityService.btScanning
+                                            ? "\uf256"   // fa-hand-stop (stop scan)
+                                            : "\uf002"   // fa-search (start scan)
+                                        font.family: "JetBrainsMono Nerd Font"
+                                        font.pixelSize: 11
+                                        color: ConnectivityService.btScanning
+                                            ? ThemeService.blue : ThemeService.fg
+                                    }
+                                    Text {
+                                        text: ConnectivityService.btScanning
+                                            ? "Stop scan" : "Scan nearby"
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: 10
+                                        color: ConnectivityService.btScanning
+                                            ? ThemeService.blue : ThemeService.fg
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: btScanMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (ConnectivityService.btScanning)
+                                            ConnectivityService.stopBtScan()
+                                        else
+                                            ConnectivityService.startBtScan()
+                                    }
+                                }
+                            }
+                        }
+
+                        // ── BT off state ──
                         Text {
                             visible: !ConnectivityService.btPowered
                             text: "Bluetooth is off"
@@ -1053,77 +1427,302 @@ Rectangle {
                             Layout.topMargin: 20
                         }
 
+                        // ── Empty state ──
                         Text {
                             visible: ConnectivityService.btPowered
                                      && ConnectivityService.btDevices.length === 0
-                            text: "No connected devices"
+                                     && ConnectivityService.btPairedDevices.length === 0
+                                     && (!ConnectivityService.btScanning
+                                         || ConnectivityService.btNearbyDevices.length === 0)
+                            text: ConnectivityService.btScanning
+                                  ? "Searching for devices..."
+                                  : "No paired or connected devices.\nTap 'Scan nearby' to find devices."
                             font.family: Theme.fontFamily
-                            font.pixelSize: 12
+                            font.pixelSize: 11
                             color: ThemeService.grey1
+                            horizontalAlignment: Text.AlignHCenter
+                            wrapMode: Text.WordWrap
                             Layout.alignment: Qt.AlignHCenter
+                            Layout.fillWidth: true
                             Layout.topMargin: 20
+                        }
+
+                        // ═══════════════════════════════════════
+                        // CONNECTED section
+                        // ═══════════════════════════════════════
+                        Text {
+                            visible: ConnectivityService.btPowered
+                                     && ConnectivityService.btDevices.length > 0
+                            text: "CONNECTED"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 9
+                            font.weight: Font.DemiBold
+                            color: ThemeService.grey1
+                            Layout.fillWidth: true
+                            Layout.topMargin: 4
                         }
 
                         Repeater {
                             model: ConnectivityService.btPowered
                                    ? ConnectivityService.btDevices : []
 
-                            RowLayout {
+                            Rectangle {
+                                id: connectedRow
                                 required property var modelData
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 40
-                                spacing: 8
+                                Layout.preferredHeight: 48
+                                radius: 8
+                                color: ThemeService.alpha(ThemeService.green, 0.12)
+                                border.width: 1
+                                border.color: ThemeService.alpha(ThemeService.green, 0.4)
 
-                                Text {
-                                    text: "\uf294"
-                                    font.family: "JetBrainsMono Nerd Font"
-                                    font.pixelSize: 14
-                                    color: ThemeService.blue
-                                    Layout.preferredWidth: 20
-                                }
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 10
+                                    anchors.rightMargin: 8
+                                    spacing: 10
 
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 1
                                     Text {
-                                        text: modelData.name
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: 12
-                                        color: ThemeService.fg
-                                        elide: Text.ElideRight
+                                        text: "\uf294"   // fa-bluetooth
+                                        font.family: "JetBrainsMono Nerd Font"
+                                        font.pixelSize: 16
+                                        color: ThemeService.green
+                                        Layout.preferredWidth: 22
+                                    }
+
+                                    ColumnLayout {
                                         Layout.fillWidth: true
+                                        spacing: 1
+
+                                        Text {
+                                            text: connectedRow.modelData.name
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: 13
+                                            font.weight: Font.DemiBold
+                                            color: ThemeService.fg
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                        }
+                                        Text {
+                                            text: "Connected · " + connectedRow.modelData.mac
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: 9
+                                            color: ThemeService.green
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                        }
                                     }
+
+                                    Rectangle {
+                                        Layout.preferredWidth: 90
+                                        Layout.preferredHeight: 30
+                                        radius: 6
+                                        color: btDiscMouse.containsMouse
+                                            ? ThemeService.alpha(ThemeService.red, 0.25)
+                                            : ThemeService.alpha(ThemeService.red, 0.1)
+                                        border.width: 1
+                                        border.color: ThemeService.alpha(ThemeService.red, 0.3)
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "Disconnect"
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: 10
+                                            color: ThemeService.red
+                                        }
+
+                                        MouseArea {
+                                            id: btDiscMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: ConnectivityService.disconnectBtDevice(connectedRow.modelData.mac)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // ═══════════════════════════════════════
+                        // PAIRED (but not connected) section
+                        // ═══════════════════════════════════════
+                        Text {
+                            visible: ConnectivityService.btPowered
+                                     && ConnectivityService.btPairedDevices.length > 0
+                            text: "PAIRED · TAP TO RECONNECT"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 9
+                            font.weight: Font.DemiBold
+                            color: ThemeService.grey1
+                            Layout.fillWidth: true
+                            Layout.topMargin: 12
+                        }
+
+                        Repeater {
+                            model: ConnectivityService.btPowered
+                                   ? ConnectivityService.btPairedDevices : []
+
+                            Rectangle {
+                                id: pairedRow
+                                required property var modelData
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 44
+                                radius: 8
+                                color: pairedRowMouse.containsMouse
+                                    ? ThemeService.alpha(ThemeService.fg, 0.06)
+                                    : ThemeService.alpha(ThemeService.bg2, 0.4)
+
+                                Behavior on color { ColorAnimation { duration: 120 } }
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 10
+                                    anchors.rightMargin: 10
+                                    spacing: 10
+
                                     Text {
-                                        text: modelData.mac
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: 9
-                                        color: ThemeService.grey2
+                                        text: "\uf294"
+                                        font.family: "JetBrainsMono Nerd Font"
+                                        font.pixelSize: 14
+                                        color: ThemeService.blue
+                                        Layout.preferredWidth: 22
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 1
+
+                                        Text {
+                                            text: pairedRow.modelData.name
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: 13
+                                            color: ThemeService.fg
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                        }
+                                        Text {
+                                            text: pairedRow.modelData.mac
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: 9
+                                            color: ThemeService.grey2
+                                        }
+                                    }
+
+                                    // Forget button
+                                    Rectangle {
+                                        Layout.preferredWidth: 30
+                                        Layout.preferredHeight: 30
+                                        radius: 6
+                                        color: btForgetMouse.containsMouse
+                                            ? ThemeService.alpha(ThemeService.red, 0.18)
+                                            : "transparent"
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "\uf2ed"   // fa-trash
+                                            font.family: "JetBrainsMono Nerd Font"
+                                            font.pixelSize: 12
+                                            color: btForgetMouse.containsMouse
+                                                ? ThemeService.red : ThemeService.grey1
+                                        }
+
+                                        MouseArea {
+                                            id: btForgetMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: ConnectivityService.unpairBtDevice(pairedRow.modelData.mac)
+                                        }
                                     }
                                 }
 
-                                Rectangle {
-                                    Layout.preferredWidth: 70
-                                    Layout.preferredHeight: 24
-                                    radius: 6
-                                    color: btDiscMouse.containsMouse
-                                        ? ThemeService.alpha(ThemeService.red, 0.2)
-                                        : ThemeService.alpha(ThemeService.red, 0.1)
+                                MouseArea {
+                                    id: pairedRowMouse
+                                    anchors.fill: parent
+                                    anchors.rightMargin: 38
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: ConnectivityService.connectBtDevice(pairedRow.modelData.mac)
+                                }
+                            }
+                        }
+
+                        // ═══════════════════════════════════════
+                        // NEARBY (scan-discovered) section
+                        // ═══════════════════════════════════════
+                        Text {
+                            visible: ConnectivityService.btPowered
+                                     && ConnectivityService.btScanning
+                                     && ConnectivityService.btNearbyDevices.length > 0
+                            text: "NEARBY · TAP TO PAIR"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 9
+                            font.weight: Font.DemiBold
+                            color: ThemeService.blue
+                            Layout.fillWidth: true
+                            Layout.topMargin: 12
+                        }
+
+                        Repeater {
+                            model: (ConnectivityService.btPowered
+                                    && ConnectivityService.btScanning)
+                                   ? ConnectivityService.btNearbyDevices : []
+
+                            Rectangle {
+                                id: nearbyRow
+                                required property var modelData
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 44
+                                radius: 8
+                                color: nearbyRowMouse.containsMouse
+                                    ? ThemeService.alpha(ThemeService.blue, 0.18)
+                                    : ThemeService.alpha(ThemeService.bg2, 0.4)
+                                border.width: 1
+                                border.color: ThemeService.alpha(ThemeService.blue, 0.2)
+
+                                Behavior on color { ColorAnimation { duration: 120 } }
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 10
+                                    anchors.rightMargin: 10
+                                    spacing: 10
 
                                     Text {
-                                        anchors.centerIn: parent
-                                        text: "Disconnect"
-                                        font.family: Theme.fontFamily
-                                        font.pixelSize: 10
-                                        color: ThemeService.red
+                                        text: "\uf002"   // fa-search
+                                        font.family: "JetBrainsMono Nerd Font"
+                                        font.pixelSize: 14
+                                        color: ThemeService.blue
+                                        Layout.preferredWidth: 22
                                     }
 
-                                    MouseArea {
-                                        id: btDiscMouse
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: ConnectivityService.disconnectBtDevice(modelData.mac)
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 1
+
+                                        Text {
+                                            text: nearbyRow.modelData.name
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: 13
+                                            color: ThemeService.fg
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                        }
+                                        Text {
+                                            text: "Tap to pair · " + nearbyRow.modelData.mac
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: 9
+                                            color: ThemeService.blue
+                                        }
                                     }
+                                }
+
+                                MouseArea {
+                                    id: nearbyRowMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: ConnectivityService.pairBtDevice(nearbyRow.modelData.mac)
                                 }
                             }
                         }

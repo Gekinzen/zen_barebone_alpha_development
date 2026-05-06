@@ -406,8 +406,12 @@ Rectangle {
                 //     bumped from 300 → 420 with internal scroll past that.
                 PopupWindow {
                     anchor.item: appBtn
-                    anchor.edges: Edges.Top
-                    anchor.gravity: Edges.Top
+                    // v6.16.4.12.7.1: 4-direction-aware popup edges.
+                    // PanelState.popupAnchorEdges resolves to Top/Bottom/
+                    // Left/Right based on the current panel position so
+                    // the popup always grows AWAY from the bar.
+                    anchor.edges: PanelState.popupAnchorEdges
+                    anchor.gravity: PanelState.popupAnchorGravity
                     visible: taskbarRoot.popupAppId === appId && windowCount > 1
                     width: 240
                     height: Math.min(winCol.implicitHeight + 16, 420)
@@ -532,8 +536,9 @@ Rectangle {
                 // start menu and ZenNotificationCenter.
                 PopupWindow {
                     anchor.item: appBtn
-                    anchor.edges: Edges.Top
-                    anchor.gravity: Edges.Top
+                    // v6.16.4.12.7.1: 4-direction-aware popup edges.
+                    anchor.edges: PanelState.popupAnchorEdges
+                    anchor.gravity: PanelState.popupAnchorGravity
                     visible: taskbarRoot.ctxAppId === appId
                     width: 180
                     height: ctxCol.implicitHeight + 16

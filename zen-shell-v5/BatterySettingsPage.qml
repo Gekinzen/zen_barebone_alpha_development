@@ -950,6 +950,65 @@ ScrollView {
             }
         }
 
+        // ═══ v6.16.4.12.7 (Tachiagari) — Smart Gaming Detection ═══
+        //
+        // Independent toggle — works regardless of GPU mode above.
+        // When ON, ~/.local/bin/zen-smart-game-watcher.sh runs in the
+        // background, polls for known game/launcher/runtime processes
+        // every 3 seconds, and routes detection events through QML's
+        // PowerProfileService.setGamingBoost() via Quickshell IPC.
+        //
+        // Effect when boost engages:
+        //   - powerprofilesctl set performance
+        //   - hyprctl: blur off, dim_inactive off, animations off
+        //   - PowerBadge in the bar flips to red gamepad icon
+        // Effect when last game exits:
+        //   - Restore the power profile that was active before boost
+        //   - Restore blur/dim/animations from this Settings page
+        //
+        // Use case: laptop on battery → leave GPU mode on Auto, but
+        // still want the FPS boost when a game pops up. The two
+        // settings are intentionally orthogonal so users can mix them.
+        HMSection {
+            title: "Smart Gaming Detection"
+            subtitle: "Auto FPS boost when a game launches — independent of GPU mode"
+
+            HMRow {
+                label: "Enable Smart Detection"
+                description: "Watches for steam, lutris, heroic, gamescope, wine/proton, "
+                             + "emulators (rpcs3, dolphin, yuzu, etc.) and toggles Gaming Boost on/off automatically."
+                icon: "\uf11b"   // gamepad
+                separator: true
+
+                HMSwitch {
+                    checked: SettingsStateV2.smartGamingDetect
+                    // HMSwitch flips its own `checked` internally before
+                    // emitting `toggled`. We mirror the new value back to
+                    // SettingsStateV2 — the property's own change handler
+                    // (in SettingsStateV2.qml) takes care of spawning /
+                    // killing the watcher daemon AND calls markDirty().
+                    onToggled: SettingsStateV2.smartGamingDetect = checked
+                }
+            }
+
+            HMRow {
+                label: "Watcher status"
+                description: SettingsStateV2.smartGamingDetect
+                             ? "Daemon running. Log: ~/.cache/zen-smart-game-watcher.log"
+                             : "Daemon stopped. Toggle above to start."
+                icon: "\uf0a0"   // hdd
+
+                Rectangle {
+                    Layout.preferredWidth: 10
+                    Layout.preferredHeight: 10
+                    radius: 5
+                    color: SettingsStateV2.smartGamingDetect
+                           ? ThemeService.green : ThemeService.alpha(ThemeService.fg, 0.25)
+                    Behavior on color { ColorAnimation { duration: 200 } }
+                }
+            }
+        }
+
         // ═══ IDLE & SLEEP (v6.16.3.8) ═══
         //
         // User-configurable timeouts for the hypridle cascade.

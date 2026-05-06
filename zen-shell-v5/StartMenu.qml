@@ -40,9 +40,23 @@ Rectangle {
             : Math.min(width / 2, Theme.barRadius > 0 ? Theme.barRadius : 10)
 
     color: ma.containsMouse ? Theme.alpha(Theme.blue, 0.3) : Theme.alpha(Theme.bg0, 0.6)
-    border.width: 1
-    border.color: ma.containsMouse ? Theme.blue : Theme.bg1
+
+    // v6.16.4.12.7 (Tachiagari): Border can now adopt the panel's
+    // borderColor when `PanelState.startButtonUseBorderColor` is on,
+    // letting the start button visually tie into a colored panel
+    // border. Hover state still flips to blue accent so the click
+    // affordance remains obvious. Default off → identical look to
+    // pre-Tachiagari (1px Theme.bg1 idle border).
+    border.width: PanelState.startButtonBorderWidth > 0
+                  ? PanelState.startButtonBorderWidth
+                  : 1
+    border.color: ma.containsMouse
+                  ? Theme.blue
+                  : (PanelState.startButtonUseBorderColor
+                     ? PanelState.borderColor
+                     : Theme.bg1)
     Behavior on color { ColorAnimation { duration: 200 } }
+    Behavior on border.color { ColorAnimation { duration: 200 } }
 
     // v6.16.2: Custom logo support with auto-fit.
     // v6.16.3.5: three modes now — auto / builtin / custom. The

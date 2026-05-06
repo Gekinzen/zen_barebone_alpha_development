@@ -202,11 +202,12 @@ Item {
     }
 
     // ── Tooltip — same PopupWindow pattern as SysRowIcon ──
+    // v6.16.4.12.7.1: 4-direction-aware popup edges.
     PopupWindow {
         id: tipPopup
         anchor.item: root
-        anchor.edges: Edges.Top
-        anchor.gravity: Edges.Top
+        anchor.edges: PanelState.popupAnchorEdges
+        anchor.gravity: PanelState.popupAnchorGravity
         visible: hoverArea.containsMouse && root.trackInfo.length > 0
         width: tipText.implicitWidth + tipDot.width + tipRow.spacing + 28
         height: tipRow.implicitHeight + 18

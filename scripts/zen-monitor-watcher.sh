@@ -1,463 +1,386 @@
 #!/usr/bin/env bash
-# zen-monitor-watcher.sh — v6.16.4.12.6.11 (Hikari)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Zen Shell — Hyprland Monitor Auto-Enable Watcher · v2 (stateful profiles)
+# Path: ~/.local/bin/zen-monitor-watcher.sh
 #
-# Smart per-topology monitor manager for Hyprland. Solves three things:
+# WHAT THIS DOES (v2 stateful design)
+#   Tracks unique combinations of connected outputs ("topologies") and saves
+#   the per-monitor settings (mode, position, scale, transform, disabled flag)
+#   for each one. When the topology changes (cable plugged/unplugged, lid
+#   open/close, suspend/resume), the watcher:
 #
-#   1. AUTO-RECOVERY: nung naka-disable yun internal display (laptop) tapos
-#      tinanggal mo yun external monitor, walang display kasi disabled pa
-#      yun internal — black screen panic. Watcher detects "0 monitors
-#      enabled" and force-enables the configured MAIN monitor, with a
-#      notify-send warning.
+#     1. Computes the topology key (sorted, joined list of connected outputs)
+#     2. Looks up ~/.config/hypr/monitor-profiles/<key>.conf
+#     3. If found → applies the profile via `hyprctl keyword monitor` per line
+#     4. If not found → debounces 5s then auto-saves CURRENT state as the
+#        profile for this topology (so next time you'll get the same layout)
 #
-#   2. PER-TOPOLOGY MEMORY: nung gagamitin mo ulit yun extended setup
-#      (laptop + external), automatically i-restore yun saved config —
-#      including the "eDP-1=disabled" preference if that's how you
-#      configured it the last time. Each unique combination of connected
-#      monitors gets its own remembered state file. Lab + Tibay setup sa
-#      bahay = 2 different states, awtomatik silang nag-aapply pag-konek.
+#   This means: rotate Lenovo to 270° via nwg-displays, position ultrawide
+#   right of it — within 5 seconds, that exact arrangement is saved as the
+#   profile for this 2-monitor topology. Plug in laptop next time and a
+#   *different* topology key triggers, with its own saved profile.
 #
-#   3. SAFETY GUARD (desktop + laptop): hindi pwedeng ma-disable LAHAT ng
-#      monitors at any point. Kung subukang gawin (whether intentionally
-#      via nwg-displays / hyprctl, or by an applied saved state going
-#      stale), mag-force-enable yun MAIN. Atleast isa always alive.
+# COMPATIBILITY
+#   Drop-in replacement for v1 watcher. Same systemd unit, same env file,
+#   same SIGUSR1 hook for suspend/resume. Adds two new env vars:
+#     ZEN_MONITOR_PROFILES_DIR  (default ~/.config/hypr/monitor-profiles)
+#     ZEN_MONITOR_AUTOSAVE_SEC  (default 5 — autosave after this many seconds
+#                                of monitor stability)
 #
-# Mental model:
-#   topology = sorted set of CONNECTED monitor names ("eDP-1+HDMI-A-1")
-#   state    = per-monitor config (enabled/disabled + resolution+pos+scale)
-#   memory   = $STATE_DIR/topology-<key>.json per unique topology
-#   reconcile = on event, apply saved state if any, then enforce safety
-#   snapshot = 10s after stability, capture current state to memory
-#
-# Usage:
-#   zen-monitor-watcher.sh              # daemon mode (default, used by systemd)
-#   zen-monitor-watcher.sh status       # show current topology + saved state
-#   zen-monitor-watcher.sh snapshot     # save current state RIGHT NOW
-#   zen-monitor-watcher.sh list         # list all saved topologies
-#   zen-monitor-watcher.sh clear KEY    # forget a specific saved topology
-#
-# Configuration via env (override in ~/.config/hypr/zen-monitor-watcher.env):
-#
-#   ZEN_MONITOR_MAIN              - the "always-on" fallback monitor.
-#                                   For laptops: eDP-1 (default).
-#                                   For desktops: pick your primary display
-#                                                 (e.g. "DP-1" or "HDMI-A-1").
-#   ZEN_MONITOR_INTERNAL          - alias for ZEN_MONITOR_MAIN (back-compat
-#                                   with v6.16.4.12.6.10).
-#   ZEN_MONITOR_FALLBACK_MODE     - mode used when force-enabling MAIN
-#                                   (default: preferred,auto,1)
-#   ZEN_MONITOR_STATE_DIR         - where state files live (default:
-#                                   ~/.config/hypr/zen-monitor-states/)
-#   ZEN_MONITOR_LOG               - log file (default: /tmp/zen-monitor-watcher.log)
-#   ZEN_MONITOR_SNAPSHOT_DELAY    - debounce seconds before auto-snapshot
-#                                   (default: 10)
-#   ZEN_MONITOR_NOTIFY            - notify-send on safety override (default: 1)
-#
-# Wala tayo babawasan: never edits hyprland.conf. Only issues live
-# `hyprctl keyword monitor` commands. Reboot returns to your config's
-# baseline; the watcher then reconciles from saved state.
+# THE BUG FIX FROM V1 STILL WORKS
+#   Yun "0 externals + internal disabled = re-enable" rescue still fires —
+#   but now it's encoded as a profile rule, not a hardcoded heuristic.
+#   The profile for "eDP-1" alone topology will have eDP-1 enabled.
+# ═══════════════════════════════════════════════════════════════════════════════
 
-set -euo pipefail
+set -u
 
-# ── load optional env file ─────────────────────────────────────────────
+# ── Defaults (override via ~/.config/hypr/zen-monitor-watcher.env) ────────────
+ZEN_MONITOR_INTERNAL="${ZEN_MONITOR_INTERNAL:-eDP-1}"
+ZEN_MONITOR_INTERNAL_MODE="${ZEN_MONITOR_INTERNAL_MODE:-preferred,auto,1}"
+ZEN_MONITOR_DISABLE_INTERNAL_ON_EXTERNAL="${ZEN_MONITOR_DISABLE_INTERNAL_ON_EXTERNAL:-0}"
+ZEN_MONITOR_LOG="${ZEN_MONITOR_LOG:-/tmp/zen-monitor-watcher.log}"
+ZEN_MONITOR_DEBOUNCE_MS="${ZEN_MONITOR_DEBOUNCE_MS:-200}"
+ZEN_MONITOR_PROFILES_DIR="${ZEN_MONITOR_PROFILES_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/hypr/monitor-profiles}"
+ZEN_MONITOR_AUTOSAVE_SEC="${ZEN_MONITOR_AUTOSAVE_SEC:-5}"
+
 ENV_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/zen-monitor-watcher.env"
-if [ -f "$ENV_FILE" ]; then
-    # shellcheck source=/dev/null
-    . "$ENV_FILE"
+[ -f "$ENV_FILE" ] && . "$ENV_FILE"
+
+INTERNAL="$ZEN_MONITOR_INTERNAL"
+LOG="$ZEN_MONITOR_LOG"
+PROFILES_DIR="$ZEN_MONITOR_PROFILES_DIR"
+
+mkdir -p "$PROFILES_DIR"
+
+# ── Logger ────────────────────────────────────────────────────────────────────
+: > "$LOG"
+log() {
+    printf '[%s] %s\n' "$(date '+%H:%M:%S')" "$*" >> "$LOG"
+}
+
+# ── Hyprland session sanity ───────────────────────────────────────────────────
+if [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+    log "FATAL: HYPRLAND_INSTANCE_SIGNATURE not set — not in a Hyprland session"
+    exit 1
 fi
 
-MAIN_MONITOR="${ZEN_MONITOR_MAIN:-${ZEN_MONITOR_INTERNAL:-eDP-1}}"
-FALLBACK_MODE="${ZEN_MONITOR_FALLBACK_MODE:-${ZEN_MONITOR_INTERNAL_MODE:-preferred,auto,1}}"
-STATE_DIR="${ZEN_MONITOR_STATE_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/hypr/zen-monitor-states}"
-LOG="${ZEN_MONITOR_LOG:-/tmp/zen-monitor-watcher.log}"
-SNAPSHOT_DELAY="${ZEN_MONITOR_SNAPSHOT_DELAY:-10}"
-NOTIFY="${ZEN_MONITOR_NOTIFY:-1}"
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+SOCK="$RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
+[ ! -S "$SOCK" ] && SOCK="/tmp/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
 
-# In-process state
-SNAPSHOT_PID=""
+if [ ! -S "$SOCK" ]; then
+    log "FATAL: socket2 not found"
+    exit 1
+fi
 
-# ── logging ────────────────────────────────────────────────────────────
-log() {
-    local ts; ts=$(date +'%H:%M:%S')
-    printf '[%s] %s\n' "$ts" "$*" | tee -a "$LOG" >&2
-}
-
-notify_user() {
-    [ "$NOTIFY" = "1" ] || return 0
-    command -v notify-send >/dev/null 2>&1 || return 0
-    notify-send -u normal -i video-display "Zen Monitor Watcher" "$*" 2>/dev/null || true
-}
-
-# ── topology + state primitives ────────────────────────────────────────
-
-# Sorted comma-separated list of CONNECTED monitor names (enabled OR disabled
-# but physically present). Used as the canonical topology fingerprint.
-current_topology() {
-    hyprctl monitors all -j 2>/dev/null \
-        | jq -r '.[].name' 2>/dev/null \
-        | sort | paste -sd ',' || echo ""
-}
-
-# Filesystem-safe key derived from topology string (lowercase, only [a-z0-9-])
-topology_key() {
-    echo "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g; s/--*/-/g; s/^-//; s/-$//'
-}
-
-state_file_for() {
-    local key; key=$(topology_key "$1")
-    echo "$STATE_DIR/topology-${key}.json"
-}
-
-# Capture current full monitor state as JSON.
-# Returns: { name: { enabled, width, height, refresh, x, y, scale, transform }, ... }
-# A monitor is "enabled" iff it appears in `hyprctl monitors` (active list).
-# Disabled monitors only appear in `hyprctl monitors all`.
-current_state_json() {
-    local all active
-    all=$(hyprctl monitors all -j 2>/dev/null) || return 1
-    active=$(hyprctl monitors -j 2>/dev/null) || return 1
-    jq -n --argjson all "$all" --argjson active "$active" '
-        ($active | map({(.name): true}) | add // {}) as $on
-        | $all | map({
-            key: .name,
-            value: {
-                enabled: ($on[.name] // false),
-                width:   .width,
-                height:  .height,
-                refresh: .refreshRate,
-                x:       .x,
-                y:       .y,
-                scale:   .scale,
-                transform: (.transform // 0)
-            }
-        }) | from_entries
-    '
-}
-
-count_enabled() {
-    hyprctl monitors -j 2>/dev/null | jq 'length' 2>/dev/null || echo 0
-}
-
-monitor_is_connected() {
-    local name="$1"
-    hyprctl monitors all -j 2>/dev/null \
-        | jq -e --arg n "$name" '.[] | select(.name == $n)' >/dev/null 2>&1
-}
-
-# Effective MAIN: configured value if connected, else fallback to the first
-# connected monitor by lexical sort. Returns empty if literally nothing is
-# connected.
-effective_main() {
-    if [ -n "$MAIN_MONITOR" ] && monitor_is_connected "$MAIN_MONITOR"; then
-        echo "$MAIN_MONITOR"; return
+for cmd in hyprctl jq socat; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        log "FATAL: $cmd not installed"
+        exit 1
     fi
-    hyprctl monitors all -j 2>/dev/null | jq -r '.[].name' | sort | head -n1
+done
+
+log "Zen Monitor Watcher v2 (stateful) started"
+log "  internal monitor:       $INTERNAL"
+log "  internal fallback mode: $ZEN_MONITOR_INTERNAL_MODE"
+log "  disable-on-ext:         $ZEN_MONITOR_DISABLE_INTERNAL_ON_EXTERNAL"
+log "  profiles dir:           $PROFILES_DIR"
+log "  autosave delay:         ${ZEN_MONITOR_AUTOSAVE_SEC}s"
+log "  socket2:                $SOCK"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TOPOLOGY HELPERS
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Sorted list of currently CONNECTED output names (regardless of enabled state).
+# Hyprland's monitors -j only shows enabled ones, so we use `hyprctl monitors all -j`
+# (the `all` flag includes disabled-but-connected outputs).
+get_all_connected() {
+    hyprctl monitors all -j 2>/dev/null | jq -r '.[].name' | sort -u
 }
 
-# ── safety: never permit 0 enabled monitors ────────────────────────────
-safety_check() {
-    local enabled; enabled=$(count_enabled)
-    if [ "$enabled" -ge 1 ]; then
-        return 0
-    fi
-    local main; main=$(effective_main)
-    if [ -z "$main" ]; then
-        log "[safety] CRITICAL: 0 enabled and no candidate monitor"
-        notify_user "No monitors detected — cannot recover automatically"
-        return 1
-    fi
-    log "[safety] 0 enabled — force-enabling '$main' with mode '$FALLBACK_MODE'"
-    hyprctl keyword monitor "$main,$FALLBACK_MODE" >>"$LOG" 2>&1 || true
-    notify_user "Re-enabled '$main' (at least one display must remain on)"
+# Topology key: sorted output names joined with '+'.
+# Examples:
+#   "eDP-1"
+#   "DP-2+HDMI-A-1"
+#   "DP-2+HDMI-A-1+eDP-1"
+get_topology_key() {
+    get_all_connected | paste -sd '+' -
 }
 
-# ── apply: restore a saved state for the current topology ──────────────
-# Validates that at least one CONNECTED monitor will be enabled before
-# applying — otherwise skips and lets safety_check handle recovery.
-apply_state() {
-    local state_json="$1"
-    local connected_arr
-    connected_arr=$(hyprctl monitors all -j | jq -c '[.[].name]')
+# Path to the profile file for the current topology
+profile_path() {
+    local key
+    key=$(get_topology_key)
+    # Sanitize: replace any chars that aren't safe filename chars with '_'
+    # The output names from Hyprland are already filename-safe (DP-1, HDMI-A-1, eDP-1)
+    # but we sanitize defensively.
+    local safe="${key//[^a-zA-Z0-9+\-]/_}"
+    echo "$PROFILES_DIR/${safe:-empty}.conf"
+}
 
-    # Count how many monitors in saved state are: (a) flagged enabled AND
-    # (b) currently physically connected.
-    local n_will_be_on
-    n_will_be_on=$(echo "$state_json" | jq --argjson c "$connected_arr" '
-        [ to_entries[]
-          | select(.value.enabled == true)
-          | select(.key as $n | $c | index($n) != null) ]
-        | length
-    ')
+# ─────────────────────────────────────────────────────────────────────────────
+# PROFILE I/O
+# ─────────────────────────────────────────────────────────────────────────────
 
-    if [ "$n_will_be_on" -lt 1 ]; then
-        log "[apply] saved state would leave 0 enabled — refusing (safety_check will recover)"
+# Save current monitor state to the profile file for the current topology.
+# Format: one `hyprctl keyword monitor <args>` per line, executable as bash.
+save_profile() {
+    local trigger="${1:-manual}"
+    local file
+    file=$(profile_path)
+    local json
+    json=$(hyprctl monitors all -j 2>/dev/null)
+    [ -z "$json" ] && { log "  ✗ save_profile: hyprctl returned empty"; return 1; }
+
+    {
+        echo "# Auto-saved by zen-monitor-watcher [$trigger] at $(date)"
+        echo "# Topology: $(get_topology_key)"
+        echo "# Format: hyprctl keyword monitor <NAME>,<MODE>,<POSITION>,<SCALE>[,transform,N]"
+        echo "# Disabled outputs: hyprctl keyword monitor <NAME>,disable"
+        echo ""
+
+        echo "$json" | jq -r --arg internal "$INTERNAL" '
+            .[] |
+            if .disabled == true then
+                "hyprctl keyword monitor \(.name),disable"
+            else
+                # Build mode string: WIDTHxHEIGHT@RATEHz
+                # If transform != 0, append ",transform,N"
+                # Refresh rate from hyprctl is float; format to 2 decimals to match availableModes.
+                "hyprctl keyword monitor \(.name),\(.width)x\(.height)@\(.refreshRate | tostring | .[:6])Hz,\(.x)x\(.y),\(.scale)" +
+                (if .transform != 0 then ",transform,\(.transform)" else "" end) +
+                (if .vrr == true then ",vrr,1" else "" end)
+            end
+        '
+    } > "$file"
+
+    log "  ✓ saved profile → $file"
+    log "    contents:"
+    sed 's/^/      /' "$file" | head -20 >> "$LOG"
+}
+
+# Apply profile for the current topology by sourcing its file.
+# Returns 0 if a profile existed and was applied, 1 if no profile existed.
+apply_profile() {
+    local file
+    file=$(profile_path)
+    if [ ! -f "$file" ]; then
+        log "  ⓘ no profile yet for this topology: $(get_topology_key)"
         return 1
     fi
 
-    log "[apply] restoring state — $n_will_be_on monitor(s) will be enabled"
-
-    # Iterate entries safely (use a temp file to avoid subshell scoping)
-    local tmp; tmp=$(mktemp)
-    echo "$state_json" | jq -c 'to_entries[]' >"$tmp"
-    while IFS= read -r entry; do
-        local name enabled
-        name=$(echo "$entry" | jq -r '.key')
-        enabled=$(echo "$entry" | jq -r '.value.enabled')
-
-        if ! monitor_is_connected "$name"; then
-            log "  skip $name (not currently connected)"
-            continue
-        fi
-
-        if [ "$enabled" = "false" ]; then
-            log "  → $name disable"
-            hyprctl keyword monitor "$name,disable" >>"$LOG" 2>&1 || true
-        else
-            local w h r x y s
-            w=$(echo "$entry" | jq -r '.value.width')
-            h=$(echo "$entry" | jq -r '.value.height')
-            r=$(echo "$entry" | jq -r '.value.refresh' \
-                | awk '{ if ($1+0 > 0) printf "%.3f", $1; else printf "60.000" }')
-            x=$(echo "$entry" | jq -r '.value.x')
-            y=$(echo "$entry" | jq -r '.value.y')
-            s=$(echo "$entry" | jq -r '.value.scale')
-            log "  → $name ${w}x${h}@${r} pos=${x}x${y} scale=${s}"
-            hyprctl keyword monitor "$name,${w}x${h}@${r},${x}x${y},${s}" >>"$LOG" 2>&1 || true
-        fi
-    done <"$tmp"
-    rm -f "$tmp"
+    log "  → applying profile: $file"
+    # Run each non-comment line. They're hyprctl commands, executed in series.
+    local lcount=0
+    while IFS= read -r line; do
+        # Skip blanks and comments
+        case "$line" in
+            ''|\#*) continue ;;
+        esac
+        log "    $ $line"
+        # shellcheck disable=SC2086
+        eval "$line" >> "$LOG" 2>&1
+        lcount=$((lcount + 1))
+    done < "$file"
+    log "  ✓ applied $lcount commands from profile"
+    return 0
 }
 
-# ── reconcile: load saved state for current topology, apply, then safety
+# ─────────────────────────────────────────────────────────────────────────────
+# RESCUE FALLBACK (only when no profile + internal would be left disabled)
+# ─────────────────────────────────────────────────────────────────────────────
+
+count_externals_active() {
+    hyprctl monitors -j 2>/dev/null | \
+        jq -r --arg internal "$INTERNAL" \
+        '[.[] | select(.name != $internal)] | length'
+}
+
+internal_is_active() {
+    hyprctl monitors -j 2>/dev/null | \
+        jq -r --arg internal "$INTERNAL" \
+        '[.[] | select(.name == $internal)] | length' | grep -qx '1'
+}
+
+internal_is_connected_but_disabled() {
+    # `hyprctl monitors all -j` includes disabled ones; check for entry with
+    # name=$INTERNAL where .disabled == true
+    hyprctl monitors all -j 2>/dev/null | \
+        jq -e --arg internal "$INTERNAL" \
+        '[.[] | select(.name == $internal and .disabled == true)] | length == 1' \
+        >/dev/null 2>&1
+}
+
+rescue_internal_if_needed() {
+    # Original v1 fix: if 0 externals AND internal is disabled, force-enable it.
+    # We only do this if no profile applied (or profile didn't include eDP-1).
+    if [ "$(count_externals_active)" -eq 0 ] && ! internal_is_active; then
+        if internal_is_connected_but_disabled; then
+            log "  ⚠ RESCUE: 0 externals + internal disabled. Force-enabling $INTERNAL"
+            hyprctl keyword monitor "$INTERNAL,$ZEN_MONITOR_INTERNAL_MODE" >> "$LOG" 2>&1
+        fi
+    fi
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# RECONCILIATION (the main entry point)
+# ─────────────────────────────────────────────────────────────────────────────
+
 reconcile() {
     local trigger="${1:-manual}"
-    local topo; topo=$(current_topology)
-    log "[reconcile] trigger=$trigger topology='$topo'"
+    local key
+    key=$(get_topology_key)
 
-    if [ -z "$topo" ]; then
-        log "[reconcile] empty topology — nothing to do"
-        return
+    log ""
+    log "RECONCILE [$trigger] topology=$key"
+
+    if apply_profile; then
+        # Profile existed — yun saved layout has been re-applied. Done.
+        :
+    else
+        # No profile — let Hyprland's own monitorv2 fallback rule (in monitors.conf)
+        # handle the layout, then save current state as the new profile after
+        # autosave delay below. This is yun "first time at this topology" path.
+        log "  → no profile, using monitorv2 fallback; will autosave in ${ZEN_MONITOR_AUTOSAVE_SEC}s"
+        schedule_autosave
     fi
 
-    local file; file=$(state_file_for "$topo")
-    if [ -f "$file" ]; then
-        log "[reconcile] saved state found: $(basename "$file")"
-        local state; state=$(cat "$file")
-        if echo "$state" | jq empty 2>/dev/null; then
-            apply_state "$state" || true
-        else
-            log "[reconcile] saved state malformed — ignoring (run 'snapshot' to overwrite)"
+    # Always run the rescue check. Even if a profile applied, if it ended up
+    # leaving internal disabled while 0 externals are active, the rescue saves us.
+    rescue_internal_if_needed
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AUTOSAVE TIMER
+# ─────────────────────────────────────────────────────────────────────────────
+# Tracks a "stability timer" — when the topology stabilizes (no events for
+# AUTOSAVE_SEC seconds), the current state is auto-saved as the profile for
+# the current topology. Implemented via a marker file timestamp + a separate
+# wakeup loop checking it every second.
+
+AUTOSAVE_MARKER="/tmp/zen-monitor-watcher.autosave.${HYPRLAND_INSTANCE_SIGNATURE}"
+
+schedule_autosave() {
+    # Touch marker to "now + AUTOSAVE_SEC". The autosave_loop checks every
+    # second whether the marker is in the past and triggers save when so.
+    date +%s | awk -v delay="$ZEN_MONITOR_AUTOSAVE_SEC" '{ print $1 + delay }' > "$AUTOSAVE_MARKER"
+}
+
+cancel_autosave() {
+    rm -f "$AUTOSAVE_MARKER"
+}
+
+autosave_loop() {
+    while true; do
+        sleep 1
+        if [ -f "$AUTOSAVE_MARKER" ]; then
+            local target now
+            target=$(cat "$AUTOSAVE_MARKER" 2>/dev/null || echo 0)
+            now=$(date +%s)
+            if [ "$now" -ge "$target" ]; then
+                rm -f "$AUTOSAVE_MARKER"
+                log "AUTOSAVE timer fired"
+                save_profile "autosave"
+            fi
         fi
-    else
-        log "[reconcile] no saved state for this topology yet"
-    fi
-
-    # ALWAYS run safety check, regardless of whether apply succeeded.
-    safety_check
-}
-
-# ── snapshot: capture current state, debounced ─────────────────────────
-snapshot_now() {
-    local topo; topo=$(current_topology)
-    if [ -z "$topo" ]; then
-        log "[snapshot] empty topology — skip"
-        return
-    fi
-    mkdir -p "$STATE_DIR"
-    local file; file=$(state_file_for "$topo")
-    local current; current=$(current_state_json)
-
-    if [ -z "$current" ]; then
-        log "[snapshot] failed to read current state"
-        return
-    fi
-
-    # Skip write if state matches what's already saved (avoid noise + spurious
-    # mtime updates that confuse log-watchers)
-    if [ -f "$file" ]; then
-        if diff -q <(echo "$current" | jq -S .) <(jq -S . <"$file") >/dev/null 2>&1; then
-            log "[snapshot] no change for '$topo' — skip write"
-            return
-        fi
-        log "[snapshot] updating saved state for '$topo'"
-    else
-        log "[snapshot] FIRST capture for topology '$topo'"
-        notify_user "Captured monitor preference for current setup"
-    fi
-
-    echo "$current" | jq . >"$file"
-    log "[snapshot] saved: $file"
-}
-
-schedule_snapshot() {
-    if [ -n "$SNAPSHOT_PID" ] && kill -0 "$SNAPSHOT_PID" 2>/dev/null; then
-        kill "$SNAPSHOT_PID" 2>/dev/null || true
-        log "  cancelled pending snapshot pid=$SNAPSHOT_PID"
-    fi
-    (
-        sleep "$SNAPSHOT_DELAY"
-        snapshot_now
-    ) &
-    SNAPSHOT_PID=$!
-    log "  snapshot scheduled in ${SNAPSHOT_DELAY}s pid=$SNAPSHOT_PID"
-}
-
-# ── CLI subcommands ────────────────────────────────────────────────────
-
-cmd_snapshot() {
-    log "[manual] snapshot requested via CLI"
-    snapshot_now
-}
-
-cmd_status() {
-    local topo; topo=$(current_topology)
-    echo "── Zen Monitor Watcher status ──"
-    echo "Current topology    : ${topo:-<none>}"
-    echo "Topology key        : $(topology_key "$topo")"
-    echo "Configured MAIN     : $MAIN_MONITOR"
-    echo "Effective MAIN      : $(effective_main)"
-    echo "Enabled count       : $(count_enabled)"
-    echo "State directory     : $STATE_DIR"
-    echo "Log file            : $LOG"
-    echo ""
-    local file; file=$(state_file_for "$topo")
-    if [ -f "$file" ]; then
-        echo "── Saved state for current topology ──"
-        echo "File: $file"
-        echo ""
-        cat "$file"
-    else
-        echo "(no saved state for this topology yet)"
-    fi
-}
-
-cmd_list() {
-    if [ ! -d "$STATE_DIR" ] || [ -z "$(ls -A "$STATE_DIR" 2>/dev/null)" ]; then
-        echo "No saved topologies yet."
-        echo "(They get auto-captured ${SNAPSHOT_DELAY}s after each plug/unplug event.)"
-        return
-    fi
-    echo "── Saved monitor topologies ──"
-    local current_key; current_key=$(topology_key "$(current_topology)")
-    for f in "$STATE_DIR"/topology-*.json; do
-        [ -f "$f" ] || continue
-        local key; key=$(basename "$f" .json | sed 's/^topology-//')
-        local marker=""
-        [ "$key" = "$current_key" ] && marker=" ← current"
-        echo "  $key$marker"
     done
-    echo ""
-    echo "Use:  zen-monitor-watcher.sh clear KEY  — to forget a topology"
 }
 
-cmd_clear() {
-    local key="${1:-}"
-    if [ -z "$key" ]; then
-        echo "Usage: $0 clear <topology-key>"
-        echo "Run '$0 list' to see saved topologies."
-        exit 1
-    fi
-    local file="$STATE_DIR/topology-${key}.json"
-    if [ -f "$file" ]; then
-        rm "$file"
-        echo "Removed: $file"
-    else
-        echo "Not found: $file"
-        exit 1
-    fi
+# Also: schedule autosave on EVERY reconcile (even when profile applied) so
+# manual edits via nwg-displays / Zen Shell Settings get captured. This is
+# safe because save_profile() is idempotent — it's just rewriting the file.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MANUAL SIGNAL HANDLERS
+# ─────────────────────────────────────────────────────────────────────────────
+
+# SIGUSR1 = post-resume hook (sent by zen-monitor-resume.service)
+on_sigusr1() {
+    log ""
+    log "SIGUSR1 received (post-resume hook)"
+    sleep 0.5
+    reconcile "post-resume"
 }
+trap on_sigusr1 USR1
 
-# ── daemon mode ────────────────────────────────────────────────────────
-cmd_daemon() {
-    for cmd in hyprctl jq socat; do
-        command -v "$cmd" >/dev/null 2>&1 || {
-            echo "[zen-monitor-watcher] missing required: $cmd" >&2
-            exit 1
-        }
-    done
-
-    if [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
-        echo "[zen-monitor-watcher] HYPRLAND_INSTANCE_SIGNATURE not set — exiting" >&2
-        exit 1
-    fi
-
-    local sock="${XDG_RUNTIME_DIR}/hypr/${HYPRLAND_INSTANCE_SIGNATURE}/.socket2.sock"
-    if [ ! -S "$sock" ]; then
-        echo "[zen-monitor-watcher] socket2.sock not found at $sock" >&2
-        exit 1
-    fi
-
-    : > "$LOG"
-    log "═══ zen-monitor-watcher v6.16.4.12.6.11 starting ═══"
-    log "MAIN_MONITOR=$MAIN_MONITOR  FALLBACK_MODE=$FALLBACK_MODE"
-    log "STATE_DIR=$STATE_DIR"
-    log "SNAPSHOT_DELAY=${SNAPSHOT_DELAY}s  NOTIFY=$NOTIFY"
-    log "Socket: $sock"
-
-    # Initial reconcile — handles the "rebooted in laptop-only mode after
-    # docking session that disabled internal" recovery scenario.
-    reconcile "startup"
-    # Don't auto-snapshot at startup — let the user configure first.
-
-    # Cleanup on exit
-    trap 'if [ -n "$SNAPSHOT_PID" ]; then kill "$SNAPSHOT_PID" 2>/dev/null || true; fi' EXIT
-
-    log "subscribing to socket2 events..."
-    while IFS= read -r line; do
-        local event payload name
-        event="${line%%>>*}"
-        payload="${line#*>>}"
-        case "$event" in
-            monitoradded|monitorremoved)
-                name="$payload"
-                ;;
-            monitoraddedv2|monitorremovedv2)
-                # v2 format: ID,NAME,DESCRIPTION
-                name="${payload#*,}"; name="${name%%,*}"
-                ;;
-            *)
-                continue
-                ;;
-        esac
-        log ""
-        log "── event: $event '$name' ──"
-        # Brief settle so hyprland's internal monitor list is up-to-date
-        sleep 0.2
-        reconcile "$event:$name"
-        schedule_snapshot
-    done < <(socat -U - "UNIX-CONNECT:$sock" 2>>"$LOG")
+# SIGUSR2 = manual save trigger (you can wire a keybind to:
+#   pkill -USR2 -f zen-monitor-watcher.sh
+# to force-save the current state right now without waiting for autosave)
+on_sigusr2() {
+    log ""
+    log "SIGUSR2 received (manual save trigger)"
+    save_profile "manual-trigger"
 }
+trap on_sigusr2 USR2
 
-# ── entry point ────────────────────────────────────────────────────────
-case "${1:-daemon}" in
-    snapshot|--snapshot)         cmd_snapshot ;;
-    status|--status)             cmd_status ;;
-    list|--list|ls)              cmd_list ;;
-    clear|--clear|forget)        cmd_clear "${2:-}" ;;
-    daemon|--daemon|"")          cmd_daemon ;;
-    -h|--help|help)
-        cat <<EOF
-zen-monitor-watcher.sh — smart Hyprland monitor manager
+# SIGHUP = clear all profiles + re-reconcile (factory reset for the current
+# session). Send via:  pkill -HUP -f zen-monitor-watcher.sh
+on_sighup() {
+    log ""
+    log "SIGHUP received (clearing all profiles)"
+    rm -f "$PROFILES_DIR"/*.conf
+    reconcile "post-clear"
+}
+trap on_sighup HUP
 
-USAGE:
-  zen-monitor-watcher.sh                      run as daemon (used by systemd)
-  zen-monitor-watcher.sh snapshot             save current state for current topology
-  zen-monitor-watcher.sh status               show topology + saved state
-  zen-monitor-watcher.sh list                 list saved topologies
-  zen-monitor-watcher.sh clear KEY            forget a topology
+# ─────────────────────────────────────────────────────────────────────────────
+# STARTUP + AUTOSAVE LOOP IN BACKGROUND
+# ─────────────────────────────────────────────────────────────────────────────
 
-CONFIG (env, set in ~/.config/hypr/zen-monitor-watcher.env):
-  ZEN_MONITOR_MAIN=eDP-1                      always-on fallback monitor
-  ZEN_MONITOR_FALLBACK_MODE=preferred,auto,1  mode for force-enable
-  ZEN_MONITOR_STATE_DIR=~/.config/hypr/zen-monitor-states
-  ZEN_MONITOR_SNAPSHOT_DELAY=10               auto-snapshot debounce (s)
-  ZEN_MONITOR_NOTIFY=1                        notify-send on safety override
+# Initial reconcile on startup
+reconcile "startup"
 
-LOG:
-  $LOG
-EOF
-        ;;
-    *)
-        echo "Unknown command: $1 (try --help)" >&2
-        exit 1
-        ;;
-esac
+# Schedule autosave after startup so first-boot state gets captured
+schedule_autosave
+
+# Start autosave loop in background
+autosave_loop &
+AUTOSAVE_PID=$!
+log "autosave loop started as PID $AUTOSAVE_PID"
+
+# Make sure we kill the autosave loop on exit
+cleanup() {
+    [ -n "${AUTOSAVE_PID:-}" ] && kill "$AUTOSAVE_PID" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MAIN EVENT LOOP — subscribe to Hyprland socket2
+# ─────────────────────────────────────────────────────────────────────────────
+
+log ""
+log "Subscribing to socket2..."
+
+# Note: not exec'ing this time because we have the autosave loop in bg
+socat -U - "UNIX-CONNECT:$SOCK" 2>>"$LOG" | while IFS= read -r line; do
+    event="${line%%>>*}"
+    payload="${line#*>>}"
+
+    case "$event" in
+        monitoradded|monitoraddedv2|monitorremoved|monitorremovedv2)
+            case "$event" in
+                *v2)
+                    name="${payload#*,}"; name="${name%%,*}"
+                    ;;
+                *)
+                    name="$payload"
+                    ;;
+            esac
+            log ""
+            log "EVENT: $event for monitor '$name'"
+
+            # Debounce — wait for Hyprland to finish updating internal state
+            sleep "$(awk "BEGIN { print $ZEN_MONITOR_DEBOUNCE_MS / 1000 }")"
+            reconcile "$event:$name"
+
+            # Always (re)schedule autosave after a topology change so manual
+            # adjustments after the auto-applied profile also get saved
+            schedule_autosave
+            ;;
+        *)
+            # Ignore workspace/window/keyboard/etc events
+            ;;
+    esac
+done

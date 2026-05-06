@@ -123,30 +123,53 @@ ScrollView {
 
         // ═══════════════════════════════════════════════════════
         // v6.16.4.12: PANEL POSITION
+        // v6.16.4.12.7.1: Extended to 4 options (Top/Bottom/Left/Right)
+        // for upcoming vertical-bar support. In this drop the BAR
+        // ITSELF still renders horizontally regardless — what changes
+        // is popup positioning. Selecting Left/Right today applies the
+        // 4-direction popup logic but won't yet rotate the bar's
+        // RowLayout to a ColumnLayout (that's a separate larger drop).
         // ═══════════════════════════════════════════════════════
         SettingsSection {
             title: "Panel Position"
-            subtitle: "Where the bar sits on your screen"
+            subtitle: "Where the bar sits on your screen. Popups always grow AWAY from the bar."
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 12
+                spacing: 10
 
                 Repeater {
+                    // v6.16.4.12.9.2 (Modori) hotfix: Left and Right
+                    // entries removed from this picker. They were
+                    // popup-only in Tachiagari/Modori (no actual
+                    // vertical bar rendering), and even though the
+                    // popup-direction logic worked, selecting Left or
+                    // Right broke the Settings sidebar layout (the
+                    // user row at the bottom of the sidebar would
+                    // disappear). Hiding the options is the safer
+                    // path until the full vertical-bar rendering
+                    // returns in a properly-validated future drop.
+                    //
+                    // The yellow "vertical bar coming in a follow-up
+                    // drop" notice that lived below this picker was
+                    // also removed — with no Left/Right options
+                    // visible, the notice has nothing to clarify.
                     model: [
-                        { pos: "top",    icon: "\uf062", label: "Top" },
-                        { pos: "bottom", icon: "\uf063", label: "Bottom" }
+                        { pos: "top",    icon: "\uf062", label: "Top",    orientation: "h" },
+                        { pos: "bottom", icon: "\uf063", label: "Bottom", orientation: "h" }
                     ]
                     delegate: Rectangle {
+                        id: posCard
                         required property var modelData
+                        readonly property bool isSelected: PanelState.panelPosition === modelData.pos
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 80
+                        Layout.preferredHeight: 90
                         radius: 10
-                        color: PanelState.panelPosition === modelData.pos
+                        color: isSelected
                                ? ThemeService.alpha(ThemeService.blue, 0.18)
                                : ThemeService.alpha(ThemeService.bg2, 0.5)
                         border.width: 2
-                        border.color: PanelState.panelPosition === modelData.pos
+                        border.color: isSelected
                                       ? ThemeService.blue
                                       : ThemeService.alpha(ThemeService.fg, 0.12)
 
@@ -157,33 +180,47 @@ ScrollView {
                             anchors.centerIn: parent
                             spacing: 6
 
-                            // Mini preview
+                            // Mini preview — orientation-aware
                             Rectangle {
                                 Layout.alignment: Qt.AlignHCenter
                                 width: 60; height: 40; radius: 4
                                 color: ThemeService.alpha(ThemeService.fg, 0.06)
                                 border.width: 1; border.color: ThemeService.alpha(ThemeService.fg, 0.1)
 
+                                // Bar mini-rectangle. Width/height/x/y
+                                // computed per-position so the preview
+                                // visually matches the option label.
                                 Rectangle {
-                                    width: parent.width - 4
-                                    height: 6; radius: 2
-                                    x: 2
-                                    y: modelData.pos === "top" ? 2 : parent.height - 8
-                                    color: PanelState.panelPosition === modelData.pos
+                                    readonly property bool horiz: posCard.modelData.orientation === "h"
+                                    width: horiz ? parent.width - 4 : 6
+                                    height: horiz ? 6 : parent.height - 4
+                                    radius: 2
+                                    x: {
+                                        if (posCard.modelData.pos === "left")  return 2
+                                        if (posCard.modelData.pos === "right") return parent.width - 8
+                                        return 2
+                                    }
+                                    y: {
+                                        if (posCard.modelData.pos === "top")    return 2
+                                        if (posCard.modelData.pos === "bottom") return parent.height - 8
+                                        return 2
+                                    }
+                                    color: posCard.isSelected
                                            ? ThemeService.blue
                                            : ThemeService.alpha(ThemeService.fg, 0.2)
 
+                                    Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
                                     Behavior on y { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
                                 }
                             }
 
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
-                                text: modelData.label
+                                text: posCard.modelData.label
                                 font.family: Theme.fontFamily
                                 font.pixelSize: 11
                                 font.weight: Font.DemiBold
-                                color: PanelState.panelPosition === modelData.pos
+                                color: posCard.isSelected
                                        ? ThemeService.blue : ThemeService.fg
                             }
                         }
@@ -193,7 +230,7 @@ ScrollView {
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
-                                PanelState.panelPosition = modelData.pos
+                                PanelState.panelPosition = posCard.modelData.pos
                                 PanelState.saveState()
                             }
                         }
@@ -577,6 +614,83 @@ ScrollView {
                     }
                     Text {
                         text: PanelState.startButtonIconSize + "px"
+                        color: ThemeService.fg
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+            }
+
+            // ═══════════════════════════════════════════════════════
+            // v6.16.4.12.7 (Tachiagari) — Start Button Border tint
+            //
+            // Toggle that lets the start button adopt the panel's
+            // borderColor for its idle border (instead of the muted
+            // Theme.bg1 default). Hover state still flips to blue
+            // accent — that's a deliberately separate concern (click
+            // affordance must always be obvious).
+            //
+            // Independent of `borderEnabled` above so a user can:
+            //   - Have NO panel border but a colored start button rim
+            //   - Have a panel border + matching start button rim
+            //   - Have a panel border + plain start button (default)
+            //
+            // Width slider goes 0–4: 0 to hide the rim entirely (e.g.
+            // pure floating logo look), 1 default (matches old hard-
+            // coded value), 2–4 for a chunkier outline.
+            // ═══════════════════════════════════════════════════════
+            SettingRow {
+                label: "Tint Start Button Border"
+                description: "Use the panel's Border Color for the start button rim too. "
+                             + "Independent of the panel border toggle."
+                Row {
+                    spacing: 10
+                    HMSwitch {
+                        anchors.verticalCenter: parent.verticalCenter
+                        checked: PanelState.startButtonUseBorderColor
+                        onToggled: {
+                            PanelState.startButtonUseBorderColor = checked
+                            PanelState.saveState()
+                        }
+                    }
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 22; height: 22; radius: 11
+                        color: PanelState.startButtonUseBorderColor
+                               ? PanelState.borderColor
+                               : ThemeService.bg1
+                        border.width: 1
+                        border.color: ThemeService.alpha(ThemeService.fg, 0.2)
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: PanelState.startButtonUseBorderColor
+                              ? ("→ " + PanelState.borderColor)
+                              : "default (theme bg1)"
+                        color: ThemeService.grey1
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 11
+                    }
+                }
+            }
+
+            SettingRow {
+                label: "Start Button Border Width"
+                description: "0 = no border, 1 = default. Affects the start button rim only."
+                Row {
+                    spacing: 8
+                    Slider {
+                        width: 200
+                        from: 0; to: 4; stepSize: 1
+                        value: PanelState.startButtonBorderWidth
+                        onValueChanged: {
+                            PanelState.startButtonBorderWidth = Math.round(value)
+                            PanelState.saveState()
+                        }
+                    }
+                    Text {
+                        text: PanelState.startButtonBorderWidth + "px"
                         color: ThemeService.fg
                         font.family: Theme.fontFamily
                         font.pixelSize: 12

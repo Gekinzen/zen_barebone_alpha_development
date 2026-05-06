@@ -433,6 +433,29 @@ ShellRoot {
             cursorMonitorQuery.running = false
             cursorMonitorQuery.running = true
         }
+
+        // ─────────────────────────────────────────────────────────────
+        // v6.16.4.12.7 (Tachiagari) — Gaming Boost IPC entry points.
+        // Used by ~/.local/bin/zen-smart-game-watcher.sh (the new
+        // independent watcher) so the daemon can route through QML's
+        // PowerProfileService.setGamingBoost() — keeping
+        // SettingsStateV2.gamingBoostActive, the bar PowerBadge, and
+        // the user's restore-profile bookkeeping in one consistent
+        // path. Without this the watcher would fight QML state every
+        // time a game enters or exits.
+        //
+        // Usage from the watcher (and from anywhere):
+        //   qs -c zen-shell ipc call zen gameBoostOn
+        //   qs -c zen-shell ipc call zen gameBoostOff
+        // ─────────────────────────────────────────────────────────────
+        function gameBoostOn()  {
+            if (typeof PowerProfileService !== "undefined")
+                PowerProfileService.setGamingBoost(true)
+        }
+        function gameBoostOff() {
+            if (typeof PowerProfileService !== "undefined")
+                PowerProfileService.setGamingBoost(false)
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -641,7 +664,18 @@ ShellRoot {
                 stringsMaxWaitTimer.stop()
             }
 
+            // v6.16.4.12.7.1: Auto-hide on vertical bars. MusicStrings
+            // is fundamentally a horizontal overlay — the music rope
+            // curves are drawn left-to-right across the bar's width.
+            // On a vertical (left/right) bar there's no horizontal
+            // music slot to overlay, so we suppress the window
+            // entirely. The MusicWidget (icon + small label) still
+            // renders inside the bar through the normal cMusic path
+            // when ZenStringsState.enabled is false — but if the user
+            // has strings enabled AND moves the bar to vertical, this
+            // gate keeps the now-meaningless overlay from drawing.
             visible: isBarMonitor
+                     && PanelState.isHorizontal
                      && ZenStringsState.enabled
                      && ZenStringsState.musicSlotLocalX >= 0
                      && ZenStringsState.musicSlotLocalWidth > 10
@@ -872,9 +906,17 @@ ShellRoot {
             visible: root.startMenuScreen === modelData
 
             // v6.16.4.12: Position-aware — start menu opens from bar edge
-            anchors.bottom: !PanelState.isTop
-            anchors.top: PanelState.isTop
-            anchors.left: true
+            // v6.16.4.12.7.1: Extended to 4 directions. The start menu
+            // anchors to whichever screen edge the bar lives on, plus
+            // the perpendicular edge nearest where the start button
+            // ends up. For horizontal bars (bottom/top), that's the
+            // left edge (start button is leftmost in barLayout.left).
+            // For vertical bars (left/right), the start button sits at
+            // the TOP of the column, so we anchor top.
+            anchors.bottom: PanelState.isBottom
+            anchors.top: PanelState.isTop || PanelState.isVertical
+            anchors.left: PanelState.isHorizontal || PanelState.isLeft
+            anchors.right: PanelState.isRight
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "zen-shell-startmenu"
             exclusionMode: ExclusionMode.Ignore
@@ -885,7 +927,21 @@ ShellRoot {
 
             // v6.9: Align start menu LEFT EDGE with start button LEFT EDGE
             // (not centered — user expects menu to open directly from the button)
+            // v6.16.4.12.7.1: For horizontal bars, this aligns start menu
+            // LEFT with start-button center-X. For vertical bars, the
+            // start button is at the top of the column so the start menu
+            // opens to the right (left bar) or left (right bar) of the
+            // bar — the perpendicular margin handles offsetting from the
+            // top of the screen, not from the start button's Y position
+            // (we don't have a start-button-center-Y report yet on
+            // verticals; close enough — menu top-aligns to screen).
             margins.left: {
+                if (!PanelState.isHorizontal) {
+                    // Vertical bar: anchored to left (anchors.left when
+                    // bar is on left) — push past the bar by barHeight + 2.
+                    if (PanelState.isLeft) return PanelState.barHeight + 2
+                    return 0
+                }
                 const btnX = PanelState.startButtonCenterX
                 if (btnX < 0) return 8  // no report yet
                 const w = startMenuWindow.implicitWidth
@@ -896,9 +952,18 @@ ShellRoot {
                 const maxLeft = screenW - w - 8
                 return Math.max(8, Math.min(maxLeft, desired))
             }
+            margins.right: PanelState.isRight ? (PanelState.barHeight + 2) : 0
+
             // v6.16.4.12: Sticky to bar — 2px gap for visual separation
-            margins.bottom: PanelState.isTop ? 0 : (PanelState.barHeight + 2 + PanelState.panelMarginBottom)
-            margins.top: PanelState.isTop ? (PanelState.barHeight + 2 + PanelState.panelMarginTop) : 0
+            // v6.16.4.12.7.1: Only applies when bar is horizontal. For
+            // vertical bars, the perpendicular gap is handled by
+            // margins.left/right above; vertical placement is anchor-top
+            // with a small fixed margin.
+            margins.bottom: PanelState.isBottom
+                ? (PanelState.barHeight + 2 + PanelState.panelMarginBottom) : 0
+            margins.top: PanelState.isTop
+                ? (PanelState.barHeight + 2 + PanelState.panelMarginTop)
+                : (PanelState.isVertical ? 8 : 0)
 
             HyprlandFocusGrab {
                 // v6.16.2.3.1: Suspend focus grab while the StartMenuPanel
@@ -1176,6 +1241,71 @@ ShellRoot {
     }
 
     // ═══════════════════════════════════════════════════════════════
+    // WiFi PASSWORD PROMPT — v6.16.4.12.9.10 (Modori)
+    //
+    // In-shell overlay popup that replaces zenity --password for
+    // first-time secured WiFi connection. The prompt floats at
+    // WlrLayer.Overlay above all other surfaces (including the
+    // Control Panel that triggered it), centered on screen, with
+    // a dimmed backdrop. Driven by the PasswordPromptService
+    // singleton — any service can call requestPassword(ssid, cb).
+    //
+    // Why this exists: zenity opened a separate window that often
+    // landed BEHIND the Control Panel on Wayland WMs without
+    // strict focus stealing. User clicked Connect, nothing
+    // visible happened, the connect attempt felt broken — they
+    // had to alt-tab to find the prompt. The in-shell overlay
+    // can never be hidden by another surface because it's at the
+    // top layer.
+    //
+    // Single-monitor: rendered on the focused monitor only (same
+    // pattern as controlPanelWindow above).
+    // ═══════════════════════════════════════════════════════════════
+    Variants {
+        model: Quickshell.screens
+
+        PanelWindow {
+            id: passwordPromptWindow
+            required property var modelData
+            screen: modelData
+
+            property bool isFocusedMonitor: {
+                if (!Hyprland.focusedMonitor) return Quickshell.screens[0] === modelData
+                return Hyprland.focusedMonitor.name === modelData.name
+            }
+
+            visible: PasswordPromptService.active && isFocusedMonitor
+
+            anchors.top: true
+            anchors.bottom: true
+            anchors.left: true
+            anchors.right: true
+            WlrLayershell.layer: WlrLayer.Overlay
+            WlrLayershell.namespace: "zen-shell-pwprompt"
+            WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive   // capture Esc/Enter
+            exclusionMode: ExclusionMode.Ignore
+            color: "transparent"
+
+            // The whole overlay surface IS the panel (backdrop + card),
+            // so input is captured anywhere on the surface — no mask
+            // tricks needed unlike controlPanelWindow.
+
+            // FocusGrab: clicks on Hyprland surfaces outside the
+            // overlay (e.g. the bar) cancel the prompt. Same pattern
+            // as the screenshot rope overlay below.
+            HyprlandFocusGrab {
+                active: passwordPromptWindow.visible
+                windows: [passwordPromptWindow]
+                onCleared: PasswordPromptService._cancel()
+            }
+
+            PasswordPromptPanel {
+                anchors.fill: parent
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // SYSROW TOOLTIP — v6.14: REMOVED
     // Tooltip is now a PopupWindow inside each SysRowIcon.qml,
     // using anchor.item (same as Taskbar.qml). No manual coordinate
@@ -1205,9 +1335,31 @@ ShellRoot {
             visible: root.calendarVisible && isFocusedMonitor
 
             // v6.16.4.12: Position-aware
-            anchors.bottom: !PanelState.isTop
-            anchors.top: PanelState.isTop
-            anchors.right: true
+            // v6.16.4.12.7.1: Extended to 4 directions. The calendar
+            // window anchors to the same screen edge the bar lives on
+            // (so it never overlaps the bar) PLUS the perpendicular
+            // edge nearest the clock module (right edge for horizontal
+            // bars, top edge for vertical bars), which keeps the
+            // calendar visually grouped with the clock that triggered it.
+            //
+            //   Bar bottom → anchor bottom + right (same as before)
+            //   Bar top    → anchor top    + right
+            //   Bar left   → anchor left   + top   (vertical bars: clock
+            //                                       sits at the bottom of
+            //                                       the column, but the
+            //                                       calendar's natural
+            //                                       reading direction
+            //                                       grows DOWN from the
+            //                                       top so we anchor top)
+            //   Bar right  → anchor right  + top
+            //
+            // The bar-side margin (margins.bottom / .top / .left / .right
+            // depending on position) accounts for the bar's height +
+            // gap so the calendar always sits 12px outside the bar.
+            anchors.bottom: PanelState.isBottom
+            anchors.top: PanelState.isTop || PanelState.isVertical
+            anchors.right: PanelState.isHorizontal || PanelState.isRight
+            anchors.left: PanelState.isLeft
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "zen-shell-calendar"
             exclusionMode: ExclusionMode.Ignore
@@ -1216,8 +1368,15 @@ ShellRoot {
             implicitWidth: 330
             implicitHeight: 520
 
-            margins.bottom: PanelState.isTop ? 0 : (PanelState.barHeight + 12 + PanelState.panelMarginBottom)
-            margins.top: PanelState.isTop ? (PanelState.barHeight + 12 + PanelState.panelMarginTop) : 0
+            // Margin on the bar-side edge — pushes the calendar AWAY
+            // from the bar by (barHeight + gap + position-specific
+            // panel-margin). Only ONE of these is non-zero at a time.
+            margins.bottom: PanelState.isBottom
+                ? (PanelState.barHeight + 12 + PanelState.panelMarginBottom) : 0
+            margins.top: PanelState.isTop
+                ? (PanelState.barHeight + 12 + PanelState.panelMarginTop) : 0
+            margins.left: PanelState.isLeft
+                ? (PanelState.barHeight + 12) : 0   // for vertical bars, barHeight is conceptually the bar's WIDTH
 
             // v6.16.4.12.6.53 (Hiraki hotfix 1): margins.right now
             // tracks the clock module's right edge so the popup
@@ -1226,7 +1385,7 @@ ShellRoot {
             // to the historical 12px-from-screen-edge if Clock.qml
             // hasn't reported a position yet (clockRightEdgeX == -1).
             //
-            // Layout math:
+            // Layout math (horizontal bars):
             //   With anchors.right: true, the popup's right edge sits
             //   at `screenW - margins.right`. We want that edge to
             //   align with the clock's right edge:
@@ -1237,7 +1396,16 @@ ShellRoot {
             //   so the 330px-wide popup never overflows the left edge
             //   on a narrow monitor or when the clock sits very close
             //   to the screen's right edge.
+            //
+            // v6.16.4.12.7.1: For RIGHT-anchored vertical bars, this
+            // margin pushes the popup AWAY from the right edge of the
+            // screen by (barWidth + gap) — same role as margins.bottom
+            // plays for bottom bars. The clock-tracking math is only
+            // meaningful on horizontal bars (where the clock has a
+            // well-defined screen-X), so we skip it for verticals.
             margins.right: {
+                if (PanelState.isRight) return PanelState.barHeight + 12
+                if (!PanelState.isHorizontal) return 0
                 const sw = (PanelState.screenWidth > 0) ? PanelState.screenWidth : 1920
                 if (PanelState.clockRightEdgeX <= 0) return 12   // unreported → fallback
                 const want = sw - PanelState.clockRightEdgeX

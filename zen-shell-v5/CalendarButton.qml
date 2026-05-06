@@ -75,14 +75,62 @@ Rectangle {
     PopupWindow {
         id: popup
 
+        // ───────────────────────────────────────────────────────
+        // v6.16.4.12.7.1 — 4-direction-aware popup positioning.
+        //
+        // CalendarButton uses manual `anchor.rect.x/y` (not anchor.item)
+        // because it needs absolute control over the popup's offset —
+        // it's a 330×540 calendar box, not a generic tooltip. So the
+        // helpers in PanelState don't apply directly; we have to do
+        // the x/y math ourselves for each of the four bar positions.
+        //
+        // The popup's reference point is the bar module (root). The
+        // popup should always grow AWAY from the bar so it never
+        // overlaps it and never gets clipped by the bar's screen edge.
+        //
+        //   Bar bottom (default):
+        //     x = button center − popupWidth/2  (centered on button)
+        //     y = button.y − popupHeight        (above the button)
+        //
+        //   Bar top:
+        //     x = button center − popupWidth/2  (centered on button)
+        //     y = button.y + button.height + 8  (below the button)
+        //
+        //   Bar left (vertical, future):
+        //     x = button.x + button.width + 8   (right of the button)
+        //     y = button center − popupHeight/2 (centered on button)
+        //
+        //   Bar right (vertical, future):
+        //     x = button.x − popupWidth − 8     (left of the button)
+        //     y = button center − popupHeight/2 (centered on button)
+        //
+        // popupWidth = 330, popupHeight = 540 (must match implicitWidth/
+        // implicitHeight below). 8px gap between bar and popup avoids
+        // visual collision while keeping the click affordance tight.
+        // ───────────────────────────────────────────────────────
+        readonly property int _popupW: 330
+        readonly property int _popupH: 540
+        readonly property int _gap: 8
+
         anchor.window: QsWindow.window
-        anchor.rect.x: root.x + (root.width / 2) - 165
-        anchor.rect.y: root.y - 540
+        anchor.rect.x: {
+            if (PanelState.isLeft)  return root.x + root.width + popup._gap
+            if (PanelState.isRight) return root.x - popup._popupW - popup._gap
+            // Horizontal bar (top/bottom) — centered on the button
+            return root.x + (root.width / 2) - (popup._popupW / 2)
+        }
+        anchor.rect.y: {
+            if (PanelState.isTop)    return root.y + root.height + popup._gap
+            if (PanelState.isLeft || PanelState.isRight)
+                return root.y + (root.height / 2) - (popup._popupH / 2)
+            // Bottom bar (default) — above the button
+            return root.y - popup._popupH
+        }
         anchor.rect.width: 0
         anchor.rect.height: 0
 
-        implicitWidth: 330
-        implicitHeight: 540
+        implicitWidth: popup._popupW
+        implicitHeight: popup._popupH
         color: "transparent"
         visible: false
 
