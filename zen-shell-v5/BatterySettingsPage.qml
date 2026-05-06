@@ -294,7 +294,7 @@ ScrollView {
                 label: "Display mode"
                 description: "How the battery shows in the panel"
                 icon: "\uf240"; separator: true
-                ZenComboBox {
+                ZenDropdown {
                     id: modeCombo
                     width: root.dropdownWidth
                     model: ["Icon only", "Text percentage", "Progress bar"]
@@ -460,7 +460,7 @@ ScrollView {
                 description: "Which backlight surface the slider controls"
                 icon: "\uf26c"; separator: true   // fa-tv
 
-                ZenComboBox {
+                ZenDropdown {
                     width: root.dropdownWidth
                     model: {
                         const out = []
@@ -793,7 +793,7 @@ ScrollView {
                 label: "Active profile"
                 description: "Managed by power-profiles-daemon. Persists across reboots."
                 icon: "\uf0e7"; separator: true
-                ZenComboBox {
+                ZenDropdown {
                     width: root.dropdownWidth
                     model: ["Power Saver", "Balanced", "Performance"]
                     readonly property var ids: ["power-saver", "balanced", "performance"]
@@ -870,7 +870,7 @@ ScrollView {
                 description: "Controls which GPU new app launches use. "
                              + "Takes effect on next app start (or next login for env-based mode)."
                 icon: "\uf1b2"; separator: true
-                ZenComboBox {
+                ZenDropdown {
                     width: root.dropdownWidth
                     model: [
                         "Auto (default)",
@@ -950,6 +950,65 @@ ScrollView {
             }
         }
 
+        // ═══ v6.16.4.12.7 (Tachiagari) — Smart Gaming Detection ═══
+        //
+        // Independent toggle — works regardless of GPU mode above.
+        // When ON, ~/.local/bin/zen-smart-game-watcher.sh runs in the
+        // background, polls for known game/launcher/runtime processes
+        // every 3 seconds, and routes detection events through QML's
+        // PowerProfileService.setGamingBoost() via Quickshell IPC.
+        //
+        // Effect when boost engages:
+        //   - powerprofilesctl set performance
+        //   - hyprctl: blur off, dim_inactive off, animations off
+        //   - PowerBadge in the bar flips to red gamepad icon
+        // Effect when last game exits:
+        //   - Restore the power profile that was active before boost
+        //   - Restore blur/dim/animations from this Settings page
+        //
+        // Use case: laptop on battery → leave GPU mode on Auto, but
+        // still want the FPS boost when a game pops up. The two
+        // settings are intentionally orthogonal so users can mix them.
+        HMSection {
+            title: "Smart Gaming Detection"
+            subtitle: "Auto FPS boost when a game launches — independent of GPU mode"
+
+            HMRow {
+                label: "Enable Smart Detection"
+                description: "Watches for steam, lutris, heroic, gamescope, wine/proton, "
+                             + "emulators (rpcs3, dolphin, yuzu, etc.) and toggles Gaming Boost on/off automatically."
+                icon: "\uf11b"   // gamepad
+                separator: true
+
+                HMSwitch {
+                    checked: SettingsStateV2.smartGamingDetect
+                    // HMSwitch flips its own `checked` internally before
+                    // emitting `toggled`. We mirror the new value back to
+                    // SettingsStateV2 — the property's own change handler
+                    // (in SettingsStateV2.qml) takes care of spawning /
+                    // killing the watcher daemon AND calls markDirty().
+                    onToggled: SettingsStateV2.smartGamingDetect = checked
+                }
+            }
+
+            HMRow {
+                label: "Watcher status"
+                description: SettingsStateV2.smartGamingDetect
+                             ? "Daemon running. Log: ~/.cache/zen-smart-game-watcher.log"
+                             : "Daemon stopped. Toggle above to start."
+                icon: "\uf0a0"   // hdd
+
+                Rectangle {
+                    Layout.preferredWidth: 10
+                    Layout.preferredHeight: 10
+                    radius: 5
+                    color: SettingsStateV2.smartGamingDetect
+                           ? ThemeService.green : ThemeService.alpha(ThemeService.fg, 0.25)
+                    Behavior on color { ColorAnimation { duration: 200 } }
+                }
+            }
+        }
+
         // ═══ IDLE & SLEEP (v6.16.3.8) ═══
         //
         // User-configurable timeouts for the hypridle cascade.
@@ -971,7 +1030,7 @@ ScrollView {
                 label: "Lock after idle"
                 description: "Time before the lock screen appears automatically"
                 icon: "\uf023"; separator: true
-                ZenComboBox {
+                ZenDropdown {
                     width: root.dropdownWidth
                     model: ["30 seconds", "1 minute", "30 minutes", "1 hour", "3 hours", "5 hours", "Never"]
                     readonly property var ids: [30, 60, 1800, 3600, 10800, 18000, 0]
@@ -991,7 +1050,7 @@ ScrollView {
                 label: "Sleep after idle"
                 description: "Time before systemctl suspend fires. Pick 'Never' on desktops."
                 icon: "\uf186"; separator: true
-                ZenComboBox {
+                ZenDropdown {
                     width: root.dropdownWidth
                     model: ["30 seconds", "1 minute", "30 minutes", "1 hour", "3 hours", "5 hours", "Never"]
                     readonly property var ids: [30, 60, 1800, 3600, 10800, 18000, 0]
@@ -1041,7 +1100,7 @@ ScrollView {
                 label: "On lid close"
                 description: "System action when you close the laptop lid"
                 icon: "\uf011"; separator: true
-                ZenComboBox {
+                ZenDropdown {
                     width: root.dropdownWidth
                     model: ["Sleep (suspend + lock on wake)", "Lock only (stay on)", "Do nothing"]
                     readonly property var ids: ["suspend", "lock", "ignore"]
@@ -1060,7 +1119,7 @@ ScrollView {
                 label: "When the laptop lid closes"
                 description: "Fixes the 'external monitor goes black when I close the lid' bug"
                 icon: "\uf109"; separator: true
-                ZenComboBox {
+                ZenDropdown {
                     width: root.dropdownWidth
                     model: ["Mirror to external monitor", "Keep internal display on", "Turn off internal (default)"]
                     readonly property var ids: ["mirror", "keep", "off"]

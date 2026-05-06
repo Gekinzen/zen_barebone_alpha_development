@@ -37,9 +37,16 @@ Singleton {
     property int iconSize: 20
 
     // Style-dependent properties
-    property real moduleRadius: styleMode === "round" ? 20 : 45
+    // v6.16.4.12.7 (Tachiagari): pill mode now uses a SMALL radius (10)
+    // for a true rectangular-pill look. Old value (45) was clamped by
+    // QML to height/2 (=20) because moduleHeight is 40 — making pill
+    // mode visually IDENTICAL to round mode. The whole point of pill is
+    // a flatter, Waybar-style elongated module — the small radius is
+    // what gives it that look. workspaceRadius gets the same treatment
+    // so workspace dots also look rectangular in pill mode.
+    property real moduleRadius: styleMode === "round" ? 20 : 10
     property real moduleHeight: 40
-    property real workspaceRadius: styleMode === "round" ? 20 : 26
+    property real workspaceRadius: styleMode === "round" ? 20 : 6
 
     // ── Bar layout config ──
     // v6.16.0: battery added to right row. Hides itself on desktops
@@ -113,6 +120,27 @@ Singleton {
     }
 
     // ── Layout config loader ──
+    //
+    // v6.16.4.12.9 (Modori) — settings persistence fix.
+    //
+    // This loader USED to also read `style` from bar-layout.json and
+    // write it to `root.styleMode`. That created a clobber bug: PanelState
+    // saves styleMode (along with barOpacity/barRadius) to its OWN file
+    // panel-state.json, but bar-layout.json still had a stale `style`
+    // field from earlier shell versions. When `reloadBarLayout()` fired
+    // (e.g. after a Power Badge toggle from Bar Modules settings), it
+    // would re-read the stale value and overwrite the user's actual
+    // choice. The user would see their pill setting silently revert to
+    // round on the next slider drag (which would then save the now-
+    // wrong styleMode back to panel-state.json) or on the next shell
+    // restart.
+    //
+    // Fix: PanelState owns `styleMode` exclusively now (saved as part
+    // of panel-state.json, applied via PanelState.applyState()). This
+    // FileView ONLY reads `barLayout` — the actual module list. The
+    // `style` field in bar-layout.json (if present) is ignored. Old
+    // files that still have it remain readable; the field is just no
+    // longer consumed.
     FileView {
         id: layoutLoader
         path: Quickshell.dataPath("bar-layout.json")
@@ -121,7 +149,7 @@ Singleton {
             try {
                 const d = JSON.parse(this.text())
                 if (d.layout) root.barLayout = d.layout
-                if (d.style) root.styleMode = d.style
+                // d.style intentionally NOT applied — see comment above.
             } catch (e) {}
         }
     }

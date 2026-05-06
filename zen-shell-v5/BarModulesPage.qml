@@ -77,7 +77,7 @@ ScrollView {
             HMRow {
                 label: "Format"; description: "How the clock displays time and date"
                 icon: "\uf017"; separator: true
-                ZenComboBox {
+                ZenDropdown {
                     id: clockCombo; width: root.dropdownWidth
                     model: { const m=[]; for(const f of ZenConstants.clockFormats) m.push(f.label); return m }
                     currentIndex: PanelState.clockFormatIndex
@@ -109,7 +109,7 @@ ScrollView {
             HMRow {
                 label: "Number format"; description: "Icons for workspace 1-10"
                 icon: "\uf24d"; separator: true
-                ZenComboBox {
+                ZenDropdown {
                     id: wsCombo; width: root.dropdownWidth
                     property var presetIds: ["numbers","korean","chinese","japanese","roman",
                                              "nerd-dots","nerd-circles","nerd-squares","symbols","empty","custom"]
@@ -122,7 +122,7 @@ ScrollView {
             HMRow {
                 label: "Visible count"; description: "How many workspaces shown in bar (3-10)"
                 icon: "\uf0c8"; separator: true
-                ZenComboBox {
+                ZenDropdown {
                     width: root.dropdownWidth
                     model: ["3", "4", "5", "6", "7", "8", "9", "10"]
                     currentIndex: Math.max(0, Math.min(7, (PanelState.workspaceLimit || 5) - 3))
@@ -161,7 +161,7 @@ ScrollView {
             HMRow {
                 label: "Font family"; description: "Primary bar font. Falls back to JetBrainsMono Nerd Font Propo."
                 icon: "\uf031"; separator: true
-                ZenComboBox {
+                ZenDropdown {
                     id: fontCombo; width: root.dropdownWidth
                     model: { const m=[]; for(const f of ZenConstants.fontFamilies) m.push(f.label); return m }
                     currentIndex: { for(let i=0;i<ZenConstants.fontFamilies.length;i++)

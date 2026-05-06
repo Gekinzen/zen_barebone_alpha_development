@@ -2,7 +2,16 @@ import QtQuick
 import Quickshell
 
 /*
- * StartMenu.qml v6.9
+ * StartMenu.qml v6.16.4.12.6.52 (Hiraki 開き)
+ *
+ * v6.16.4.12.6.52 (Hiraki): Click-only behaviour confirmed and
+ * documented as the canonical pattern. Hover highlights the button
+ * visually (background + border tint), but the start menu only opens
+ * on explicit left-click. Same approach the Clock module adopted in
+ * this drop. Also added `z: 1` so the start button always wins click
+ * hits over any sibling Loader/Item in the bar's left zone — matching
+ * the user's request that the trigger modules sit on top of the bar
+ * row's stacking order.
  *
  * v6.9: Fixed start menu alignment in island mode. Layer shell windows
  * report win.x=0 regardless of actual screen position, so for island
@@ -10,9 +19,17 @@ import Quickshell
  * screen width. Also made the button slightly larger (configurable).
  *
  * v6.4: Dynamic positioning via PanelState.reportStartButtonPosition()
+ *
+ * Wala tayong babawasan — all v6.9 / v6.16.2 / v6.16.3.5 logic
+ * (logo resolver, fallback chain, auto-fit, opacity tint, status
+ * fallback) preserved verbatim.
  */
 Rectangle {
     id: startBtn
+
+    // v6.16.4.12.6.52 (Hiraki): z-stack — start button always on top
+    // of the bar's left zone. Same value used on Clock.
+    z: 1
 
     // v6.9: Slightly larger button — user can adjust via Theme.moduleHeight
     width: Theme.moduleHeight + 4
@@ -23,9 +40,23 @@ Rectangle {
             : Math.min(width / 2, Theme.barRadius > 0 ? Theme.barRadius : 10)
 
     color: ma.containsMouse ? Theme.alpha(Theme.blue, 0.3) : Theme.alpha(Theme.bg0, 0.6)
-    border.width: 1
-    border.color: ma.containsMouse ? Theme.blue : Theme.bg1
+
+    // v6.16.4.12.7 (Tachiagari): Border can now adopt the panel's
+    // borderColor when `PanelState.startButtonUseBorderColor` is on,
+    // letting the start button visually tie into a colored panel
+    // border. Hover state still flips to blue accent so the click
+    // affordance remains obvious. Default off → identical look to
+    // pre-Tachiagari (1px Theme.bg1 idle border).
+    border.width: PanelState.startButtonBorderWidth > 0
+                  ? PanelState.startButtonBorderWidth
+                  : 1
+    border.color: ma.containsMouse
+                  ? Theme.blue
+                  : (PanelState.startButtonUseBorderColor
+                     ? PanelState.borderColor
+                     : Theme.bg1)
     Behavior on color { ColorAnimation { duration: 200 } }
+    Behavior on border.color { ColorAnimation { duration: 200 } }
 
     // v6.16.2: Custom logo support with auto-fit.
     // v6.16.3.5: three modes now — auto / builtin / custom. The
@@ -77,10 +108,16 @@ Rectangle {
         }
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // INPUT — hover (visual only), click opens menu
+    // ─────────────────────────────────────────────────────────────
+    // Same pattern as Clock.qml in this drop: hoverEnabled drives
+    // the visual highlight, but the start menu only opens on
+    // explicit left-click. No onEntered / onExited handlers.
     MouseArea {
         id: ma
         anchors.fill: parent
-        hoverEnabled: true
+        hoverEnabled: true                     // ← still true, for visual highlight
         cursorShape: Qt.PointingHandCursor
         onClicked: {
             const win = QsWindow.window
@@ -108,7 +145,8 @@ Rectangle {
                 // else fullwidth: barScreenX = 0
 
                 const globalX = barScreenX + localCenter.x
-                const globalY = screenH - PanelState.barHeight
+                // v6.16.4.12: Position-aware — bar at top vs bottom
+                const globalY = PanelState.isTop ? PanelState.barHeight : (screenH - PanelState.barHeight)
                 PanelState.reportStartButtonPosition(globalX, globalY, screenW, screenH)
             }
 

@@ -4,7 +4,7 @@ import Quickshell
 import QtQuick
 
 /*
- * ZenVersion v6.16.4.5 — single source of truth for the shell version
+ * ZenVersion v6.16.4.12 — single source of truth for the shell version
  *
  * Centralized so that UserProfilePage, system-info popover, "About"
  * surfaces, and future update checkers can all read the same string.
@@ -18,11 +18,11 @@ import QtQuick
  * the entire shell load to cascade-fail with "Singleton is not a type".
  *
  * Convention:
- *   - version    → full version string shown in UI ("v6.16.4.5")
+ *   - version    → full version string shown in UI ("v6.16.4.12.5")
  *   - versionRaw → numeric form without "v" prefix (for compare logic)
  *   - releaseDate → ISO date of this drop
  *   - channel    → "alpha" | "beta" | "stable"
- *                   alpha  = active hotfix branch (alpha-v6.16.4.5)
+ *                   alpha  = active hotfix branch (alpha-v6.16.4.12)
  *                   beta   = promotion candidate on beta-v12.* branch
  *                   stable = tagged cut on main (v6.16.4.1, etc.)
  *   - codename   → optional short tag
@@ -35,12 +35,12 @@ import QtQuick
 Singleton {
     id: root
 
-    readonly property string version:        "v6.16.4.11.2"
-    readonly property string versionRaw:     "6.16.4.11.2"
-    readonly property string releaseDate:    "2026-04-24"
+    readonly property string version:        "v6.16.4.12.9.12"
+    readonly property string versionRaw:     "6.16.4.12.9.12"
+    readonly property string releaseDate:    "2026-05-06"
     readonly property string channel:        "alpha"
-    readonly property string codename:       "Zen Shell"
-    readonly property string fullLabel:      version + " · " + channel
+    readonly property string codename:       "Modori"
+    readonly property string fullLabel:      version + " · " + channel + " · " + codename
 
     // Short release-series label ("6.16.3.4 series", "6.16.1 series") —
     // handy for roadmap-style surfaces that want to group hotfixes.

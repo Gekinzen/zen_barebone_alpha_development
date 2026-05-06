@@ -55,13 +55,22 @@ Item {
     }
 
     // ── Tooltip — PopupWindow anchored to this icon ──
-    // Same pattern as Taskbar.qml PopupWindow: anchor.item + Edges.Top
-    // Quickshell auto-positions above the anchor item on Wayland.
+    // Same pattern as Taskbar.qml PopupWindow: anchor.item + edges.
+    // Quickshell auto-positions relative to the anchor item on Wayland.
+    //
+    // v6.16.4.12.7.1 (Tachiagari hotfix 1): Edges/gravity now bound to
+    // PanelState.popupAnchorEdges / popupAnchorGravity, which already
+    // encodes the 4-direction policy:
+    //   Bar bottom → popup floats UP (Edges.Top)
+    //   Bar top    → popup drops DOWN (Edges.Bottom)
+    //   Bar left   → popup slides RIGHT (Edges.Right)
+    //   Bar right  → popup slides LEFT (Edges.Left)
+    // Future-proofs against the upcoming vertical bar rotation drop.
     PopupWindow {
         id: tipPopup
         anchor.item: root
-        anchor.edges: Edges.Top
-        anchor.gravity: Edges.Top
+        anchor.edges: PanelState.popupAnchorEdges
+        anchor.gravity: PanelState.popupAnchorGravity
         visible: iconMouse.containsMouse && root.tipTitle.length > 0
         width: Math.max(tipCol.implicitWidth + 24, 100)
         height: tipCol.implicitHeight + 16

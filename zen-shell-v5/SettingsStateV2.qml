@@ -128,6 +128,27 @@ Singleton {
     // corresponding env vars to ~/.config/environment.d/zen-gpu.conf.
     property string gpuMode: "auto"
 
+    // v6.16.4.12.7 (Tachiagari): Smart gaming detection — independent
+    // of gpuMode. When true, ~/.local/bin/zen-smart-game-watcher.sh is
+    // launched on shell init and runs in the background. It pgrep-polls
+    // for known game/launcher processes (steam, lutris, gamescope,
+    // wine/proton, dolphin-emu, retroarch, etc.) and fires Gaming Boost
+    // ON when any are detected; restores previous power profile + blur
+    // state when all of them exit.
+    //
+    // Why a separate toggle from gpuMode="auto-gaming":
+    //   - gpuMode controls which GPU runs apps (iGPU vs dGPU env vars).
+    //     A user might want to stay on integrated GPU but STILL get the
+    //     CPU/blur tuning when a game launches (laptop on battery, e.g.).
+    //   - Or they might be on a desktop with one GPU but still want the
+    //     compositor effects toned down for max FPS while a game runs.
+    // Splitting the responsibilities lets the user mix-and-match.
+    //
+    // The watcher script wraps PowerProfileService.setGamingBoost() via
+    // Quickshell IPC so the same code path is used whether boost is
+    // toggled manually from the panel or automatically from the daemon.
+    property bool smartGamingDetect: false
+
     // Lid-close behavior (laptops):
     //   "mirror" → duplicate to external when lid closes (default)
     //   "keep"   → keep internal display on even with lid closed
@@ -264,6 +285,7 @@ Singleton {
                 gamingBoostActive: gamingBoostActive,
                 gamingBoostPreProfile: gamingBoostPreProfile,
                 gpuMode: gpuMode,
+                smartGamingDetect: smartGamingDetect,
                 lidCloseBehavior: lidCloseBehavior
             }
         }
@@ -340,6 +362,8 @@ Singleton {
             if (typeof sys.gamingBoostActive === "boolean") gamingBoostActive = sys.gamingBoostActive
             if (sys.gamingBoostPreProfile) gamingBoostPreProfile = sys.gamingBoostPreProfile
             if (sys.gpuMode) gpuMode = sys.gpuMode
+            // v6.16.4.12.7 (Tachiagari): smart gaming detect persistence
+            if (typeof sys.smartGamingDetect === "boolean") smartGamingDetect = sys.smartGamingDetect
             if (sys.lidCloseBehavior) lidCloseBehavior = sys.lidCloseBehavior
 
             console.log("[SettingsStateV2] Loaded from JSON")
@@ -594,6 +618,46 @@ Singleton {
 
     property bool _jsonLoaded: false
 
+    // ─────────────────────────────────────────────────────────────
+    // v6.16.4.12.7 (Tachiagari) — Smart Gaming Detection daemon
+    // lifecycle. When `smartGamingDetect` flips true, spawn the
+    // watcher script as a detached background process. When it
+    // flips false, send SIGTERM to whatever the script's PID file
+    // remembers (the script's EXIT trap then flushes any active
+    // boost back to OFF before exiting cleanly).
+    //
+    // We deliberately do NOT auto-launch on startup just because
+    // the saved value is true — startup launch is gated on the
+    // `_jsonLoaded` guard via Component.onCompleted below to avoid
+    // double-spawning if this Singleton is constructed before the
+    // saved JSON has had a chance to load.
+    // ─────────────────────────────────────────────────────────────
+    Process { id: smartGameWatcherProc; running: false }
+
+    function _startSmartGameWatcher() {
+        smartGameWatcherProc.command = ["bash", "-c",
+            "pkill -f zen-smart-game-watcher.sh 2>/dev/null; "
+            + "sleep 0.2; "
+            + "nohup \"$HOME/.local/bin/zen-smart-game-watcher.sh\" "
+            + ">> \"$HOME/.cache/zen-smart-game-watcher.log\" 2>&1 &"]
+        smartGameWatcherProc.running = true
+    }
+    function _stopSmartGameWatcher() {
+        smartGameWatcherProc.command = ["bash", "-c",
+            "pkill -TERM -f zen-smart-game-watcher.sh 2>/dev/null || true"]
+        smartGameWatcherProc.running = true
+    }
+
+    onSmartGamingDetectChanged: {
+        if (!initialized) return    // wait for init to settle
+        if (smartGamingDetect) {
+            _startSmartGameWatcher()
+        } else {
+            _stopSmartGameWatcher()
+        }
+        markDirty()
+    }
+
     Component.onCompleted: {
         stateFile.reload()
     }
@@ -616,6 +680,15 @@ Singleton {
                 Qt.callLater(root.readFromHyprland)
             }
             root.initialized = true
+
+            // v6.16.4.12.7 (Tachiagari): respect saved smartGamingDetect
+            // on startup. If the user had it on across sessions, restart
+            // the watcher daemon now that initialized=true (so the
+            // onSmartGamingDetectChanged handler also works for live
+            // toggling from the panel).
+            if (root.smartGamingDetect) {
+                Qt.callLater(root._startSmartGameWatcher)
+            }
         }
     }
 }

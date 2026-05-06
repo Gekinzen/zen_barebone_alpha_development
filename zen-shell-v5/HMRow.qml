@@ -12,9 +12,22 @@ import QtQuick.Controls
  * - Subtle bottom separator line (optional, toggle via `separator`)
  * - Optional leading icon (Nerd Font glyph)
  *
- * Drop-in compatible: kept the same `label` + `description` + default content
- * slot API so kung may page na gumagamit ng SettingRow, kaya rin yun palitan
- * ng HMRow without code changes beyond the component name.
+ * v6.16.4.12.6.51 (Hikari) hotfix:
+ *   Height now ADAPTS to wrapped description text. Previously
+ *   `implicitHeight: 56` was hardcoded, but `description` Text uses
+ *   `wrapMode: Text.WordWrap + Layout.fillWidth: true` — long
+ *   descriptions wrap to multiple lines that render BEYOND the
+ *   56px row bounds (no clip), visually overlapping with the next
+ *   row in the section. The Battery & Power → Panic Recovery
+ *   section's "What it does" (8 long bullets) was the trigger:
+ *   its 4-line wrapped description bled down into "Manual invocation".
+ *
+ *   Fix: implicitHeight = max(56, contentRow.implicitHeight + 16).
+ *   Min height 56 preserved for short rows; long rows expand to fit
+ *   their wrapped description plus 8px top + 8px bottom padding.
+ *
+ * Drop-in compatible: kept the same `label` + `description` + default
+ * content slot API.
  */
 Rectangle {
     id: root
@@ -26,7 +39,9 @@ Rectangle {
     default property alias control: controlSlot.data
 
     Layout.fillWidth: true
-    implicitHeight: 56
+    // v6.16.4.12.6.51 (Hikari): Adapt height to content. min 56 for
+    // short rows; long wrapped descriptions push the row taller.
+    implicitHeight: Math.max(56, contentRow.implicitHeight + 16)
     color: rowMouse.containsMouse ? ThemeService.alpha(ThemeService.fg, 0.04) : "transparent"
     radius: 8
 
@@ -39,9 +54,12 @@ Rectangle {
     }
 
     RowLayout {
+        id: contentRow
         anchors.fill: parent
         anchors.leftMargin: 16
         anchors.rightMargin: 16
+        anchors.topMargin: 8
+        anchors.bottomMargin: 8
         spacing: 14
 
         // Optional leading icon
@@ -52,7 +70,10 @@ Rectangle {
             font.pixelSize: 15
             color: ThemeService.grey0
             Layout.preferredWidth: 20
-            Layout.alignment: Qt.AlignVCenter
+            Layout.alignment: Qt.AlignTop | Qt.AlignHCenter
+            // Align icon to top so it sits with the label, not the
+            // visual center of a tall wrapped description.
+            topPadding: 1
         }
 
         // Text column: label + description
@@ -87,7 +108,11 @@ Rectangle {
             id: controlSlot
             Layout.preferredWidth: childrenRect.width
             Layout.preferredHeight: childrenRect.height
-            Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
+            // Keep control aligned with the label row (top), not the
+            // center of a tall wrapped description — so dropdowns/
+            // toggles stay vertically inline with the label text.
+            Layout.alignment: Qt.AlignTop | Qt.AlignRight
+            Layout.topMargin: 0
         }
     }
 

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
+import Qt5Compat.GraphicalEffects
 import Quickshell
 
 /*
@@ -80,6 +81,16 @@ Rectangle {
         { id: "battery",     label: "Battery & Power",    icon: "\uf240" },  // battery
         // v6.16.4: User Profile — avatar upload + system info
         { id: "userprofile", label: "User Profile",       icon: "\uf007" },  // user
+        // v6.16.4.12.6.51 (Hikari): Hyprland Plugins page TEMPORARILY HIDDEN.
+        // The hyprpm sub-system needs more stability work before being
+        // surfaced again — toggling currently requires a sudo-prompting
+        // terminal popup and individual plugin builds can still fail
+        // against newer Hyprland versions. Page implementation kept on
+        // disk (PluginsPage.qml) and instantiated below for completeness,
+        // but no sidebar entry — users will not see it.
+        // To re-enable: uncomment the line below + uncomment the
+        // "case 'plugins':" line in the StackLayout currentIndex switch.
+        // { id: "plugins",     label: "Hyprland Plugins",   icon: "\uf12e" },  // puzzle-piece
         { header: "OTHER" },
         { id: "widgets",     label: "Desktop Widgets",    icon: "\uf1b2" },  // cube
         { id: "wallpaper",   label: "Wallpaper",          icon: "\uf03e" }   // image
@@ -352,32 +363,276 @@ Rectangle {
                     }
                 }  // close Flickable
 
-                // Footer — current theme indicator
-                Rectangle {
+                // ═══════════════════════════════════════════════════════
+                // v6.16.4.12.7 (Tachiagari): Sidebar user row
+                //
+                // The previous footer showed only the active theme
+                // status ("Matugen (Auto from Wallpaper)"). User asked
+                // to surface their identity here too — same pattern as
+                // StartMenuPanel's footer (avatar + username/hostname).
+                //
+                // We keep the theme status as a thin secondary row so
+                // no information is lost (wala tayong babawasan).
+                //
+                // Avatar resolves through UserProfileService.effectiveAvatarSource
+                // which already handles the auto-detect → custom override
+                // chain (~/.face, /var/lib/AccountsService, ~/.config/
+                // zen-shell/user-avatar.* etc). Empty source → fall back
+                // to a Nerd Font glyph in the same blue accent so the
+                // row never looks empty even before the user uploads
+                // a custom avatar.
+                //
+                // Circular masking uses the OpacityMask shader pattern
+                // (same as StartMenuPanel.qml) — `layer.enabled: true`
+                // with a Rectangle radius is unreliable for transparent
+                // backgrounds in this Quickshell build, so we go the
+                // shader route which works everywhere.
+                // ═══════════════════════════════════════════════════════
+                ColumnLayout {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 32
-                    radius: 6
-                    color: ThemeService.alpha(ThemeService.bg2, 0.6)
+                    spacing: 6
 
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 8
-                        spacing: 8
+                    // ── User row — avatar + name@host ──
+                    Rectangle {
+                        id: sidebarUserBg
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 48
+                        radius: 8
+                        color: ThemeService.alpha(ThemeService.bg2, 0.6)
 
-                        Rectangle {
-                            Layout.preferredWidth: 10
-                            Layout.preferredHeight: 10
-                            radius: 5
-                            color: ThemeService.blue
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            spacing: 10
+
+                            // Avatar circle (32px)
+                            Rectangle {
+                                id: sidebarAvatarWrap
+                                Layout.preferredWidth: 32
+                                Layout.preferredHeight: 32
+                                radius: width / 2
+                                color: ThemeService.alpha(ThemeService.blue, 0.2)
+                                border.width: 1
+                                border.color: ThemeService.alpha(ThemeService.blue, 0.4)
+                                antialiasing: true
+
+                                Image {
+                                    id: sidebarAvatarImg
+                                    anchors.fill: parent
+                                    anchors.margins: 2
+                                    source: (typeof UserProfileService !== "undefined")
+                                            ? UserProfileService.effectiveAvatarSource : ""
+                                    fillMode: Image.PreserveAspectCrop
+                                    smooth: true
+                                    mipmap: true
+                                    asynchronous: true
+                                    cache: false
+                                    sourceSize: Qt.size(64, 64)
+                                    visible: false
+                                }
+                                Rectangle {
+                                    id: sidebarAvatarMask
+                                    anchors.fill: sidebarAvatarImg
+                                    radius: width / 2
+                                    color: "white"
+                                    visible: false
+                                }
+                                OpacityMask {
+                                    anchors.fill: sidebarAvatarImg
+                                    source: sidebarAvatarImg
+                                    maskSource: sidebarAvatarMask
+                                    visible: sidebarAvatarImg.status === Image.Ready
+                                          && sidebarAvatarImg.source.toString().length > 0
+                                }
+
+                                // Fallback glyph when no photo available
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "\uf007"   // fa-user
+                                    color: ThemeService.blue
+                                    font.family: "JetBrainsMono Nerd Font"
+                                    font.pixelSize: 14
+                                    visible: !sidebarAvatarImg.visible
+                                            || sidebarAvatarImg.status !== Image.Ready
+                                            || sidebarAvatarImg.source.toString().length === 0
+                                }
+                            }
+
+                            // Username + @hostname
+                            //
+                            // v6.16.4.12.9.6 (Modori) hotfix: bulletproof
+                            // version. Previous .9.5 fix used a plain Item
+                            // + Column to escape Layout-system races, but
+                            // user reported the labels STILL disappeared
+                            // when the Settings window crossed monitors.
+                            //
+                            // Re-investigation found a deeper cause: the
+                            // labels' `text` properties referenced
+                            // `UserProfileService.userName` and
+                            // `UserProfileService.hostname`. The avatar's
+                            // fallback glyph showing in the screenshot
+                            // (blue user-icon, not the actual photo)
+                            // confirmed the SERVICE itself was in a
+                            // transient bad state after the window move
+                            // — its `effectiveAvatarSource` was returning
+                            // empty. When a singleton's properties go
+                            // null/empty, every binding pointing at it
+                            // gets the empty value too. Texts elide to
+                            // empty.
+                            //
+                            // Fix: read username DIRECTLY from
+                            // `Quickshell.env("USER")`. That env var is
+                            // populated at process start and never
+                            // changes within the shell's lifetime — no
+                            // service-state involvement. For hostname we
+                            // keep UserProfileService as the primary
+                            // source (it parses /etc/hostname), but fall
+                            // back to env "HOSTNAME" or empty if both
+                            // fail. Cached in local readonly properties
+                            // outside the Texts so they're computed
+                            // ONCE at component load, never re-bound.
+                            //
+                            // Also: ensure the labels are ALWAYS visible
+                            // (no `visible: text.length > 0` gating on
+                            // username — env USER is always present on
+                            // any Linux system Zen Shell can launch on).
+                            Item {
+                                id: userTextWrap
+                                Layout.fillWidth: true
+                                Layout.minimumWidth: 60
+                                Layout.preferredHeight: 32
+                                implicitWidth: Math.max(60, sidebarUserBg.width - 32 - 26)
+                                implicitHeight: 32
+
+                                // Cache values at component-completed time so
+                                // the Texts NEVER lose their content even if
+                                // UserProfileService transiently empties.
+                                readonly property string _envUser: Quickshell.env("USER") || "user"
+                                readonly property string _envHost: Quickshell.env("HOSTNAME") || ""
+                                readonly property string resolvedName: {
+                                    // Prefer service value (handles /etc/passwd full names)
+                                    if (typeof UserProfileService !== "undefined"
+                                        && UserProfileService.userName
+                                        && UserProfileService.userName.length > 0) {
+                                        return UserProfileService.userName
+                                    }
+                                    return _envUser
+                                }
+                                readonly property string resolvedHost: {
+                                    if (typeof UserProfileService !== "undefined"
+                                        && UserProfileService.hostname
+                                        && UserProfileService.hostname.length > 0) {
+                                        return UserProfileService.hostname
+                                    }
+                                    return _envHost
+                                }
+
+                                Column {
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 0
+
+                                    Text {
+                                        id: nameText
+                                        width: parent.width
+                                        text: userTextWrap.resolvedName
+                                        color: ThemeService.fg
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: 12
+                                        font.weight: Font.DemiBold
+                                        elide: Text.ElideRight
+                                    }
+                                    Text {
+                                        id: hostText
+                                        width: parent.width
+                                        text: userTextWrap.resolvedHost.length > 0
+                                              ? ("@" + userTextWrap.resolvedHost)
+                                              : ""
+                                        color: ThemeService.grey0
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: 10
+                                        elide: Text.ElideRight
+                                        visible: text.length > 0
+                                    }
+                                }
+                            }
                         }
 
-                        Text {
-                            text: ThemeService.themeName
-                            font.family: Theme.fontFamily
-                            font.pixelSize: 11
-                            color: ThemeService.grey0
-                            elide: Text.ElideRight
-                            Layout.fillWidth: true
+                        // ═══════════════════════════════════════════════
+                        // v6.16.4.12.9.7 (Modori) hotfix: MouseArea +
+                        // hover overlay are now SIBLINGS of the RowLayout
+                        // (children of the outer sidebarUserBg Rectangle),
+                        // NOT children of the RowLayout itself.
+                        //
+                        // Previous bug: a MouseArea with `anchors.fill:
+                        // parent` placed INSIDE a RowLayout devours the
+                        // layout flow space — the layout system tries to
+                        // include it in horizontal distribution, but
+                        // since it has no Layout.* hints and uses
+                        // anchors instead, the result is undefined
+                        // sizing for ALL siblings. The Item containing
+                        // the username/hostname Texts collapsed to 0
+                        // width, and the labels rendered as empty even
+                        // though the env-fallback resolution was working
+                        // perfectly (the Texts had correct .text values
+                        // — they just had nowhere to render).
+                        //
+                        // Lesson: never put non-Layout positioned items
+                        // (anchors-based) inside a Layout. They either
+                        // get coerced into the layout flow with broken
+                        // sizing, or break the flow for everyone else.
+                        // ═══════════════════════════════════════════════
+
+                        // Click → jump to User Profile page
+                        MouseArea {
+                            id: userRowMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.currentPage = "userprofile"
+                        }
+
+                        // Subtle hover highlight
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 8
+                            color: "transparent"
+                            border.width: userRowMa.containsMouse ? 1 : 0
+                            border.color: ThemeService.alpha(ThemeService.blue, 0.4)
+                            Behavior on border.width { NumberAnimation { duration: 120 } }
+                        }
+                    }
+
+                    // ── Theme status row (preserved from previous footer) ──
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 26
+                        radius: 6
+                        color: ThemeService.alpha(ThemeService.bg2, 0.4)
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            spacing: 8
+
+                            Rectangle {
+                                Layout.preferredWidth: 8
+                                Layout.preferredHeight: 8
+                                radius: 4
+                                color: ThemeService.blue
+                            }
+
+                            Text {
+                                text: ThemeService.themeName
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 10
+                                color: ThemeService.grey0
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
+                            }
                         }
                     }
                 }
@@ -426,6 +681,7 @@ Rectangle {
                             case "userprofile":   return 12   // v6.16.4 (was 11)
                             case "widgets":       return 13
                             case "wallpaper":     return 14
+                            case "plugins":       return 15   // v6.16.4.12.6.19 — Hyprland plugins
                             default:              return 0
                         }
                     }
@@ -445,6 +701,7 @@ Rectangle {
                     UserProfilePage { }                // v6.16.4 (now index 12)
                     WidgetsPage { }
                     WallpaperPage { }
+                    PluginsPage { }                    // v6.16.4.12.6.19 (index 15)
                 }
             }
         }

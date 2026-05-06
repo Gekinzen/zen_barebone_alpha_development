@@ -16,9 +16,13 @@ Rectangle {
     radius: (PanelState.propagateStyleToModules && Theme.styleMode === "round")
             ? 22
             : 16
-    color: Qt.rgba(ThemeService.bg0.r, ThemeService.bg0.g, ThemeService.bg0.b, 0.92)
+    // v6.16.4.12.6: bg alpha 0.92 → 0.72 so the panel feels less like a
+    // solid slab and Hyprland's `ignore_alpha 0.3` startmenu blur layerrule
+    // pulls the wallpaper through. Border slightly stronger (0.12 → 0.14)
+    // to compensate for the lower fill so the panel edge stays defined.
+    color: Qt.rgba(ThemeService.bg0.r, ThemeService.bg0.g, ThemeService.bg0.b, 0.72)
     border.width: 1
-    border.color: Qt.rgba(ThemeService.fg.r, ThemeService.fg.g, ThemeService.fg.b, 0.12)
+    border.color: Qt.rgba(ThemeService.fg.r, ThemeService.fg.g, ThemeService.fg.b, 0.14)
     clip: true
 
     signal closeRequested()
@@ -588,17 +592,21 @@ Rectangle {
         }
 
         // ═══ Bottom Bar ═══
+        // v6.16.4.12.6: Footer bg now binds to ThemeService.bg1 (was
+        // Theme.bg1) so live theme switches and matugen wallpaper-sync
+        // repaint instantly. Slightly raised alpha (0.55 → was 0.6) keeps
+        // it readable but lets the panel's own frosted base show through.
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 60
-            color: Theme.alpha(Theme.bg1, 0.6)
+            color: Qt.rgba(ThemeService.bg1.r, ThemeService.bg1.g, ThemeService.bg1.b, 0.55)
 
             Rectangle {
                 anchors.top: parent.top
                 anchors.left: parent.left
                 anchors.right: parent.right
                 height: 1
-                color: Theme.alpha(Theme.fg, 0.08)
+                color: ThemeService.alpha(ThemeService.fg, 0.10)
             }
 
             RowLayout {

@@ -1,0 +1,25 @@
+{
+  "id": "modori-light",
+  "name": "Modori Light",
+  "description": "Washi paper with sumi ink and persimmon accent — paired with the Modori Light wallpaper",
+  "is_builtin": true,
+  "version": "1.0",
+  "colors": {
+    "bg0": "#f1e6d4",
+    "bg1": "#f5ede0",
+    "bg2": "#ebe1d0",
+    "bg3": "#dccfba",
+    "bg4": "#c8b89e",
+    "fg":  "#1a1410",
+    "grey0": "#5a4f44",
+    "grey1": "#7a6f60",
+    "grey2": "#9a8e7c",
+    "red":    "#c44848",
+    "orange": "#c45a3e",
+    "yellow": "#b88838",
+    "green":  "#5a8c4e",
+    "aqua":   "#4e8090",
+    "blue":   "#4f6492",
+    "purple": "#7a5e9a"
+  }
+}

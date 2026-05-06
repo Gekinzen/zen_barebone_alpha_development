@@ -23,6 +23,27 @@ Singleton {
     // ── Panel style mode ──
     property string panelMode: "fullwidth"   // "fullwidth" | "floating" | "island"
 
+    // ── v6.16.4.12: Panel position ──
+    // v6.16.4.12.7.1 (Tachiagari hotfix 1): Now accepts all four
+    // values — "bottom" (default), "top", "left", "right". For this
+    // drop, the BAR ITSELF still renders horizontally regardless of
+    // position; what changes is the POPUP behaviour. Vertical bar
+    // rendering (rotating the bar's RowLayout to a ColumnLayout, etc.)
+    // is a separate larger drop. The point of accepting left/right
+    // here NOW is so popup widgets can adopt 4-direction-aware
+    // positioning today, and so when the vertical-bar drop lands the
+    // popup logic is already in place.
+    //
+    // Why split it this way: changing PanelState (the source of
+    // truth) is cheap — every consumer gets the new value reactively.
+    // Changing every popup widget to be 4-direction-aware is also
+    // cheap and additive (each popup gains a ternary chain). Changing
+    // Bar.qml + every bar module to render vertically is a big audit
+    // (Layout.alignment, MusicStrings curves that are fundamentally
+    // horizontal, Taskbar wrapping, etc.) — so we ship the popup
+    // upgrade today and stage the layout rotation for next.
+    property string panelPosition: "bottom"
+
     // ── Bar height ──
     property int barHeight: 60
 
@@ -33,12 +54,66 @@ Singleton {
         return 0
     }
 
-    property int panelMarginBottom: panelMode === "fullwidth" ? 0 : 8
+    property int panelMarginBottom: {
+        if (panelPosition !== "bottom") return 0
+        return panelMode === "fullwidth" ? 0 : 8
+    }
+
+    // v6.16.4.12: Top margin (only used when position is "top")
+    property int panelMarginTop: {
+        if (panelPosition !== "top") return 0
+        return panelMode === "fullwidth" ? 0 : 8
+    }
+
+    // v6.16.4.12.7.1 (Tachiagari hotfix 1): Left/right gutters,
+    // mirroring the top/bottom margin pattern. Only meaningful when
+    // panelPosition is the matching side. fullwidth strips the
+    // gutter (bar flush against the edge); floating/island add the
+    // same 8px breathing room as the horizontal counterparts. These
+    // are ZERO-VALUED for horizontal bars, so no existing horizontal
+    // anchor math breaks if a consumer accidentally adds them in.
+    property int panelMarginLeft: {
+        if (panelPosition !== "left") return 0
+        return panelMode === "fullwidth" ? 0 : 8
+    }
+    property int panelMarginRight: {
+        if (panelPosition !== "right") return 0
+        return panelMode === "fullwidth" ? 0 : 8
+    }
+
+    // ── v6.16.4.12.7.1: Position convenience flags ──
+    // Each readonly property makes the intent at the consumer site
+    // self-documenting — `PanelState.isLeft` reads better than
+    // `PanelState.panelPosition === "left"` in a popup's anchor
+    // ternary, and gives us one place to change the underlying
+    // representation if we ever migrate to an enum.
+    readonly property bool isTop:    panelPosition === "top"
+    readonly property bool isBottom: panelPosition === "bottom"
+    readonly property bool isLeft:   panelPosition === "left"
+    readonly property bool isRight:  panelPosition === "right"
+    readonly property bool isVertical:   isLeft || isRight
+    readonly property bool isHorizontal: isTop  || isBottom
 
     // ── Border ──
     property bool borderEnabled: false
     property int borderWidth: 1
     property color borderColor: "#414868"
+
+    // ── v6.16.4.12.7 (Tachiagari): Start-button border ──
+    // When `startButtonUseBorderColor` is true, the start menu button
+    // adopts the panel's `borderColor` for its idle border instead of
+    // the muted Theme.bg1 default. Hover state still flips to blue
+    // accent so the click affordance remains obvious. Lets the start
+    // button visually tie into a colored panel border (e.g. neon green
+    // border + matching green start button outline).
+    //
+    // Independent toggle from `borderEnabled` — user can run with NO
+    // panel border and STILL want the button outlined in a custom hue.
+    // `startButtonBorderWidth` defaults to 1 (matches old hardcoded
+    // value) but is exposed so themes/users can crank it to 2 for a
+    // bolder rim without affecting the panel border thickness.
+    property bool startButtonUseBorderColor: false
+    property int  startButtonBorderWidth: 1
 
     // ── Background override (null = use Theme.bg0) ──
     property bool bgOverrideEnabled: false
@@ -56,6 +131,16 @@ Singleton {
     // Used by shell.qml to clamp the menu within the viewport.
     property int screenWidth: 1920
     property int screenHeight: 1080
+
+    // ── v6.16.4.12.6.53 (Hiraki hotfix 1): Dynamic calendar positioning ──
+    // Updated by Clock.qml on every click. Stored as the clock's
+    // CENTER-X and RIGHT-EDGE-X in GLOBAL (screen) coordinates so
+    // shell.qml's `calendarWindow` can anchor its right edge to the
+    // clock instead of the screen edge. Runtime-only — not persisted.
+    // -1 = unknown → calendarWindow falls back to the historical
+    // 12px-from-right-screen-edge anchor.
+    property real clockCenterX:    -1
+    property real clockRightEdgeX: -1
 
     // ── v6.4: Style-mode propagation flag ──
     // When true (default), derived modules (start menu, taskbar wrapper,
@@ -220,16 +305,60 @@ Singleton {
     // restart). Emitted from FileView.onLoaded after applyState runs.
     signal panelStateLoaded()
 
+    // v6.16.4.12.9 (Modori) — Debounced save.
+    //
+    // Sliders in PanelPage call PanelState.saveState() on every
+    // onValueChanged tick while the user is dragging — that's
+    // ~30-60 fires per second on a smooth drag. Each fire spawns
+    // a bash process via `stateSaver.command = [...]`. Because
+    // we reuse the SAME Process Item, a new `running = true`
+    // assignment while the previous bash is still mid-write
+    // truncates the heredoc and leaves a corrupt file. On next
+    // shell start, applyState's JSON.parse throws → silent default
+    // fallback → user's settings appear "lost."
+    //
+    // Fix: route every saveState() call through a single 200ms
+    // debounce timer. Each call resets the timer; only the last
+    // call (after the user stops moving the slider) actually fires
+    // the file write. End result: one bash spawn per UI gesture
+    // instead of dozens, no overlapping writes, no corruption.
+    //
+    // The 200ms window is long enough to absorb a typical drag
+    // (sliders fire ~16ms apart at 60fps) and short enough that
+    // the user's perception of "settings save instantly" stays
+    // intact — they let go of the slider, ~1/5 of a second later
+    // the disk write happens, and the next launch reads it back.
+    Timer {
+        id: saveDebounce
+        interval: 200
+        repeat: false
+        onTriggered: root._doSaveState()
+    }
     function saveState() {
+        // Public entry point — debounced.
+        saveDebounce.restart()
+    }
+    function saveStateImmediate() {
+        // Escape hatch for the rare cases where we need a sync save
+        // (e.g. before a deliberate shell restart). Bypasses debounce.
+        saveDebounce.stop()
+        _doSaveState()
+    }
+
+    function _doSaveState() {
         const state = {
             // v6.16.0: version stamp used by applyState migration checks.
             // Bump this when introducing a non-idempotent data migration.
             saveVersion: "6.16.0",
             panelMode: panelMode,
+            panelPosition: panelPosition,
             barHeight: barHeight,
             borderEnabled: borderEnabled,
             borderWidth: borderWidth,
             borderColor: "" + borderColor,
+            // v6.16.4.12.7 (Tachiagari): start-button border tint
+            startButtonUseBorderColor: startButtonUseBorderColor,
+            startButtonBorderWidth: startButtonBorderWidth,
             bgOverrideEnabled: bgOverrideEnabled,
             bgOverrideColor: "" + bgOverrideColor,
             bgOverrideOpacity: bgOverrideOpacity,
@@ -282,10 +411,42 @@ Singleton {
         try {
             const s = JSON.parse(text)
             if (s.panelMode) panelMode = s.panelMode
+            // v6.16.4.12: panel position
+            // v6.16.4.12.9.2 (Modori) hotfix: only accept top/bottom.
+            //
+            // Tachiagari .7.1 added "left" and "right" as valid values
+            // for popup-direction-aware behavior, but the actual
+            // vertical bar rendering was rolled back in Modori .9 due
+            // to crashes. Even with the bar staying horizontal, a
+            // value of "left" or "right" caused the Settings sidebar
+            // user row to disappear (the cross-axis layout in
+            // ZenSettings reacts to PanelState.isVertical).
+            //
+            // Migration safety: if a user's saved panel-state.json
+            // still has "left" or "right" from a previous session,
+            // auto-migrate it back to "bottom" on load. This prevents
+            // users who tested vertical-bar variants from being stuck
+            // in a broken state with no way to recover from the
+            // Settings UI (since the Left/Right cards in PanelPage
+            // are now hidden).
+            //
+            // Will be reinstated when the proper vertical-bar drop
+            // lands with full sidebar / module-rotation support.
+            if (s.panelPosition && (s.panelPosition === "top" || s.panelPosition === "bottom")) {
+                panelPosition = s.panelPosition
+            } else if (s.panelPosition === "left" || s.panelPosition === "right") {
+                panelPosition = "bottom"
+                Qt.callLater(saveState)   // persist the migration
+            }
             if (s.barHeight) barHeight = s.barHeight
             if (typeof s.borderEnabled === "boolean") borderEnabled = s.borderEnabled
             if (s.borderWidth) borderWidth = s.borderWidth
             if (s.borderColor) borderColor = s.borderColor
+            // v6.16.4.12.7 (Tachiagari): start-button border tint
+            if (typeof s.startButtonUseBorderColor === "boolean")
+                startButtonUseBorderColor = s.startButtonUseBorderColor
+            if (typeof s.startButtonBorderWidth === "number")
+                startButtonBorderWidth = Math.max(0, Math.min(4, s.startButtonBorderWidth))
             if (typeof s.bgOverrideEnabled === "boolean") bgOverrideEnabled = s.bgOverrideEnabled
             if (s.bgOverrideColor) bgOverrideColor = s.bgOverrideColor
             if (s.bgOverrideOpacity !== undefined) bgOverrideOpacity = s.bgOverrideOpacity
@@ -396,6 +557,7 @@ Singleton {
 
     function resetDefaults() {
         panelMode = "fullwidth"
+        panelPosition = "bottom"
         barHeight = 60
         borderEnabled = false
         borderWidth = 1
@@ -414,6 +576,67 @@ Singleton {
         startButtonCenterY = y
         if (sw > 0) screenWidth = sw
         if (sh > 0) screenHeight = sh
+    }
+
+    // v6.16.4.12.6.53 (Hiraki hotfix 1): Called by Clock.qml when
+    // clicked, just before the calendar opens. centerX is the clock
+    // module's center-X in GLOBAL (screen) coordinates, rightX is its
+    // right-edge X. shell.qml's calendarWindow uses rightX to set
+    // `margins.right` so the popup's right edge aligns with the
+    // clock's right edge — i.e. the calendar appears directly above
+    // (or below for top bars) the clock instead of pinned to the
+    // screen edge. sw is the screen width, used for clamping logic.
+    function reportClockPosition(centerX: real, rightX: real, sw: int) {
+        clockCenterX    = centerX
+        clockRightEdgeX = rightX
+        if (sw > 0) screenWidth = sw
+    }
+
+    // ── v6.16.4.12.7 (Tachiagari): Popup edge helpers ──
+    // ── v6.16.4.12.7.1: Extended to 4 directions ──
+    // Convenience values for any PopupWindow / PanelWindow that emerges
+    // FROM the bar — tooltips, drawer popups, calendar, music strings,
+    // etc. Centralising the policy here means we set position once on
+    // PanelState and every popup follows.
+    //
+    // The mapping (from a popup's viewpoint, "where to attach to the
+    // bar module" and "which way to grow"):
+    //
+    //   Bar at BOTTOM → popup attaches to module's TOP, grows UP
+    //   Bar at TOP    → popup attaches to module's BOTTOM, grows DOWN
+    //   Bar at LEFT   → popup attaches to module's RIGHT, grows RIGHT
+    //   Bar at RIGHT  → popup attaches to module's LEFT, grows LEFT
+    //
+    // In every case the popup grows AWAY from the bar — so it never
+    // gets clipped by the screen edge the bar is anchored to, and
+    // never visually fights with the bar by overlapping it.
+    //
+    // Edges constants come from Quickshell:
+    //   Edges.Top    = 1
+    //   Edges.Bottom = 2
+    //   Edges.Left   = 4
+    //   Edges.Right  = 8
+    // Why these values: the underlying enum is a bitflag (so callers
+    // can OR them for corner anchoring), but our popups always pick
+    // exactly one cardinal edge. We expose them as `int` so consumers
+    // can `import Quickshell` and bind directly without re-deriving.
+    //
+    // Two parallel helpers because Quickshell's PopupWindow takes
+    // both `anchor.edges` and `anchor.gravity` and they encode
+    // slightly different things (anchor point vs growth direction).
+    // For our popup pattern they're always the same value, but we
+    // name them properly so consumer code stays readable.
+    readonly property int popupAnchorEdges: {
+        if (isTop)    return 2   // Edges.Bottom
+        if (isLeft)   return 8   // Edges.Right
+        if (isRight)  return 4   // Edges.Left
+        return 1                  // Edges.Top (default — bottom bar)
+    }
+    readonly property int popupAnchorGravity: {
+        if (isTop)    return 2   // Edges.Bottom
+        if (isLeft)   return 8   // Edges.Right
+        if (isRight)  return 4   // Edges.Left
+        return 1                  // Edges.Top (default — bottom bar)
     }
 
     Component.onCompleted: {

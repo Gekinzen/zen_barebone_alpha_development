@@ -72,6 +72,12 @@ ScrollView {
         }
 
         // ═════════════════════════════════════════════════════════
+        // v6.16.4.12: PROFILE MANAGER — Hikari 光
+        // Save/load/share entire shell configuration as profiles.
+        // ═════════════════════════════════════════════════════════
+        ProfileManagerSection {}
+
+        // ═════════════════════════════════════════════════════════
         // GAPS
         // ═════════════════════════════════════════════════════════
         HMSection {
@@ -194,22 +200,15 @@ ScrollView {
 
         // ═════════════════════════════════════════════════════════
         // THEME PALETTE (v6.6) — overrides theme colors → custom profile
-        //
-        // v6.16.4.11.1: RELOCATED TO THEMES PAGE. The entire HMSection
-        // below is hidden via `visible: false` + zero height so no
-        // existing code is removed (wala tayong babawasan) — the
-        // bindings, palettedDirty state, and saveAsCustomTheme flow
-        // still exist and stay wired, but the UI no longer renders
-        // here. Users who want to edit palette colors now do it from
-        // Themes page → Palette Preview (clickable swatches) →
-        // Custom Themes section (Save as...).
-        //
-        // Single source of truth is now Themes page, per Paul's request.
         // ═════════════════════════════════════════════════════════
+        //
+        // v6.16.4.12.6.1: hidden via `visible: false`. The editable palette
+        // is now in Settings → Themes → Palette Editor (single source of
+        // truth, matches v6.16.4.11.2's documented intent that never
+        // actually shipped). Section preserved here for rollback safety —
+        // wala tayo babawasan. To restore: flip visible back to true.
         HMSection {
             visible: false
-            Layout.preferredHeight: 0
-            implicitHeight: 0
             title: "Theme Palette"
             subtitle: "Override theme colors. Any change auto-saves as a custom profile."
 
@@ -341,7 +340,7 @@ ScrollView {
             HMRow {
                 label: "Layout"
                 description: "Which layout to use for tiling"
-                ZenComboBox {
+                ZenDropdown {
                     width: 140
                     model: ["dwindle", "master"]
                     currentIndex: SettingsStateV2.layout === "master" ? 1 : 0
@@ -508,7 +507,7 @@ ScrollView {
                 separator: true
                 label: "Color"
                 description: "Theme = auto accent · Synced = pick color keys · Custom = hex"
-                ZenComboBox {
+                ZenDropdown {
                     width: 140
                     model: ["theme", "synced", "custom"]
                     currentIndex: {
@@ -526,7 +525,7 @@ ScrollView {
             HMRow {
                 visible: ZenStringsState.enabled && ZenStringsState.colorMode === "synced"
                 label: "Start color"
-                ZenComboBox {
+                ZenDropdown {
                     width: 120
                     model: ["blue", "purple", "red", "orange", "yellow", "green", "aqua", "fg", "grey0"]
                     currentIndex: { var i = model.indexOf(ZenStringsState.syncedColor1Key); return i >= 0 ? i : 0 }
@@ -537,7 +536,7 @@ ScrollView {
             HMRow {
                 visible: ZenStringsState.enabled && ZenStringsState.colorMode === "synced"
                 label: "End color"
-                ZenComboBox {
+                ZenDropdown {
                     width: 120
                     model: ["purple", "blue", "red", "orange", "yellow", "green", "aqua", "fg", "grey0"]
                     currentIndex: { var i = model.indexOf(ZenStringsState.syncedColor2Key); return i >= 0 ? i : 0 }

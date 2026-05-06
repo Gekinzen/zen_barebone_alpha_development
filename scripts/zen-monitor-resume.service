@@ -1,0 +1,14 @@
+[Unit]
+Description=Zen Shell — Notify monitor watcher after suspend/resume
+Documentation=https://github.com/Gekinzen/zen_barebone_alpha_development
+After=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+
+[Service]
+Type=oneshot
+# pkill -USR1 sends SIGUSR1 to the running watcher, which triggers
+# reconcile("post-resume"). If no watcher is running (e.g. user logged out
+# or session died), the command is a no-op and the unit succeeds.
+ExecStart=/usr/bin/sh -c 'pkill -USR1 -f zen-monitor-watcher.sh || true'
+
+[Install]
+WantedBy=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target

@@ -1,0 +1,25 @@
+{
+  "id": "modori-dark",
+  "name": "Modori Dark",
+  "description": "Dawn-horizon enso with persimmon accent — paired with the Modori Dark wallpaper",
+  "is_builtin": true,
+  "version": "1.0",
+  "colors": {
+    "bg0": "#10162a",
+    "bg1": "#0a0d1a",
+    "bg2": "#1a1d35",
+    "bg3": "#241f30",
+    "bg4": "#2c2128",
+    "fg":  "#e8e0d4",
+    "grey0": "#7a7780",
+    "grey1": "#9a96a0",
+    "grey2": "#b6b2bc",
+    "red":    "#e85a5a",
+    "orange": "#e87554",
+    "yellow": "#e8b86c",
+    "green":  "#7ab87a",
+    "aqua":   "#6ba8b8",
+    "blue":   "#7a8cc4",
+    "purple": "#a888c0"
+  }
+}

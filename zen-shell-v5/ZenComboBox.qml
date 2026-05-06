@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Layouts
 
 /*
  * ZenComboBox v6.16.3.4.6 — drop-in replacement for QQC2 ComboBox
@@ -55,178 +54,6 @@ ComboBox {
     // Retained for API compatibility — no longer used by the flip
     // decision (see _flipUp below, which uses desired height now).
     property int flipMargin: 140
-
-    // ── v6.16.4.12: Material-style visual overrides ──────────────
-    //
-    // Stock ComboBox inherits Fusion/Default style which renders:
-    //   - White-on-light text when the theme has a light bg
-    //   - No hover highlight on popup items
-    //   - Boring square indicator
-    //
-    // We override contentItem, indicator, background, and delegate
-    // to produce a consistent Material-style combobox that:
-    //   - Always uses theme-aware colors (ThemeService.fg)
-    //   - Shows Material-style hover states with accent dot
-    //   - Rounded corners everywhere
-    //   - Smooth rotate animation on the chevron indicator
-    //
-    // Auto-contrast: ThemeService.fg itself adapts per theme
-    // (light themes set fg to dark, dark themes set fg to white),
-    // so binding directly to it gives automatic contrast without
-    // needing luminance calculations.
-
-    // v6.16.4.11.1: Proper luminance-based auto-contrast.
-    //
-    // Previously we bound text color directly to ThemeService.fg
-    // which assumes fg is always set correctly relative to bg2.
-    // This broke when:
-    //   - Custom themes set fg independently from bg2
-    //   - Closed/expanded states used different backgrounds
-    //   - User manually edits just bg2 without touching fg
-    //
-    // New approach: compute relative luminance of the actual
-    // rendered background color using the WCAG formula, then
-    // pick white or near-black depending on which side of 50%
-    // threshold we land on. Completely theme-independent — works
-    // for ANY background color choice.
-    //
-    // Formula (W3C WCAG 2.0):
-    //   L = 0.2126 * R + 0.7152 * G + 0.0722 * B   (all [0..1])
-    //   Light bg (L > 0.5) → dark text (#1a1a1a)
-    //   Dark bg  (L ≤ 0.5) → light text (#f5f5f5)
-    function _luminance(c) {
-        if (!c || typeof c === "undefined") return 0
-        return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
-    }
-    function _contrastText(bgColor) {
-        return _luminance(bgColor) > 0.5 ? "#1a1a1a" : "#f5f5f5"
-    }
-    function _contrastSubtle(bgColor) {
-        return _luminance(bgColor) > 0.5
-            ? Qt.rgba(0.1, 0.1, 0.1, 0.7)
-            : Qt.rgba(0.96, 0.96, 0.96, 0.7)
-    }
-
-    // Which bg colors are actually rendered (for luminance calc)
-    readonly property color _mainBg: ThemeService.bg2
-    readonly property color _popupBg: ThemeService.bg1
-    readonly property color _highlightBg: Qt.rgba(ThemeService.blue.r, ThemeService.blue.g, ThemeService.blue.b, 0.15)
-
-    implicitHeight: 36
-
-    // Selected item display (collapsed state)
-    contentItem: Text {
-        leftPadding: 14
-        rightPadding: root.indicator.width + 16
-        text: root.displayText
-        font.family: Theme.fontFamily
-        font.pixelSize: 13
-        color: root._contrastText(root._mainBg)
-        verticalAlignment: Text.AlignVCenter
-        elide: Text.ElideRight
-    }
-
-    // Chevron indicator with rotation animation
-    indicator: Text {
-        x: root.width - width - 12
-        y: (root.height - height) / 2
-        text: "\uf107"  // nerd font chevron-down
-        font.family: "JetBrainsMono Nerd Font"
-        font.pixelSize: 14
-        color: root._contrastSubtle(root._mainBg)
-        rotation: zenPopup.visible ? 180 : 0
-        Behavior on rotation { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-    }
-
-    // Main field background
-    background: Rectangle {
-        radius: 8
-        color: root.pressed
-            ? ThemeService.alpha(ThemeService.bg2, 0.9)
-            : (root.hovered
-                ? ThemeService.alpha(ThemeService.bg2, 0.7)
-                : ThemeService.alpha(ThemeService.bg2, 0.5))
-        border.width: 1
-        border.color: root.activeFocus || zenPopup.visible
-            ? ThemeService.alpha(ThemeService.blue, 0.5)
-            : ThemeService.alpha(ThemeService.fg, 0.12)
-        Behavior on color { ColorAnimation { duration: 150 } }
-        Behavior on border.color { ColorAnimation { duration: 150 } }
-    }
-
-    // Per-item delegate in the popup list
-    delegate: ItemDelegate {
-        id: itemDel
-        required property var modelData
-        required property int index
-
-        width: ListView.view ? ListView.view.width : root.width
-        height: 36
-        highlighted: root.highlightedIndex === index
-
-        contentItem: RowLayout {
-            spacing: 10
-            anchors.leftMargin: 12
-
-            // Leading dot (accent marker for current selection)
-            Rectangle {
-                Layout.preferredWidth: 6
-                Layout.preferredHeight: 6
-                Layout.leftMargin: 6
-                radius: 3
-                color: itemDel.highlighted
-                    ? ThemeService.blue
-                    : (root.currentIndex === itemDel.index
-                        ? ThemeService.alpha(ThemeService.fg, 0.6)
-                        : ThemeService.alpha(ThemeService.fg, 0.25))
-                Behavior on color { ColorAnimation { duration: 120 } }
-            }
-
-            // Display text — luminance-based contrast against
-            // whichever bg is actually drawn (highlighted items use
-            // blue-tinted bg, normal items use popup bg)
-            Text {
-                Layout.fillWidth: true
-                text: {
-                    const m = itemDel.modelData
-                    if (typeof m === "string") return m
-                    if (m && m.text !== undefined) return m.text
-                    return String(m)
-                }
-                font.family: Theme.fontFamily
-                font.pixelSize: 13
-                font.weight: root.currentIndex === itemDel.index
-                    ? Font.DemiBold : Font.Normal
-                color: itemDel.highlighted
-                    ? root._contrastText(root._highlightBg)
-                    : root._contrastText(root._popupBg)
-                elide: Text.ElideRight
-                verticalAlignment: Text.AlignVCenter
-                Layout.rightMargin: 10
-            }
-        }
-
-        background: Rectangle {
-            color: itemDel.highlighted
-                ? ThemeService.alpha(ThemeService.blue, 0.15)
-                : (itemDel.hovered
-                    ? ThemeService.alpha(ThemeService.fg, 0.06)
-                    : "transparent")
-            radius: 6
-            Behavior on color { ColorAnimation { duration: 120 } }
-
-            // Left accent bar for highlighted item
-            Rectangle {
-                visible: itemDel.highlighted
-                anchors.left: parent.left
-                anchors.top: parent.top
-                anchors.bottom: parent.bottom
-                width: 3
-                radius: 1.5
-                color: ThemeService.blue
-            }
-        }
-    }
 
     popup: Popup {
         id: zenPopup
@@ -302,17 +129,7 @@ ComboBox {
             color: ThemeService.bg1
             border.width: 1
             border.color: ThemeService.alpha(ThemeService.fg, 0.15)
-            radius: 10
-
-            // Subtle drop shadow via offset rectangle (no Qt5Compat dep)
-            Rectangle {
-                z: -1
-                anchors.fill: parent
-                anchors.topMargin: 2
-                anchors.leftMargin: 2
-                radius: 10
-                color: Qt.rgba(0, 0, 0, 0.25)
-            }
+            radius: 6
         }
 
         contentItem: ListView {
@@ -353,6 +170,86 @@ ComboBox {
                             : ThemeService.alpha(ThemeService.fg, 0.45))
                 }
             }
+
+            // v6.16.4.12.5: Bottom padding so the LAST item is fully
+            // clickable. Without this, the last delegate's bottom edge
+            // sits flush with the popup's bottom edge — and on Wayland
+            // that 1px row reports as outside the popup region, so
+            // clicks on the last item are dropped silently.
+            footer: Item { width: 1; height: 4 }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // v6.16.4.12.5: Custom delegate with theme-aware text colors.
+    //
+    // Stock ComboBox uses Qt's palette for delegate text, which
+    // ignores ThemeService and renders dark text on the highlighted
+    // (blue-tinted) row. Replacing the delegate with our own
+    // ItemDelegate lets us pick text color via WCAG 2.0 luminance
+    // — same logic as the rest of the shell.
+    //
+    // Highlighted row: blue background → fg (white on dark themes,
+    // dark on light themes) is computed via Theme.contrastFg().
+    // Normal row: default fg color from ThemeService.
+    // ─────────────────────────────────────────────────────────────
+    delegate: ItemDelegate {
+        id: itemDel
+        width: root.width
+        height: 32
+
+        required property var modelData
+        required property int index
+
+        readonly property bool isHighlighted: root.highlightedIndex === index
+        readonly property bool isSelected: root.currentIndex === index
+
+        // Resolve display text — prefer textRole when set, else stringify
+        readonly property string displayText: {
+            if (root.textRole && modelData && modelData[root.textRole] !== undefined)
+                return String(modelData[root.textRole])
+            return String(modelData)
+        }
+
+        background: Rectangle {
+            color: itemDel.isHighlighted
+                   ? ThemeService.blue
+                   : (itemDel.hovered
+                      ? ThemeService.alpha(ThemeService.fg, 0.08)
+                      : "transparent")
+
+            // Subtle accent bar on the left when highlighted
+            Rectangle {
+                visible: itemDel.isHighlighted
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: 3
+                color: Qt.lighter(ThemeService.blue, 1.3)
+            }
+        }
+
+        contentItem: Text {
+            text: itemDel.displayText
+            font: root.font
+            verticalAlignment: Text.AlignVCenter
+            leftPadding: 12
+            rightPadding: 12
+            // v6.16.4.12.5: Pick text color based on background luminance.
+            // On highlighted blue background, white text on dark themes,
+            // dark text on light themes (WCAG 2.0 L=0.5 threshold).
+            color: itemDel.isHighlighted
+                   ? (_luminance(ThemeService.blue) > 0.5 ? "#000000" : "#FFFFFF")
+                   : ThemeService.fg
+            elide: Text.ElideRight
+        }
+
+        // Inline luminance calc — relative luminance per WCAG 2.0
+        function _luminance(c) {
+            const rs = c.r <= 0.03928 ? c.r / 12.92 : Math.pow((c.r + 0.055) / 1.055, 2.4)
+            const gs = c.g <= 0.03928 ? c.g / 12.92 : Math.pow((c.g + 0.055) / 1.055, 2.4)
+            const bs = c.b <= 0.03928 ? c.b / 12.92 : Math.pow((c.b + 0.055) / 1.055, 2.4)
+            return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs
         }
     }
 }

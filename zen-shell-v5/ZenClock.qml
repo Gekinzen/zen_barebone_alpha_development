@@ -4,7 +4,7 @@ import Quickshell
 import Quickshell.Io
 
 /*
- * ZenClock v6.16.2 — bar clock module with calendar toggle + hover peek
+ * ZenClock v6.16.2.3.1 — bar clock module with calendar toggle + hover peek
  *
  * v6.8: Auto-apply — changing format in Bar Modules page updates instantly.
  * v6.13: Click clock → toggles calendar overlay window via IPC.
@@ -13,6 +13,19 @@ import Quickshell.Io
  * v6.16.2: Hover peek — after 350ms hover, a small native popup shows
  *        the full weekday/date + week number. Click still opens the
  *        full calendar. Popup is ThemeService-synced (bg, fg, radius).
+ * v6.16.2.3: Click uses PanelState singleton directly (no IPC).
+ * v6.16.2.3.1: (1) Music rope no longer covers clock's input region
+ *        (shell.qml mask fix) — hover events now actually arrive.
+ *        (2) Popup anchored to Bottom edge of clockRoot with Top gravity
+ *        so it opens ABOVE the clock (where empty space is when the bar
+ *        is at the bottom). Previous Top/Top got clipped when the bar
+ *        was at the screen bottom edge.
+ *        (3) MouseArea now uses `onPositionChanged` as a fallback peek
+ *        trigger in case `onEntered` misses (some Quickshell/Wayland
+ *        timing has the first hover event fire as a position delta
+ *        rather than a proper enter).
+ *        (4) Scroll wheel over the clock cycles months in calendar
+ *        (works when calendar is open — forwards to ZenCalendar).
  *
  * Install as Clock.qml in ~/.config/quickshell/zen-shell/
  */
@@ -33,6 +46,86 @@ Item {
         onTriggered: clockRoot._peekPending = clockMouse.containsMouse
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // v6.16.4.12.7: Hover-with-delay + click-to-pin state machine.
+    //
+    // Two independent triggers control calPopup.visible:
+    //
+    //   _calHoverShow  — set true 250ms after hover ENTER (intent delay,
+    //                    avoids flicker on cursor flyovers). Cleared
+    //                    immediately on hover EXIT.
+    //   _calPinned     — toggled on click. Stays true until either
+    //                    (a) user clicks the clock again, or
+    //                    (b) user clicks outside the clock+popup region.
+    //
+    // calPopup.visible = _calHoverShow OR _calPinned
+    //
+    // Result matches Paul's spec:
+    //   "hover = auto-show full calendar (with delay)"
+    //   "click = persistent (stays open until clicked elsewhere)"
+    //
+    // Wala tayo babawasan: the existing onEntered → peekDelay logic and
+    // _peekPending property are kept (they currently drive nothing
+    // because the small peek popup is `visible: false`, but other code
+    // may reference them and we don't want to break it).
+    // ═══════════════════════════════════════════════════════════════
+    property bool _calHoverShow: false
+    property bool _calPinned: false
+    readonly property bool _calVisible: _calHoverShow || _calPinned
+
+    Timer {
+        id: hoverShowDelay
+        interval: 150   // v6.16.4.12.6.16: dropped from 250ms → 150ms.
+                       // 250ms was too sluggish — felt unresponsive.
+                       // 150ms is still enough buffer for cursor flyovers
+                       // (a fast cursor crosses the clock in ~80ms).
+        repeat: false
+        onTriggered: {
+            // Only flip the show flag if the cursor is STILL over the clock.
+            // Cursor may have moved away during the delay.
+            if (clockMouse.containsMouse) {
+                console.log("[Clock] hoverShowDelay fired → _calHoverShow = true")
+                clockRoot._calHoverShow = true
+            } else {
+                console.log("[Clock] hoverShowDelay fired but cursor LEFT — skip")
+            }
+        }
+    }
+
+    // When _calPinned is true, we want to keep the popup open even if
+    // the mouse moves off the clock (user clicked to pin). When false,
+    // the hover-show flag clears as soon as the cursor leaves.
+    function _onClockHoverEnter() {
+        console.log("[Clock] _onClockHoverEnter (pinned=" + clockRoot._calPinned + ")")
+        peekDelay.restart()
+        if (!clockRoot._calPinned) hoverShowDelay.restart()
+    }
+    function _onClockHoverExit() {
+        console.log("[Clock] _onClockHoverExit (pinned=" + clockRoot._calPinned + ")")
+        peekDelay.stop()
+        hoverShowDelay.stop()
+        clockRoot._peekPending = false
+        // Cursor left the clock — drop hover-show. _calPinned stays.
+        clockRoot._calHoverShow = false
+    }
+    function _onClockClick() {
+        console.log("[Clock] _onClockClick (was pinned=" + clockRoot._calPinned + ")")
+        // Click toggles the pin. If currently pinned, unpin (and let
+        // hover take over again). If currently shown via hover, pin it
+        // so it stays after the cursor moves away.
+        clockRoot._calPinned = !clockRoot._calPinned
+        if (clockRoot._calPinned) {
+            // Make sure popup is visible immediately on pin (no delay)
+            clockRoot._calHoverShow = true
+        }
+    }
+    function _closeCalendar() {
+        console.log("[Clock] _closeCalendar")
+        clockRoot._calPinned = false
+        clockRoot._calHoverShow = false
+        hoverShowDelay.stop()
+    }
+
     Text {
         id: clockText
         anchors.centerIn: parent
@@ -47,51 +140,99 @@ Item {
         lineHeight: 1.15
     }
 
-    // Hover highlight
+    // v6.16.4: Hover highlight MORE VISIBLE.
+    // Previous 0.06 alpha was too subtle — Paul couldn't tell if hover
+    // registered. Now 0.12 + border tint so it's unmistakable.
     Rectangle {
         anchors.fill: parent
         radius: Theme.panelRadius !== undefined ? Math.max(6, Theme.panelRadius * 0.4) : 6
         color: clockMouse.containsMouse
-               ? ThemeService.alpha(ThemeService.fg, 0.06) : "transparent"
-        Behavior on color { ColorAnimation { duration: 120 } }
+               ? ThemeService.alpha(ThemeService.fg, 0.12) : "transparent"
+        border.width: clockMouse.containsMouse ? 1 : 0
+        border.color: ThemeService.alpha(ThemeService.blue, 0.4)
+        Behavior on color       { ColorAnimation  { duration: 120 } }
+        Behavior on border.width { NumberAnimation { duration: 120 } }
     }
 
+    // v6.16.4.12.6.21: SIMPLIFIED — copying SysRowIcon's exact pattern.
+    // The previous 70+ line MouseArea with state-machine dispatch caused
+    // hover events to silently fail. SysRowIcon (which works reliably)
+    // uses just `hoverEnabled: true` + onClicked. We do the same here,
+    // keeping the right-click cycle + left-click pin toggle.
     MouseArea {
         id: clockMouse
         anchors.fill: parent
-        hoverEnabled: true
+        z: 10                    // sits above sibling Rectangles
+        hoverEnabled: true       // ← THE critical line. PopupWindow visibility
+                                 //   binds directly to .containsMouse below.
         cursorShape: Qt.PointingHandCursor
-        onEntered: peekDelay.restart()
-        onExited: { peekDelay.stop(); clockRoot._peekPending = false }
-        onClicked: {
-            // Toggle calendar overlay via IPC
-            clockRoot._peekPending = false
-            calToggle.command = ["bash", "-c",
-                "qs -c zen-shell ipc call zen toggleCalendar"]
-            calToggle.running = true
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        onClicked: (mouse) => {
+            if (mouse.button === Qt.RightButton) {
+                // Right-click cycles clock format
+                const n = ZenConstants.clockFormats.length
+                PanelState.clockFormatIndex = (PanelState.clockFormatIndex + 1) % n
+                PanelState.saveState()
+                return
+            }
+            // Left-click toggles pinned state — popup stays open even
+            // after cursor moves away. Click again to unpin.
+            clockRoot._calPinned = !clockRoot._calPinned
         }
     }
 
-    Process { id: calToggle; running: false }
+    // v6.16.2.3.1: Scroll wheel over the clock cycles calendar months.
+    // Using WheelHandler (Qt 6 PointerHandler) rather than MouseArea.onWheel
+    // because the latter has spotty delivery under Wayland when the
+    // surface has recently gained input focus (which is exactly what
+    // happens when the music-strings mask opens up the clock area).
+    // WheelHandler sits alongside MouseArea and both receive events.
+    WheelHandler {
+        target: null
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        onWheel: (event) => {
+            if (!PanelState.calendarVisible) {
+                PanelState.openCalendar()
+            }
+            const dir = event.angleDelta.y > 0 ? -1 : +1   // wheel up → previous month
+            PanelState.calendarMonthDelta += dir
+            event.accepted = true
+        }
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // v6.16.2 HOVER PEEK POPUP — shows full date + week info after 350ms.
     // Uses PopupWindow (same pattern as SysRowIcon tooltip) so it renders
     // above the bar's layer surface. Theme-synced via ThemeService.
-    //
-    // v6.16.3.6: richer content (time with seconds, day-of-year, IANA
-    // timezone) + consistent styling with ZenSysMonitor hover popup.
-    // All bar-module hover popups now share the same visual language:
-    // bg0 @ 96% alpha, 15% fg border, Theme.panelRadius (min 14),
-    // 350ms hover-intent delay, Edges.Top anchor.
     // ═══════════════════════════════════════════════════════════════
     PopupWindow {
         id: peekPopup
         anchor.item: clockRoot
-        anchor.edges: Edges.Top
-        anchor.gravity: Edges.Top
-        visible: clockRoot._peekPending && clockMouse.containsMouse
-        width: Math.max(peekCol.implicitWidth + 28, 220)
+        // v6.16.2.3.1: Anchor to clock's TOP edge with gravity pointing UP.
+        // Previous (Edges.Top + gravity Top) placed popup at the TOP of
+        // the clock WITH ITS OWN TOP at that line — pushing the popup
+        // upward so it extended off the screen when bar sat at screen
+        // bottom (popup ends up above the monitor edge = Wayland clips
+        // it invisible). Edges.Top + gravity.Top means:
+        //   anchor point = clock's top edge
+        //   popup expands upward from that point
+        // Which on a bottom-anchored bar places the popup ABOVE the
+        // clock with its BOTTOM edge aligned to the clock's top. Correct.
+        //
+        // The bug wasn't this — the actual bug was that the music-strings
+        // overlay was covering the clock's input region, so hover events
+        // never fired (see shell.qml stringsWindow mask fix). This anchor
+        // was always geometrically correct; it just never had a chance
+        // to show because _peekPending never became true.
+        // v6.16.4.12.7.1: 4-direction-aware popup edges.
+        anchor.edges: PanelState.popupAnchorEdges
+        anchor.gravity: PanelState.popupAnchorGravity
+        // v6.16.4.12.2: Disabled — replaced by full calendar popup which
+        // also opens on hover. The old single-line "Today is X" peek is
+        // redundant when the full calendar shows the same info.
+        visible: false
+        // visible: clockRoot._peekPending && clockMouse.containsMouse
+        width: Math.max(peekCol.implicitWidth + 28, 180)
         height: peekCol.implicitHeight + 20
         color: "transparent"
 
@@ -124,14 +265,6 @@ Item {
                     font.pixelSize: 12
                     color: ThemeService.fg
                 }
-                // Live time with seconds (updates every tick)
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: Qt.formatDateTime(clockRoot.now, "h:mm:ss AP")
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 11
-                    color: ThemeService.grey0
-                }
                 // Subtle separator
                 Rectangle {
                     anchors.horizontalCenter: parent.horizontalCenter
@@ -139,7 +272,7 @@ Item {
                     height: 1
                     color: ThemeService.alpha(ThemeService.fg, 0.1)
                 }
-                // Week + day-of-year + timezone (IANA, via JS Intl)
+                // Week number + click hint
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: {
@@ -150,50 +283,617 @@ Item {
                         d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7))
                         const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1))
                         const wk = Math.ceil(((d - yearStart) / 86400000 + 1) / 7)
-                        // Day of year
-                        const startOfYear = new Date(clockRoot.now.getFullYear(), 0, 0)
-                        const diff = clockRoot.now - startOfYear
-                        const doy = Math.floor(diff / 86400000)
-                        return "Week " + wk + "  ·  Day " + doy + " of " + clockRoot.now.getFullYear()
+                        return "Week " + wk + "  ·  Click for calendar"
                     }
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 10
-                    color: ThemeService.grey1
-                }
-                // IANA timezone
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: {
-                        try {
-                            const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
-                            const offMin = -clockRoot.now.getTimezoneOffset()
-                            const sign = offMin >= 0 ? "+" : "-"
-                            const hh = Math.floor(Math.abs(offMin) / 60)
-                            const mm = Math.abs(offMin) % 60
-                            const off = "UTC" + sign + String(hh).padStart(2, "0") + ":" + String(mm).padStart(2, "0")
-                            return (tz || "Local") + "  ·  " + off
-                        } catch (e) {
-                            return "Local time"
-                        }
-                    }
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 10
-                    color: ThemeService.grey1
-                }
-                // Subtle separator
-                Rectangle {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    width: peekCol.width * 0.5
-                    height: 1
-                    color: ThemeService.alpha(ThemeService.fg, 0.1)
-                }
-                // Click hint
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: "Click for calendar"
                     font.family: Theme.fontFamily
                     font.pixelSize: 10
                     color: ThemeService.grey0
+                }
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // v6.16.4.12 Hikari: HOVER POPUP — calendar + notifs + system
+    //
+    // Same pattern as SysRowIcon tooltip + Taskbar PopupWindow:
+    //   - anchor.item = clockRoot (auto-positions on Wayland)
+    //   - anchor.edges = Edges.Top (popup floats above clock)
+    //   - visible bound to hover state (no click required)
+    // ═══════════════════════════════════════════════════════════════
+    PopupWindow {
+        id: calPopup
+        anchor.item: clockRoot
+        // v6.16.4.12.7.1: 4-direction-aware popup edges.
+        anchor.edges: PanelState.popupAnchorEdges
+        anchor.gravity: PanelState.popupAnchorGravity
+
+        // v6.16.4.12.4: Use width/height (matches SysRowIcon pattern that
+        // actually works on Wayland). implicitWidth alone doesn't trigger
+        // proper popup sizing in current Quickshell, even though it warns
+        // that width is deprecated. The deprecation is forward-looking;
+        // implicitWidth currently isn't honored for PopupWindow sizing.
+        //
+        // v6.16.4.12.6: Height bumped 590 → 660 to fit the new CPU/RAM/GPU
+        // stats strip between the calendar grid and the quick-action icons.
+        width: 330
+        height: 660
+        color: "transparent"
+
+        // v6.16.4.12.6.21: REWRITTEN — gayahin natin yung SysRowIcon
+        // exact pattern. Yung dating state machine (_calHoverShow +
+        // _calPinned + hoverShowDelay) was over-engineered and caused
+        // issues: events sometimes didn't fire because the state had
+        // multiple stale paths. SysRowIcon at SysRow.qml CPU/RAM
+        // tooltips work using just:
+        //
+        //     visible: clockMouse.containsMouse
+        //
+        // No timers, no flags, no fallbacks. The PopupWindow is a
+        // separate Wayland surface, so cursor moving INTO the popup
+        // does NOT clear `containsMouse` on the bar's MouseArea
+        // (this is Quickshell's PopupWindow magic — anchor.item makes
+        // the bar's input region "own" the popup's hover bubbling).
+        //
+        // Click-to-pin is still preserved via `_calPinned` OR'd in,
+        // but only as additive — hover is the primary trigger again,
+        // mirrors how SysRow expand-then-stay works.
+        //
+        // Wala tayo babawasan: state machine vars (_calHoverShow,
+        // _calPinned, _calVisible) preserved at root level for any
+        // code that references them. Just unbinding from this popup.
+        visible: clockMouse.containsMouse || clockRoot._calPinned
+
+        property int viewYear: new Date().getFullYear()
+        property int viewMonth: new Date().getMonth()
+        readonly property var today: new Date()
+        property int notifCount: 0
+        property bool dndEnabled: false
+
+        readonly property var monthFull: [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ]
+        readonly property var dayHeaders: ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+
+        onVisibleChanged: {
+            console.log("[CalPopup] visible=", visible, "clockHover=", clockMouse.containsMouse)
+            if (visible) {
+                viewYear = new Date().getFullYear()
+                viewMonth = new Date().getMonth()
+                notifPoll.running = true
+            }
+        }
+
+        Process {
+            id: notifPoll
+            command: ["swaync-client", "-swb"]
+            running: false
+            stdout: StdioCollector {
+                onStreamFinished: {
+                    try {
+                        const d = JSON.parse(this.text)
+                        calPopup.notifCount = d.count || 0
+                        calPopup.dndEnabled = d.dnd || false
+                    } catch (e) {}
+                }
+            }
+        }
+        Timer { interval: 2000; running: calPopup.visible; repeat: true; onTriggered: notifPoll.running = true }
+        Process { id: powerRunner; running: false }
+
+        function buildDays() {
+            const firstDay = new Date(calPopup.viewYear, calPopup.viewMonth, 1).getDay()
+            const daysInMonth = new Date(calPopup.viewYear, calPopup.viewMonth + 1, 0).getDate()
+            const prevMonthDays = new Date(calPopup.viewYear, calPopup.viewMonth, 0).getDate()
+            let cells = []
+            for (let i = firstDay - 1; i >= 0; i--) cells.push({ day: prevMonthDays - i, current: false })
+            for (let d = 1; d <= daysInMonth; d++) cells.push({ day: d, current: true })
+            let nextDay = 1
+            while (cells.length < 42) cells.push({ day: nextDay++, current: false })
+            return cells
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            radius: 14
+            color: Qt.rgba(Theme.bg0.r, Theme.bg0.g, Theme.bg0.b, 0.97)
+            border.width: 1
+            border.color: Theme.alpha(Theme.fg, 0.12)
+
+            // Click outside popup → close
+            MouseArea {
+                anchors.fill: parent
+                z: -1
+                propagateComposedEvents: true
+                onClicked: { /* swallow */ }
+            }
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 14
+                spacing: 8
+
+                // ─── CLOCK FORMAT SELECTOR (compact pills) ───
+                // v6.16.4.12.1: Click any pill to switch format.
+                // Right-click clock module also cycles formats (existing).
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 28
+                    spacing: 4
+                    Text {
+                        text: "Format:"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 10
+                        font.weight: Font.DemiBold
+                        color: Theme.alpha(Theme.fg, 0.5)
+                        Layout.rightMargin: 4
+                    }
+                    Repeater {
+                        model: ZenConstants.clockFormats
+                        delegate: Rectangle {
+                            required property var modelData
+                            required property int index
+                            readonly property bool selected: index === PanelState.clockFormatIndex
+
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 26
+                            radius: 6
+                            color: selected
+                                   ? Theme.alpha(Theme.blue, 0.25)
+                                   : (fmtMa.containsMouse ? Theme.alpha(Theme.fg, 0.06) : "transparent")
+                            border.width: selected ? 1 : 0
+                            border.color: Theme.alpha(Theme.blue, 0.4)
+
+                            Behavior on color { ColorAnimation { duration: 120 } }
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: ZenConstants.formatClock(clockRoot.now, modelData.format, true)
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 9
+                                font.weight: selected ? Font.DemiBold : Font.Normal
+                                color: selected ? Theme.fg : Theme.alpha(Theme.fg, 0.6)
+                            }
+                            MouseArea {
+                                id: fmtMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    PanelState.clockFormatIndex = index
+                                    PanelState.saveState()
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Subtle separator between format and notifications
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 1
+                    color: Theme.alpha(Theme.fg, 0.06)
+                }
+
+                // ─── NOTIFICATIONS ROW (flat, no nested bg) ───
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 36
+                    radius: 8
+                    // v6.16.4.12.1: Transparent default — only show bg on hover
+                    // so popup feels like one flat surface, not boxes inside boxes.
+                    color: notifMa.containsMouse ? Theme.alpha(Theme.fg, 0.06) : "transparent"
+                    border.width: 0
+                    Behavior on color { ColorAnimation { duration: 120 } }
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 12; anchors.rightMargin: 12
+                        spacing: 8
+
+                        Text {
+                            text: calPopup.dndEnabled ? "\uf1f6" : (calPopup.notifCount > 0 ? "\uf0f3" : "\uf0a2")
+                            font.family: "JetBrainsMono Nerd Font"
+                            font.pixelSize: 16
+                            color: calPopup.notifCount > 0 ? Theme.yellow : Theme.grey0
+                        }
+                        Text {
+                            text: "Notifications"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 12
+                            font.weight: Font.DemiBold
+                            color: Theme.fg
+                        }
+                        Item { Layout.fillWidth: true }
+                        Rectangle {
+                            visible: calPopup.notifCount > 0
+                            width: countText.implicitWidth + 14; height: 22; radius: 11
+                            color: Theme.alpha(Theme.yellow, 0.2)
+                            border.width: 1; border.color: Theme.alpha(Theme.yellow, 0.3)
+                            Text {
+                                id: countText; anchors.centerIn: parent
+                                text: calPopup.notifCount
+                                font.family: Theme.fontFamily; font.pixelSize: 11; font.weight: Font.Bold
+                                color: Theme.yellow
+                            }
+                        }
+                    }
+
+                    MouseArea {
+                        id: notifMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            clockRoot._closeCalendar()
+                            Quickshell.execDetached({command: ["swaync-client", "-t", "-sw"]})
+                        }
+                    }
+                }
+
+                // ─── CALENDAR HEADER ───
+                RowLayout {
+                    Layout.fillWidth: true; spacing: 0
+                    Rectangle {
+                        Layout.preferredWidth: 28; Layout.preferredHeight: 28; radius: 6
+                        color: prevMa.containsMouse ? Theme.alpha(Theme.fg, 0.08) : "transparent"
+                        Text { anchors.centerIn: parent; text: "\uf104"; font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 14; color: Theme.grey0 }
+                        MouseArea {
+                            id: prevMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (calPopup.viewMonth === 0) { calPopup.viewMonth = 11; calPopup.viewYear-- }
+                                else calPopup.viewMonth--
+                            }
+                        }
+                    }
+                    Item { Layout.fillWidth: true }
+                    Text {
+                        text: calPopup.monthFull[calPopup.viewMonth] + " " + calPopup.viewYear
+                        font.family: Theme.fontFamily; font.pixelSize: 14; font.weight: Font.DemiBold; color: Theme.fg
+                    }
+                    Item { Layout.fillWidth: true }
+                    Rectangle {
+                        Layout.preferredWidth: 28; Layout.preferredHeight: 28; radius: 6
+                        color: nextMa.containsMouse ? Theme.alpha(Theme.fg, 0.08) : "transparent"
+                        Text { anchors.centerIn: parent; text: "\uf105"; font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 14; color: Theme.grey0 }
+                        MouseArea {
+                            id: nextMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (calPopup.viewMonth === 11) { calPopup.viewMonth = 0; calPopup.viewYear++ }
+                                else calPopup.viewMonth++
+                            }
+                        }
+                    }
+                }
+
+                // ─── DAY HEADERS ───
+                RowLayout {
+                    Layout.fillWidth: true; spacing: 0
+                    Repeater {
+                        model: calPopup.dayHeaders
+                        Text {
+                            required property string modelData
+                            Layout.fillWidth: true
+                            text: modelData
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 10
+                            font.weight: Font.DemiBold
+                            color: Theme.grey1
+                            horizontalAlignment: Text.AlignHCenter
+                        }
+                    }
+                }
+
+                // ─── DAY GRID ───
+                Grid {
+                    Layout.fillWidth: true
+                    columns: 7; rows: 6; spacing: 2
+                    Repeater {
+                        model: calPopup.buildDays()
+                        Rectangle {
+                            required property var modelData
+                            readonly property bool isToday:
+                                modelData.current
+                                && modelData.day === calPopup.today.getDate()
+                                && calPopup.viewMonth === calPopup.today.getMonth()
+                                && calPopup.viewYear === calPopup.today.getFullYear()
+                            width: (calPopup.implicitWidth - 28 - 12) / 7
+                            height: 28
+                            radius: 6
+                            color: isToday ? Theme.alpha(Theme.blue, 0.3) : "transparent"
+                            Text {
+                                anchors.centerIn: parent
+                                text: modelData.day
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 12
+                                font.weight: isToday ? Font.Bold : Font.Normal
+                                color: isToday ? Theme.fg : (modelData.current ? Theme.grey0 : Theme.grey2)
+                            }
+                        }
+                    }
+                }
+
+                // ─── SEPARATOR ───
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 1
+                    Layout.topMargin: 4
+                    color: Theme.alpha(Theme.fg, 0.08)
+                }
+
+                // ─── v6.16.4.12.6: SYSTEM STATS STRIP ───
+                // Live CPU / RAM / GPU readout from SystemMonitorService
+                // singleton (already polls every 2 s — we just bind, no
+                // extra timer). Sits between the calendar grid and the
+                // quick-action icons so hover reveals stats without a
+                // separate widget. GPU column hides when gpuName is the
+                // "GPU" placeholder (no detection yet — VMs / headless).
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 50
+                    spacing: 8
+
+                    // CPU pill
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        radius: 8
+                        color: Theme.alpha(Theme.fg, 0.04)
+                        border.width: 1
+                        border.color: Theme.alpha(Theme.fg, 0.08)
+
+                        ColumnLayout {
+                            anchors.centerIn: parent
+                            spacing: 1
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: "CPU"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 9
+                                font.weight: Font.DemiBold
+                                color: ThemeService.grey1
+                            }
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: SystemMonitorService.cpuPercent + "%"
+                                font.family: Theme.monoFont
+                                font.pixelSize: 13
+                                font.weight: Font.DemiBold
+                                color: SystemMonitorService.cpuPercent > 80 ? ThemeService.red
+                                     : SystemMonitorService.cpuPercent > 50 ? ThemeService.yellow
+                                     : ThemeService.green
+                            }
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: SystemMonitorService.cpuTemp > 0
+                                      ? (SystemMonitorService.cpuTemp + "°C")
+                                      : "—"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 9
+                                color: ThemeService.grey0
+                            }
+                        }
+                    }
+
+                    // RAM pill
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        radius: 8
+                        color: Theme.alpha(Theme.fg, 0.04)
+                        border.width: 1
+                        border.color: Theme.alpha(Theme.fg, 0.08)
+
+                        ColumnLayout {
+                            anchors.centerIn: parent
+                            spacing: 1
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: "RAM"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 9
+                                font.weight: Font.DemiBold
+                                color: ThemeService.grey1
+                            }
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: SystemMonitorService.ramPercent + "%"
+                                font.family: Theme.monoFont
+                                font.pixelSize: 13
+                                font.weight: Font.DemiBold
+                                color: SystemMonitorService.ramPercent > 85 ? ThemeService.red
+                                     : SystemMonitorService.ramPercent > 65 ? ThemeService.yellow
+                                     : ThemeService.green
+                            }
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: SystemMonitorService.ramUsedGb.toFixed(1)
+                                    + "/" + SystemMonitorService.ramTotalGb.toFixed(0) + "GB"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 9
+                                color: ThemeService.grey0
+                            }
+                        }
+                    }
+
+                    // GPU pill — hidden when no detection
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        radius: 8
+                        color: Theme.alpha(Theme.fg, 0.04)
+                        border.width: 1
+                        border.color: Theme.alpha(Theme.fg, 0.08)
+                        visible: SystemMonitorService.gpuName.length > 0
+                              && SystemMonitorService.gpuName !== "GPU"
+
+                        ColumnLayout {
+                            anchors.centerIn: parent
+                            spacing: 1
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: "GPU"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 9
+                                font.weight: Font.DemiBold
+                                color: ThemeService.grey1
+                            }
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: SystemMonitorService.gpuUsage + "%"
+                                font.family: Theme.monoFont
+                                font.pixelSize: 13
+                                font.weight: Font.DemiBold
+                                color: SystemMonitorService.gpuUsage > 80 ? ThemeService.red
+                                     : SystemMonitorService.gpuUsage > 50 ? ThemeService.yellow
+                                     : ThemeService.green
+                            }
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: SystemMonitorService.gpuTemp > 0
+                                      ? (SystemMonitorService.gpuTemp + "°C")
+                                      : "—"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 9
+                                color: ThemeService.grey0
+                            }
+                        }
+                    }
+                }
+
+                // ─── SEPARATOR ───
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 1
+                    Layout.topMargin: 4
+                    color: Theme.alpha(Theme.fg, 0.08)
+                }
+
+                // ─── SYSTEM QUICK-ACTIONS ───
+                GridLayout {
+                    Layout.fillWidth: true
+                    columns: 4
+                    rowSpacing: 6
+                    columnSpacing: 6
+
+                    Repeater {
+                        model: [
+                            { icon: "\uf293", label: "BT",     action: "bt" },
+                            { icon: "\uf1eb", label: "WiFi",   action: "wifi" },
+                            { icon: "\uf023", label: "Lock",   action: "lock" },
+                            { icon: "\uf2f5", label: "Logout", action: "logout" }
+                        ]
+                        delegate: Rectangle {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 44
+                            radius: 8
+                            // v6.16.4.12.1: Transparent default. Only shows on hover.
+                            color: btnMa.containsMouse
+                                   ? Theme.alpha(Theme.blue, 0.15)
+                                   : "transparent"
+                            border.width: 0
+                            Behavior on color { ColorAnimation { duration: 120 } }
+
+                            ColumnLayout {
+                                anchors.centerIn: parent; spacing: 2
+                                Text {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    text: modelData.icon
+                                    font.family: "JetBrainsMono Nerd Font"
+                                    font.pixelSize: 14
+                                    color: Theme.fg
+                                }
+                                Text {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    text: modelData.label
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: 9
+                                    font.weight: Font.DemiBold
+                                    color: Theme.grey0
+                                }
+                            }
+
+                            MouseArea {
+                                id: btnMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    switch (modelData.action) {
+                                        case "bt":
+                                            powerRunner.command = ["bash", "-c", "bluetoothctl power on || bluetoothctl power off"]
+                                            powerRunner.running = true
+                                            break
+                                        case "wifi":
+                                            powerRunner.command = ["bash", "-c", "nmcli radio wifi | grep -q enabled && nmcli radio wifi off || nmcli radio wifi on"]
+                                            powerRunner.running = true
+                                            break
+                                        case "lock":
+                                            clockRoot._closeCalendar()
+                                            powerRunner.command = ["hyprlock"]
+                                            powerRunner.running = true
+                                            break
+                                        case "logout":
+                                            clockRoot._closeCalendar()
+                                            powerRunner.command = ["hyprctl", "dispatch", "exit"]
+                                            powerRunner.running = true
+                                            break
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Repeater {
+                        model: [
+                            { icon: "\uf021", label: "Restart",  cmd: "systemctl reboot",   color: Theme.blue },
+                            { icon: "\uf011", label: "Shutdown", cmd: "systemctl poweroff", color: Theme.red }
+                        ]
+                        delegate: Rectangle {
+                            required property var modelData
+                            Layout.fillWidth: true
+                            Layout.columnSpan: 2
+                            Layout.preferredHeight: 38
+                            radius: 8
+                            // v6.16.4.12.1: Transparent default. Tinted on hover.
+                            color: pwrMa.containsMouse
+                                   ? Theme.alpha(modelData.color, 0.2)
+                                   : "transparent"
+                            border.width: 0
+                            Behavior on color { ColorAnimation { duration: 120 } }
+
+                            RowLayout {
+                                anchors.centerIn: parent; spacing: 6
+                                Text {
+                                    text: modelData.icon
+                                    font.family: "JetBrainsMono Nerd Font"
+                                    font.pixelSize: 13
+                                    color: modelData.color
+                                }
+                                Text {
+                                    text: modelData.label
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: 11
+                                    font.weight: Font.DemiBold
+                                    color: Theme.fg
+                                }
+                            }
+
+                            MouseArea {
+                                id: pwrMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    clockRoot._closeCalendar()
+                                    powerRunner.command = ["bash", "-c", modelData.cmd]
+                                    powerRunner.running = true
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -1,140 +1,215 @@
 #!/usr/bin/env bash
-# zen-darkmode.sh — unified dark/light mode switcher
+# ═════════════════════════════════════════════════════════════════════
+# zen-darkmode.sh — GTK3 / GTK4 / libadwaita dark-mode switcher
+# Part of Zen Shell v6.16.4.12.9.8 (Modori)
 #
-# Syncs:
-#   - gsettings color-scheme preference (GNOME / libadwaita apps)
-#   - gsettings gtk-theme name (Adwaita / Adwaita-dark for GTK3)
-#   - Qt color scheme via XDG_CURRENT_DESKTOP hint + envvar
-#   - Writes state to ~/.local/share/zen-shell/darkmode.state
+# Synchronizes the dark/light theme state across all four places
+# GTK applications look for it:
+#
+#   1. gsettings org.gnome.desktop.interface color-scheme
+#      → libadwaita / GTK4 apps. Values: "prefer-dark" or "default".
+#
+#   2. gsettings org.gnome.desktop.interface gtk-theme
+#      → legacy GTK3 apps that read gsettings.
+#      Values: "$ZEN_GTK_DARK" or "$ZEN_GTK_LIGHT" env vars
+#      (default Adwaita-dark / Adwaita).
+#
+#   3. ~/.config/gtk-3.0/settings.ini
+#      → some GTK3 apps that DON'T read gsettings (e.g. Thunar with
+#      certain themes). Set gtk-application-prefer-dark-theme=1/0
+#      and gtk-theme-name.
+#
+#   4. ~/.config/gtk-4.0/settings.ini
+#      → same fallback pattern for GTK4 apps that bypass gsettings.
+#
+# Plus persists the choice to ~/.local/share/zen-shell/darkmode.state
+# so the next shell launch can read it back without re-querying
+# gsettings (faster startup, also the source of truth).
 #
 # Usage:
-#   zen-darkmode.sh dark
-#   zen-darkmode.sh light
-#   zen-darkmode.sh toggle
-#   zen-darkmode.sh status    # prints current state to stdout
+#   zen-darkmode.sh dark    # → switch to dark
+#   zen-darkmode.sh light   # → switch to light
+#   zen-darkmode.sh toggle  # → flip whatever is currently set
+#   zen-darkmode.sh state   # → echo "dark" or "light" (read state)
+#
+# Override default GTK theme names via env:
+#   ZEN_GTK_DARK=Adwaita-dark   ZEN_GTK_LIGHT=Adwaita
+# ═════════════════════════════════════════════════════════════════════
 
-set -u
+set -uo pipefail
 
-STATE_DIR="$HOME/.local/share/zen-shell"
-STATE_FILE="$STATE_DIR/darkmode.state"
-LOG="$HOME/.cache/zen-shell/darkmode.log"
-mkdir -p "$STATE_DIR" "$(dirname "$LOG")"
+ZEN_STATE_DIR="${HOME}/.local/share/zen-shell"
+ZEN_STATE_FILE="${ZEN_STATE_DIR}/darkmode.state"
+ZEN_LOG="${HOME}/.cache/zen-shell/darkmode.log"
+ZEN_GTK_DARK="${ZEN_GTK_DARK:-Adwaita-dark}"
+ZEN_GTK_LIGHT="${ZEN_GTK_LIGHT:-Adwaita}"
 
-# GTK themes to use — configurable via env
-#   ZEN_GTK_DARK    (default: Adwaita-dark)
-#   ZEN_GTK_LIGHT   (default: Adwaita)
-#   ZEN_ICONS_DARK  (default: Adwaita)  (optional override)
-#   ZEN_ICONS_LIGHT (default: Adwaita)
-GTK_DARK="${ZEN_GTK_DARK:-Adwaita-dark}"
-GTK_LIGHT="${ZEN_GTK_LIGHT:-Adwaita}"
+mkdir -p "${ZEN_STATE_DIR}" "$(dirname "${ZEN_LOG}")"
 
-log() { echo "[$(date +%H:%M:%S)] $*" >> "$LOG"; }
-
-read_current_state() {
-    if [ -r "$STATE_FILE" ]; then
-        cat "$STATE_FILE" | tr -d '[:space:]'
-    else
-        # Default: infer from gsettings
-        local scheme
-        scheme=$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null | tr -d "'")
-        if [[ "$scheme" == "prefer-dark" ]]; then
-            echo "dark"
-        else
-            echo "light"
-        fi
-    fi
+_log() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S')  $*" >> "${ZEN_LOG}"
 }
 
-apply_gtk() {
-    local mode="$1"
-    local scheme gtktheme
-    if [ "$mode" = "dark" ]; then
-        scheme="prefer-dark"
-        gtktheme="$GTK_DARK"
-    else
-        scheme="default"
-        gtktheme="$GTK_LIGHT"
+# Read current state from the state file, fall back to gsettings,
+# fall back to "light" if neither answer.
+_read_state() {
+    if [ -f "${ZEN_STATE_FILE}" ]; then
+        local s
+        s=$(<"${ZEN_STATE_FILE}")
+        if [ "$s" = "dark" ] || [ "$s" = "light" ]; then
+            echo "$s"
+            return
+        fi
     fi
-
-    # gsettings — covers libadwaita + GTK4 apps
     if command -v gsettings >/dev/null 2>&1; then
-        gsettings set org.gnome.desktop.interface color-scheme "$scheme" 2>/dev/null \
-            && log "color-scheme → $scheme"
-        gsettings set org.gnome.desktop.interface gtk-theme "$gtktheme" 2>/dev/null \
-            && log "gtk-theme → $gtktheme"
+        local cs
+        cs=$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null \
+             | tr -d "'")
+        case "$cs" in
+            prefer-dark) echo "dark" ;;
+            *)           echo "light" ;;
+        esac
+        return
+    fi
+    echo "light"
+}
+
+# Update ~/.config/gtk-3.0/settings.ini — preserve every other key,
+# only touch gtk-theme-name + gtk-application-prefer-dark-theme.
+_update_gtk_ini() {
+    local ini_dir="$1"      # gtk-3.0 or gtk-4.0
+    local theme_name="$2"
+    local prefer_dark="$3"  # 0 or 1
+
+    local dir="${HOME}/.config/${ini_dir}"
+    local ini="${dir}/settings.ini"
+    mkdir -p "${dir}"
+
+    if [ ! -f "${ini}" ]; then
+        cat > "${ini}" <<EOF
+[Settings]
+gtk-theme-name=${theme_name}
+gtk-application-prefer-dark-theme=${prefer_dark}
+EOF
+        _log "wrote new ${ini}"
+        return
     fi
 
-    # GTK3 settings.ini — persists across sessions, some older apps
-    # don't respect gsettings
-    local gtk3_dir="$HOME/.config/gtk-3.0"
-    local gtk3_file="$gtk3_dir/settings.ini"
-    mkdir -p "$gtk3_dir"
-    if [ -f "$gtk3_file" ]; then
-        # Update existing gtk-theme-name + add gtk-application-prefer-dark-theme
-        if grep -q "^gtk-theme-name=" "$gtk3_file"; then
-            sed -i "s|^gtk-theme-name=.*|gtk-theme-name=$gtktheme|" "$gtk3_file"
-        else
-            # Ensure [Settings] header + append
-            grep -q "^\[Settings\]" "$gtk3_file" || echo "[Settings]" >> "$gtk3_file"
-            echo "gtk-theme-name=$gtktheme" >> "$gtk3_file"
-        fi
-        if grep -q "^gtk-application-prefer-dark-theme=" "$gtk3_file"; then
-            sed -i "s|^gtk-application-prefer-dark-theme=.*|gtk-application-prefer-dark-theme=$( [ "$mode" = "dark" ] && echo 1 || echo 0 )|" "$gtk3_file"
-        else
-            echo "gtk-application-prefer-dark-theme=$( [ "$mode" = "dark" ] && echo 1 || echo 0 )" >> "$gtk3_file"
-        fi
+    # Make sure the file has a [Settings] header
+    if ! grep -q "^\[Settings\]" "${ini}"; then
+        # Prepend the section
+        local tmp
+        tmp=$(mktemp)
+        echo "[Settings]" > "${tmp}"
+        cat "${ini}" >> "${tmp}"
+        mv "${tmp}" "${ini}"
+    fi
+
+    # Update or insert each key. We use a portable awk approach
+    # because sed -i with multi-pattern updates gets messy across
+    # GNU/BSD differences.
+    awk -v t="${theme_name}" -v d="${prefer_dark}" '
+        BEGIN { in_settings=0; saw_theme=0; saw_dark=0 }
+        /^\[Settings\]/ {
+            print
+            in_settings=1
+            next
+        }
+        /^\[/ {
+            if (in_settings) {
+                if (!saw_theme) print "gtk-theme-name=" t
+                if (!saw_dark)  print "gtk-application-prefer-dark-theme=" d
+                in_settings=0
+            }
+            print
+            next
+        }
+        in_settings && /^[[:space:]]*gtk-theme-name[[:space:]]*=/ {
+            print "gtk-theme-name=" t
+            saw_theme=1
+            next
+        }
+        in_settings && /^[[:space:]]*gtk-application-prefer-dark-theme[[:space:]]*=/ {
+            print "gtk-application-prefer-dark-theme=" d
+            saw_dark=1
+            next
+        }
+        { print }
+        END {
+            if (in_settings) {
+                if (!saw_theme) print "gtk-theme-name=" t
+                if (!saw_dark)  print "gtk-application-prefer-dark-theme=" d
+            }
+        }
+    ' "${ini}" > "${ini}.tmp" && mv "${ini}.tmp" "${ini}"
+
+    _log "updated ${ini}"
+}
+
+_apply() {
+    local mode="$1"   # dark or light
+    local theme prefer cs
+
+    if [ "$mode" = "dark" ]; then
+        theme="${ZEN_GTK_DARK}"
+        prefer=1
+        cs="prefer-dark"
     else
-        cat > "$gtk3_file" <<EOF
-[Settings]
-gtk-theme-name=$gtktheme
-gtk-application-prefer-dark-theme=$( [ "$mode" = "dark" ] && echo 1 || echo 0 )
-EOF
+        theme="${ZEN_GTK_LIGHT}"
+        prefer=0
+        cs="default"
     fi
-    log "GTK3 settings.ini updated"
 
-    # GTK4 settings.ini — libadwaita respects gsettings color-scheme
-    # but some GTK4 non-libadwaita apps still read this file
-    local gtk4_dir="$HOME/.config/gtk-4.0"
-    local gtk4_file="$gtk4_dir/settings.ini"
-    mkdir -p "$gtk4_dir"
-    cat > "$gtk4_file" <<EOF
-[Settings]
-gtk-theme-name=$gtktheme
-gtk-application-prefer-dark-theme=$( [ "$mode" = "dark" ] && echo 1 || echo 0 )
-EOF
-    log "GTK4 settings.ini updated"
+    _log "applying ${mode} (theme=${theme} prefer-dark=${prefer})"
+
+    # 1. + 2. gsettings — non-fatal if gsettings unavailable
+    if command -v gsettings >/dev/null 2>&1; then
+        gsettings set org.gnome.desktop.interface color-scheme "${cs}" \
+            >>"${ZEN_LOG}" 2>&1 || _log "gsettings color-scheme failed (non-fatal)"
+        gsettings set org.gnome.desktop.interface gtk-theme "${theme}" \
+            >>"${ZEN_LOG}" 2>&1 || _log "gsettings gtk-theme failed (non-fatal)"
+    else
+        _log "gsettings not available — skipping gsettings sync"
+    fi
+
+    # 3. + 4. settings.ini fallbacks
+    _update_gtk_ini "gtk-3.0" "${theme}" "${prefer}"
+    _update_gtk_ini "gtk-4.0" "${theme}" "${prefer}"
+
+    # Persist state
+    echo "${mode}" > "${ZEN_STATE_FILE}"
+    _log "state persisted to ${ZEN_STATE_FILE}"
 }
 
-save_state() {
-    echo "$1" > "$STATE_FILE"
-    log "state saved: $1"
-}
+# ─────────────────────────────────────────────────────────────────
+# Entry
+# ─────────────────────────────────────────────────────────────────
+ACTION="${1:-state}"
 
-case "${1:-toggle}" in
-    dark|light)
-        apply_gtk "$1"
-        save_state "$1"
-        log "applied: $1"
-        # Emit a desktop notification (optional, silent if notify-send absent)
-        if command -v notify-send >/dev/null 2>&1; then
-            notify-send -t 1500 "Zen Shell" "Switched to $1 mode"
-        fi
-        echo "$1"
+case "${ACTION}" in
+    dark)
+        _apply dark
+        echo "dark"
+        ;;
+    light)
+        _apply light
+        echo "light"
         ;;
     toggle)
-        current=$(read_current_state)
-        if [ "$current" = "dark" ]; then
-            target="light"
+        cur=$(_read_state)
+        if [ "$cur" = "dark" ]; then
+            _apply light
+            echo "light"
         else
-            target="dark"
+            _apply dark
+            echo "dark"
         fi
-        exec "$0" "$target"
         ;;
-    status)
-        read_current_state
+    state)
+        _read_state
         ;;
     *)
-        echo "Usage: zen-darkmode.sh {dark|light|toggle|status}" >&2
-        exit 1
+        echo "Usage: $0 {dark|light|toggle|state}" >&2
+        exit 2
         ;;
 esac

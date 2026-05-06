@@ -4,211 +4,281 @@ import Quickshell
 import Quickshell.Io
 
 /*
- * ZenClock v6.16.2.3.1 — bar clock module with calendar toggle + hover peek
+ * ZenClock v6.16.4.12.6.53 (Hiraki 開き) — Hiraki hotfix 1
  *
- * v6.8: Auto-apply — changing format in Bar Modules page updates instantly.
- * v6.13: Click clock → toggles calendar overlay window via IPC.
- *        Calendar is hosted in shell.qml as a separate PanelWindow
- *        (Overlay layer) so it can render above the bar without clipping.
- * v6.16.2: Hover peek — after 350ms hover, a small native popup shows
- *        the full weekday/date + week number. Click still opens the
- *        full calendar. Popup is ThemeService-synced (bg, fg, radius).
- * v6.16.2.3: Click uses PanelState singleton directly (no IPC).
- * v6.16.2.3.1: (1) Music rope no longer covers clock's input region
- *        (shell.qml mask fix) — hover events now actually arrive.
- *        (2) Popup anchored to Bottom edge of clockRoot with Top gravity
- *        so it opens ABOVE the clock (where empty space is when the bar
- *        is at the bottom). Previous Top/Top got clipped when the bar
- *        was at the screen bottom edge.
- *        (3) MouseArea now uses `onPositionChanged` as a fallback peek
- *        trigger in case `onEntered` misses (some Quickshell/Wayland
- *        timing has the first hover event fire as a position delta
- *        rather than a proper enter).
- *        (4) Scroll wheel over the clock cycles months in calendar
- *        (works when calendar is open — forwards to ZenCalendar).
+ * Bar clock module that drives the GLOBAL calendar window (shell.qml's
+ * `calendarWindow` → `ZenNotificationCenter`) via PanelState.
  *
- * Install as Clock.qml in ~/.config/quickshell/zen-shell/
+ * Why we NOT use a local anchored PopupWindow:
+ *   Multiple attempts to render a Quickshell `PopupWindow` anchored
+ *   to the clock module failed in this user's setup — the popup
+ *   either didn't render or rendered off-screen on top-bars. The
+ *   global `calendarWindow` is known-good (the user has seen it open
+ *   from the spacer trigger and from this same path in hotfix 3).
+ *
+ *   Hotfix 1 (.53) wires the clock's GLOBAL screen coordinates into
+ *   PanelState so the global calendarWindow can anchor its right
+ *   edge to the clock's right edge — visually identical to a
+ *   PopupWindow anchored to the clock, but using the known-good
+ *   layer-shell window. The popup now appears directly above (or
+ *   below, for top bars) the clock instead of pinned to the screen
+ *   edge.
+ *
+ * ─────────────────────────────────────────────────────────────────
+ * Hiraki change (v6.16.4.12.6.52) — CLICK-TO-OPEN, NO HOVER-OPEN
+ * ─────────────────────────────────────────────────────────────────
+ *   The previous Hikari behaviour opened the calendar on a 150ms
+ *   hover-intent delay. v6.16.4.12.6.52 made the calendar a strict
+ *   CLICK-ONLY surface, matching the StartMenu pattern. Hover keeps
+ *   the visual highlight (theme blue tint) so the module still feels
+ *   reactive — but the popup itself only appears when the user
+ *   actually clicks. Same approach kept here.
+ *
+ * ─────────────────────────────────────────────────────────────────
+ * Hotfix 1 (v6.16.4.12.6.53) — POPUP ABOVE THE CLOCK
+ * ─────────────────────────────────────────────────────────────────
+ *   Previously the global calendarWindow was anchored to the screen's
+ *   right edge with a hardcoded `margins.right: 12`. Visually correct
+ *   in the common case (clock is rightmost in the right zone), but
+ *   wrong whenever the user's bar layout puts other modules to the
+ *   right of the clock, or when the bar layout changes between top
+ *   and bottom positions.
+ *
+ *   Hotfix 1 reports the clock module's GLOBAL screen-space center-X
+ *   and right-edge-X to PanelState on every click, BEFORE toggling
+ *   the calendar. shell.qml's calendarWindow then binds
+ *   `margins.right` to `screenWidth - clockRightEdgeX` (with
+ *   clamping). The popup now appears directly above/below the clock
+ *   no matter where the clock sits in the bar.
+ *
+ * Behaviour (unchanged from .52):
+ *   • Hover the clock              → visual highlight ONLY (no popup)
+ *   • Click the clock              → reports position, then toggles calendar
+ *   • Right-click the clock        → cycles clock format
+ *   • Scroll wheel                 → cycles calendar months IF the
+ *                                    calendar is already open
+ *
+ * To dismiss the calendar: click the clock again, or click outside
+ * the calendar window (HyprlandFocusGrab in shell.qml fires
+ * onCleared → calendarVisible = false).
+ *
+ * ─────────────────────────────────────────────────────────────────
+ * z-stacking — clock module always on top of the bar row
+ * ─────────────────────────────────────────────────────────────────
+ *   `z: 1` keeps the Clock above any sibling Loader/Item in the
+ *   right-zone RowLayout so its MouseArea always wins click hits.
+ *   Same value used on StartMenu for consistency.
+ *
+ * Sizing fix (CRITICAL — unchanged):
+ *   width is computed from clockText + iconText.implicitWidth
+ *   directly, NOT through `layoutRow.implicitWidth`. The latter
+ *   creates a binding loop in the Loader→RowLayout→Loader hierarchy
+ *   of Bar.qml that can resolve the Rectangle to 0×0, killing the
+ *   MouseArea input area. Layout.preferredWidth/Height + Layout.alignment
+ *   give the parent Loader-in-RowLayout explicit size hints.
+ *
+ * Theme sync:
+ *   Background, border, text colours follow ThemeService — same
+ *   approach used by start menu, taskbar, and ZenNotificationCenter.
+ *
+ * Install as Clock.qml in ~/.config/quickshell/zen-shell/.
+ *
+ * Wala tayong babawasan — only hover-to-open behaviour was removed.
+ * All other Hikari plumbing (format cycle, wheel-month, theme
+ * sync, sizing) preserved. .53 only ADDS the position reporter.
  */
-Item {
-    id: clockRoot
-    implicitWidth: clockText.implicitWidth + 20
-    implicitHeight: parent ? parent.height : 40
+Rectangle {
+    id: root
 
-    Timer { interval: 1000; repeat: true; running: true; onTriggered: clockRoot.now = new Date() }
+    // ── z-stack — Clock stays above sibling bar modules ──
+    z: 1
+
+    // ── Sizing — width from text widths directly ──
+    readonly property real _contentW: iconText.implicitWidth
+                                    + 8                   // RowLayout spacing
+                                    + clockText.implicitWidth
+    width:  _contentW + 24
+    height: Theme.moduleHeight
+    Layout.preferredWidth:  _contentW + 24
+    Layout.preferredHeight: Theme.moduleHeight
+    Layout.alignment: Qt.AlignVCenter
+
+    // ── Theme-synced background ──
+    radius: Theme.styleMode === "round" ? height / 2 : Theme.moduleRadius
+    color: ma.containsMouse || PanelState.calendarVisible
+           ? ThemeService.alpha(ThemeService.blue, 0.25)
+           : ThemeService.alpha(ThemeService.bg0, 0.9)
+    border.width: 1
+    border.color: ma.containsMouse || PanelState.calendarVisible
+                  ? ThemeService.blue
+                  : ThemeService.alpha(ThemeService.fg, 0.12)
+    Behavior on color        { ColorAnimation { duration: 150 } }
+    Behavior on border.color { ColorAnimation { duration: 150 } }
+
+    // ── Live time driver ──
     property var now: new Date()
+    Timer { interval: 1000; repeat: true; running: true; onTriggered: root.now = new Date() }
 
-    // v6.16.2 — delay before hover peek appears (hover intent heuristic)
-    property bool _peekPending: false
-    Timer {
-        id: peekDelay
-        interval: 350
-        repeat: false
-        onTriggered: clockRoot._peekPending = clockMouse.containsMouse
-    }
-
-    Text {
-        id: clockText
+    // ─────────────────────────────────────────────────────────────
+    // VISIBLE CONTENT — clock icon + live time
+    // ─────────────────────────────────────────────────────────────
+    RowLayout {
+        id: layoutRow
         anchors.centerIn: parent
-        text: {
-            const idx = Math.max(0, Math.min(ZenConstants.clockFormats.length - 1, PanelState.clockFormatIndex))
-            return ZenConstants.formatClock(clockRoot.now, ZenConstants.clockFormats[idx].format, true)
+        spacing: 8
+
+        Text {
+            id: iconText
+            text: "\uf017"  // Nerd Font clock face
+            font.family: "JetBrainsMono Nerd Font"
+            font.pixelSize: 13
+            color: ma.containsMouse || PanelState.calendarVisible
+                   ? ThemeService.blue
+                   : ThemeService.fg
+            Behavior on color { ColorAnimation { duration: 150 } }
         }
-        font.family: ZenConstants.fontPrimary(PanelState.fontFamilyId)
-        font.pixelSize: 12
-        horizontalAlignment: Text.AlignHCenter
-        color: ThemeService.fg
-        lineHeight: 1.15
+
+        Text {
+            id: clockText
+            text: {
+                const idx = Math.max(0, Math.min(
+                    ZenConstants.clockFormats.length - 1,
+                    PanelState.clockFormatIndex))
+                return ZenConstants.formatClock(
+                    root.now,
+                    ZenConstants.clockFormats[idx].format,
+                    false)
+            }
+            font.family: ZenConstants.fontPrimary(PanelState.fontFamilyId)
+            font.pixelSize: 12
+            font.weight: Font.DemiBold
+            color: ThemeService.fg
+            horizontalAlignment: Text.AlignHCenter
+            lineHeight: 1.15
+        }
     }
 
-    // v6.16.4: Hover highlight MORE VISIBLE.
-    // Previous 0.06 alpha was too subtle — Paul couldn't tell if hover
-    // registered. Now 0.12 + border tint so it's unmistakable.
-    Rectangle {
-        anchors.fill: parent
-        radius: Theme.panelRadius !== undefined ? Math.max(6, Theme.panelRadius * 0.4) : 6
-        color: clockMouse.containsMouse
-               ? ThemeService.alpha(ThemeService.fg, 0.12) : "transparent"
-        border.width: clockMouse.containsMouse ? 1 : 0
-        border.color: ThemeService.alpha(ThemeService.blue, 0.4)
-        Behavior on color       { ColorAnimation  { duration: 120 } }
-        Behavior on border.width { NumberAnimation { duration: 120 } }
+    // ─────────────────────────────────────────────────────────────
+    // Position reporter — Hotfix 1 (v6.16.4.12.6.53)
+    // ─────────────────────────────────────────────────────────────
+    // Mirrors the StartMenu.qml pattern: compute the clock's GLOBAL
+    // screen-space center-X and right-edge-X, push them to PanelState
+    // for shell.qml's calendarWindow to consume. Called from
+    // onClicked just before the calendar is toggled OPEN, so the
+    // popup positions itself correctly on the very first frame.
+    function reportPositionToPanelState() {
+        const win = QsWindow.window
+        if (!win) return
+
+        const screenW = win.screen ? win.screen.width  : 1920
+        const screenH = win.screen ? win.screen.height : 1080
+
+        // Map clock module's local coordinates into the bar window's
+        // local coordinates (item == null → window-local).
+        const localCenter = root.mapToItem(null, root.width / 2, root.height / 2)
+        const localRight  = root.mapToItem(null, root.width,     root.height / 2)
+
+        // Compute the bar window's actual screen X offset. Layer
+        // shell windows always report win.x = 0, so we have to
+        // reconstruct the offset from the panel mode (mirrors the
+        // StartMenu logic).
+        let barScreenX = 0
+        if (PanelState.panelMode === "island") {
+            const barW = win.width || screenW
+            barScreenX = (screenW - barW) / 2
+        } else if (PanelState.panelMode === "floating") {
+            barScreenX = PanelState.panelMarginSide
+        }
+        // else fullwidth: barScreenX = 0
+
+        const globalCenterX = barScreenX + localCenter.x
+        const globalRightX  = barScreenX + localRight.x
+
+        if (typeof PanelState.reportClockPosition === "function") {
+            PanelState.reportClockPosition(globalCenterX, globalRightX, screenW)
+        } else {
+            // Older PanelState without the reporter — fall back to
+            // writing the properties directly. Harmless if absent.
+            if (typeof PanelState.clockCenterX !== "undefined")
+                PanelState.clockCenterX = globalCenterX
+            if (typeof PanelState.clockRightEdgeX !== "undefined")
+                PanelState.clockRightEdgeX = globalRightX
+            if (screenW > 0 && typeof PanelState.screenWidth !== "undefined")
+                PanelState.screenWidth = screenW
+        }
+        if (typeof screenH === "number" && screenH > 0
+            && typeof PanelState.screenHeight !== "undefined") {
+            PanelState.screenHeight = screenH
+        }
     }
+
+    // ─────────────────────────────────────────────────────────────
+    // INPUT — hover (visual only), click, scroll
+    // ─────────────────────────────────────────────────────────────
+    // v6.16.4.12.6.52 (Hiraki): the 150ms hover-intent timer that
+    // opened the calendar on hover has been REMOVED. Hover only
+    // drives the visual highlight (background + border tint).
 
     MouseArea {
-        id: clockMouse
+        id: ma
         anchors.fill: parent
-        // v6.16.2.2: Explicit z ensures mouse events reach here even with
-        // overlapping sibling Rectangles. QML's default draw-order =
-        // event-order already handles this, but explicit z prevents
-        // surprises from future sibling additions.
-        z: 10
-        hoverEnabled: true
+        hoverEnabled: true                     // ← still true, for visual highlight
         cursorShape: Qt.PointingHandCursor
         acceptedButtons: Qt.LeftButton | Qt.RightButton
-        onEntered: peekDelay.restart()
-        // v6.16.2.3.1: Fallback peek trigger. Some Wayland/Quickshell
-        // paths deliver the initial hover as a position delta rather
-        // than an enter event (happens when another surface just
-        // relinquished input — e.g. strings window mask change).
-        onPositionChanged: if (!peekDelay.running && !clockRoot._peekPending) peekDelay.restart()
-        onExited: { peekDelay.stop(); clockRoot._peekPending = false }
+
+        // No onEntered / onExited handlers — hover does NOT open the
+        // calendar anymore. Same pattern as StartMenu.qml.
+
         onClicked: (mouse) => {
-            clockRoot._peekPending = false
             if (mouse.button === Qt.RightButton) {
-                // Right-click: cycle clock format (nice-to-have, cheap).
+                // Right-click cycles clock format
                 const n = ZenConstants.clockFormats.length
                 PanelState.clockFormatIndex = (PanelState.clockFormatIndex + 1) % n
                 PanelState.saveState()
+                console.log("[Clock] format cycled →", PanelState.clockFormatIndex)
                 return
             }
-            PanelState.toggleCalendar()
+
+            // Hotfix 1 (.53): push the clock's screen-space position
+            // into PanelState BEFORE toggling the calendar so
+            // shell.qml's calendarWindow can anchor itself above the
+            // clock on the very first frame it becomes visible.
+            root.reportPositionToPanelState()
+
+            // Left-click toggles the global calendar window
+            const wantOpen = !PanelState.calendarVisible
+            console.log("[Clock] click → calendarVisible should be:", wantOpen)
+            if (wantOpen) {
+                if (typeof PanelState.openCalendar === "function") {
+                    PanelState.openCalendar()
+                } else {
+                    PanelState.calendarVisible = true
+                }
+            } else {
+                if (typeof PanelState.closeCalendar === "function") {
+                    PanelState.closeCalendar()
+                } else {
+                    PanelState.calendarVisible = false
+                }
+            }
         }
     }
 
-    // v6.16.2.3.1: Scroll wheel over the clock cycles calendar months.
-    // Using WheelHandler (Qt 6 PointerHandler) rather than MouseArea.onWheel
-    // because the latter has spotty delivery under Wayland when the
-    // surface has recently gained input focus (which is exactly what
-    // happens when the music-strings mask opens up the clock area).
-    // WheelHandler sits alongside MouseArea and both receive events.
+    // Scroll wheel cycles calendar months — but ONLY when the
+    // calendar is already open. Hiraki (.52) removed the
+    // auto-open-on-scroll behaviour; scroll over a closed clock is
+    // a no-op so it doesn't accidentally summon the popup.
     WheelHandler {
         target: null
         acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
         onWheel: (event) => {
             if (!PanelState.calendarVisible) {
-                PanelState.openCalendar()
+                event.accepted = false
+                return
             }
-            const dir = event.angleDelta.y > 0 ? -1 : +1   // wheel up → previous month
+            const dir = event.angleDelta.y > 0 ? -1 : +1   // wheel up → previous
             PanelState.calendarMonthDelta += dir
             event.accepted = true
-        }
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // v6.16.2 HOVER PEEK POPUP — shows full date + week info after 350ms.
-    // Uses PopupWindow (same pattern as SysRowIcon tooltip) so it renders
-    // above the bar's layer surface. Theme-synced via ThemeService.
-    // ═══════════════════════════════════════════════════════════════
-    PopupWindow {
-        id: peekPopup
-        anchor.item: clockRoot
-        // v6.16.2.3.1: Anchor to clock's TOP edge with gravity pointing UP.
-        // Previous (Edges.Top + gravity Top) placed popup at the TOP of
-        // the clock WITH ITS OWN TOP at that line — pushing the popup
-        // upward so it extended off the screen when bar sat at screen
-        // bottom (popup ends up above the monitor edge = Wayland clips
-        // it invisible). Edges.Top + gravity.Top means:
-        //   anchor point = clock's top edge
-        //   popup expands upward from that point
-        // Which on a bottom-anchored bar places the popup ABOVE the
-        // clock with its BOTTOM edge aligned to the clock's top. Correct.
-        //
-        // The bug wasn't this — the actual bug was that the music-strings
-        // overlay was covering the clock's input region, so hover events
-        // never fired (see shell.qml stringsWindow mask fix). This anchor
-        // was always geometrically correct; it just never had a chance
-        // to show because _peekPending never became true.
-        anchor.edges: Edges.Top
-        anchor.gravity: Edges.Top
-        visible: clockRoot._peekPending && clockMouse.containsMouse
-        width: Math.max(peekCol.implicitWidth + 28, 180)
-        height: peekCol.implicitHeight + 20
-        color: "transparent"
-
-        Rectangle {
-            anchors.fill: parent
-            radius: Theme.panelRadius !== undefined ? Math.min(Theme.panelRadius, 14) : 10
-            color: Qt.rgba(ThemeService.bg0.r, ThemeService.bg0.g, ThemeService.bg0.b, 0.96)
-            border.width: 1
-            border.color: ThemeService.alpha(ThemeService.fg, 0.15)
-
-            Column {
-                id: peekCol
-                anchors.centerIn: parent
-                spacing: 4
-
-                // Weekday name (large)
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: Qt.formatDateTime(clockRoot.now, "dddd")
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 13
-                    font.weight: Font.DemiBold
-                    color: ThemeService.blue
-                }
-                // Full date
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: Qt.formatDateTime(clockRoot.now, "MMMM d, yyyy")
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 12
-                    color: ThemeService.fg
-                }
-                // Subtle separator
-                Rectangle {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    width: peekCol.width * 0.5
-                    height: 1
-                    color: ThemeService.alpha(ThemeService.fg, 0.1)
-                }
-                // Week number + click hint
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: {
-                        // ISO 8601 week number
-                        const d = new Date(Date.UTC(clockRoot.now.getFullYear(),
-                                                   clockRoot.now.getMonth(),
-                                                   clockRoot.now.getDate()))
-                        d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7))
-                        const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1))
-                        const wk = Math.ceil(((d - yearStart) / 86400000 + 1) / 7)
-                        return "Week " + wk + "  ·  Click for calendar"
-                    }
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 10
-                    color: ThemeService.grey0
-                }
-            }
         }
     }
 }

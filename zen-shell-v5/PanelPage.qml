@@ -109,7 +109,7 @@ ScrollView {
                 color: ThemeService.fg
             }
             Text {
-                text: "Layout, style, border, and colors for the bottom bar"
+                text: "Layout, style, position, border, and colors for the bar"
                 font.family: Theme.fontFamily
                 font.pixelSize: 12
                 color: ThemeService.grey1
@@ -119,6 +119,124 @@ ScrollView {
         ControlCenterBanner {
             feature: "Waybar Module Manager"
             description: "Drag-drop modules, drawer config, theme sync"
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // v6.16.4.12: PANEL POSITION
+        // v6.16.4.12.7.1: Extended to 4 options (Top/Bottom/Left/Right)
+        // for upcoming vertical-bar support. In this drop the BAR
+        // ITSELF still renders horizontally regardless — what changes
+        // is popup positioning. Selecting Left/Right today applies the
+        // 4-direction popup logic but won't yet rotate the bar's
+        // RowLayout to a ColumnLayout (that's a separate larger drop).
+        // ═══════════════════════════════════════════════════════
+        SettingsSection {
+            title: "Panel Position"
+            subtitle: "Where the bar sits on your screen. Popups always grow AWAY from the bar."
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10
+
+                Repeater {
+                    // v6.16.4.12.9.2 (Modori) hotfix: Left and Right
+                    // entries removed from this picker. They were
+                    // popup-only in Tachiagari/Modori (no actual
+                    // vertical bar rendering), and even though the
+                    // popup-direction logic worked, selecting Left or
+                    // Right broke the Settings sidebar layout (the
+                    // user row at the bottom of the sidebar would
+                    // disappear). Hiding the options is the safer
+                    // path until the full vertical-bar rendering
+                    // returns in a properly-validated future drop.
+                    //
+                    // The yellow "vertical bar coming in a follow-up
+                    // drop" notice that lived below this picker was
+                    // also removed — with no Left/Right options
+                    // visible, the notice has nothing to clarify.
+                    model: [
+                        { pos: "top",    icon: "\uf062", label: "Top",    orientation: "h" },
+                        { pos: "bottom", icon: "\uf063", label: "Bottom", orientation: "h" }
+                    ]
+                    delegate: Rectangle {
+                        id: posCard
+                        required property var modelData
+                        readonly property bool isSelected: PanelState.panelPosition === modelData.pos
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 90
+                        radius: 10
+                        color: isSelected
+                               ? ThemeService.alpha(ThemeService.blue, 0.18)
+                               : ThemeService.alpha(ThemeService.bg2, 0.5)
+                        border.width: 2
+                        border.color: isSelected
+                                      ? ThemeService.blue
+                                      : ThemeService.alpha(ThemeService.fg, 0.12)
+
+                        Behavior on color { ColorAnimation { duration: 200 } }
+                        Behavior on border.color { ColorAnimation { duration: 200 } }
+
+                        ColumnLayout {
+                            anchors.centerIn: parent
+                            spacing: 6
+
+                            // Mini preview — orientation-aware
+                            Rectangle {
+                                Layout.alignment: Qt.AlignHCenter
+                                width: 60; height: 40; radius: 4
+                                color: ThemeService.alpha(ThemeService.fg, 0.06)
+                                border.width: 1; border.color: ThemeService.alpha(ThemeService.fg, 0.1)
+
+                                // Bar mini-rectangle. Width/height/x/y
+                                // computed per-position so the preview
+                                // visually matches the option label.
+                                Rectangle {
+                                    readonly property bool horiz: posCard.modelData.orientation === "h"
+                                    width: horiz ? parent.width - 4 : 6
+                                    height: horiz ? 6 : parent.height - 4
+                                    radius: 2
+                                    x: {
+                                        if (posCard.modelData.pos === "left")  return 2
+                                        if (posCard.modelData.pos === "right") return parent.width - 8
+                                        return 2
+                                    }
+                                    y: {
+                                        if (posCard.modelData.pos === "top")    return 2
+                                        if (posCard.modelData.pos === "bottom") return parent.height - 8
+                                        return 2
+                                    }
+                                    color: posCard.isSelected
+                                           ? ThemeService.blue
+                                           : ThemeService.alpha(ThemeService.fg, 0.2)
+
+                                    Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                                    Behavior on y { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                                }
+                            }
+
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: posCard.modelData.label
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 11
+                                font.weight: Font.DemiBold
+                                color: posCard.isSelected
+                                       ? ThemeService.blue : ThemeService.fg
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                PanelState.panelPosition = posCard.modelData.pos
+                                PanelState.saveState()
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         // ═══════════════════════════════════════════════════════
@@ -132,7 +250,7 @@ ScrollView {
                 label: "Show Bar On"
                 description: "All monitors, primary only, or a specific display"
 
-                ZenComboBox {
+                ZenDropdown {
                     id: displayTargetCombo
                     width: 260
 
@@ -424,7 +542,7 @@ ScrollView {
                 label: "Module Shape"
                 description: "Round (circular) or pill (elongated)"
 
-                ZenComboBox {
+                ZenDropdown {
                     width: 140
                     model: ["Round", "Pill"]
                     currentIndex: Theme.styleMode === "round" ? 0 : 1
@@ -505,6 +623,83 @@ ScrollView {
             }
 
             // ═══════════════════════════════════════════════════════
+            // v6.16.4.12.7 (Tachiagari) — Start Button Border tint
+            //
+            // Toggle that lets the start button adopt the panel's
+            // borderColor for its idle border (instead of the muted
+            // Theme.bg1 default). Hover state still flips to blue
+            // accent — that's a deliberately separate concern (click
+            // affordance must always be obvious).
+            //
+            // Independent of `borderEnabled` above so a user can:
+            //   - Have NO panel border but a colored start button rim
+            //   - Have a panel border + matching start button rim
+            //   - Have a panel border + plain start button (default)
+            //
+            // Width slider goes 0–4: 0 to hide the rim entirely (e.g.
+            // pure floating logo look), 1 default (matches old hard-
+            // coded value), 2–4 for a chunkier outline.
+            // ═══════════════════════════════════════════════════════
+            SettingRow {
+                label: "Tint Start Button Border"
+                description: "Use the panel's Border Color for the start button rim too. "
+                             + "Independent of the panel border toggle."
+                Row {
+                    spacing: 10
+                    HMSwitch {
+                        anchors.verticalCenter: parent.verticalCenter
+                        checked: PanelState.startButtonUseBorderColor
+                        onToggled: {
+                            PanelState.startButtonUseBorderColor = checked
+                            PanelState.saveState()
+                        }
+                    }
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 22; height: 22; radius: 11
+                        color: PanelState.startButtonUseBorderColor
+                               ? PanelState.borderColor
+                               : ThemeService.bg1
+                        border.width: 1
+                        border.color: ThemeService.alpha(ThemeService.fg, 0.2)
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: PanelState.startButtonUseBorderColor
+                              ? ("→ " + PanelState.borderColor)
+                              : "default (theme bg1)"
+                        color: ThemeService.grey1
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 11
+                    }
+                }
+            }
+
+            SettingRow {
+                label: "Start Button Border Width"
+                description: "0 = no border, 1 = default. Affects the start button rim only."
+                Row {
+                    spacing: 8
+                    Slider {
+                        width: 200
+                        from: 0; to: 4; stepSize: 1
+                        value: PanelState.startButtonBorderWidth
+                        onValueChanged: {
+                            PanelState.startButtonBorderWidth = Math.round(value)
+                            PanelState.saveState()
+                        }
+                    }
+                    Text {
+                        text: PanelState.startButtonBorderWidth + "px"
+                        color: ThemeService.fg
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+            }
+
+            // ═══════════════════════════════════════════════════════
             // v6.16.3.5: Start Button Logo picker
             // ─────────────────────────────────────────────────────────
             // Three modes:
@@ -523,7 +718,7 @@ ScrollView {
                 description: "Auto-detect your distro, pick from the built-in set, or use a custom image"
                 Row {
                     spacing: 8
-                    ZenComboBox {
+                    ZenDropdown {
                         id: logoModeCombo
                         width: 180
                         model: ["Auto (detect distro)", "Built-in logo", "Custom image"]
@@ -1015,7 +1210,7 @@ ScrollView {
                         Layout.fillWidth: true
                         spacing: 8
 
-                        ZenComboBox {
+                        ZenDropdown {
                             id: addCombo
                             Layout.preferredWidth: 180
                             // v6.16.3.5.2: dedup across ALL zones.
