@@ -174,6 +174,135 @@ A full visual site lives at **[gekinzen.github.io/zen-shell-site](https://gekinz
 
 ---
 
+## Project Archive
+
+> **From sprout to lacquered bowl to return.**
+> Zen Shell began as *Zen Barebone Alpha* — a bare Waybar + Python concept on Hyprland 0.52. Every era preserved here. **Wala tayong babawasan.**
+
+### 若葉 · Wakaba — *the first sprout* (Alpha v0.91)
+
+The earliest concept build. Bare Waybar, Python helpers, `rofi` for launching. This is where the project began — running on **Hyprland 0.52**, no QML, no Quickshell yet. Pure proof-of-concept that you could build a cohesive desktop on top of Hyprland with just shell scripts and config files.
+
+**Stack:** Hyprland 0.52 · Waybar · Python + rofi
+
+---
+
+### 苔 · Koke — *moss grows steady* (Alpha v2.x · v2.1.3)
+
+The full **Python / GTK4 / Libadwaita** era. Custom GTK control center, dock module, unified theme engine, desktop widgets, smart start menu. This was Zen Shell as a real desktop environment for the first time — 13+ themes, custom dock, working settings UI.
+
+**Stack:** Hyprland 0.52 · GTK4 / Libadwaita · 13+ themes · Custom dock · rofi/wofi launchers
+
+#### Koke gallery — the GTK4 era
+
+| | | |
+|---|---|---|
+| ![Main demo](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/main.gif) | ![Theme switching](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/theming.gif) | ![Wallpaper picker](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/changewallpaper.gif) |
+| **Main demo** | **Theme switching** | **Wallpaper picker** |
+| ![Panel modes](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/paneldemo.gif) | ![Desktop looks](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/desktoplooks.png) | ![Dock](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/dock.png) |
+| **Panel modes** | **Desktop looks** | **Dock · taskbar** |
+| ![Control Center](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/hyprcontrolcenter.png) | ![Animation editor](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/hyprcontrolcenteranimation.png) | ![Appearance settings](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_demo_old_archive_2025/hyprlandappearance.png) |
+| **Control Center** | **Animation editor** | **Appearance settings** |
+
+> **Browse the full Koke archive folder:** [`zen_demo_old_archive_2025/`](https://github.com/Gekinzen/images-demo/tree/main/zen_demo_old_archive_2025)
+
+---
+
+### 幽玄 · Yugen — *subtle, profound grace* (v6.10 → v6.14)
+
+The QML rewrite cycle. GTK4 gradually replaced with **Quickshell-native QML**. v6.10 shipped foundations, v6.14 added theme switching and panel modes. This is when the project pivoted from Python/GTK to the unified QML stack that defines it today.
+
+**Stack:** Hyprland 0.53+ · Quickshell QML · JSON bridge to GTK (transitional)
+
+📺 [Zen Shell v6.14 demo](https://www.youtube.com/watch?v=YQxrh5_naMQ) · [Zen Shell v6.10 foundations](https://www.youtube.com/watch?v=ao89J3DEqiA)
+
+---
+
+### 円相 · Ensō — *the circle closes* (v6.15.x series)
+
+Full Quickshell-native stack. **Bar, Start Menu, Control Panel, Settings, Theme engine, Wallpaper manager, music strings, screenshot ropes, avatar system, island mode, system tray** — all QML, all Quickshell, no more GTK helpers. This is where the architecture matured into what Modori still uses today.
+
+**Stack:** Hyprland 0.53+ · 15-drop evolution · Music strings (rope physics) · Screenshot ropes
+
+📺 [Full v6.15.x tour](https://www.youtube.com/watch?v=dNwGRBhA97g)
+
+#### Ensō gallery — v6.15.3 captures
+
+| | | |
+|---|---|---|
+| ![Desktop](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_15_3_demo_2026/sample1.png) | ![Workspace](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_15_3_demo_2026/sample2.png) | ![Settings](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_15_3_demo_2026/sample3.png) |
+| **Desktop** | **Workspace · island mode** | **Settings page** |
+| ![Adaptive theming](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_15_3_demo_2026/zen_shell_01_adaptive_theming.gif) | ![Settings tour](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_15_3_demo_2026/zen_shell_02_settings_tour.gif) | ![Screenshot ropes](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_15_3_demo_2026/zen_shell_03_screenshot_module_ultrawide.gif) |
+| **Adaptive theming** | **Settings tour** | **Screenshot Ropes (Super+Shift+S)** |
+
+---
+
+### 間 · Ma — *the space between* (v6.16.1.x)
+
+Cascade Control Panel, two-column layouts. The architecture started getting room to breathe.
+
+### 渋い · Shibui — *understated refinement* (v6.16.2.3.x)
+
+Click-through mask fixes, `OpacityMask` avatar, polish-everywhere mode.
+
+### 寂 · Sabi — *beauty of age & patina* (v6.16.3.x)
+
+Material power icons, Lock screen overhaul, PowerBadge, weather mood, Widget Scale.
+
+> **Refinement era as a whole:** Hyprland 0.54+ · 3-subseries refinement · 30+ tagged releases.
+
+---
+
+### 金継ぎ · Kintsugi — *gold in the seams* (v6.16.4.x · v6.16.4.11.2)
+
+The **previous stable**. Panic Recovery keybind (Super+Esc resets the shell to a known-good state without killing your session), 11 alpha iterations in two days, widget scale awareness, Dark Mode toggle, WiFi Connect rewrite, color picker that took 4 attempts to get right, palette relocation, Material dropdown with WCAG luminance contrast, PaletteBox component.
+
+Preserved as the bridge to Modori — **the Kintsugi themes still ship in the Modori built-in set.**
+
+**Stack:** Hyprland 0.54+ · Quickshell 0.2.1+ · `PopupWindow` · WCAG contrast
+
+#### Kintsugi gallery — v6.16.4.11.2 UI captures
+
+| | |
+|---|---|
+| ![Wallpaper picker](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_16_4_11_2_demo_2026/gif_01_wallpaper_picker.gif) | ![Animation presets](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_16_4_11_2_demo_2026/gif_02_animations_dropdown.gif) |
+| **Wallpaper engine** (Super+W) | **Animation presets** (Material ZenComboBox) |
+| ![Themes page](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_16_4_11_2_demo_2026/gif_03_themes_palette.gif) | ![Panel drag-drop](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_16_4_11_2_demo_2026/gif_04_panel_drag_drop.gif) |
+| **Themes page** (PaletteBox · 21 themes) | **Panel · Bar modes** (drag-drop zones) |
+| ![Control Panel](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_16_4_11_2_demo_2026/gif_05_control_panel.gif) | |
+| **Control Panel + Dark Mode** (quick toggles, GTK Dark Mode sync) | |
+
+---
+
+### The Hikari → Tachiagari arc (v6.16.4.12.5 → v6.16.4.12.7.1)
+
+The interlude between Kintsugi stable and Modori. Four codenames in rapid succession:
+
+- **光 · Hikari** — *light · illumination* — illumination across every surface, frosted glass, plugin manager, click-to-open bar triggers (`v6.16.4.12.5 → .6.53`)
+- **翼 · Tsubasa** — *wings · plumage* — Hyprland plugin manager built into Settings; title bars take flight (`v6.16.4.12.6.40` interlude)
+- **開き · Hiraki** — *opening* — click-to-open bar triggers, popup-above-clock, installer hotfix (`v6.16.4.12.6.52 → .53`)
+- **立ち上がり · Tachiagari** — *rising up* — Pill fix, sidebar user row, smart gaming, 4-direction popup edge logic. **The proven base Modori rolled back to.** (`v6.16.4.12.7 → .7.1`)
+
+📺 [Hikari Release Showcase](https://www.youtube.com/watch?v=nS2L9dIQbF4) — most recent video
+
+---
+
+### 縦書き · Tategaki — *ROLLED BACK* (v6.16.4.12.8.x)
+
+Vertical-bar rendering attempt. Three startup-blocking parser errors and a broken empty-bar render. **Reverted in Modori; vertical bar deferred to a properly-staged future release.** Preserved here so the lineage stays honest — not every experiment lands.
+
+---
+
+### 戻り · Modori — *to return* ★ CURRENT STABLE ★ (v6.16.4.12.9.10)
+
+The current stable. After Tategaki was rolled back, the bar code returned to the proven Tachiagari .7.1 base. Modori is what was added on top: smart-contrast theme engine, in-shell WiFi password prompt at `WlrLayer.Overlay`, redesigned WiFi+BT panels, GTK Dark Mode toggle, two new built-in themes with paired procedural enso ink-wash wallpapers. Promoted to stable after the `.11` and `.12` reliability patches landed.
+
+See the **Modori section** above for the full feature list.
+
+**Demo folder:** [`zen_6_16_4_12_9_3/`](https://github.com/Gekinzen/images-demo/tree/main/zen_6_16_4_12_9_3)
+
+---
+
 ## Branch Naming Convention
 
 - **Stable:** `main` (always tracks the latest stable patch level)
