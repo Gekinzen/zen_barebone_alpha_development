@@ -153,13 +153,22 @@ The full Kintsugi-era theme set is preserved. Custom user themes drop into `~/.c
 
 ---
 
-## Demo Gallery
+## Modori Demo Gallery
 
-See the live captures from Modori running on Hyprland 0.54+:
+Live captures from **戻り · Modori v6.16.4.12.9.10** running on Hyprland 0.54+ with the new Modori Dark and Modori Light themes paired with the procedural enso ink-wash wallpapers. Persimmon accent (`#e87554`) carries through every surface — bar, control panel, settings, calendar — courtesy of the smart-contrast engine.
 
-→ **[Browse the full Modori folder on GitHub](https://github.com/Gekinzen/images-demo/tree/main/zen_6_16_4_12_9_3)**
+| | | |
+|---|---|---|
+| ![Modori Dark hero](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_16_4_12_9_3/139a7e9c-15f9-4a32-bf1c-01af9e733206.jpeg) | ![Composition](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_16_4_12_9_3/6f6b715b-23ff-4848-9951-271b37c9d181.jpeg) | ![Surface detail](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_16_4_12_9_3/88899f5d-988a-40a3-b617-11793c725ace.jpeg) |
+| **Hero · Modori Dark** | **Composition · 戻り** | **Surface detail · 戻り** |
+| ![Ink wash](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_16_4_12_9_3/ba068284-016a-4c0f-9558-d3a75856ed23.jpeg) | ![Persimmon accent](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_16_4_12_9_3/caceb645-19f7-4d12-b7ce-dbac49945fbb.jpeg) | ![Smart contrast](https://raw.githubusercontent.com/Gekinzen/images-demo/main/zen_6_16_4_12_9_3/cde0b11c-cf67-40ca-9153-5d88008cd884.jpeg) |
+| **Ink wash · enso wallpaper** | **Persimmon accent · `#e87554`** | **Smart contrast engine** |
 
-A dedicated Modori walkthrough video is on the way. In the meantime, the existing showcases still apply (most of the UI surfaces are unchanged — Modori just adds the smart-contrast engine, in-shell password prompt, and WiFi+BT redesign on top):
+> **Browse the full Modori folder:** [`zen_6_16_4_12_9_3/`](https://github.com/Gekinzen/images-demo/tree/main/zen_6_16_4_12_9_3) on GitHub.
+
+### Video walkthroughs
+
+A dedicated **Modori walkthrough video is on the way**. In the meantime, the existing showcases still apply — most UI surfaces are unchanged, Modori just adds the smart-contrast engine, in-shell password prompt, and WiFi+BT redesign on top:
 
 - 🟢 **[Hikari Release Showcase](https://www.youtube.com/watch?v=nS2L9dIQbF4)** — most recent video (v6.16.4.12.5)
 - [Full Tour · v6.15.x (Ensō)](https://www.youtube.com/watch?v=dNwGRBhA97g)
@@ -299,7 +308,7 @@ The current stable. After Tategaki was rolled back, the bar code returned to the
 
 See the **Modori section** above for the full feature list.
 
-**Demo folder:** [`zen_6_16_4_12_9_3/`](https://github.com/Gekinzen/images-demo/tree/main/zen_6_16_4_12_9_3)
+**Demo folder:** [`zen_6_16_4_12_9_3/`](https://github.com/Gekinzen/images-demo/tree/main/zen_6_16_4_12_9_3) · See the **[Modori Demo Gallery](#modori-demo-gallery)** section above for the full 6-shot showcase.
 
 ---
 
