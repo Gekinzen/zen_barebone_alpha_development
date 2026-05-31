@@ -25,7 +25,7 @@ at `~/.config/alacritty-quick/`, so your normal Alacritty setup is never
 touched. Toggled via a Hyprland special workspace; repositions itself
 correctly on the focused monitor (scale-aware).
 
-### 🔐 Zen Tokyo SDDM greeter
+###  Zen Tokyo SDDM greeter
 A login screen that matches your desktop: big clock, user / session /
 power selectors, blur, and your profile avatar. It tracks your **active
 Zen theme and wallpaper** automatically. Enabling it from
@@ -33,7 +33,7 @@ Zen theme and wallpaper** automatically. Enabling it from
 manager to SDDM — safely, with the previous DM restorable from the same
 toggle (takes effect next reboot).
 
-### 🩺 Hyprbars doctor — `zen-hyprbars-doctor.sh`
+###  Hyprbars doctor — `zen-hyprbars-doctor.sh`
 If hyprbars (window title bars) won't load — "Outdated headers" or
 "headers ver is not equal to running hyprland ver" — run:
 
@@ -48,7 +48,7 @@ from AUR against your **system headers** and loading it directly. See
 `TROUBLESHOOTING-hyprbars.md`. (Confirmed working on a clean CachyOS
 0.55.2 build.)
 
-### 🎯 Dock that adapts
+###  Dock that adapts
 - **Dynamic sizing** — in fullwidth/floating, dock icons shrink to fit
   when crowded, then show scroll arrows once they hit your minimum scale
   (hybrid resize → arrows).
@@ -58,12 +58,12 @@ from AUR against your **system headers** and loading it directly. See
 - **Monitor targeting** — show the dock on primary / all / a specific
   output (auto-detected).
 
-### 📌 Floating taskbar icons
+###  Floating taskbar icons
 Taskbar icons now float inside the bar with padding all around (like the
 dock), so the window-count / workspace / minimize badges under each icon
 are visible.
 
-### ⚙️ Settings & reliability polish
+###  Settings & reliability polish
 - **Taskbar width cap** is now a slider (was hardcoded) — control where
   the taskbar's scroll arrows kick in.
 - **Reliable user creation** — User Management streams live progress and
