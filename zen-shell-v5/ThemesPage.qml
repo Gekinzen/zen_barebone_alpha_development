@@ -61,28 +61,169 @@ ScrollView {
         x: 24; y: 24
         spacing: 16
 
-        // Header
-        ColumnLayout {
+        // v7.0.0-alpha.11: Densho-aware bilingual page header
+        DenshoPageHeader {
             Layout.fillWidth: true
-            spacing: 4
-            Text {
-                text: "Themes"
-                font.family: Theme.fontFamily
-                font.pixelSize: 22
-                font.weight: Font.Bold
-                color: ThemeService.fg
-            }
-            Text {
-                text: "Switch, import, export color themes"
-                font.family: Theme.fontFamily
-                font.pixelSize: 12
-                color: ThemeService.grey1
-            }
+            title: "Themes"
+            subtitle: "Switch, import, export color themes"
+            kanji: "色"
+            romaji: "Iro"
         }
 
         ControlCenterBanner {
             feature: "Advanced Theme Editing"
             description: "Per-app color tuning, bezier/curves, palette editor in Hypr Control Center"
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // v7.0.0-alpha.2 (Densho Foundation) — Densho identity toggles
+        //
+        // Special section that activates the "Densho" (伝承) aesthetic.
+        // Rendered with shu-iro accent border to distinguish from
+        // ordinary theme switching. Granular: master toggle + 4 sub-
+        // toggles, each independently persisted in densho.state.
+        //
+        // Wala tayong babawasan — section is purely additive. Removing
+        // it leaves all Densho components inert.
+        // ═══════════════════════════════════════════════════════════
+        SettingsSection {
+            title: "Densho · 伝承"
+
+            // Distinct visual treatment: shu-iro tinted top border
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 1
+                color: "#B85540"
+                opacity: 0.3
+            }
+
+            Text {
+                Layout.fillWidth: true
+                Layout.topMargin: 4
+                Layout.bottomMargin: 8
+                text: "Tradition transmitted — washi paper ground, sumi ink, shu-iro vermilion. " +
+                      "Each sub-toggle is independent; flip the master on to apply."
+                font.family: Theme.fontFamily
+                font.pixelSize: 11
+                color: ThemeService.grey1
+                wrapMode: Text.Wrap
+            }
+
+            // ── MASTER TOGGLE ──
+            SettingRow {
+                label: "Densho mode"
+                description: DenshoService.denshoMode
+                    ? "Active — sub-toggles below take effect"
+                    : "Off — sub-toggles below are inert until master is on"
+
+                HMSwitch {
+                    checked: DenshoService.denshoMode
+                    onToggled: DenshoService.denshoMode = checked
+                }
+            }
+
+            // Subtle gap visual
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 1
+                Layout.topMargin: 4
+                Layout.bottomMargin: 4
+                color: ThemeService.fg
+                opacity: 0.08
+            }
+
+            // ── SUB-TOGGLE 1: Kanji workspaces ──
+            SettingRow {
+                label: "Kanji workspaces"
+                description: "Replace workspace labels with 一 二 三 四 五 …"
+                enabled: DenshoService.denshoMode
+
+                HMSwitch {
+                    checked: DenshoService.kanjiWorkspaces
+                    onToggled: DenshoService.kanjiWorkspaces = checked
+                }
+            }
+
+            // ── SUB-TOGGLE 2: Vertical date ──
+            SettingRow {
+                label: "Vertical kanji date"
+                description: "Clock widget shows year as vertical kanji column (二〇二六)"
+                enabled: DenshoService.denshoMode
+
+                HMSwitch {
+                    checked: DenshoService.verticalDate
+                    onToggled: DenshoService.verticalDate = checked
+                }
+            }
+
+            // ── SUB-TOGGLE 3: Seasonal kanji ──
+            SettingRow {
+                label: "Seasonal kanji column"
+                description: {
+                    if (!DenshoService.currentSekki)
+                        return "Right-edge desktop column with the current 24-sekki season"
+                    return "Currently: " + DenshoService.currentSekki.kanji + " · " +
+                                            DenshoService.currentSekki.romaji + " (" +
+                                            DenshoService.currentSekki.english + ")"
+                }
+                enabled: DenshoService.denshoMode
+
+                HMSwitch {
+                    checked: DenshoService.seasonalKanji
+                    onToggled: DenshoService.seasonalKanji = checked
+                }
+            }
+
+            // ── SUB-TOGGLE 4: Brush separators ──
+            SettingRow {
+                label: "Brush-stroke separators"
+                description: "Bar separators fade like sumi ink instead of hard lines"
+                enabled: DenshoService.denshoMode
+
+                HMSwitch {
+                    checked: DenshoService.brushSeparators
+                    onToggled: DenshoService.brushSeparators = checked
+                }
+            }
+
+            // ── Recommended pairing hint ──
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.topMargin: 8
+                Layout.preferredHeight: hintCol.implicitHeight + 16
+                radius: 8
+                color: Qt.rgba(0xB8/255, 0x55/255, 0x40/255, 0.08)
+                border.color: Qt.rgba(0xB8/255, 0x55/255, 0x40/255, 0.25)
+                border.width: 1
+                visible: DenshoService.denshoMode
+
+                Column {
+                    id: hintCol
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.leftMargin: 12
+                    anchors.rightMargin: 12
+                    spacing: 4
+
+                    Text {
+                        text: "Recommended pairing"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 11
+                        font.weight: Font.Medium
+                        color: "#B85540"
+                    }
+                    Text {
+                        width: parent.width
+                        text: "Switch the active theme to Densho Hi (light) or Densho Yoru (dark) " +
+                              "above for the full traditional palette."
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 11
+                        color: ThemeService.grey1
+                        wrapMode: Text.Wrap
+                    }
+                }
+            }
         }
 
         // ── Theme Switcher ──
@@ -266,7 +407,7 @@ ScrollView {
                     // Native QtQuick.Controls Switch — matches the look of
                     // other toggles on this page without needing the HMSwitch
                     // component (which lives in the Hypr Control Center side).
-                    Switch {
+                    HMSwitch {
                         id: matugenSwitch
                         checked: ThemeService.matugenEnabled
                         enabled: ThemeService.matugenAvailable
@@ -938,9 +1079,9 @@ ScrollView {
                 label: "Import Theme"
                 description: "Load a .json theme file into your custom folder"
 
-                Button {
-                    text: "\uf019  Import..."
-                    font.family: "JetBrainsMono Nerd Font"
+                                ZenButton {
+                    iconText: "\uf019"
+                    text: "Import..."
                     onClicked: root.openImportPicker()
                 }
             }
@@ -949,9 +1090,9 @@ ScrollView {
                 label: "Export Current"
                 description: "Save the current theme as a JSON file"
 
-                Button {
-                    text: "\uf093  Export..."
-                    font.family: "JetBrainsMono Nerd Font"
+                                ZenButton {
+                    iconText: "\uf093"
+                    text: "Export..."
                     onClicked: root.openExportPicker()
                 }
             }
@@ -962,9 +1103,9 @@ ScrollView {
                              ? "⚠ Cannot delete builtin themes"
                              : "Delete the current custom theme"
 
-                Button {
-                    text: "\uf1f8  Delete"
-                    font.family: "JetBrainsMono Nerd Font"
+                                ZenButton {
+                    iconText: "\uf1f8"
+                    text: "Delete"
                     enabled: !ThemeService.currentIsBuiltin
                     onClicked: {
                         const current = ThemeService.availableThemes.find(t => t.id === ThemeService.themeId)

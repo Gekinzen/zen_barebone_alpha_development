@@ -65,6 +65,48 @@ Singleton {
     property string audioSinkId: "@DEFAULT_AUDIO_SINK@"
     property string audioIcon: "\uf028"  // nerd:  / /
 
+    // v7.0.0-beta.1-hf11: track previous volume so we can fire OSD on
+    // every external change (e.g. from XF86 media keys via the
+    // zen-volume-notify.sh script). The script uses wpctl which our
+    // poll picks up — but without this handler, the OSD only fires
+    // when we ourselves called setVolume() inside QML.
+    property int _lastOsdVolume: -1
+    // v7.0.0-beta.1-hf19: skip sound effects during first 3s of shell life.
+    // The first poll happens almost immediately; if the user already has
+    // unusual values (e.g. mic muted), the onChanged handlers would fire
+    // mid-init while many singletons are still constructing their
+    // Process objects, contributing to crashes.
+    property int _serviceStartMs: Date.now()
+    function _isWarmedUp() {
+        return (Date.now() - _serviceStartMs) > 3000
+    }
+
+    onAudioVolumeChanged: {
+        if (audioVolume !== _lastOsdVolume && _lastOsdVolume >= 0) {
+            if (typeof NotificationService !== "undefined"
+                && NotificationService.showVolumeOSD) {
+                NotificationService.showVolumeOSD(audioMuted ? 0 : (audioVolume / 100))
+            }
+            // v7.0.0-beta.1-hf17: play volume-change tick sound on every
+            // user-initiated change. Guarded by warmup so we don't fire
+            // during the first poll storm right after shell start.
+            if (_isWarmedUp() && typeof SoundEffectsService !== "undefined") {
+                SoundEffectsService.play("volume-change")
+            }
+        }
+        _lastOsdVolume = audioVolume
+    }
+    onAudioMutedChanged: {
+        if (typeof NotificationService !== "undefined"
+            && NotificationService.showVolumeOSD) {
+            NotificationService.showVolumeOSD(audioMuted ? 0 : (audioVolume / 100))
+        }
+        // v7.0.0-beta.1-hf17 + hf19 warmup guard
+        if (_isWarmedUp() && typeof SoundEffectsService !== "undefined") {
+            SoundEffectsService.play("mute")
+        }
+    }
+
     // Mic
     property int micVolume: 0
     property bool micMuted: false
@@ -102,12 +144,29 @@ Singleton {
         _runAction(["bash", "-c", "wpctl set-volume @DEFAULT_AUDIO_SINK@ " + (clamped / 100).toFixed(2)])
         audioVolume = clamped
         _updateAudioIcon()
+        // v7.0.0-alpha.12: surface OSD ring on direct user volume changes
+        if (typeof NotificationService !== "undefined" && NotificationService.showVolumeOSD) {
+            NotificationService.showVolumeOSD(clamped / 100)
+        }
+    }
+
+    // v7.0.0-beta.1-hf11: mic volume setter (was missing — the
+    // Quick Settings mic slider was a no-op because the setter
+    // didn't exist).
+    function setMicVolume(vol) {
+        const clamped = Math.max(0, Math.min(100, vol))
+        _runAction(["bash", "-c", "wpctl set-volume @DEFAULT_AUDIO_SOURCE@ " + (clamped / 100).toFixed(2)])
+        micVolume = clamped
     }
 
     function toggleMute() {
         _runAction(["bash", "-c", "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"])
         audioMuted = !audioMuted
         _updateAudioIcon()
+        // v7.0.0-alpha.12: OSD ring shows muted state (volume 0 visually)
+        if (typeof NotificationService !== "undefined" && NotificationService.showVolumeOSD) {
+            NotificationService.showVolumeOSD(audioMuted ? 0 : (audioVolume / 100))
+        }
     }
 
     function toggleMicMute() {

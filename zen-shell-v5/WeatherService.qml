@@ -49,6 +49,45 @@ Singleton {
     // soon as the first fetch completes.
     property string emojiIcon: "🌤️"
 
+    // v7.0.0-beta.1-hf2: 7-DAY HISTORY
+    //
+    // Persists daily snapshots of (date, temp, condition, icon) so
+    // the widget can display past data even when offline. Cleaned to
+    // max 7 entries on every save.
+    //
+    // Snapshot triggers once per day on first refresh after midnight,
+    // based on the lastHistoryDate property.
+    property var history: []                  // [{ date: "YYYY-MM-DD", temp, condition, icon, emoji }]
+    property string lastHistoryDate: ""       // YYYY-MM-DD of last snapshot
+
+    function _appendHistorySnapshot() {
+        const today = new Date()
+        const ymd = today.getFullYear() + "-"
+                    + String(today.getMonth() + 1).padStart(2, "0") + "-"
+                    + String(today.getDate()).padStart(2, "0")
+        if (root.lastHistoryDate === ymd) return  // already logged today
+
+        const snapshot = {
+            date: ymd,
+            temp: root.temperature,
+            condition: root.condition,
+            icon: root.icon,
+            emoji: root.emojiIcon,
+            location: root.locationName
+        }
+
+        const hist = root.history.slice()
+        hist.push(snapshot)
+        // Keep only last 7 days
+        while (hist.length > 7) hist.shift()
+
+        root.history = hist
+        root.lastHistoryDate = ymd
+        root.saveCache()   // persist
+        console.log("[Weather] History snapshot for " + ymd
+                    + " (now " + hist.length + " entries)")
+    }
+
     // ── WMO weather code → emoji mapping (for desktop widgets) ──
     function wmoEmoji(code) {
         const map = {
@@ -103,11 +142,22 @@ Singleton {
     }
 
     // ── Auto-refresh every 30 min ──
+    //
+    // v7.0.0-alpha.5 (Karui Laptop Mode): refresh is gated on
+    // LaptopModeService.weatherRefreshAllowed. When user is on battery
+    // and capacity is low (<20% balanced / <15% endurance), the timer
+    // still fires but onTriggered short-circuits — saving the network
+    // round-trip + parse work. Always-true when service is "off" or
+    // when plugged in.
     Timer {
         interval: 1800000  // 30 min
         repeat: true
         running: true
-        onTriggered: root.refresh()
+        onTriggered: {
+            if (typeof LaptopModeService !== "undefined"
+                && !LaptopModeService.weatherRefreshAllowed) return
+            root.refresh()
+        }
     }
 
     // ── Location detection ──
@@ -185,6 +235,8 @@ Singleton {
                     const now = new Date()
                     root.lastUpdated = now.getHours().toString().padStart(2, "0") + ":" +
                                        now.getMinutes().toString().padStart(2, "0")
+                    // v7.0.0-beta.1-hf2: log daily snapshot (once per day)
+                    root._appendHistorySnapshot()
                     root.saveCache()
                 } catch (e) {
                     console.error("[Weather] Parse error:", e)
@@ -206,11 +258,65 @@ Singleton {
         weatherFetcher.running = true
     }
 
+    // v7.0.0-beta.1-hf2: GEOCODING for manual location
+    //
+    // When user types a city name (e.g. "Antipolo") in WidgetsPage,
+    // we hit Open-Meteo's free geocoding API to convert it to
+    // lat/lon, then fetch weather as usual.
+    //
+    // Endpoint: https://geocoding-api.open-meteo.com/v1/search?name=X
+    function geocodeManual() {
+        if (!manualLocation || manualLocation.length === 0) return
+        loading = true
+        const q = encodeURIComponent(manualLocation)
+        const url = "https://geocoding-api.open-meteo.com/v1/search?name="
+                    + q + "&count=1&language=en&format=json"
+        geocodeFetcher.command = ["curl", "-s", "--connect-timeout", "8", url]
+        geocodeFetcher.running = true
+    }
+
+    Process {
+        id: geocodeFetcher
+        running: false
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const data = JSON.parse(this.text)
+                    if (data.results && data.results.length > 0) {
+                        const r = data.results[0]
+                        root.lat = r.latitude
+                        root.lon = r.longitude
+                        root.locationName = r.name
+                            + (r.admin1 ? ", " + r.admin1 : "")
+                            + (r.country ? ", " + r.country : "")
+                        root.saveConfig()
+                        // Now fetch actual weather for this location
+                        root.fetchWeather()
+                    } else {
+                        console.warn("[Weather] Geocoding failed for: " + root.manualLocation)
+                        root.loading = false
+                    }
+                } catch (e) {
+                    console.error("[Weather] Geocoding parse error:", e)
+                    root.loading = false
+                }
+            }
+        }
+    }
+
     function refresh() {
-        if (locationMode === "auto" && lat === 0) {
-            detectLocation()
-        } else {
-            fetchWeather()
+        // v7.0.0-beta.1-hf2: handle all 4 paths cleanly:
+        //   - auto mode, lat unknown    → IP-based detect
+        //   - auto mode, lat known      → fetch weather directly
+        //   - manual mode, location set → geocode → fetch weather
+        //   - manual mode, no location  → do nothing
+        if (locationMode === "auto") {
+            if (lat === 0) detectLocation()
+            else fetchWeather()
+        } else if (locationMode === "manual") {
+            if (manualLocation && manualLocation.length > 0) {
+                geocodeManual()
+            }
         }
     }
 
@@ -238,6 +344,8 @@ Singleton {
             humidity: humidity, windSpeed: windSpeed,
             locationName: locationName,
             forecast: forecast,
+            history: history,                              // v7.0.0-beta.1-hf2
+            lastHistoryDate: lastHistoryDate,              // v7.0.0-beta.1-hf2
             lastUpdated: lastUpdated,
             timestamp: new Date().toISOString()
         }
@@ -283,6 +391,11 @@ Singleton {
                     if (c.forecast) root.forecast = c.forecast
                     root.lastUpdated = c.lastUpdated || ""
                 }
+                // v7.0.0-beta.1-hf2: Always restore history (independent of
+                // cache freshness) — history is meant to survive offline
+                // periods, so even stale cache should return its history.
+                if (c.history && Array.isArray(c.history)) root.history = c.history
+                if (c.lastHistoryDate) root.lastHistoryDate = c.lastHistoryDate
             } catch (e) {}
         }
     }

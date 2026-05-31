@@ -116,9 +116,17 @@ Singleton {
         return ThemeService.red
     }
 
-    // ── Auto-refresh every 2s ──
+    // ── Auto-refresh ──
+    //
+    // v7.0.0-alpha.5 (Karui Laptop Mode): Timer interval is now bound to
+    // LaptopModeService.intervalSystemMonitor. Defaults to 2000ms (the
+    // pre-v7 value) when LaptopModeService.mode === "off". Adapts down
+    // to 5000–30000ms based on mode + battery%/AC state. See
+    // LaptopModeService.qml header comment for the full table.
     Timer {
-        interval: 2000
+        interval: (typeof LaptopModeService !== "undefined")
+            ? LaptopModeService.intervalSystemMonitor
+            : 2000
         repeat: true
         running: true
         onTriggered: root.update()

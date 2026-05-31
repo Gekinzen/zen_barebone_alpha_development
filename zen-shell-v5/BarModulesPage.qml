@@ -186,6 +186,94 @@ ScrollView {
             }
         }
 
+        // ═══ START MENU (v7.0.0-alpha.4) ═══
+        //
+        // Dynamic pinned-grid configuration for the dual-pane Start
+        // Menu Panel. Cols clamped 3-6, rows 1-8 by the panel itself;
+        // here we surface them as steppers. Changes apply instantly
+        // (PanelState fires propertyChanged → menuRoot rebinds).
+        HMSection {
+            title: "Start Menu"
+            subtitle: "Pinned-apps grid layout for the dual-pane panel"
+
+            HMRow {
+                label: "Pinned grid columns"
+                description: "How many app tiles per row in the pinned section (3-6)"
+                icon: "\uf0db"   // columns
+                separator: true
+
+                NumericStepper {
+                    value: PanelState.pinnedGridCols
+                    from: 3
+                    to: 6
+                    stepSize: 1
+                    onValueChanged: {
+                        PanelState.pinnedGridCols = value
+                        PanelState.saveState()
+                    }
+                }
+            }
+
+            HMRow {
+                label: "Pinned grid rows"
+                description: "How many rows tall the pinned section grows (1-8)"
+                icon: "\uf0c9"   // rows / bars
+                separator: true
+
+                NumericStepper {
+                    value: PanelState.pinnedGridRows
+                    from: 1
+                    to: 8
+                    stepSize: 1
+                    onValueChanged: {
+                        PanelState.pinnedGridRows = value
+                        PanelState.saveState()
+                    }
+                }
+            }
+
+            HMRow {
+                label: "Panel border"
+                description: "Off · Match Bar (continuous with bar border) · Thick (emphasized 2× width)"
+                icon: "\uf2d2"   // border-style
+                separator: true
+
+                ZenDropdown {
+                    width: root.dropdownWidth
+                    model: ["Off", "Match Bar", "Thick"]
+                    currentIndex: {
+                        switch (PanelState.startMenuBorderMode) {
+                            case "off":       return 0
+                            case "match-bar": return 1
+                            case "thick":     return 2
+                            default:          return 1
+                        }
+                    }
+                    onActivated: {
+                        const modes = ["off", "match-bar", "thick"]
+                        PanelState.startMenuBorderMode = modes[currentIndex] || "match-bar"
+                        PanelState.saveState()
+                    }
+                }
+            }
+
+            HMRow {
+                label: "Auto-detect apps"
+                description: "Detected from pacman, AUR (yay/paru → ~/.local/share/applications), "
+                             + "Flatpak (system + user), and Snap. Auto-refreshes within ~500ms after install."
+                icon: "\uf0c2"   // cloud (info-only row)
+
+                Text {
+                    text: typeof AppLauncherService !== "undefined"
+                        ? AppLauncherService.apps.length + " apps detected"
+                        : "service unavailable"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 12
+                    color: ThemeService.grey1
+                }
+            }
+        }
+
         // ═══════════════════════════════════════════════════════════
         // v6.16.3.4.5 — Bar module visibility toggles
         // ═══════════════════════════════════════════════════════════
@@ -240,7 +328,7 @@ ScrollView {
                 description: "The bar re-renders instantly after toggle — but if the badge "
                              + "doesn't appear, click here to force a shell restart."
                 icon: "\uf021"  // fa-refresh
-                Button {
+                                ZenButton {
                     text: "Restart shell"
                     onClicked: reloadShellProc.running = true
                 }

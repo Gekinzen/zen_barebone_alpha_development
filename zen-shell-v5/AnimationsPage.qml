@@ -321,7 +321,7 @@ ScrollView {
                             Layout.fillWidth: true
                         }
                     }
-                    Button {
+                                        ZenButton {
                         text: "Restore default"
                         onClicked: root.applyPreset("Default (Current)")
                     }

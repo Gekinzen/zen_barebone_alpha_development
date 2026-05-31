@@ -470,14 +470,23 @@ Item {
                 }
 
                 // Subtle separator between format and notifications
+                // hf66 — hidden with the notifications row below
                 Rectangle {
+                    visible: false   // hf66: hidden with notif row
                     Layout.fillWidth: true
                     Layout.preferredHeight: 1
                     color: Theme.alpha(Theme.fg, 0.06)
                 }
 
-                // ─── NOTIFICATIONS ROW (flat, no nested bg) ───
+                // ─── NOTIFICATIONS ROW ───
+                // v7.0.0-beta.1-hf66 — HIDDEN per user request.
+                // "useless na yun nakahiwalay naman yun notification ko"
+                // Notification Center is a separate dedicated panel now;
+                // this inline row in the calendar popup is redundant.
+                // Kept in code (visible: false) rather than deleted
+                // so it can be re-enabled if needed. Wala tayong babawasan.
                 Rectangle {
+                    visible: false   // hf66: hidden — use Notification Center instead
                     Layout.fillWidth: true
                     Layout.preferredHeight: 36
                     radius: 8

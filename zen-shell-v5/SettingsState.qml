@@ -73,6 +73,18 @@ Singleton {
     // ── Animations ──
     property string currentAnimPreset: "Default (Current)"
 
+    // ── SDDM login screen (v7.0.0-beta.1-hf95.12) ──
+    // Master switch: when false, theme changes do NOT push to the greeter
+    // (the sddmThemer in ThemeService no-ops). When true, the greeter is
+    // kept in sync on theme apply / login.
+    property bool sddmLoginEnabled: false
+    // Background source for the greeter:
+    //   "wallpaper" → user's current wallpaper, blurred (default)
+    //   "matugen"   → solid colour derived from the active scheme (bg0)
+    property string sddmBackgroundMode: "wallpaper"
+    onSddmLoginEnabledChanged: if (initialized) saveTimer.restart()
+    onSddmBackgroundModeChanged: if (initialized) saveTimer.restart()
+
     // ── Flags ──
     property bool initialized: false
     property bool dirty: false
@@ -136,6 +148,10 @@ Singleton {
             },
             animations: {
                 currentPreset: currentAnimPreset
+            },
+            sddm: {
+                loginEnabled: sddmLoginEnabled,
+                backgroundMode: sddmBackgroundMode
             }
         }
         const json = JSON.stringify(state, null, 2)
@@ -165,6 +181,10 @@ Singleton {
 
             const an = s.animations || {}
             if (an.currentPreset) currentAnimPreset = an.currentPreset
+
+            const sd = s.sddm || {}
+            if (typeof sd.loginEnabled === "boolean") sddmLoginEnabled = sd.loginEnabled
+            if (sd.backgroundMode) sddmBackgroundMode = sd.backgroundMode
 
             console.log("[SettingsState] Loaded from JSON")
         } catch(e) {

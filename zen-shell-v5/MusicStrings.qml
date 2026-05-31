@@ -86,6 +86,23 @@ Item {
         onTriggered: { statusProc.running = true; metadataProc.running = true }
     }
 
+    // v7.0.0-beta.1-hf95.12: click control. MusicStrings replaces
+    // MusicWidget whenever strings are enabled (both bars), so it must be
+    // clickable too — otherwise left-click play/pause silently does
+    // nothing (the bug Paul hit). Uses playerctl, same as the pollers.
+    property string _ctlArg: "play-pause"
+    Process {
+        id: controlProc; running: false
+        command: ["bash", "-c", "playerctl " + root._ctlArg + " 2>/dev/null || true"]
+        onExited: {
+            // Refresh state immediately so the glyph flips without waiting
+            // for the 2s poll.
+            statusProc.running = true
+            metadataProc.running = true
+        }
+    }
+    function _control(arg) { root._ctlArg = arg; controlProc.running = true }
+
     Process {
         id: statusProc; running: false
         command: ["bash", "-c", "playerctl status 2>/dev/null || echo Stopped"]
@@ -122,7 +139,12 @@ Item {
         }
     }
 
-    Timer { id: cavaStartTimer; interval: 300; repeat: false
+    // v7.0.0-beta.1-hf8: cava start delayed 300ms → 5000ms to skip
+    // boot/login chimes that were triggering the rope animation
+    // before user even sat down. After 5s, boot sounds have finished
+    // and cava only reacts to actual music/system audio the user
+    // intentionally produces.
+    Timer { id: cavaStartTimer; interval: 5000; repeat: false
         onTriggered: cavaProc.running = true }
 
     Process {
@@ -193,12 +215,20 @@ Item {
         }
     }
 
-    // ── Hover detect ──
+    // ── Hover + click ──
+    // hf95.12: now accepts clicks (was Qt.NoButton → not clickable, which
+    // is why left-click play/pause did nothing whenever strings were on).
     MouseArea {
         id: hoverArea
         anchors.fill: parent
         hoverEnabled: true
-        acceptedButtons: Qt.NoButton
+        cursorShape: Qt.PointingHandCursor
+        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+        onClicked: (mouse) => {
+            if (mouse.button === Qt.LeftButton)       root._control("play-pause")
+            else if (mouse.button === Qt.RightButton) root._control("next")
+            else                                      root._control("previous")
+        }
     }
 
     // ── Tooltip — same PopupWindow pattern as SysRowIcon ──
@@ -209,8 +239,9 @@ Item {
         anchor.edges: PanelState.popupAnchorEdges
         anchor.gravity: PanelState.popupAnchorGravity
         visible: hoverArea.containsMouse && root.trackInfo.length > 0
-        width: tipText.implicitWidth + tipDot.width + tipRow.spacing + 28
-        height: tipRow.implicitHeight + 18
+        // v7.0.0-beta.1: implicit* (was bare width/height, deprecated)
+        implicitWidth: tipText.implicitWidth + tipDot.width + tipRow.spacing + 28
+        implicitHeight: tipRow.implicitHeight + 18
         color: "transparent"
 
         Rectangle {

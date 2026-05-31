@@ -760,9 +760,22 @@ Item {
 
     function buildAnnotationSvg() {
         const w = anchorDx, h = anchorDy
+        // v7.0.0-beta.1-hf38: belt-and-suspenders for transparency.
+        //
+        // Adding style="background-color:transparent" + style on root
+        // makes the canvas explicitly transparent at the SVG-content
+        // level so any rasterizer that doesn't respect ImageMagick's
+        // -background flag (some older librsvg builds) will still
+        // produce transparent output.
+        //
+        // The default SVG spec says the canvas is transparent, but
+        // ImageMagick's rsvg delegate has historically painted white
+        // unless told otherwise. Explicit declaration removes all
+        // ambiguity.
         var svg = '<svg xmlns="http://www.w3.org/2000/svg" '
                 + 'width="' + w + '" height="' + h + '" '
-                + 'viewBox="0 0 ' + w + ' ' + h + '">'
+                + 'viewBox="0 0 ' + w + ' ' + h + '" '
+                + 'style="background-color:transparent">'
 
         function esc(s) {
             return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
@@ -893,14 +906,47 @@ Item {
                +  "echo \"grim ok $(stat -c%s '" + tmpRaw + "')b\" >> \"$LOG\"; "
 
         // Step 2: compose annotations (if any) → PNG output
+        //
+        // v7.0.0-beta.1-hf38 IMAGEMAGICK FIX:
+        //
+        // The SVG read MUST be preceded by `-background none`. Order
+        // matters in ImageMagick — flags only affect the next image
+        // being read. Previously the order was:
+        //
+        //   magick 'raw.png' \( 'overlay.svg' -background none \) ...
+        //                                    ^^^^^^^^^^^^^^^^^
+        //                                    TOO LATE — SVG already
+        //                                    rasterized with white bg
+        //
+        // Per official ImageMagick docs:
+        // "The rasterized SVG is drawn over the current -background
+        //  setting, which is white by default."
+        //
+        // Fix: move -background none BEFORE the SVG path inside the
+        // parens. Also add -alpha set + density 96 for extra safety
+        // on older rsvg delegate versions that ignore -background:
+        //
+        //   magick 'raw.png' \( -background none -density 96 \
+        //                       'overlay.svg' -alpha set \) ...
+        //
+        // This is the "may white background pag may annotation"
+        // bug Paul reported in hf37. The annotation drawing path
+        // (pen, circle, rect, etc.) writes to an SVG via FileView,
+        // then ImageMagick composites that SVG onto the grim
+        // capture. Without explicit -background none before the
+        // SVG read, the SVG canvas is opaque white, which makes
+        // the entire composited area white outside the actual
+        // stroke lines.
         if (hasAnnots) {
             script += "if [ -s '" + tmpOverlay + "' ] && command -v magick >/dev/null 2>&1; then "
-                   +  "  magick '" + tmpRaw + "' \\( '" + tmpOverlay + "' -background none \\) "
+                   +  "  magick '" + tmpRaw + "' \\( -background none -density 96 "
+                   +  "    '" + tmpOverlay + "' -alpha set \\) "
                    +  "    -compose over -composite '" + finalFile + "' 2>>\"$LOG\" "
                    +  "    && echo 'composite ok' >> \"$LOG\" "
                    +  "    || { echo 'composite fail, using raw' >> \"$LOG\"; cp '" + tmpRaw + "' '" + finalFile + "'; }; "
                    +  "elif [ -s '" + tmpOverlay + "' ] && command -v convert >/dev/null 2>&1; then "
-                   +  "  convert '" + tmpRaw + "' \\( '" + tmpOverlay + "' -background none \\) "
+                   +  "  convert '" + tmpRaw + "' \\( -background none -density 96 "
+                   +  "    '" + tmpOverlay + "' -alpha set \\) "
                    +  "    -compose over -composite '" + finalFile + "' 2>>\"$LOG\" "
                    +  "    && echo 'composite ok' >> \"$LOG\" "
                    +  "    || { echo 'composite fail, using raw' >> \"$LOG\"; cp '" + tmpRaw + "' '" + finalFile + "'; }; "

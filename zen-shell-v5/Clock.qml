@@ -90,6 +90,11 @@ import Quickshell.Io
 Rectangle {
     id: root
 
+    // v7.0.0-beta.1-hf91.1: explicit vertical mode (end-4 style). In a
+    // vertical bar the clock sizes to the bar thickness and stacks its
+    // text so the full date/time fits. Default false → original.
+    property bool zenVertical: false
+
     // ── z-stack — Clock stays above sibling bar modules ──
     z: 1
 
@@ -97,10 +102,10 @@ Rectangle {
     readonly property real _contentW: iconText.implicitWidth
                                     + 8                   // RowLayout spacing
                                     + clockText.implicitWidth
-    width:  _contentW + 24
-    height: Theme.moduleHeight
-    Layout.preferredWidth:  _contentW + 24
-    Layout.preferredHeight: Theme.moduleHeight
+    width:  zenVertical ? Math.round(Theme.moduleHeight) : (_contentW + 24)
+    height: zenVertical ? (vClockCol.implicitHeight + 12) : Theme.moduleHeight
+    Layout.preferredWidth:  zenVertical ? Math.round(Theme.moduleHeight) : (_contentW + 24)
+    Layout.preferredHeight: zenVertical ? (vClockCol.implicitHeight + 12) : Theme.moduleHeight
     Layout.alignment: Qt.AlignVCenter
 
     // ── Theme-synced background ──
@@ -124,8 +129,18 @@ Rectangle {
     // ─────────────────────────────────────────────────────────────
     RowLayout {
         id: layoutRow
+        visible: !root.zenVertical
         anchors.centerIn: parent
         spacing: 8
+
+        // v7.0.0-alpha.3 (Densho Surfaces): vertical kanji year column
+        // + day-of-week kanji in shu-iro accent. Visible only when
+        // DenshoService.useVerticalDate is true; collapses to zero
+        // width otherwise so existing layout is unaffected.
+        DenshoVerticalDate {
+            now: root.now
+            Layout.alignment: Qt.AlignVCenter
+        }
 
         Text {
             id: iconText
@@ -136,6 +151,10 @@ Rectangle {
                    ? ThemeService.blue
                    : ThemeService.fg
             Behavior on color { ColorAnimation { duration: 150 } }
+            // v7.0.0-alpha.3: hide the Nerd Font clock icon when Densho
+            // vertical date is on — the kanji column already serves as
+            // the leading visual anchor for the clock module.
+            visible: !DenshoService.useVerticalDate
         }
 
         Text {
@@ -158,8 +177,57 @@ Rectangle {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // Position reporter — Hotfix 1 (v6.16.4.12.6.53)
+    // v7.0.0-beta.1-hf93: vertical clock — 2-row readout. Top row is the
+    // time stacked as H over MM (e.g. 9 / 29) so it fits the thin bar and
+    // reads as the time; bottom is a compact MM/DD date. No leading-zero
+    // on the hour (9, not 09).
+    Column {
+        id: vClockCol
+        visible: root.zenVertical
+        anchors.centerIn: parent
+        spacing: 2
+
+        // Hour (no leading zero) over minutes — the "time" block.
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: Qt.formatDateTime(root.now, "h")
+            font.family: ZenConstants.fontPrimary(PanelState.fontFamilyId)
+            font.pixelSize: 15
+            font.weight: Font.Bold
+            color: ThemeService.fg
+        }
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: Qt.formatDateTime(root.now, "mm")
+            font.family: ZenConstants.fontPrimary(PanelState.fontFamilyId)
+            font.pixelSize: 15
+            font.weight: Font.Bold
+            color: ThemeService.fg
+        }
+
+        Rectangle {
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: parent.width * 0.55; height: 1
+            color: ThemeService.alpha(ThemeService.fg, 0.25)
+        }
+
+        // Date row: MM/DD stacked small.
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: Qt.formatDateTime(root.now, "MM")
+            font.family: ZenConstants.fontPrimary(PanelState.fontFamilyId)
+            font.pixelSize: 10
+            color: ThemeService.grey1
+        }
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: Qt.formatDateTime(root.now, "dd")
+            font.family: ZenConstants.fontPrimary(PanelState.fontFamilyId)
+            font.pixelSize: 10
+            color: ThemeService.grey1
+        }
+    }
+
     // ─────────────────────────────────────────────────────────────
     // Mirrors the StartMenu.qml pattern: compute the clock's GLOBAL
     // screen-space center-X and right-edge-X, push them to PanelState

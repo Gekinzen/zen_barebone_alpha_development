@@ -374,7 +374,7 @@ ScrollView {
                         Layout.preferredWidth: 40
                         horizontalAlignment: Text.AlignRight
                     }
-                    Button {
+                                        ZenButton {
                         text: "Reset"
                         onClicked: {
                             PanelState.widgetScale = 1.0
@@ -652,7 +652,20 @@ ScrollView {
             HMRow { label: "Location mode"; description: "Auto-detect or manual"; icon: "\uf3c5"; separator: true
                 ZenDropdown { width: root.dropdownWidth; model: ["Auto-detect (IP)", "Manual"]
                     currentIndex: root.weatherMode === "auto" ? 0 : 1
-                    onActivated: { root.weatherMode = currentIndex === 0 ? "auto" : "manual"; root.saveState() }
+                    onActivated: {
+                        root.weatherMode = currentIndex === 0 ? "auto" : "manual"
+                        root.saveState()
+                        // v7.0.0-beta.1-hf2: bridge to WeatherService so the
+                        // change actually takes effect. Was previously only
+                        // saving to WidgetsPage state — WeatherService never
+                        // got the memo, so "Antipolo" in the input did nothing.
+                        WeatherService.locationMode = root.weatherMode
+                        if (root.weatherMode === "manual" && root.weatherLocation.length > 0) {
+                            WeatherService.manualLocation = root.weatherLocation
+                        }
+                        WeatherService.saveConfig()
+                        WeatherService.refresh()
+                    }
                 }
             }
             HMRow { label: "Manual location"; description: "City name when mode is Manual"; icon: "\uf279"; separator: true
@@ -660,7 +673,20 @@ ScrollView {
                     border.width: 1; border.color: locIn.activeFocus ? ThemeService.alpha(ThemeService.blue, 0.5) : ThemeService.alpha(ThemeService.fg, 0.1)
                     TextInput { id: locIn; anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10; verticalAlignment: Text.AlignVCenter
                         text: root.weatherLocation; color: ThemeService.fg; font.family: Theme.fontFamily; font.pixelSize: 12; selectByMouse: true
-                        onEditingFinished: { root.weatherLocation = text; root.saveState() }
+                        onEditingFinished: {
+                            root.weatherLocation = text
+                            root.saveState()
+                            // v7.0.0-beta.1-hf2: push to WeatherService + force refresh.
+                            // Auto-flip mode to "manual" since the user clearly wants
+                            // to use the typed city.
+                            if (text.length > 0) {
+                                WeatherService.manualLocation = text
+                                WeatherService.locationMode = "manual"
+                                root.weatherMode = "manual"
+                                WeatherService.saveConfig()
+                                WeatherService.refresh()
+                            }
+                        }
                         Text { visible: !locIn.text; anchors.fill: parent; verticalAlignment: Text.AlignVCenter; text: "e.g. Antipolo, Manila, Winnipeg"
                             font.family: Theme.fontFamily; font.pixelSize: 12; color: ThemeService.grey1 }
                     }

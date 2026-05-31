@@ -70,6 +70,21 @@ Rectangle {
         return lw + cw + rw + spacer + 16
     }
 
+    // v7.0.0-beta.1-hf83: natural height of the bar's contents — the
+    // tallest of the three module zones. PanelState.barAutoHeight uses
+    // this (via the bar window's implicitHeight in shell.qml) to hug
+    // the bar to its contents instead of a fixed pixel height. Each
+    // zone's implicitHeight already reflects max(child preferredHeight)
+    // thanks to the per-Loader Layout.preferredHeight forwarding added
+    // in v6.16.4.12.6.51. Clamped to a sane floor so an empty bar (all
+    // zones 0) doesn't collapse to nothing during first layout.
+    readonly property int contentImplicitHeight: {
+        const lh = leftRow.implicitHeight
+        const ch = centerRow.implicitHeight
+        const rh = rightRow.implicitHeight
+        return Math.max(20, lh, ch, rh)
+    }
+
     color: {
         if (PanelState.bgOverrideEnabled) {
             return Qt.rgba(
@@ -107,6 +122,8 @@ Rectangle {
     Component { id: cClock;       Clock {} }
     Component { id: cWeather;     ZenWeather {} }
     Component { id: cSysMonitor;  ZenSysMonitor {} }
+    // v7.0.0-alpha.6: clipboard module
+    Component { id: cClipboard;   ClipboardModule {} }
     // v6.16.0: Battery module (hides itself on desktops)
     Component { id: cBattery;     Battery {} }
     // v6.16.3.4: Power profile + GPU mode badge.
@@ -117,6 +134,19 @@ Rectangle {
     // merged Clock component as "clock" — keeping the symbol so
     // existing barLayouts that include "calendar" still work.
     Component { id: cCalendar;    Clock {} }
+
+    // v7.0.0-alpha.13: workflow profile badge (Work/Gaming/Focus/Movie/Sleep)
+    // Left-click → open Control Panel. Right-click → cycle to next profile.
+    Component { id: cWorkflow;    WorkflowProfileBadge {} }
+
+    // v7.0.0-beta.1-hf39 — five new feature modules. User opts in by
+    // adding any of "quicknotes", "focusspaces", "networkpulse",
+    // "smartdim", "titletranslator" to their barLayout array.
+    Component { id: cQuickNotes;      QuickNotesModule {} }
+    Component { id: cFocusSpaces;     FocusSpacesModule {} }
+    Component { id: cNetworkPulse;    NetworkPulseModule {} }
+    Component { id: cSmartDim;        SmartDimModule {} }
+    Component { id: cTitleTranslator; TitleTranslatorModule {} }
 
     // v6.15: music slot — toggles between MusicWidget and MusicStrings
     // musicSlotLocalX / musicSlotLocalWidth: bar-local coordinates of the
@@ -557,12 +587,21 @@ Rectangle {
             case "notifications": return cNotif
             case "clock":         return cClock
             case "weather":       return cWeather
+            case "clipboard":     return cClipboard   // v7.0.0-alpha.6
             case "sysmonitor":    return cSysMonitor
             case "battery":       return cBattery
             // v6.16.3.4: power profile + GPU mode badge
             case "powerbadge":    return cPowerBadge
             // v6.16.4.12: calendar + notif center (Hikari)
             case "calendar":      return cCalendar
+            // v7.0.0-alpha.13: workflow profile badge
+            case "workflow":      return cWorkflow
+            // v7.0.0-beta.1-hf39 — five new feature modules
+            case "quicknotes":      return cQuickNotes
+            case "focusspaces":     return cFocusSpaces
+            case "networkpulse":    return cNetworkPulse
+            case "smartdim":        return cSmartDim
+            case "titletranslator": return cTitleTranslator
         }
         console.warn("[Bar] Unknown module:", name)
         return null
@@ -573,6 +612,12 @@ Rectangle {
         anchors.fill: parent
         anchors.leftMargin: 8
         anchors.rightMargin: 8
+        // v7.0.0-beta.1-hf85: guaranteed top/bottom breathing room so
+        // modules stay centered with an even gap when the bar height
+        // changes. Zones fillHeight within the inset area; modules are
+        // AlignVCenter, so they sit centered with symmetric padding.
+        anchors.topMargin: PanelState.barContentPaddingV
+        anchors.bottomMargin: PanelState.barContentPaddingV
         spacing: 0
 
         RowLayout {

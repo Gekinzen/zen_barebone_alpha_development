@@ -7,408 +7,442 @@ import Quickshell.Io
 import Quickshell.Hyprland
 import Quickshell.Wayland
 
+/*
+ * StartMenuPanel.qml v7.0.0-alpha.4-hf1 — dual-pane (Win11-inspired)
+ *
+ * v7.0.0-alpha.4-hf1 (User feedback fixes):
+ *
+ *   1. PINNED GRID ALIGNMENT — was using GridLayout (which expanded
+ *      to fill its parent height, distributing N rows across all
+ *      configured slots and leaving gaps). Replaced with QtQuick.Grid
+ *      which packs naturally top-left → bottom-right with no gap
+ *      distribution. Items always start from row 0.
+ *
+ *   2. AVATAR — was placeholder first-letter circle. Now uses
+ *      UserProfileService.effectiveAvatarSource (matches v6 behavior:
+ *      custom avatar → /var/lib/AccountsService → fallback to letter).
+ *
+ *   3. FOLDER → THUNAR — was xdg-open ~. Now invokes thunar directly
+ *      (Paul's file manager). Fallback to xdg-open if thunar missing.
+ *
+ *   4. SETTINGS BUTTON RESTORED — was missing in alpha.4. Re-added
+ *      between folder + power, opens Zen Settings panel via the
+ *      same IPC call v6 used (toggleSettings).
+ *
+ *   5. POWER POPUP — was a single logout click. Now expands an
+ *      inline 5-action menu: Lock / Suspend / Logout / Restart /
+ *      Shutdown. Each fires powerActionRequested() with the matching
+ *      action name + command, which shell.qml + PowerConfirmDialog
+ *      already handle (no shell.qml change needed).
+ *
+ *   6. RIGHT-CLICK CONTEXT MENU — was direct toggle on right-click.
+ *      Now shows a small floating popup at cursor position with:
+ *        - "Pin to Start"   + "Cancel"  (when target is unpinned)
+ *        - "Unpin from Start" + "Cancel" (when target is pinned)
+ *      Cancel just closes; Pin/Unpin commits the action.
+ *
+ * Otherwise unchanged from alpha.4: dual-pane layout, dynamic
+ * grid (PanelState.pinnedGridCols/Rows), AppLauncherService-driven
+ * auto-detect + auto-refresh, RecentFilesService-driven recents,
+ * memory/perf optimizations, Densho-aware, ThemeService-bound colors.
+ *
+ * Wala tayong babawasan — public surface (closeRequested,
+ * appLaunched, powerActionRequested, uploadInProgress) preserved.
+ */
 Rectangle {
     id: menuRoot
 
-    // v6.4: honor style mode for radius (rounded/pill) + bind bg to
-    // ThemeService so theme changes repaint live. Border also uses
-    // ThemeService.fg so selected theme affects outline.
-    radius: (PanelState.propagateStyleToModules && Theme.styleMode === "round")
-            ? 22
-            : 16
-    // v6.16.4.12.6: bg alpha 0.92 → 0.72 so the panel feels less like a
-    // solid slab and Hyprland's `ignore_alpha 0.3` startmenu blur layerrule
-    // pulls the wallpaper through. Border slightly stronger (0.12 → 0.14)
-    // to compensate for the lower fill so the panel edge stays defined.
-    color: Qt.rgba(ThemeService.bg0.r, ThemeService.bg0.g, ThemeService.bg0.b, 0.72)
-    border.width: 1
-    border.color: Qt.rgba(ThemeService.fg.r, ThemeService.fg.g, ThemeService.fg.b, 0.14)
-    clip: true
-
+    // ── PUBLIC INTERFACE (shell.qml depends on these) ──
     signal closeRequested()
     signal appLaunched()
     signal powerActionRequested(string action, string command)
-
-    // v6.16.2.3.1: True while a blocking external dialog (zenity file
-    // picker) is open. shell.qml watches this and suspends the
-    // HyprlandFocusGrab so the StartMenu doesn't auto-close when
-    // zenity steals focus. Cleared when the Process exits.
     property bool uploadInProgress: false
 
-    // v6.16.2 icons — Nerd Font Material Design glyphs
-    readonly property string nfPin: "\uf0403"
-    readonly property string nfUser: "\uf007"
-    // v6.16.2 FIX: Previous value "\uf024b" was parsed by Qt as \uf024
-    // (FontAwesome 'flag' glyph) followed by literal 'b'. Correct Nerd
-    // Font folder codepoint is U+F07B (FontAwesome folder).
-    readonly property string nfFolder: "\uf07b"
-    readonly property string nfSettings: "\uf013"
-    readonly property string nfPower: "\u23fb"
-    readonly property string nfSearch: "\uf002"
-    readonly property string nfPinFill: "\uf0403"    // filled pin for context menu
-    readonly property string nfPinOff: "\uf0402"     // unpin variant
-    readonly property string nfCalendar: "\uf073"    // for potential future use
+    // ── Visual tokens — track ThemeService live ──
+    //
+    // v7.0.0-alpha.4-hf3: per-corner radius. The bar-facing corners
+    // become FLAT (radius 0) so the panel's edge that touches the bar
+    // is a perfectly straight line — no triangular cutout from the
+    // curve. The corners on the side AWAY from the bar keep the full
+    // rounded radius, matching Win11/macOS startmenu behavior.
+    //
+    // Mapping:
+    //   bar at bottom (isBottom) → bottom corners flat, top rounded
+    //   bar at top    (isTop)    → top corners flat, bottom rounded
+    //   bar at left   (isLeft)   → left corners flat, right rounded
+    //   bar at right  (isRight)  → right corners flat, left rounded
+    //
+    // Per-corner radius requires Qt 6.7+, which Quickshell currently
+    // ships against. The fallback `radius: _cornerRadius` keeps the
+    // panel functional (all rounded) on older Qt; only the visual
+    // refinement is lost.
+    readonly property int _cornerRadius:
+        (PanelState.propagateStyleToModules && Theme.styleMode === "round") ? 22 : 16
 
-    property var allApps: []
-    property var pinnedAppIds: ["kitty", "firefox", "code", "thunar", "steam"]
+    radius: _cornerRadius
+    topLeftRadius:     (PanelState.isTop    || PanelState.isLeft)   ? 0 : _cornerRadius
+    topRightRadius:    (PanelState.isTop    || PanelState.isRight)  ? 0 : _cornerRadius
+    bottomLeftRadius:  (PanelState.isBottom || PanelState.isLeft)   ? 0 : _cornerRadius
+    bottomRightRadius: (PanelState.isBottom || PanelState.isRight)  ? 0 : _cornerRadius
+
+    color: Qt.rgba(ThemeService.bg0.r, ThemeService.bg0.g, ThemeService.bg0.b, 0.92)
+
+    // hf2: Border feature.
+    //   PanelState.startMenuBorderMode controls behavior:
+    //     "off"       — no border (clean glass look)
+    //     "match-bar" — same color + width as the bar's border
+    //                   (so when the panel is sticky-anchored to the bar,
+    //                   the two borders form one continuous line)
+    //     "thick"     — 2× the bar's border width with same color
+    //                   (emphasized panel outline)
+    //
+    // When "match-bar" is selected AND the bar's borderEnabled is on,
+    // we read PanelState.borderColor + borderWidth directly so the
+    // panel and bar look like a single visual unit. When the bar has
+    // its border disabled, "match-bar" falls back to the subtle
+    // ThemeService outline so the panel still has a visible edge.
+    border.width: {
+        const mode = PanelState.startMenuBorderMode || "match-bar"
+        if (mode === "off") return 0
+        if (mode === "thick") return Math.max(2, (PanelState.borderWidth || 1) * 2)
+        // match-bar
+        return PanelState.borderEnabled ? (PanelState.borderWidth || 1) : 1
+    }
+    border.color: {
+        const mode = PanelState.startMenuBorderMode || "match-bar"
+        if (mode === "off") return "transparent"
+        if (mode === "match-bar" && PanelState.borderEnabled)
+            return PanelState.borderColor
+        if (mode === "thick" && PanelState.borderEnabled)
+            return PanelState.borderColor
+        // Fallback when bar border off: subtle ThemeService outline
+        return ThemeService.alpha(ThemeService.fg, 0.14)
+    }
+    clip: true
+
+    // Densho conveniences
+    readonly property bool densho: DenshoService.denshoMode
+    readonly property color accentColor: densho ? ThemeService.red : ThemeService.blue
+    readonly property string fontPrimary: densho
+        ? "Noto Serif CJK JP, " + Theme.fontFamily
+        : Theme.fontFamily
+
+    // ── Internal state ──
     property string searchQuery: ""
-    property bool appsLoaded: false
-    property bool powerMenuOpen: false
+    property string pendingSearch: ""
 
-    // v6.16.2: Right-click context menu state
+    // Dynamic grid — read from PanelState; defaults if unset
+    readonly property int gridCols: Math.max(3, Math.min(6, PanelState.pinnedGridCols || 4))
+    readonly property int gridRows: Math.max(1, Math.min(8, PanelState.pinnedGridRows || 4))
+
+    // Tile sizing — derived from left-pane width
+    readonly property real leftPaneWidth: width * 0.58
+    readonly property real rightPaneWidth: width * 0.42
+    readonly property real tileSize: Math.floor((leftPaneWidth - 48 - (gridCols - 1) * 8) / gridCols)
+
+    // ── Right-click context menu state (hf1) ──
     property bool contextMenuOpen: false
-    property string contextAppId: ""
-    property var contextApp: null
-    property int contextX: 0
-    property int contextY: 0
-    property bool contextFromPinned: false   // true = pinned tile, false = all-apps row
+    property var  contextApp: null
+    property bool contextIsPinned: false
+    property int  contextX: 0
+    property int  contextY: 0
 
-    // v6.16.3: System info popover (fastfetch-style). Triggered by clicking
-    // the user avatar in the footer. Shows OS, kernel, CPU, GPU, theme, etc.
-    property bool sysInfoOpen: false
-
-    function openContextMenu(appId, app, globalX, globalY, fromPinned) {
-        contextAppId = appId
+    function openContextMenu(app, isPinned, globalX, globalY) {
         contextApp = app
-        contextFromPinned = fromPinned
-        // Clamp to panel bounds — menu is 200x variable
-        const menuW = 220
-        const menuH = fromPinned ? 100 : 140
-        contextX = Math.max(8, Math.min(globalX, menuRoot.width - menuW - 8))
+        contextIsPinned = isPinned
+        // Clamp to panel bounds — popup is 200×88
+        const menuW = 200, menuH = 88
+        contextX = Math.max(8, Math.min(globalX, menuRoot.width  - menuW - 8))
         contextY = Math.max(8, Math.min(globalY, menuRoot.height - menuH - 8))
         contextMenuOpen = true
     }
+    function closeContextMenu() { contextMenuOpen = false; contextApp = null }
 
-    function closeContextMenu() {
-        contextMenuOpen = false
-        contextAppId = ""
-        contextApp = null
+    // ── Inline power-menu state (hf1) ──
+    property bool powerMenuOpen: false
+
+    // Search debounce — 100ms
+    Timer {
+        id: searchDebounce
+        interval: 100; repeat: false
+        onTriggered: menuRoot.searchQuery = menuRoot.pendingSearch
     }
 
-    Component.onCompleted: {
-        loadApps()
-        loadPinnedApps()
-    }
-
-    // ── Smart app loading from DesktopEntries ──
-    function loadApps() {
-        try {
-            const entries = DesktopEntries.applications.values
-            if (entries && entries.length > 0) {
-                const apps = []
-                for (const entry of entries) {
-                    apps.push({
-                        id: entry.id || "",
-                        name: entry.name || "",
-                        icon: entry.icon || "",
-                        entry: entry
-                    })
-                }
-                apps.sort((a, b) => a.name.localeCompare(b.name))
-                allApps = apps
-                appsLoaded = true
-                console.log("[StartMenu] Loaded", apps.length, "apps from DesktopEntries")
-                return
-            }
-        } catch(e) {
-            console.log("[StartMenu] DesktopEntries not available, using fallback")
+    onVisibleChanged: {
+        RecentFilesService.active = menuRoot.visible
+        if (menuRoot.visible) {
+            RecentFilesService.refresh()
+            searchInput.forceActiveFocus()
+        } else {
+            menuRoot.searchQuery = ""
+            menuRoot.pendingSearch = ""
+            searchInput.text = ""
+            menuRoot.contextMenuOpen = false
+            menuRoot.powerMenuOpen = false
         }
-        // Fallback: scan .desktop files via bash
-        appScanner.running = true
     }
 
-    Process {
-        id: appScanner
-        command: ["bash", "-c",
-            "for f in /usr/share/applications/*.desktop ~/.local/share/applications/*.desktop; do " +
-            "  [ -f \"$f\" ] || continue; " +
-            "  nodisplay=$(grep -i '^NoDisplay=true' \"$f\" 2>/dev/null); " +
-            "  [ -n \"$nodisplay\" ] && continue; " +
-            "  name=$(grep -m1 '^Name=' \"$f\" | cut -d= -f2); " +
-            "  icon=$(grep -m1 '^Icon=' \"$f\" | cut -d= -f2); " +
-            "  exec_line=$(grep -m1 '^Exec=' \"$f\" | cut -d= -f2 | sed 's/ %[fFuUdDnNickvm]//g'); " +
-            "  id=$(basename \"$f\" .desktop); " +
-            "  [ -z \"$name\" ] && continue; " +
-            "  printf '%s\\t%s\\t%s\\t%s\\n' \"$id\" \"$name\" \"$icon\" \"$exec_line\"; " +
-            "done | sort -t$'\\t' -k2"]
-        running: false
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const lines = this.text.trim().split("\n").filter(l => l.length > 0)
-                const apps = []
-                for (const line of lines) {
-                    const parts = line.split("\t")
-                    if (parts.length >= 4) {
-                        apps.push({
-                            id: parts[0],
-                            name: parts[1],
-                            icon: parts[2],
-                            execCmd: parts[3],
-                            entry: null  // no DesktopEntry object, use execCmd
-                        })
+    // ═══════════════════════════════════════════════════════════════
+    // TWO-PANE LAYOUT
+    //
+    // hf3: internal margins are smaller on the bar-facing side (8px
+    // vs the default 16px on the away sides). The user pill at the
+    // bottom of the left pane already provides visual breathing room,
+    // so the extra 16px padding at the bar-facing edge created
+    // wasted space when the panel is sticky-anchored. 8px keeps the
+    // content from touching the panel border while letting the
+    // visual surface feel tightly bonded to the bar.
+    // ═══════════════════════════════════════════════════════════════
+    RowLayout {
+        anchors.fill: parent
+        anchors.topMargin:    PanelState.isTop    ? 8 : 16
+        anchors.bottomMargin: PanelState.isBottom ? 8 : 16
+        anchors.leftMargin:   PanelState.isLeft   ? 8 : 16
+        anchors.rightMargin:  PanelState.isRight  ? 8 : 16
+        spacing: 12
+
+        // ─────────────────────────────────────────────────────────
+        // LEFT PANE — Pinned grid + Recent + User pill
+        // ─────────────────────────────────────────────────────────
+        ColumnLayout {
+            id: leftPane
+            Layout.fillHeight: true
+            Layout.preferredWidth: menuRoot.leftPaneWidth - 24
+            spacing: 12
+
+            // ── PINNED HEADER ──
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                Text {
+                    visible: menuRoot.densho
+                    text: "固定"
+                    font.family: menuRoot.fontPrimary
+                    font.pixelSize: 14
+                    font.weight: Font.Medium
+                    color: menuRoot.accentColor
+                }
+                Text {
+                    text: menuRoot.densho ? "Pinned · Kotei" : "Pinned"
+                    font.family: menuRoot.fontPrimary
+                    font.pixelSize: 13
+                    font.weight: Font.DemiBold
+                    color: ThemeService.fg
+                    Layout.fillWidth: true
+                }
+            }
+
+            // ── PINNED GRID — hf1 fix: replaced GridLayout (which
+            //    distributes children across the configured row count
+            //    and leaves visible gaps when fewer items than slots)
+            //    with QtQuick.Grid (packs top-left, no distribution).
+            //    Always anchored to the top so partial fills look right.
+            Item {
+                Layout.fillWidth: true
+                // Reserve space for the configured grid size, but the
+                // Grid below sits at the TOP — it will only fill the
+                // rows it has items for.
+                Layout.preferredHeight: menuRoot.gridRows * (menuRoot.tileSize + 8) - 8
+
+                // Empty state — visible only when nothing pinned
+                ColumnLayout {
+                    visible: AppLauncherService.pinnedIds.length === 0
+                    anchors.centerIn: parent
+                    spacing: 6
+                    Text {
+                        text: "\uf08d"   // pin icon
+                        font.family: "JetBrainsMono Nerd Font"
+                        font.pixelSize: 28
+                        color: ThemeService.alpha(ThemeService.fg, 0.3)
+                        Layout.alignment: Qt.AlignHCenter
+                    }
+                    Text {
+                        text: menuRoot.densho ? "アプリを右クリックで固定" : "Right-click an app to pin"
+                        font.family: menuRoot.fontPrimary
+                        font.pixelSize: 11
+                        color: ThemeService.grey1
+                        Layout.alignment: Qt.AlignHCenter
                     }
                 }
-                menuRoot.allApps = apps
-                menuRoot.appsLoaded = true
-                console.log("[StartMenu] Loaded", apps.length, "apps from .desktop scan")
-            }
-        }
-    }
 
-    function loadPinnedApps() {
-        pinnedLoader.reload()
-    }
+                // ═══════════════════════════════════════════════════
+                // v7.0.0-alpha.8 — Pinned tiles: SCROLLABLE + DRAGGABLE
+                //
+                // Replaces v6.16's static Grid with a GridView so that:
+                //   1. When pinned items exceed gridCols * gridRows, the
+                //      grid scrolls internally instead of overflowing into
+                //      the Recent section below
+                //   2. Tiles are draggable — long-press + drag rearranges
+                //      the order
+                //   3. New order persists via AppLauncherService.reorderPinned()
+                //      → state file → survives shell restart
+                //
+                // Drag implementation:
+                //   - Each tile has a Drag attached property
+                //   - DropArea on the underlying cell receives drops
+                //   - On drop, splice the dragged ID into the target position
+                //     and call reorderPinned(newOrder)
+                // ═══════════════════════════════════════════════════
+                GridView {
+                    id: pinnedGrid
+                    visible: AppLauncherService.pinnedIds.length > 0
+                    anchors.fill: parent
+                    anchors.topMargin: 0
+                    cellWidth: menuRoot.tileSize + 8
+                    cellHeight: menuRoot.tileSize + 8
+                    clip: true
+                    interactive: contentHeight > height
+                    boundsBehavior: Flickable.StopAtBounds
+                    cacheBuffer: 200
 
-    FileView {
-        id: pinnedLoader
-        path: Quickshell.dataPath("pinned-apps.json")
-        blockLoading: true
-        onLoaded: {
-            try {
-                const d = JSON.parse(this.text())
-                if (d.pinned) menuRoot.pinnedAppIds = d.pinned
-            } catch (e) {}
-        }
-    }
+                    // GridView width is the visible area; cellWidth includes
+                    // spacing so columns auto-flow at gridCols
+                    width: menuRoot.gridCols * cellWidth
 
-    function savePinnedApps() {
-        pinnedSaver.command = ["bash", "-c",
-            "echo '" + JSON.stringify({pinned: pinnedAppIds}) + "' > " + Quickshell.dataPath("pinned-apps.json")]
-        pinnedSaver.running = true
-    }
+                    // v7.0.0-beta.1-hf2: PINNED DRAG FIX
+                    //
+                    // Was: `model: AppLauncherService.pinnedApps()` — a
+                    // bare function call evaluated ONCE at component
+                    // load. When user drags and reorderPinned() mutates
+                    // pinnedIds, the function returns a new ordering
+                    // but the GridView's model property doesn't see it
+                    // because there's no reactive trigger on pinnedIds.
+                    //
+                    // Fix: bind model to a property that explicitly
+                    // depends on AppLauncherService.pinnedIds, so any
+                    // mutation forces re-evaluation → GridView rebuilds
+                    // delegates in new order → moveDisplaced animates.
+                    //
+                    // The `+ pinnedIds.length` trick forces dependency
+                    // tracking even if pinnedApps() is a plain JS func.
+                    readonly property var _pinnedTrigger: AppLauncherService.pinnedIds
+                    model: {
+                        // Touch the trigger so the binding tracks it
+                        const _ = _pinnedTrigger.length
+                        return AppLauncherService.pinnedApps()
+                    }
 
-    Process {
-        id: pinnedSaver
-        running: false
-    }
+                    // Scrollbar — only visible if grid overflows
+                    ScrollBar.vertical: ScrollBar {
+                        policy: pinnedGrid.contentHeight > pinnedGrid.height
+                                ? ScrollBar.AsNeeded
+                                : ScrollBar.AlwaysOff
+                        width: 5
+                        contentItem: Rectangle {
+                            radius: 2
+                            color: ThemeService.alpha(ThemeService.fg, 0.3)
+                        }
+                    }
 
-    function pinApp(appId) {
-        if (pinnedAppIds.indexOf(appId) === -1) {
-            pinnedAppIds = pinnedAppIds.concat([appId])
-            savePinnedApps()
-        }
-    }
+                    // Smooth move animations when items reorder via drag
+                    moveDisplaced: Transition {
+                        NumberAnimation { properties: "x,y"; duration: 180; easing.type: Easing.OutCubic }
+                    }
 
-    function unpinApp(appId) {
-        pinnedAppIds = pinnedAppIds.filter(id => id !== appId)
-        savePinnedApps()
-    }
+                    delegate: Item {
+                        id: tileWrap
+                        required property var modelData
+                        required property int index
 
-    function isPinned(appId) {
-        return pinnedAppIds.indexOf(appId) !== -1
-    }
+                        width: pinnedGrid.cellWidth
+                        height: pinnedGrid.cellHeight
 
-    // ── Smart entry lookup with fallbacks ──
-    function findEntry(appId) {
-        let entry = DesktopEntries.byId(appId)
-        if (entry) return entry
-        entry = DesktopEntries.byId(appId.toLowerCase())
-        if (entry) return entry
-        // Search through all apps
-        for (const app of allApps) {
-            if (app.id.toLowerCase() === appId.toLowerCase()) return app.entry
-            if (app.name.toLowerCase() === appId.toLowerCase()) return app.entry
-            if (app.id.toLowerCase().includes(appId.toLowerCase())) return app.entry
-        }
-        return null
-    }
+                        // DropArea: detects when another tile is dragged over
+                        // this cell. On drop, the source tile's id is spliced
+                        // into this position.
+                        DropArea {
+                            id: tileDrop
+                            anchors.fill: parent
+                            keys: ["zen-pinned-tile"]
 
-    // ── Find full app object (works even when entry is null in fallback mode) ──
-    function findAppById(appId) {
-        if (!appId) return null
-        const q = appId.toLowerCase()
-        for (const app of allApps) {
-            if (app.id.toLowerCase() === q) return app
-            if (app.name.toLowerCase() === q) return app
-        }
-        return null
-    }
+                            onDropped: function(drop) {
+                                const sourceId = drop.getDataAsString("zen-pinned-tile")
+                                if (!sourceId) return
+                                if (sourceId === tileWrap.modelData.id) return
 
-    function launchApp(appOrEntry) {
-        if (!appOrEntry) return
-        // If it's a DesktopEntry with execute(), use that
-        if (appOrEntry.execute) {
-            appOrEntry.execute()
-        } else if (appOrEntry.entry && appOrEntry.entry.execute) {
-            appOrEntry.entry.execute()
-        } else if (appOrEntry.execCmd) {
-            // Fallback: launch via bash
-            fallbackLauncher.command = ["bash", "-c", "setsid " + appOrEntry.execCmd + " > /dev/null 2>&1 < /dev/null & disown"]
-            fallbackLauncher.running = true
-        }
-        appLaunched()
-    }
+                                // Compute the new ordered list
+                                const ids = AppLauncherService.pinnedIds.slice()
+                                const fromIdx = ids.indexOf(sourceId)
+                                if (fromIdx < 0) return
+                                ids.splice(fromIdx, 1)
+                                const toIdx = ids.indexOf(tileWrap.modelData.id)
+                                if (toIdx < 0) ids.push(sourceId)
+                                else ids.splice(toIdx, 0, sourceId)
 
-    Process { id: fallbackLauncher; running: false }
+                                AppLauncherService.reorderPinned(ids)
+                                drop.accept()
+                            }
+                        }
 
-    // v6.16.2 FUZZY FINDER:
-    // Old implementation used substring-only matching — "typing 'vcd'
-    // wouldn't match 'VSCode'. New fuzzy algorithm scores matches by:
-    //   1. Exact match (10000)       — name or id === query
-    //   2. Prefix match (5000-6000)  — name starts with query
-    //   3. Word-boundary match (2500) — query matches after space/hyphen
-    //   4. Subsequence match (500-1500) — characters appear in order,
-    //      scored by gap size + consecutiveness
-    //   5. Substring fallback (800)  — query appears as substring
-    //   6. Skip (0)                  — no match
-    // Results sorted by score descending, capped to top 50 for perf.
-    function _fuzzyScore(text, query) {
-        if (!text || !query) return 0
-        const t = text.toLowerCase()
-        const q = query.toLowerCase()
-
-        // Exact match — highest priority
-        if (t === q) return 10000
-
-        // Prefix — very high
-        if (t.startsWith(q)) {
-            // Shorter texts scored higher (more specific match)
-            return 6000 - Math.min(t.length - q.length, 100)
-        }
-
-        // Word boundary match — check if query starts after a space/hyphen/underscore
-        const wbMatch = new RegExp("(^|[\\s\\-_.])" + q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-        if (wbMatch.test(t)) return 2500
-
-        // Subsequence fuzzy match — "vcd" → "VsCoDe" (chars in order)
-        let ti = 0, qi = 0
-        let score = 0
-        let consecutive = 0
-        let lastMatchIdx = -1
-        while (ti < t.length && qi < q.length) {
-            if (t.charAt(ti) === q.charAt(qi)) {
-                // Consecutive char bonus
-                if (lastMatchIdx === ti - 1) {
-                    consecutive++
-                    score += 100 * consecutive
-                } else {
-                    consecutive = 0
-                    score += 30
-                }
-                // Penalize gap — earlier matches weighted more
-                if (qi === 0 && ti > 0) score -= ti * 2
-                lastMatchIdx = ti
-                qi++
-            }
-            ti++
-        }
-        if (qi === q.length) {
-            // Full subsequence match — base + accumulated bonuses
-            return 500 + score
-        }
-
-        // Plain substring fallback — lower priority than subsequence
-        if (t.includes(q)) return 800
-
-        return 0
-    }
-
-    function filteredApps() {
-        if (!searchQuery || searchQuery === "") return allApps
-        const q = searchQuery
-
-        // Score every app by max(name score, id score, exec score)
-        const scored = []
-        for (let i = 0; i < allApps.length; i++) {
-            const app = allApps[i]
-            const nameScore = _fuzzyScore(app.name, q)
-            const idScore   = _fuzzyScore(app.id, q) * 0.9   // id slightly less weighted
-            const execScore = app.exec ? _fuzzyScore(app.exec, q) * 0.6 : 0
-            const score = Math.max(nameScore, idScore, execScore)
-            if (score > 0) scored.push({ app: app, score: score })
-        }
-
-        // Sort by score descending, tie-break alphabetically
-        scored.sort((a, b) => {
-            if (b.score !== a.score) return b.score - a.score
-            return a.app.name.localeCompare(b.app.name)
-        })
-
-        // Cap to 50 results for rendering perf
-        return scored.slice(0, 50).map(s => s.app)
-    }
-
-    Keys.onEscapePressed: closeRequested()
-
-    ColumnLayout {
-        anchors.fill: parent
-        spacing: 0
-
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            spacing: 0
-
-            // ──── LEFT: Pinned ────
-            ColumnLayout {
-                Layout.preferredWidth: 360
-                Layout.fillHeight: true
-                Layout.margins: 20
-                spacing: 16
-
-                Text {
-                    text: "Pinned"
-                    color: Theme.fgDim
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 13
-                    font.bold: true
-                }
-
-                // v6.16.4.5: grid reduced 5 → 4 columns to accommodate
-                // the wider tiles (72px instead of 64px). Math:
-                //   4 tiles × 72 + 3 gaps × 8 = 288 + 24 = 312px,
-                //   fits comfortably in the 360px left pane with
-                //   room for padding.
-                // Previously 5 × 64 + 4 × 8 = 320 + 32 = 352px, tight
-                // but fit. Can't keep 5 columns with wider tiles.
-                GridLayout {
-                    columns: 4
-                    columnSpacing: 8
-                    rowSpacing: 8
-                    Layout.fillWidth: true
-
-                    Repeater {
-                        model: menuRoot.pinnedAppIds
-
+                        // The actual tile rectangle. Has a Drag attached
+                        // property so it can be dragged AS a source.
                         Rectangle {
-                            property string appId: modelData
-                            property var entry: menuRoot.findEntry(appId)
-                            Layout.preferredWidth: 72
-                            Layout.preferredHeight: 82
+                            id: tile
+
+                            // Slight inset from cell so spacing feels right
+                            x: 0
+                            y: 0
+                            width: menuRoot.tileSize
+                            height: menuRoot.tileSize
                             radius: 10
-                            color: tileMa.containsMouse ? Theme.alpha(Theme.fg, 0.08) : "transparent"
-                            Behavior on color { ColorAnimation { duration: 150 } }
+
+                            // Tile state: highlight when DropArea is active
+                            // (something hovering over it), or on hover
+                            color: tileDrop.containsDrag
+                                ? ThemeService.alpha(menuRoot.accentColor, 0.22)
+                                : tileMa.containsMouse
+                                  ? ThemeService.alpha(menuRoot.accentColor, 0.14)
+                                  : ThemeService.alpha(ThemeService.bg2, 0.5)
+                            border.color: tileDrop.containsDrag
+                                ? menuRoot.accentColor
+                                : tileMa.containsMouse
+                                  ? ThemeService.alpha(menuRoot.accentColor, 0.3)
+                                  : ThemeService.alpha(ThemeService.fg, 0.06)
+                            border.width: tileDrop.containsDrag ? 2 : 1
+                            Behavior on color { ColorAnimation { duration: 120 } }
+                            Behavior on border.color { ColorAnimation { duration: 120 } }
+
+                            // Slightly raised + dimmed appearance while dragging
+                            opacity: tileMa.drag.active ? 0.6 : 1.0
+                            scale: tileMa.drag.active ? 1.05 : 1.0
+                            Behavior on opacity { NumberAnimation { duration: 100 } }
+                            Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutCubic } }
+                            z: tileMa.drag.active ? 100 : 0
+
+                            // Drag attached property — provides the drag
+                            // payload (the app id) and the visual surface
+                            // that follows the cursor.
+                            Drag.active: tileMa.drag.active
+                            Drag.hotSpot.x: width / 2
+                            Drag.hotSpot.y: height / 2
+                            Drag.keys: ["zen-pinned-tile"]
+                            Drag.mimeData: { "zen-pinned-tile": modelData.id }
 
                             ColumnLayout {
                                 anchors.centerIn: parent
-                                spacing: 6
+                                spacing: 4
 
                                 Image {
                                     Layout.alignment: Qt.AlignHCenter
-                                    width: 36
-                                    height: 36
-                                    source: entry && entry.icon
-                                        ? Quickshell.iconPath(entry.icon)
-                                        : Quickshell.iconPath("application-x-executable")
-                                    sourceSize: Qt.size(36, 36)
+                                    Layout.preferredWidth: 32
+                                    Layout.preferredHeight: 32
+                                    source: Quickshell.iconPath(modelData.icon || "application-x-executable", true)
+                                    sourceSize.width: 64
+                                    sourceSize.height: 64
+                                    fillMode: Image.PreserveAspectFit
+                                    smooth: true
+                                    asynchronous: true
                                 }
 
                                 Text {
-                                    // v6.16.4.5: widened from 58px to 66px + reduced
-                                    // tile padding — gives labels ~8px more breathing
-                                    // room so "Thunar F…" / "Visual St…" / "Crimson…"
-                                    // don't look cramped under the icons. Tile width
-                                    // also bumped 64→72 to match. At monitor scale
-                                    // 1.25x, the extra room prevents the visual
-                                    // overlap Paul reported.
-                                    Layout.alignment: Qt.AlignHCenter
-                                    Layout.preferredWidth: 66
-                                    text: entry ? entry.name : appId
-                                    color: Theme.fgDim
-                                    font.family: Theme.fontFamily
-                                    font.pixelSize: 11
-                                    elide: Text.ElideRight
+                                    text: modelData.name || ""
+                                    Layout.maximumWidth: menuRoot.tileSize - 8
                                     horizontalAlignment: Text.AlignHCenter
+                                    font.family: menuRoot.fontPrimary
+                                    font.pixelSize: 10
+                                    color: ThemeService.fg
+                                    elide: Text.ElideRight
+                                    maximumLineCount: 1
                                 }
                             }
 
@@ -416,1052 +450,889 @@ Rectangle {
                                 id: tileMa
                                 anchors.fill: parent
                                 hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
+                                cursorShape: drag.active
+                                             ? Qt.ClosedHandCursor
+                                             : Qt.PointingHandCursor
                                 acceptedButtons: Qt.LeftButton | Qt.RightButton
-                                onClicked: (mouse) => {
-                                    if (mouse.button === Qt.LeftButton) {
-                                        const app = menuRoot.findAppById(appId)
-                                        if (entry) menuRoot.launchApp(entry)
-                                        else if (app) menuRoot.launchApp(app)
+
+                                // Drag config — drag.target is the tile
+                                // itself. drag.threshold ensures a quick
+                                // click still launches the app (drag only
+                                // engages on sustained movement).
+                                drag.target: tile
+                                drag.threshold: 8
+                                drag.smoothed: false
+
+                                onClicked: function(m) {
+                                    if (drag.active) return  // ignore if drag was happening
+                                    if (m.button === Qt.RightButton) {
+                                        const p = mapToItem(menuRoot, m.x, m.y)
+                                        menuRoot.openContextMenu(modelData, true, p.x, p.y)
                                     } else {
-                                        // v6.16.2: right-click → context menu
-                                        const pos = mapToItem(menuRoot, mouse.x, mouse.y)
-                                        const app = menuRoot.findAppById(appId)
-                                        menuRoot.openContextMenu(appId, app || {name: appId, id: appId, entry: entry},
-                                                                 pos.x, pos.y, true)
+                                        AppLauncherService.launch(modelData)
+                                        menuRoot.appLaunched()
                                     }
+                                }
+
+                                // v7.0.0-beta.1-hf6: PINNED DRAG ACTUALLY-MOVES FIX
+                                //
+                                // Previous version relied on DropArea.onDropped
+                                // to fire on tile release. That requires
+                                // `Drag.dragType: Drag.Automatic` plus an
+                                // explicit `Drag.drop()` call — neither was
+                                // present. So onDropped never fired, and
+                                // pinned tiles snapped back without reorder.
+                                //
+                                // New approach: on release, find the cell
+                                // whose center is under the dropped tile and
+                                // perform the reorder manually using the
+                                // tile's current bounds.
+                                onReleased: {
+                                    if (drag.active || tile.x !== 0 || tile.y !== 0) {
+                                        // Compute the absolute center of the dropped tile
+                                        const tileCenterX = tileWrap.x
+                                            + tile.x + tile.width / 2
+                                        const tileCenterY = tileWrap.y
+                                            + tile.y + tile.height / 2
+
+                                        // Convert to GridView local coords (already in GridView)
+                                        // and find which cell index that falls into
+                                        const colsCount = Math.max(1,
+                                            Math.floor(pinnedGrid.width
+                                                       / pinnedGrid.cellWidth))
+                                        const targetCol = Math.floor(tileCenterX
+                                                                     / pinnedGrid.cellWidth)
+                                        const targetRow = Math.floor(tileCenterY
+                                                                     / pinnedGrid.cellHeight)
+                                        const targetIdx = Math.max(0,
+                                            Math.min(AppLauncherService.pinnedIds.length - 1,
+                                                     targetRow * colsCount + targetCol))
+
+                                        if (targetIdx !== tileWrap.index
+                                            && targetIdx >= 0) {
+                                            const ids = AppLauncherService.pinnedIds.slice()
+                                            const sourceId = tileWrap.modelData.id
+                                            const fromIdx = ids.indexOf(sourceId)
+                                            if (fromIdx >= 0) {
+                                                ids.splice(fromIdx, 1)
+                                                ids.splice(Math.min(targetIdx, ids.length),
+                                                           0, sourceId)
+                                                AppLauncherService.reorderPinned(ids)
+                                            }
+                                        }
+                                    }
+                                    // Always snap tile back to home position;
+                                    // the GridView re-render will move the delegate
+                                    // to its correct new spot.
+                                    tile.x = 0
+                                    tile.y = 0
                                 }
                             }
                         }
                     }
                 }
-
-                Item { Layout.fillHeight: true }
             }
 
-            // Divider
-            Rectangle {
-                Layout.fillHeight: true
-                Layout.preferredWidth: 1
-                color: Theme.alpha(Theme.fg, 0.08)
+            // ── RECENT HEADER ──
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: 4
+                spacing: 8
+                Text {
+                    visible: menuRoot.densho
+                    text: "最近"
+                    font.family: menuRoot.fontPrimary
+                    font.pixelSize: 14
+                    font.weight: Font.Medium
+                    color: menuRoot.accentColor
+                }
+                Text {
+                    text: menuRoot.densho ? "Recent · Saikin" : "Recent"
+                    font.family: menuRoot.fontPrimary
+                    font.pixelSize: 13
+                    font.weight: Font.DemiBold
+                    color: ThemeService.fg
+                    Layout.fillWidth: true
+                }
             }
 
-            // ──── RIGHT: All apps ────
-            ColumnLayout {
-                Layout.preferredWidth: 360
+            // ── RECENT LIST ──
+            Item {
+                Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.margins: 20
-                spacing: 12
 
                 Text {
-                    text: "All apps"
-                    color: Theme.fgDim
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 13
-                    font.bold: true
-                }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    height: 40
-                    radius: 10
-                    color: Theme.alpha(Theme.fg, 0.08)
-                    border.width: searchInput.activeFocus ? 1 : 0
-                    border.color: Theme.blue
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 12
-                        anchors.rightMargin: 12
-                        spacing: 8
-
-                        Text {
-                            text: menuRoot.nfSearch
-                            color: Theme.fgDim
-                            font.family: Theme.monoFont
-                            font.pixelSize: 14
-                        }
-
-                        TextInput {
-                            id: searchInput
-                            Layout.fillWidth: true
-                            color: Theme.fg
-                            font.family: Theme.fontFamily
-                            font.pixelSize: 13
-                            clip: true
-                            onTextChanged: menuRoot.searchQuery = text
-
-                            Text {
-                                anchors.fill: parent
-                                visible: !searchInput.text
-                                text: "Type to search..."
-                                color: Theme.fgDim
-                                font.family: Theme.fontFamily
-                                font.pixelSize: 13
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                        }
-                    }
+                    visible: RecentFilesService.entries.length === 0
+                    anchors.centerIn: parent
+                    text: menuRoot.densho ? "最近の項目なし" : "No recent files"
+                    font.family: menuRoot.fontPrimary
+                    font.pixelSize: 11
+                    color: ThemeService.grey1
                 }
 
                 ListView {
-                    id: appListView
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
+                    anchors.fill: parent
+                    visible: RecentFilesService.entries.length > 0
                     clip: true
-                    model: menuRoot.filteredApps()
                     spacing: 2
+                    cacheBuffer: 200
+                    reuseItems: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
-                    section.property: "name"
-                    section.criteria: ViewSection.FirstCharacter
-                    section.delegate: Text {
-                        required property string section
-                        text: section.toUpperCase()
-                        color: Theme.blue
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 14
-                        font.bold: true
-                        topPadding: 8
-                        leftPadding: 12
-                        bottomPadding: 4
-                    }
+                    model: RecentFilesService.entries.slice(0, 6)
 
                     delegate: Rectangle {
                         required property var modelData
-                        width: appListView.width
+                        width: ListView.view.width
                         height: 40
-                        radius: 10
-                        color: rowMa.containsMouse ? Theme.alpha(Theme.fg, 0.06) : "transparent"
-                        Behavior on color { ColorAnimation { duration: 150 } }
+                        radius: 6
+                        color: recMa.containsMouse
+                               ? ThemeService.alpha(ThemeService.fg, 0.06)
+                               : "transparent"
+                        opacity: modelData.exists ? 1.0 : 0.45
 
                         RowLayout {
                             anchors.fill: parent
-                            anchors.leftMargin: 12
-                            anchors.rightMargin: 12
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
                             spacing: 10
 
                             Image {
-                                Layout.preferredWidth: 24
-                                Layout.preferredHeight: 24
-                                source: modelData.icon
-                                    ? Quickshell.iconPath(modelData.icon)
-                                    : Quickshell.iconPath("application-x-executable")
-                                sourceSize: Qt.size(24, 24)
+                                Layout.preferredWidth: 22
+                                Layout.preferredHeight: 22
+                                source: Quickshell.iconPath(modelData.iconName, true)
+                                sourceSize.width: 44
+                                sourceSize.height: 44
+                                fillMode: Image.PreserveAspectFit
+                                asynchronous: true
+                                smooth: true
                             }
 
-                            Text {
+                            ColumnLayout {
                                 Layout.fillWidth: true
-                                text: modelData.name
-                                color: Theme.fgDim
-                                elide: Text.ElideRight
-                                font.family: Theme.fontFamily
-                                font.pixelSize: 13
-                            }
+                                spacing: 1
 
-                            Text {
-                                visible: menuRoot.isPinned(modelData.id)
-                                text: menuRoot.nfPin
-                                color: "#ffffff"
-                                opacity: 0.6
-                                font.family: Theme.monoFont
-                                font.pixelSize: 14
+                                Text {
+                                    text: modelData.name || ""
+                                    font.family: menuRoot.fontPrimary
+                                    font.pixelSize: 12
+                                    font.weight: Font.Medium
+                                    color: ThemeService.fg
+                                    elide: Text.ElideRight
+                                    Layout.fillWidth: true
+                                }
+
+                                Text {
+                                    text: {
+                                        const age = RecentFilesService.relativeAge(modelData.modified)
+                                        const app = modelData.application
+                                        if (app && age) return age + " · " + app
+                                        return age || app || ""
+                                    }
+                                    font.family: menuRoot.fontPrimary
+                                    font.pixelSize: 10
+                                    color: ThemeService.grey1
+                                    elide: Text.ElideRight
+                                    Layout.fillWidth: true
+                                }
                             }
                         }
 
                         MouseArea {
-                            id: rowMa
+                            id: recMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            enabled: modelData.exists
+                            onClicked: {
+                                RecentFilesService.openEntry(modelData)
+                                menuRoot.appLaunched()
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── USER PILL — hf1: full row with avatar + folder + settings + power ──
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 48
+                radius: 10
+                color: ThemeService.alpha(ThemeService.bg2, 0.6)
+                border.color: ThemeService.alpha(ThemeService.fg, 0.08)
+                border.width: 1
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 12
+                    anchors.rightMargin: 8
+                    spacing: 10
+
+                    // ── AVATAR — hf2: canonical OpacityMask circular pattern,
+                    //    matching ZenSettings sidebar + UserProfilePage. The
+                    //    previous `clip: true + radius` approach didn't
+                    //    actually round the image on all GPU/Quickshell
+                    //    builds — this three-component pattern is the
+                    //    canonical Qt 5/6 fix for circular avatars.
+                    Rectangle {
+                        Layout.preferredWidth: 32
+                        Layout.preferredHeight: 32
+                        radius: width / 2
+                        color: ThemeService.alpha(menuRoot.accentColor, 0.22)
+                        border.color: ThemeService.alpha(menuRoot.accentColor, 0.4)
+                        border.width: 1
+                        antialiasing: true
+
+                        // Hidden source — OpacityMask reads pixels from this
+                        Image {
+                            id: avatarImg
+                            anchors.fill: parent
+                            anchors.margins: 2
+                            source: (typeof UserProfileService !== "undefined")
+                                ? UserProfileService.effectiveAvatarSource
+                                : ""
+                            fillMode: Image.PreserveAspectCrop
+                            smooth: true
+                            mipmap: true
+                            asynchronous: true
+                            cache: false
+                            sourceSize: Qt.size(64, 64)
+                            visible: false   // OpacityMask renders the visible copy
+                        }
+
+                        // Hidden circular mask — defines the alpha shape
+                        Rectangle {
+                            id: avatarMask
+                            anchors.fill: avatarImg
+                            radius: width / 2
+                            color: "white"
+                            visible: false
+                        }
+
+                        // Visible composited result
+                        OpacityMask {
+                            anchors.fill: avatarImg
+                            source: avatarImg
+                            maskSource: avatarMask
+                            visible: avatarImg.status === Image.Ready
+                                  && avatarImg.source.toString().length > 0
+                        }
+
+                        // Fallback letter — only when no avatar image loaded
+                        Text {
+                            anchors.centerIn: parent
+                            visible: avatarImg.status !== Image.Ready
+                                  || avatarImg.source.toString().length === 0
+                            text: {
+                                const u = (UserProfileService && UserProfileService.userName)
+                                    ? UserProfileService.userName
+                                    : (Quickshell.env("USER") || "user")
+                                return u.length > 0 ? u.charAt(0).toUpperCase() : "?"
+                            }
+                            font.family: menuRoot.fontPrimary
+                            font.pixelSize: 14
+                            font.weight: Font.Medium
+                            color: menuRoot.accentColor
+                        }
+                    }
+
+                    Text {
+                        text: (UserProfileService && UserProfileService.userName)
+                            ? UserProfileService.userName
+                            : (Quickshell.env("USER") || "user")
+                        font.family: menuRoot.fontPrimary
+                        font.pixelSize: 12
+                        font.weight: Font.Medium
+                        color: ThemeService.fg
+                        Layout.fillWidth: true
+                    }
+
+                    // ── FILES (Thunar) — hf1: invoke thunar directly ──
+                    Rectangle {
+                        Layout.preferredWidth: 32
+                        Layout.preferredHeight: 32
+                        radius: 8
+                        color: filesMa.containsMouse
+                               ? ThemeService.alpha(ThemeService.fg, 0.08)
+                               : "transparent"
+                        Behavior on color { ColorAnimation { duration: 120 } }
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "\uf07b"   // folder
+                            font.family: "JetBrainsMono Nerd Font"
+                            font.pixelSize: 14
+                            color: filesMa.containsMouse
+                                ? menuRoot.accentColor
+                                : ThemeService.grey0
+                        }
+
+                        ToolTip.visible: filesMa.containsMouse
+                        ToolTip.delay: 600
+                        ToolTip.text: menuRoot.densho ? "ファイル · Files" : "Files (Thunar)"
+
+                        MouseArea {
+                            id: filesMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                // hf1: launch Thunar specifically; if missing,
+                                // fall back to xdg-open ~ silently
+                                Quickshell.execDetached({
+                                    command: ["sh", "-c",
+                                        "command -v thunar >/dev/null && thunar \"$HOME\" || xdg-open \"$HOME\""]
+                                })
+                                menuRoot.appLaunched()
+                            }
+                        }
+                    }
+
+                    // ── SETTINGS — hf1: opens Zen Settings (toggleSettings IPC) ──
+                    Rectangle {
+                        Layout.preferredWidth: 32
+                        Layout.preferredHeight: 32
+                        radius: 8
+                        color: setMa.containsMouse
+                               ? ThemeService.alpha(ThemeService.fg, 0.08)
+                               : "transparent"
+                        Behavior on color { ColorAnimation { duration: 120 } }
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "\uf013"   // gear
+                            font.family: "JetBrainsMono Nerd Font"
+                            font.pixelSize: 14
+                            color: setMa.containsMouse
+                                ? menuRoot.accentColor
+                                : ThemeService.grey0
+                        }
+
+                        ToolTip.visible: setMa.containsMouse
+                        ToolTip.delay: 600
+                        ToolTip.text: menuRoot.densho ? "設定 · Settings" : "Settings"
+
+                        MouseArea {
+                            id: setMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                // v7.0.0-beta.1-hf25: direct toggle to
+                                // avoid spawning second instance if
+                                // current is mid-crash.
+                                PanelState.settingsVisible = !PanelState.settingsVisible
+                                menuRoot.closeRequested()
+                            }
+                        }
+                    }
+
+                    // ── POWER — hf1: expandable popup with 5 actions ──
+                    Rectangle {
+                        id: powerBtn
+                        Layout.preferredWidth: 32
+                        Layout.preferredHeight: 32
+                        radius: 8
+                        color: pwMa.containsMouse || menuRoot.powerMenuOpen
+                               ? ThemeService.alpha(ThemeService.red, 0.14)
+                               : "transparent"
+                        Behavior on color { ColorAnimation { duration: 120 } }
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "\u23fb"
+                            font.family: menuRoot.fontPrimary
+                            font.pixelSize: 14
+                            color: pwMa.containsMouse || menuRoot.powerMenuOpen
+                                ? ThemeService.red
+                                : ThemeService.grey0
+                        }
+
+                        ToolTip.visible: pwMa.containsMouse && !menuRoot.powerMenuOpen
+                        ToolTip.delay: 600
+                        ToolTip.text: menuRoot.densho ? "電源 · Power" : "Power"
+
+                        MouseArea {
+                            id: pwMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: menuRoot.powerMenuOpen = !menuRoot.powerMenuOpen
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Vertical divider ──
+        Rectangle {
+            Layout.fillHeight: true
+            Layout.preferredWidth: 1
+            color: ThemeService.alpha(ThemeService.fg, 0.08)
+        }
+
+        // ─────────────────────────────────────────────────────────
+        // RIGHT PANE — All Apps (Most Used + alphabetical) + Search
+        // ─────────────────────────────────────────────────────────
+        ColumnLayout {
+            id: rightPane
+            Layout.fillHeight: true
+            Layout.preferredWidth: menuRoot.rightPaneWidth - 24
+            spacing: 8
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                Text {
+                    visible: menuRoot.densho
+                    text: "全アプリ"
+                    font.family: menuRoot.fontPrimary
+                    font.pixelSize: 14
+                    font.weight: Font.Medium
+                    color: menuRoot.accentColor
+                }
+                Text {
+                    text: menuRoot.densho ? "All Apps · Zen Apuri" : "All Apps"
+                    font.family: menuRoot.fontPrimary
+                    font.pixelSize: 13
+                    font.weight: Font.DemiBold
+                    color: ThemeService.fg
+                    Layout.fillWidth: true
+                }
+                Text {
+                    text: AppLauncherService.apps.length
+                    font.family: menuRoot.fontPrimary
+                    font.pixelSize: 10
+                    color: ThemeService.grey1
+                }
+            }
+
+            ListView {
+                id: appsList
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                spacing: 1
+                cacheBuffer: 200
+                reuseItems: true
+                boundsBehavior: Flickable.StopAtBounds
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                readonly property var _searchResults: menuRoot.searchQuery
+                    ? AppLauncherService.searchApps(menuRoot.searchQuery)
+                    : null
+
+                model: {
+                    if (appsList._searchResults) {
+                        return appsList._searchResults.map(function(a){ return { kind: "app", app: a } })
+                    }
+                    const out = []
+                    const mu = AppLauncherService.mostUsed(5)
+                    if (mu.length > 0) {
+                        out.push({ kind: "header",
+                                   text: menuRoot.densho ? "常用 · Most Used · Jōyō" : "Most Used" })
+                        for (var i = 0; i < mu.length; i++) out.push({ kind: "app", app: mu[i] })
+                        out.push({ kind: "header",
+                                   text: menuRoot.densho ? "全て · All · Subete" : "All" })
+                    }
+                    for (var j = 0; j < AppLauncherService.apps.length; j++) {
+                        out.push({ kind: "app", app: AppLauncherService.apps[j] })
+                    }
+                    return out
+                }
+
+                delegate: Item {
+                    required property var modelData
+                    width: ListView.view.width
+                    height: modelData.kind === "header" ? 28 : 36
+
+                    Text {
+                        visible: modelData.kind === "header"
+                        anchors.left: parent.left
+                        anchors.bottom: parent.bottom
+                        anchors.leftMargin: 6
+                        anchors.bottomMargin: 4
+                        text: modelData.text || ""
+                        font.family: menuRoot.fontPrimary
+                        font.pixelSize: 10
+                        font.weight: Font.DemiBold
+                        font.letterSpacing: 0.6
+                        color: ThemeService.grey0
+                    }
+
+                    Rectangle {
+                        visible: modelData.kind === "app"
+                        anchors.fill: parent
+                        radius: 6
+                        color: appMa.containsMouse
+                               ? ThemeService.alpha(menuRoot.accentColor, 0.10)
+                               : "transparent"
+                        Behavior on color { ColorAnimation { duration: 120 } }
+
+                        Rectangle {
+                            visible: menuRoot.densho && appMa.containsMouse
+                            anchors.left: parent.left
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            width: 2
+                            color: ThemeService.red
+                        }
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            spacing: 10
+
+                            Image {
+                                Layout.preferredWidth: 22
+                                Layout.preferredHeight: 22
+                                source: modelData.app
+                                    ? Quickshell.iconPath(modelData.app.icon || "application-x-executable", true)
+                                    : ""
+                                sourceSize.width: 44
+                                sourceSize.height: 44
+                                fillMode: Image.PreserveAspectFit
+                                smooth: true
+                                asynchronous: true
+                            }
+
+                            Text {
+                                text: modelData.app ? (modelData.app.name || "") : ""
+                                font.family: menuRoot.fontPrimary
+                                font.pixelSize: 12
+                                color: ThemeService.fg
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
+                            }
+
+                            Text {
+                                // v7.0.0-beta.1: explicit bool coercion. isPinned()
+                                // can return undefined before AppLauncherService is
+                                // fully initialized, causing repeated binding errors.
+                                visible: !!(modelData
+                                            && modelData.app
+                                            && AppLauncherService.isPinned
+                                            && AppLauncherService.isPinned(modelData.app.id))
+                                text: "\uf08d"
+                                font.family: "JetBrainsMono Nerd Font"
+                                font.pixelSize: 10
+                                color: ThemeService.grey1
+                            }
+                        }
+
+                        MouseArea {
+                            id: appMa
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             acceptedButtons: Qt.LeftButton | Qt.RightButton
-                            onClicked: (mouse) => {
-                                if (mouse.button === Qt.LeftButton) {
-                                    if (modelData.entry) menuRoot.launchApp(modelData.entry)
-                                    else menuRoot.launchApp(modelData)
+                            onClicked: function(m) {
+                                if (m.button === Qt.RightButton) {
+                                    // hf1: open context menu instead of immediate toggle
+                                    if (modelData.app) {
+                                        const isPin = AppLauncherService.isPinned(modelData.app.id)
+                                        const p = mapToItem(menuRoot, m.x, m.y)
+                                        menuRoot.openContextMenu(modelData.app, isPin, p.x, p.y)
+                                    }
                                 } else {
-                                    // v6.16.2: right-click → context menu
-                                    const pos = mapToItem(menuRoot, mouse.x, mouse.y)
-                                    menuRoot.openContextMenu(modelData.id, modelData,
-                                                             pos.x, pos.y, false)
+                                    if (modelData.app) {
+                                        AppLauncherService.launch(modelData.app)
+                                        menuRoot.appLaunched()
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-        }
-
-        // ═══ Bottom Bar ═══
-        // v6.16.4.12.6: Footer bg now binds to ThemeService.bg1 (was
-        // Theme.bg1) so live theme switches and matugen wallpaper-sync
-        // repaint instantly. Slightly raised alpha (0.55 → was 0.6) keeps
-        // it readable but lets the panel's own frosted base show through.
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 60
-            color: Qt.rgba(ThemeService.bg1.r, ThemeService.bg1.g, ThemeService.bg1.b, 0.55)
 
             Rectangle {
-                anchors.top: parent.top
-                anchors.left: parent.left
-                anchors.right: parent.right
-                height: 1
-                color: ThemeService.alpha(ThemeService.fg, 0.10)
-            }
+                Layout.fillWidth: true
+                Layout.preferredHeight: 36
+                radius: 8
+                color: ThemeService.alpha(ThemeService.bg2, 0.6)
+                border.color: searchInput.activeFocus
+                              ? ThemeService.alpha(menuRoot.accentColor, 0.5)
+                              : ThemeService.alpha(ThemeService.fg, 0.08)
+                border.width: 1
+                Behavior on border.color { ColorAnimation { duration: 120 } }
 
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 20
-                anchors.rightMargin: 20
-                spacing: 12
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 10
+                    spacing: 8
 
-                // v6.16.3: User avatar circle.
-                // Shows auto-detected photo from /var/lib/AccountsService/icons,
-                // ~/.face, SDDM/GDM face files, or user-uploaded custom avatar.
-                // Click toggles a system-info popover (fastfetch-style).
-                Rectangle {
-                    id: avatarWrap
-                    width: 36
-                    height: 36
-                    radius: width / 2
-                    color: Theme.alpha(Theme.blue, 0.2)
-                    border.width: 2
-                    border.color: avatarMa.containsMouse
-                        ? Theme.blue
-                        : Theme.alpha(Theme.blue, 0.4)
-                    Behavior on border.color { ColorAnimation { duration: 150 } }
-                    antialiasing: true
-
-                    // v6.16.2.3: shader-based circular mask (FBO approach
-                    // didn't reliably render as circle in Paul's Quickshell
-                    // build — fragment shader with UV distance test works
-                    // across all backends).
-                    Image {
-                        id: avatarImg
-                        anchors.fill: parent
-                        anchors.margins: 2
-                        source: UserProfileService.effectiveAvatarSource
-                        fillMode: Image.PreserveAspectCrop
-                        smooth: true
-                        mipmap: true
-                        asynchronous: true
-                        cache: false
-                        sourceSize: Qt.size(72, 72)
-                        visible: false
-                        onStatusChanged: console.log("[FooterAvatar] status=" + status + " src=" + source)
-                    }
-                    Rectangle {
-                        id: avatarImgMask
-                        anchors.fill: avatarImg
-                        radius: width / 2
-                        color: "white"
-                        visible: false
-                    }
-                    OpacityMask {
-                        anchors.fill: avatarImg
-                        source: avatarImg
-                        maskSource: avatarImgMask
-                        visible: avatarImg.status === Image.Ready
-                              && avatarImg.source.toString().length > 0
-                    }
-
-                    // Fallback glyph when no photo available
                     Text {
-                        anchors.centerIn: parent
-                        text: menuRoot.nfUser
-                        color: Theme.blue
-                        font.family: Theme.monoFont
-                        font.pixelSize: 16
-                        visible: !avatarImg.visible
-                    }
-
-                    MouseArea {
-                        id: avatarMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: menuRoot.sysInfoOpen = !menuRoot.sysInfoOpen
-                    }
-                }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 0
-                    Text {
-                        text: UserProfileService.userName
-                        color: Theme.fg
-                        font.family: Theme.fontFamily
+                        text: "\uf002"
+                        font.family: "JetBrainsMono Nerd Font"
                         font.pixelSize: 13
-                        font.bold: true
-                    }
-                    Text {
-                        text: UserProfileService.hostname
-                               ? ("@" + UserProfileService.hostname)
-                               : ""
-                        color: Theme.fgDim
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 10
-                        visible: text.length > 0
-                    }
-                }
-
-                Item { Layout.fillWidth: true }
-
-                // File Manager
-                Rectangle {
-                    width: 40
-                    height: 40
-                    radius: 10
-                    color: fmMa.containsMouse ? Theme.alpha(Theme.fg, 0.08) : "transparent"
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: menuRoot.nfFolder
-                        color: Theme.fgDim
-                        font.family: Theme.monoFont
-                        font.pixelSize: 18
+                        color: searchInput.activeFocus
+                               ? menuRoot.accentColor
+                               : ThemeService.grey0
                     }
 
-                    MouseArea {
-                        id: fmMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            Quickshell.execDetached({command: ["thunar"]})
-                            menuRoot.appLaunched()
+                    TextField {
+                        id: searchInput
+                        Layout.fillWidth: true
+                        placeholderText: menuRoot.densho
+                            ? "アプリを検索 · Type to search"
+                            : "Type to search"
+                        font.family: menuRoot.fontPrimary
+                        font.pixelSize: 12
+                        color: ThemeService.fg
+                        placeholderTextColor: ThemeService.grey1
+                        background: Item {}
+                        verticalAlignment: TextInput.AlignVCenter
+                        selectByMouse: true
+                        onTextChanged: {
+                            menuRoot.pendingSearch = text
+                            searchDebounce.restart()
                         }
-                    }
-                }
-
-                // Settings — opens Zen Shell control panel
-                Rectangle {
-                    width: 40
-                    height: 40
-                    radius: 10
-                    color: stMa.containsMouse ? Theme.alpha(Theme.fg, 0.08) : "transparent"
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: menuRoot.nfSettings
-                        color: Theme.fgDim
-                        font.family: Theme.monoFont
-                        font.pixelSize: 18
-                    }
-
-                    MouseArea {
-                        id: stMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            // Close start menu first, then open settings via IPC
-                            menuRoot.closeRequested()
-                            Quickshell.execDetached({
-                                command: ["qs", "-c", "zen-shell", "ipc", "call", "zen", "toggleSettings"]
-                            })
+                        Keys.onEscapePressed: {
+                            if (text.length > 0) text = ""
+                            else menuRoot.closeRequested()
                         }
-                    }
-                }
-
-                // Power button — opens a right-side horizontal popover
-                Rectangle {
-                    id: powerBtn
-                    width: 40
-                    height: 40
-                    radius: 10
-                    color: pwMa.containsMouse || menuRoot.powerMenuOpen
-                           ? Theme.alpha(Theme.fg, 0.08)
-                           : "transparent"
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: menuRoot.nfPower
-                        color: Theme.fgDim
-                        font.family: Theme.monoFont
-                        font.pixelSize: 18
-                    }
-
-                    MouseArea {
-                        id: pwMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: menuRoot.powerMenuOpen = !menuRoot.powerMenuOpen
-                    }
-
-                    // ═══ Power Menu Popover — horizontal, right-anchored ═══
-                    // Floats above the bottom bar, anchored to the right edge of
-                    // the power button. 4 uniform icon-tiles in one row.
-                    Rectangle {
-                        id: powerPopover
-                        visible: menuRoot.powerMenuOpen
-                        width: powerRow.implicitWidth + 16
-                        height: 64
-                        radius: 14
-                        color: Theme.alpha(Theme.bg0, 0.96)
-                        border.width: 1
-                        border.color: Theme.alpha(Theme.fg, 0.12)
-
-                        // Anchor: above the power button, right edge aligned
-                        // with the power button's right edge (so it extends left).
-                        anchors.right: parent.right
-                        anchors.bottom: parent.top
-                        anchors.bottomMargin: 10
-                        z: 100
-
-                        opacity: menuRoot.powerMenuOpen ? 1 : 0
-                        Behavior on opacity {
-                            NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
-                        }
-
-                        // Small arrow pointing down toward the power button
-                        Canvas {
-                            anchors.horizontalCenter: parent.right
-                            anchors.horizontalCenterOffset: -20
-                            anchors.top: parent.bottom
-                            width: 14
-                            height: 8
-                            onPaint: {
-                                const ctx = getContext("2d")
-                                ctx.reset()
-                                ctx.fillStyle = Theme.alpha(Theme.bg0, 0.96)
-                                ctx.beginPath()
-                                ctx.moveTo(0, 0)
-                                ctx.lineTo(7, 8)
-                                ctx.lineTo(14, 0)
-                                ctx.closePath()
-                                ctx.fill()
-                            }
-                        }
-
-                        RowLayout {
-                            id: powerRow
-                            anchors.fill: parent
-                            anchors.margins: 8
-                            spacing: 6
-
-                            Repeater {
-                                model: [
-                                    { icon: "\uf023", label: "Lock",     action: "lock",     cmd: "hyprlock",                destructive: false },
-                                    { icon: "\uf2f5", label: "Logout",   action: "logout",   cmd: "hyprctl dispatch exit",  destructive: false },
-                                    { icon: "\uf021", label: "Restart",  action: "reboot",   cmd: "systemctl reboot",       destructive: false },
-                                    { icon: "\uf011", label: "Shutdown", action: "shutdown", cmd: "systemctl poweroff",     destructive: true  }
-                                ]
-
-                                delegate: Rectangle {
-                                    required property var modelData
-                                    Layout.preferredWidth: 72
-                                    Layout.preferredHeight: 48
-                                    radius: 10
-
-                                    readonly property bool isDestructive: modelData.destructive === true
-                                    readonly property color baseColor: isDestructive
-                                                                        ? Theme.red
-                                                                        : Theme.fgDim
-
-                                    color: pmMa.containsMouse
-                                           ? (isDestructive
-                                              ? Theme.alpha(Theme.red, 0.18)
-                                              : Theme.alpha(Theme.fg, 0.08))
-                                           : "transparent"
-
-                                    Behavior on color {
-                                        ColorAnimation { duration: 120 }
-                                    }
-
-                                    ColumnLayout {
-                                        anchors.centerIn: parent
-                                        spacing: 2
-
-                                        Text {
-                                            Layout.alignment: Qt.AlignHCenter
-                                            text: modelData.icon
-                                            color: parent.parent.baseColor
-                                            font.family: Theme.monoFont
-                                            font.pixelSize: 18
-                                        }
-
-                                        Text {
-                                            Layout.alignment: Qt.AlignHCenter
-                                            text: modelData.label
-                                            color: parent.parent.baseColor
-                                            font.family: Theme.fontFamily
-                                            font.pixelSize: 10
-                                            font.weight: Font.DemiBold
-                                        }
-                                    }
-
-                                    MouseArea {
-                                        id: pmMa
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            menuRoot.powerMenuOpen = false
-                                            menuRoot.powerActionRequested(modelData.action, modelData.cmd)
-                                            menuRoot.closeRequested()
-                                        }
-                                    }
-                                }
+                        Keys.onReturnPressed: {
+                            const results = menuRoot.searchQuery
+                                ? AppLauncherService.searchApps(menuRoot.searchQuery)
+                                : AppLauncherService.apps
+                            if (results.length > 0) {
+                                AppLauncherService.launch(results[0])
+                                menuRoot.appLaunched()
                             }
                         }
                     }
                 }
             }
         }
-
-        // (Power menu moved to a right-anchored popover attached to the power
-        // button — see powerPopover above. This keeps the start menu visually
-        // stable and aligns with the HyprMod / Event Horizon interaction model.)
-    }   // close main ColumnLayout — context menu below is a SIBLING
-
-    // ═══════════════════════════════════════════════════════════════
-    // v6.16.3 SYSTEM INFO POPOVER (fastfetch-style)
-    // Triggered by clicking the user avatar in the footer. Floats over
-    // the panel showing OS, kernel, CPU, GPU, theme, uptime, etc.
-    // ═══════════════════════════════════════════════════════════════
-    MouseArea {
-        id: sysInfoBackdrop
-        anchors.fill: parent
-        visible: menuRoot.sysInfoOpen
-        z: 95
-        acceptedButtons: Qt.LeftButton | Qt.RightButton
-        onClicked: menuRoot.sysInfoOpen = false
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // POWER POPUP MENU (hf1) — appears above the power button
+    // ═══════════════════════════════════════════════════════════════
     Rectangle {
-        id: sysInfoPanel
-        visible: menuRoot.sysInfoOpen
-        z: 96
-        // Anchor above the footer user row, left-aligned to avatar
-        x: 20
-        y: parent.height - 200 - 72   // 72 = footer height; 200 = this panel
-        width: 380
-        height: Math.min(sysInfoCol.implicitHeight + 24, 420)
-        radius: Math.max(8, (Theme.panelRadius || 12) * 0.6)
-        color: Theme.alpha(Theme.bg0 || "#1e1e1e", 0.98)
+        id: powerPopup
+        visible: menuRoot.powerMenuOpen
+        width: 200
+        height: powerCol.implicitHeight + 16
+        radius: 10
+        color: Qt.rgba(ThemeService.bg1.r, ThemeService.bg1.g, ThemeService.bg1.b, 0.98)
+        border.color: ThemeService.alpha(ThemeService.fg, 0.14)
         border.width: 1
-        border.color: Theme.alpha(Theme.fg, 0.14)
-        opacity: menuRoot.sysInfoOpen ? 1 : 0
-        scale: menuRoot.sysInfoOpen ? 1 : 0.95
-        transformOrigin: Item.BottomLeft
+        z: 100
 
-        Behavior on opacity { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
-        Behavior on scale   { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+        // Anchor near the bottom-right of the left pane (above the user pill)
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.rightMargin: parent.width - menuRoot.leftPaneWidth + 8
+        anchors.bottomMargin: 72
 
-        // Drop shadow
-        Rectangle {
-            anchors.fill: parent
-            anchors.margins: -1
-            radius: parent.radius + 1
-            color: "#000000"
-            opacity: 0.3
-            z: -1
-        }
+        opacity: menuRoot.powerMenuOpen ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 140 } }
 
         ColumnLayout {
-            id: sysInfoCol
+            id: powerCol
             anchors.fill: parent
-            anchors.margins: 14
-            spacing: 6
+            anchors.margins: 6
+            spacing: 1
 
-            // Header row: large avatar + user@host + distro
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 12
+            Repeater {
+                model: [
+                    { icon: "\uf023", label: menuRoot.densho ? "Lock · 施錠" : "Lock",
+                      action: "lock",     cmd: "hyprlock",                destructive: false },
+                    { icon: "\uf186", label: menuRoot.densho ? "Suspend · 休眠" : "Suspend",
+                      action: "suspend",  cmd: "systemctl suspend",       destructive: false },
+                    { icon: "\uf2f5", label: menuRoot.densho ? "Logout · 退出" : "Logout",
+                      action: "logout",   cmd: "hyprctl dispatch exit",   destructive: false },
+                    { icon: "\uf021", label: menuRoot.densho ? "Restart · 再起動" : "Restart",
+                      action: "reboot",   cmd: "systemctl reboot",        destructive: false },
+                    { icon: "\uf011", label: menuRoot.densho ? "Shutdown · 終了" : "Shutdown",
+                      action: "shutdown", cmd: "systemctl poweroff",      destructive: true  }
+                ]
 
-                Rectangle {
-                    Layout.preferredWidth: 52
-                    Layout.preferredHeight: 52
-                    radius: width / 2
-                    color: Theme.alpha(Theme.blue, 0.2)
-                    border.width: 2
-                    border.color: Theme.alpha(Theme.blue, 0.5)
-                    antialiasing: true
+                delegate: Rectangle {
+                    required property var modelData
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 32
+                    radius: 6
+                    color: itemMa.containsMouse
+                           ? ThemeService.alpha(modelData.destructive ? ThemeService.red : menuRoot.accentColor, 0.14)
+                           : "transparent"
+                    Behavior on color { ColorAnimation { duration: 100 } }
 
-                    Image {
-                        id: popAvatarImg
+                    RowLayout {
                         anchors.fill: parent
-                        anchors.margins: 2
-                        source: UserProfileService.effectiveAvatarSource
-                        fillMode: Image.PreserveAspectCrop
-                        smooth: true
-                        mipmap: true
-                        asynchronous: true
-                        cache: false
-                        sourceSize: Qt.size(104, 104)
-                        visible: false
-                        onStatusChanged: console.log("[PopoverAvatar] status=" + status + " src=" + source)
-                    }
-                    Rectangle {
-                        id: popAvatarImgMask
-                        anchors.fill: popAvatarImg
-                        radius: width / 2
-                        color: "white"
-                        visible: false
-                    }
-                    OpacityMask {
-                        anchors.fill: popAvatarImg
-                        source: popAvatarImg
-                        maskSource: popAvatarImgMask
-                        visible: popAvatarImg.status === Image.Ready
-                              && popAvatarImg.source.toString().length > 0
-                    }
-                    Text {
-                        anchors.centerIn: parent
-                        text: menuRoot.nfUser
-                        color: Theme.blue
-                        font.family: Theme.monoFont
-                        font.pixelSize: 22
-                        visible: !popAvatarImg.visible
-                    }
-                }
+                        anchors.leftMargin: 10
+                        anchors.rightMargin: 10
+                        spacing: 10
 
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 2
-                    Text {
-                        text: UserProfileService.userName +
-                              (UserProfileService.hostname
-                                ? "@" + UserProfileService.hostname : "")
-                        color: Theme.fg
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 14
-                        font.bold: true
-                        elide: Text.ElideRight
-                        Layout.fillWidth: true
+                        Text {
+                            text: modelData.icon
+                            font.family: "JetBrainsMono Nerd Font"
+                            font.pixelSize: 14
+                            color: itemMa.containsMouse
+                                ? (modelData.destructive ? ThemeService.red : menuRoot.accentColor)
+                                : ThemeService.grey0
+                            Layout.preferredWidth: 18
+                        }
+                        Text {
+                            text: modelData.label
+                            font.family: menuRoot.fontPrimary
+                            font.pixelSize: 12
+                            color: itemMa.containsMouse
+                                ? (modelData.destructive ? ThemeService.red : ThemeService.fg)
+                                : ThemeService.fg
+                            Layout.fillWidth: true
+                        }
                     }
-                    Text {
-                        text: UserProfileService.osName +
-                              (UserProfileService.osVersion
-                                ? " " + UserProfileService.osVersion : "")
-                        color: Theme.blue
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 11
-                        elide: Text.ElideRight
-                        Layout.fillWidth: true
-                    }
-                    Text {
-                        text: "up " + (UserProfileService.uptime || "…")
-                        color: Theme.fgDim
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 10
-                    }
-                }
-            }
 
-            // Separator
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 1
-                color: Theme.alpha(Theme.fg, 0.1)
-                Layout.topMargin: 4
-                Layout.bottomMargin: 4
-            }
-
-            // Specs grid — key / value rows
-            GridLayout {
-                Layout.fillWidth: true
-                columns: 2
-                columnSpacing: 12
-                rowSpacing: 5
-
-                Text { text: "Kernel"; color: Theme.blue; font.family: Theme.fontFamily; font.pixelSize: 11; font.bold: true }
-                Text {
-                    Layout.fillWidth: true
-                    text: UserProfileService.kernelVersion || "…"
-                    color: Theme.fg; font.family: Theme.fontFamily; font.pixelSize: 11
-                    elide: Text.ElideRight
-                }
-
-                Text { text: "CPU"; color: Theme.blue; font.family: Theme.fontFamily; font.pixelSize: 11; font.bold: true }
-                Text {
-                    Layout.fillWidth: true
-                    text: UserProfileService.cpuModel
-                    color: Theme.fg; font.family: Theme.fontFamily; font.pixelSize: 11
-                    elide: Text.ElideRight
-                }
-
-                Text {
-                    text: UserProfileService.gpuNames.length > 1 ? "GPUs" : "GPU"
-                    color: Theme.blue; font.family: Theme.fontFamily; font.pixelSize: 11; font.bold: true
-                    visible: UserProfileService.gpuNames.length > 0
-                }
-                Text {
-                    Layout.fillWidth: true
-                    text: UserProfileService.gpuNames.join(" · ")
-                    color: Theme.fg; font.family: Theme.fontFamily; font.pixelSize: 11
-                    elide: Text.ElideRight
-                    wrapMode: Text.WordWrap
-                    visible: UserProfileService.gpuNames.length > 0
-                }
-
-                Text { text: "WM"; color: Theme.blue; font.family: Theme.fontFamily; font.pixelSize: 11; font.bold: true }
-                // v6.16.2.3.2: Hover tooltip shows the FULL Hyprland version
-                // string (commit hash, branch, etc.). Without this the row
-                // ellipses to "...built from branch v0.54.3 at c..." with
-                // no way to see the rest. ToolTip is a Quick Controls
-                // attachment that fires after a short hover delay.
-                Item {
-                    Layout.fillWidth: true
-                    implicitHeight: wmText.implicitHeight
-                    Text {
-                        id: wmText
-                        anchors.fill: parent
-                        text: "Hyprland " + (UserProfileService.hyprlandVersion || "")
-                        color: Theme.fg; font.family: Theme.fontFamily; font.pixelSize: 11
-                        elide: Text.ElideRight
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                    ToolTip.visible: wmHoverMa.containsMouse
-                                     && (wmText.truncated
-                                         || UserProfileService.hyprlandVersion.length > 30)
-                    ToolTip.delay: 350
-                    ToolTip.text: "Hyprland " + (UserProfileService.hyprlandVersion || "(unknown)")
                     MouseArea {
-                        id: wmHoverMa
+                        id: itemMa
                         anchors.fill: parent
                         hoverEnabled: true
-                        acceptedButtons: Qt.NoButton
-                    }
-                }
-
-                Text { text: "Shell"; color: Theme.blue; font.family: Theme.fontFamily; font.pixelSize: 11; font.bold: true }
-                Text {
-                    Layout.fillWidth: true
-                    text: "Zen Shell · Quickshell"
-                    color: Theme.fg; font.family: Theme.fontFamily; font.pixelSize: 11
-                }
-
-                Text { text: "Theme"; color: Theme.blue; font.family: Theme.fontFamily; font.pixelSize: 11; font.bold: true }
-                Text {
-                    Layout.fillWidth: true
-                    text: UserProfileService.themeName
-                    color: Theme.fg; font.family: Theme.fontFamily; font.pixelSize: 11
-                    elide: Text.ElideRight
-                }
-            }
-
-            // Color palette preview (theme-synced)
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 16
-                Layout.topMargin: 6
-                color: "transparent"
-                Row {
-                    anchors.fill: parent
-                    spacing: 2
-                    Repeater {
-                        model: [
-                            Theme.bg0, Theme.bg1 || Theme.bg0,
-                            Theme.fg, Theme.fgDim,
-                            Theme.blue, Theme.alpha(Theme.blue, 0.6)
-                        ]
-                        delegate: Rectangle {
-                            required property var modelData
-                            width: 36
-                            height: 16
-                            radius: 3
-                            color: modelData
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            menuRoot.powerMenuOpen = false
+                            menuRoot.powerActionRequested(modelData.action, modelData.cmd)
                         }
                     }
                 }
             }
-
-            // Change avatar button row
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.topMargin: 4
-                spacing: 6
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 30
-                    radius: 6
-                    color: changeAvatarMa.containsMouse
-                        ? Theme.alpha(Theme.blue, 0.25)
-                        : Theme.alpha(Theme.blue, 0.12)
-                    border.width: 1
-                    border.color: Theme.alpha(Theme.blue, 0.4)
-                    Text {
-                        anchors.centerIn: parent
-                        text: UserProfileService.customAvatarPath
-                              ? "Change avatar"
-                              : "Upload custom avatar"
-                        color: Theme.fg
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 11
-                    }
-                    MouseArea {
-                        id: changeAvatarMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: avatarPicker.running = true
-                    }
-                }
-
-                Rectangle {
-                    visible: UserProfileService.customAvatarPath.length > 0
-                    Layout.preferredWidth: 30
-                    Layout.preferredHeight: 30
-                    radius: 6
-                    color: resetAvatarMa.containsMouse
-                        ? Theme.alpha(Theme.fg, 0.18)
-                        : Theme.alpha(Theme.fg, 0.08)
-                    Text {
-                        anchors.centerIn: parent
-                        text: "↺"
-                        color: Theme.fgDim
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 13
-                    }
-                    MouseArea {
-                        id: resetAvatarMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: UserProfileService.clearCustomAvatar()
-                    }
-                }
-            }
         }
     }
 
-    // Avatar picker via zenity file dialog
-    // v6.16.2.3.1: Flip `uploadInProgress` around the Process lifecycle
-    // so shell.qml's HyprlandFocusGrab is suspended while zenity is up.
-    // Without this, zenity steals keyboard/pointer focus → FocusGrab
-    // onCleared fires → StartMenu closes before the user can pick a file.
-    Process {
-        id: avatarPicker
-        running: false
-        command: ["bash", "-c",
-            "zenity --file-selection --title='Select Avatar' " +
-            "--file-filter='Images | *.png *.jpg *.jpeg *.webp' 2>/dev/null || true"]
-        onRunningChanged: menuRoot.uploadInProgress = running
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const p = text.trim()
-                if (p) UserProfileService.setCustomAvatar(p)
-            }
-        }
+    // Click-outside-to-close for power menu
+    MouseArea {
+        anchors.fill: parent
+        visible: menuRoot.powerMenuOpen
+        z: 99
+        onClicked: menuRoot.powerMenuOpen = false
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // v6.16.2 RIGHT-CLICK CONTEXT MENU
-    // Rendered as a sibling of the main ColumnLayout so it overlays
-    // everything else. Backdrop catches outside clicks to dismiss.
+    // RIGHT-CLICK CONTEXT MENU (hf1) — Pin/Unpin + Cancel
     // ═══════════════════════════════════════════════════════════════
     MouseArea {
-        id: ctxBackdrop
+        // Click-outside-to-close
         anchors.fill: parent
         visible: menuRoot.contextMenuOpen
-        z: 99
-        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        z: 199
         onClicked: menuRoot.closeContextMenu()
     }
 
     Rectangle {
         id: contextMenu
         visible: menuRoot.contextMenuOpen
-        z: 100
         x: menuRoot.contextX
         y: menuRoot.contextY
-        width: 220
-        height: ctxColumn.implicitHeight + 12
-        radius: Math.max(8, (Theme.panelRadius || 12) * 0.6)
-        color: Theme.alpha(Theme.bg0 || "#1e1e1e", 0.98)
+        z: 200
+        width: 200
+        height: 88
+        radius: 10
+        color: Qt.rgba(ThemeService.bg1.r, ThemeService.bg1.g, ThemeService.bg1.b, 0.98)
+        border.color: ThemeService.alpha(ThemeService.fg, 0.16)
         border.width: 1
-        border.color: Theme.alpha(Theme.fg, 0.14)
+
         opacity: menuRoot.contextMenuOpen ? 1 : 0
-        scale: menuRoot.contextMenuOpen ? 1 : 0.95
-        transformOrigin: Item.TopLeft
-
-        Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-        Behavior on scale   { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-
-        // Subtle drop-shadow illusion via lower-z sibling (no QtGraphicalEffects)
-        Rectangle {
-            anchors.fill: parent
-            anchors.margins: -1
-            radius: parent.radius + 1
-            color: "#000000"
-            opacity: 0.25
-            z: -1
-        }
+        Behavior on opacity { NumberAnimation { duration: 100 } }
 
         ColumnLayout {
-            id: ctxColumn
             anchors.fill: parent
             anchors.margins: 6
-            spacing: 2
+            spacing: 1
 
-            // Header — app name
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 30
-                spacing: 8
-
-                Image {
-                    Layout.preferredWidth: 18
-                    Layout.preferredHeight: 18
-                    Layout.leftMargin: 6
-                    source: (menuRoot.contextApp && menuRoot.contextApp.icon)
-                        ? Quickshell.iconPath(menuRoot.contextApp.icon)
-                        : Quickshell.iconPath("application-x-executable")
-                    sourceSize: Qt.size(18, 18)
-                }
-                Text {
-                    Layout.fillWidth: true
-                    text: menuRoot.contextApp ? menuRoot.contextApp.name : ""
-                    elide: Text.ElideRight
-                    color: Theme.fg
-                    font.family: Theme.fontFamily
-                    font.pixelSize: 12
-                    font.bold: true
-                }
-            }
-
-            // Separator
+            // ── Pin / Unpin row ──
             Rectangle {
                 Layout.fillWidth: true
-                Layout.leftMargin: 6; Layout.rightMargin: 6
-                Layout.preferredHeight: 1
-                color: Theme.alpha(Theme.fg, 0.08)
-            }
-
-            // Launch
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 30
+                Layout.preferredHeight: 32
                 radius: 6
-                color: launchMa.containsMouse ? Theme.alpha(Theme.fg, 0.1) : "transparent"
+                color: pinRowMa.containsMouse
+                       ? ThemeService.alpha(menuRoot.accentColor, 0.14)
+                       : "transparent"
+
                 RowLayout {
                     anchors.fill: parent
                     anchors.leftMargin: 10
-                    spacing: 8
+                    anchors.rightMargin: 10
+                    spacing: 10
+
                     Text {
-                        text: "\uf0a9"   // arrow-circle-right
-                        color: Theme.blue
-                        font.family: Theme.monoFont
-                        font.pixelSize: 14
+                        text: menuRoot.contextIsPinned ? "\uf08d" : "\uf08d"   // pin glyph
+                        font.family: "JetBrainsMono Nerd Font"
+                        font.pixelSize: 13
+                        color: pinRowMa.containsMouse ? menuRoot.accentColor : ThemeService.grey0
                         Layout.preferredWidth: 18
                     }
                     Text {
-                        Layout.fillWidth: true
-                        text: "Launch"
-                        color: Theme.fg
-                        font.family: Theme.fontFamily
+                        text: menuRoot.contextIsPinned
+                            ? (menuRoot.densho ? "Unpin · 解除" : "Unpin from Start")
+                            : (menuRoot.densho ? "Pin · 固定"  : "Pin to Start")
+                        font.family: menuRoot.fontPrimary
                         font.pixelSize: 12
+                        color: ThemeService.fg
+                        Layout.fillWidth: true
                     }
                 }
+
                 MouseArea {
-                    id: launchMa
+                    id: pinRowMa
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
                         if (menuRoot.contextApp) {
-                            if (menuRoot.contextApp.entry)
-                                menuRoot.launchApp(menuRoot.contextApp.entry)
+                            if (menuRoot.contextIsPinned)
+                                AppLauncherService.unpin(menuRoot.contextApp.id)
                             else
-                                menuRoot.launchApp(menuRoot.contextApp)
+                                AppLauncherService.pin(menuRoot.contextApp.id)
                         }
                         menuRoot.closeContextMenu()
                     }
                 }
             }
 
-            // Pin / Unpin (dynamic)
+            // ── Cancel row ──
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 30
+                Layout.preferredHeight: 32
                 radius: 6
-                color: pinMa.containsMouse ? Theme.alpha(Theme.fg, 0.1) : "transparent"
-                readonly property bool pinned: menuRoot.isPinned(menuRoot.contextAppId)
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 10
-                    spacing: 8
-                    Text {
-                        text: parent.parent.pinned ? menuRoot.nfPinOff : menuRoot.nfPin
-                        color: parent.parent.pinned ? Theme.alpha(Theme.fg, 0.7) : Theme.blue
-                        font.family: Theme.monoFont
-                        font.pixelSize: 14
-                        Layout.preferredWidth: 18
-                    }
-                    Text {
-                        Layout.fillWidth: true
-                        text: parent.parent.pinned ? "Unpin from Start" : "Pin to Start"
-                        color: Theme.fg
-                        font.family: Theme.fontFamily
-                        font.pixelSize: 12
-                    }
-                }
-                MouseArea {
-                    id: pinMa
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        if (parent.pinned) menuRoot.unpinApp(menuRoot.contextAppId)
-                        else menuRoot.pinApp(menuRoot.contextAppId)
-                        menuRoot.closeContextMenu()
-                    }
-                }
-            }
+                color: cancelRowMa.containsMouse
+                       ? ThemeService.alpha(ThemeService.fg, 0.06)
+                       : "transparent"
 
-            // Copy command (helpful for power users)
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 30
-                radius: 6
-                visible: menuRoot.contextApp
-                         && (menuRoot.contextApp.execCmd || (menuRoot.contextApp.entry && menuRoot.contextApp.entry.exec))
-                color: copyMa.containsMouse ? Theme.alpha(Theme.fg, 0.1) : "transparent"
                 RowLayout {
                     anchors.fill: parent
                     anchors.leftMargin: 10
-                    spacing: 8
+                    anchors.rightMargin: 10
+                    spacing: 10
+
                     Text {
-                        text: "\uf0c5"   // copy icon
-                        color: Theme.alpha(Theme.fg, 0.7)
-                        font.family: Theme.monoFont
-                        font.pixelSize: 14
+                        text: "\uf00d"   // x
+                        font.family: "JetBrainsMono Nerd Font"
+                        font.pixelSize: 13
+                        color: ThemeService.grey0
                         Layout.preferredWidth: 18
                     }
                     Text {
-                        Layout.fillWidth: true
-                        text: "Copy launch command"
-                        color: Theme.fg
-                        font.family: Theme.fontFamily
+                        text: menuRoot.densho ? "Cancel · 取消" : "Cancel"
+                        font.family: menuRoot.fontPrimary
                         font.pixelSize: 12
+                        color: ThemeService.grey1
+                        Layout.fillWidth: true
                     }
                 }
+
                 MouseArea {
-                    id: copyMa
+                    id: cancelRowMa
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        const cmd = menuRoot.contextApp.execCmd ||
-                                   (menuRoot.contextApp.entry ? menuRoot.contextApp.entry.exec : "")
-                        if (cmd) {
-                            copyProc.command = ["bash", "-c",
-                                "printf '%s' " + JSON.stringify(cmd) + " | wl-copy 2>/dev/null || " +
-                                "printf '%s' " + JSON.stringify(cmd) + " | xclip -sel clip 2>/dev/null"]
-                            copyProc.running = true
-                        }
-                        menuRoot.closeContextMenu()
-                    }
+                    onClicked: menuRoot.closeContextMenu()
                 }
             }
         }
     }
-
-    // Process for clipboard copy (wl-copy / xclip)
-    Process { id: copyProc; running: false }
 }
-

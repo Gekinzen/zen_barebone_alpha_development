@@ -60,8 +60,16 @@ Item {
 
                 Text {
                     anchors.centerIn: parent
-                    text: ZenConstants.workspaceIcon(PanelState.workspaceFormat, wsId)
-                    font.family: ZenConstants.fontPrimary(PanelState.fontFamilyId)
+                    // v7.0.0-alpha.2 (Densho Foundation): when Densho mode +
+                    // kanjiWorkspaces sub-toggle are both on, override the
+                    // PanelState.workspaceFormat icon with a kanji 一二三...
+                    // label. Falls back to the existing behavior otherwise.
+                    text: DenshoService.useKanjiWorkspaces
+                          ? DenshoService.workspaceKanji(wsId)
+                          : ZenConstants.workspaceIcon(PanelState.workspaceFormat, wsId)
+                    font.family: DenshoService.useKanjiWorkspaces
+                          ? "Noto Serif CJK JP, " + ZenConstants.fontPrimary(PanelState.fontFamilyId)
+                          : ZenConstants.fontPrimary(PanelState.fontFamilyId)
                     font.pixelSize: isActive ? PanelState.workspaceFontActive : PanelState.workspaceFontInactive
                     color: isActive ? ThemeService.blue : ThemeService.grey0
                 }

@@ -14,16 +14,33 @@ import Quickshell.Hyprland
  */
 Item {
     id: wsRoot
-    implicitWidth: wsRow.implicitWidth + 8
-    implicitHeight: parent ? parent.height : 40
+
+    // v7.0.0-beta.1-hf91.1: explicit vertical mode (end-4 style). When the
+    // bar is zenVertical, BarVertical sets `vertical: true` and the dots stack
+    // in a column. Default false → original horizontal row.
+    property bool zenVertical: false
+
+    implicitWidth: zenVertical ? Math.round(Theme.moduleHeight) : (wsRow.implicitWidth + 8)
+    implicitHeight: zenVertical ? (wsRow.implicitHeight + 8) : Math.round(Theme.moduleHeight)
+
+    // v7.0.0-beta.1-hf84: dots + labels scale with the bar when
+    // Fit-contents is on (1.0 otherwise → user's configured dot sizes
+    // are used unchanged).
+    readonly property real _fit: (typeof Theme !== "undefined" && Theme.barContentScale)
+                                 ? Theme.barContentScale : 1.0
 
     // Default limit: 5 workspaces visible. User can change in Bar Modules settings.
     readonly property int wsCount: PanelState.workspaceLimit || 5
 
-    RowLayout {
+    // v7.0.0-beta.1-hf91.1: GridLayout flips by column count — 1 column
+    // when zenVertical (dots stack), wsCount columns when horizontal (one
+    // row, identical to the original RowLayout).
+    GridLayout {
         id: wsRow
         anchors.centerIn: parent
-        spacing: 3
+        columns: wsRoot.zenVertical ? 1 : wsRoot.wsCount
+        rowSpacing: 3
+        columnSpacing: 3
 
         Repeater {
             model: wsRoot.wsCount
@@ -40,8 +57,8 @@ Item {
                     return ws ? ws.windows > 0 : false
                 }
 
-                Layout.preferredWidth: isActive ? PanelState.workspaceDotActive : PanelState.workspaceDotInactive
-                Layout.preferredHeight: isActive ? PanelState.workspaceDotActive : PanelState.workspaceDotInactive
+                Layout.preferredWidth: Math.round((isActive ? PanelState.workspaceDotActive : PanelState.workspaceDotInactive) * wsRoot._fit)
+                Layout.preferredHeight: Math.round((isActive ? PanelState.workspaceDotActive : PanelState.workspaceDotInactive) * wsRoot._fit)
                 radius: Theme.styleMode === "round" ? width / 2 : 5
 
                 color: isActive
@@ -62,7 +79,7 @@ Item {
                     anchors.centerIn: parent
                     text: ZenConstants.workspaceIcon(PanelState.workspaceFormat, wsId)
                     font.family: ZenConstants.fontPrimary(PanelState.fontFamilyId)
-                    font.pixelSize: isActive ? PanelState.workspaceFontActive : PanelState.workspaceFontInactive
+                    font.pixelSize: Math.round((isActive ? PanelState.workspaceFontActive : PanelState.workspaceFontInactive) * wsRoot._fit)
                     color: isActive ? ThemeService.blue : ThemeService.grey0
                 }
 

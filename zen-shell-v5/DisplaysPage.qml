@@ -667,7 +667,11 @@ ScrollView {
         Text { visible: root.applyStatus.length > 0; text: root.applyStatus; font.family: Theme.fontFamily; font.pixelSize: 11; color: root.applyStatus.startsWith("✓") ? ThemeService.green : ThemeService.yellow; Layout.alignment: Qt.AlignHCenter }
 
         RowLayout { Layout.fillWidth: true; Item { Layout.fillWidth: true }
-            Button { text: "\uf021 Refresh"; font.family: "JetBrainsMono Nerd Font"; onClicked: root.refreshMonitors() }
+            ZenButton {
+                iconText: "\uf021"
+                text: "Refresh"
+                onClicked: root.refreshMonitors()
+            }
         }
 
         Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 80; radius: 12; color: ThemeService.alpha(ThemeService.bg1, 0.4); visible: root.monitors.length === 0

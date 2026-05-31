@@ -35,28 +35,54 @@ Rectangle {
         border.color: ThemeService.alpha(ThemeService.fg, 0.04)
     }
 
-    // Matching your old format-icons:
-    // notification: 󱅫, none: 󰂜, dnd-notification: 󰂠, dnd-none: 󰪓, etc
+    // v7.0.0-alpha.12-hf3: Replaced surrogate-pair Material codepoints
+    // with proper Nerd Font glyphs that render reliably (since
+    // MaterialIcons.materialAvailable is hardcoded false in alpha.10-hf6,
+    // the old surrogate pairs were rendering as empty boxes).
+    //
+    //   Bell:       \uf0f3   (Nerd Font bell icon)
+    //   Bell-slash: \uf1f6   (Nerd Font bell-slash for DND)
     property bool hasNotifications: false
     property bool dndEnabled: false
+    property int  unreadCount: 0
 
-    property string notifIcon: {
-        if (dndEnabled) {
-            return hasNotifications ? "\udb80\udca0" : "\udb82\udd13"  // dnd-notification : dnd-none
+    property string bellGlyph: dndEnabled ? "\uf1f6" : "\uf0f3"
+
+    // v7.0.0-alpha.12: Primary source is NotificationService (native
+    // zen-shell daemon). The swaync poll below is kept as defensive
+    // fallback in case NotificationService isn't yet registered.
+    Connections {
+        target: NotificationService
+        function onUnreadCountChanged() {
+            notifRoot.unreadCount = NotificationService.unreadCount
+            notifRoot.hasNotifications = NotificationService.unreadCount > 0
         }
-        return hasNotifications ? "\udb83\udd6b" : "\udb80\udc9c"  // notification : none
+        function onDndEnabledChanged() {
+            notifRoot.dndEnabled = NotificationService.dndEnabled
+        }
+    }
+
+    Component.onCompleted: {
+        // Initial sync from NotificationService
+        notifRoot.unreadCount = NotificationService.unreadCount
+        notifRoot.hasNotifications = NotificationService.unreadCount > 0
+        notifRoot.dndEnabled = NotificationService.dndEnabled
     }
 
     Process {
         id: poll
         command: ["swaync-client", "-swb"]
-        running: true
+        running: false   // disabled by default in alpha.12 — NotificationService is primary
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
                     const d = JSON.parse(this.text)
-                    notifRoot.hasNotifications = (d.count || 0) > 0
-                    notifRoot.dndEnabled = d.dnd || false
+                    // Only adopt swaync state if NotificationService hasn't weighed in
+                    if (NotificationService.notifications.length === 0) {
+                        notifRoot.hasNotifications = (d.count || 0) > 0
+                        notifRoot.unreadCount = d.count || 0
+                        notifRoot.dndEnabled = d.dnd || false
+                    }
                 } catch (e) {}
             }
         }
@@ -64,17 +90,53 @@ Rectangle {
 
     Timer {
         interval: 2000
-        running: true
+        running: false   // disabled in alpha.12
         repeat: true
         onTriggered: poll.running = true
     }
 
+    // ── Bell glyph ──
     Text {
+        id: bellText
         anchors.centerIn: parent
-        text: notifRoot.notifIcon
-        color: notifRoot.hasNotifications ? ThemeService.yellow : ThemeService.fg
-        font.family: Theme.monoFont
-        font.pixelSize: 18
+        text: notifRoot.bellGlyph
+        color: notifRoot.dndEnabled
+               ? ThemeService.alpha(ThemeService.fg, 0.5)
+               : (notifRoot.hasNotifications
+                  ? ThemeService.yellow
+                  : ThemeService.fg)
+        font.family: "JetBrainsMono Nerd Font"
+        font.pixelSize: 16
+
+        Behavior on color { ColorAnimation { duration: 150 } }
+    }
+
+    // ── Count badge — top-right of icon ──
+    // Visible only when there are unread notifications AND DND is off
+    Rectangle {
+        visible: notifRoot.unreadCount > 0 && !notifRoot.dndEnabled
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.topMargin: 1
+        anchors.rightMargin: 1
+
+        // Width grows for double-digit counts; minimum is square
+        width: Math.max(14, countLabel.implicitWidth + 6)
+        height: 14
+        radius: 7
+        color: ThemeService.red
+        border.width: 1
+        border.color: ThemeService.bg0
+
+        Text {
+            id: countLabel
+            anchors.centerIn: parent
+            text: notifRoot.unreadCount > 9 ? "9+" : notifRoot.unreadCount.toString()
+            font.family: Theme.fontFamily
+            font.pixelSize: 9
+            font.weight: Font.Bold
+            color: "#ffffff"
+        }
     }
 
     MouseArea {
@@ -82,10 +144,15 @@ Rectangle {
         cursorShape: Qt.PointingHandCursor
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         onClicked: (mouse) => {
-            if (mouse.button === Qt.LeftButton)
-                Quickshell.execDetached({command: ["swaync-client", "-t", "-sw"]})
-            else
-                Quickshell.execDetached({command: ["swaync-client", "-d", "-sw"]})
+            // v7.0.0-beta.1-hf5: left-click toggles via PanelState
+            // singleton directly — no external bash/IPC roundtrip,
+            // no race condition, no stacking on rapid clicks.
+            //   right-click = toggle DND directly
+            if (mouse.button === Qt.LeftButton) {
+                PanelState.toggleNotifPanel()
+            } else {
+                NotificationService.dndEnabled = !NotificationService.dndEnabled
+            }
         }
     }
 }

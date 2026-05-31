@@ -128,13 +128,27 @@ Singleton {
 
         root.status = "Auto-recovered: " + m.name
 
-        // Also clean the persistent ",disable" line from hyprland-monitors.conf
-        // so the fix survives a reboot.
+        // v7.0.0-beta.1-hf8: Stronger conf cleanup.
+        //
+        // The fix needs to survive reboot, so we strip `<name>,disable`
+        // from ALL possible Hyprland config files (not just one), and
+        // ensure a fresh enable line gets re-added.
+        const home = Quickshell.env("HOME")
+        const safeName = m.name.replace(/[^a-zA-Z0-9_\-]/g, "")
         confCleaner.command = ["bash", "-c",
+            "for CONF in '" + monitorConfPath + "' " +
+            "             '" + home + "/.config/hypr/monitor-v2-config' " +
+            "             '" + home + "/.config/hypr/hyprland.conf' " +
+            "             '" + home + "/.config/hypr/monitors.conf'; do " +
+            "  [ -f \"$CONF\" ] || continue; " +
+            "  sed -i -E '/^[[:space:]]*monitor[[:space:]]*=[[:space:]]*" + safeName + "[[:space:]]*,[[:space:]]*disable[[:space:]]*$/d' \"$CONF\" 2>/dev/null; " +
+            "done; " +
             "CONF='" + monitorConfPath + "'; " +
-            "[ -f \"$CONF\" ] && grep -v '^monitor\\s*=\\s*" + m.name + ",disable' \"$CONF\" > \"$CONF.tmp\" 2>/dev/null && " +
-            "mv \"$CONF.tmp\" \"$CONF\" && " +
-            "echo 'monitor = " + cmd + "' >> \"$CONF\""
+            "mkdir -p \"$(dirname \"$CONF\")\" && " +
+            "if [ ! -f \"$CONF\" ] || ! grep -q '^monitor[[:space:]]*=[[:space:]]*" + safeName + "[[:space:]]*,' \"$CONF\" 2>/dev/null; then " +
+            "  echo 'monitor = " + cmd + "' >> \"$CONF\"; " +
+            "fi; " +
+            "echo '[MonitorRecovery] cleaned disable directives for " + m.name + "'"
         ]
         confCleaner.running = true
     }

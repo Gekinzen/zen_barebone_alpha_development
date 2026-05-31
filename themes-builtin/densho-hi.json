@@ -1,0 +1,25 @@
+{
+  "id": "densho-hi",
+  "name": "Densho Hi",
+  "description": "Washi paper ground with shu-iro vermilion accent — traditional Japanese day mode (伝承 日)",
+  "is_builtin": true,
+  "version": "1.0",
+  "colors": {
+    "bg0":   "#F5EDDC",
+    "bg1":   "#EDE2C8",
+    "bg2":   "#FBF5E5",
+    "bg3":   "#E8DCC4",
+    "bg4":   "#D4C9A8",
+    "fg":    "#1A1410",
+    "grey0": "#888780",
+    "grey1": "#6F4E37",
+    "grey2": "#3D332A",
+    "red":    "#B85540",
+    "orange": "#C66B44",
+    "yellow": "#B8860B",
+    "green":  "#5A6F4A",
+    "aqua":   "#6A8E8B",
+    "blue":   "#4A6F7A",
+    "purple": "#7A5A6F"
+  }
+}

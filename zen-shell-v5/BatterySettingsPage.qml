@@ -54,6 +54,198 @@ ScrollView {
         }
 
         // ─────────────────────────────────────────────────────────────
+        // v7.0.0-alpha.15 — BATTERY HEALTH CARD
+        // ─────────────────────────────────────────────────────────────
+        // Reads /sys/class/power_supply/BAT0 via BatteryHealthService
+        // to surface wear %, cycle count, current draw, and estimated
+        // time-to-empty / time-to-full.
+        //
+        // Hidden on desktops (BatteryHealthService.present = false).
+        // Theme-aware via ThemeService.
+        Rectangle {
+            visible: BatteryHealthService.present
+            Layout.fillWidth: true
+            Layout.preferredHeight: healthCol.implicitHeight + 28
+            radius: 12
+            color: ThemeService.alpha(ThemeService.bg2, 0.55)
+            border.width: 1
+            border.color: ThemeService.alpha(ThemeService.fg, 0.1)
+
+            ColumnLayout {
+                id: healthCol
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.leftMargin: 16
+                anchors.rightMargin: 16
+                anchors.topMargin: 14
+                spacing: 10
+
+                // Header row: title + health pill
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+
+                    Text {
+                        text: "\uf240"   // Nerd Font battery
+                        font.family: "JetBrainsMono Nerd Font"
+                        font.pixelSize: 18
+                        color: ThemeService.blue
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 0
+
+                        Text {
+                            text: "Battery Health"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 14
+                            font.weight: Font.DemiBold
+                            color: ThemeService.fg
+                        }
+
+                        Text {
+                            visible: DenshoService.denshoMode
+                            text: "電池の健康 · Denchi no Kenkō"
+                            font.family: "Noto Sans CJK JP"
+                            font.pixelSize: 10
+                            color: ThemeService.alpha(ThemeService.fg, 0.5)
+                        }
+                    }
+
+                    // Health badge pill
+                    Rectangle {
+                        Layout.preferredHeight: 24
+                        Layout.preferredWidth: healthLabel.implicitWidth + 16
+                        radius: 12
+                        color: {
+                            const h = BatteryHealthService.health
+                            if (h === "Excellent") return ThemeService.alpha(ThemeService.green, 0.25)
+                            if (h === "Good")       return ThemeService.alpha(ThemeService.blue, 0.20)
+                            if (h === "Fair")       return ThemeService.alpha(ThemeService.yellow, 0.25)
+                            if (h === "Poor")       return ThemeService.alpha(ThemeService.red, 0.25)
+                            return ThemeService.alpha(ThemeService.fg, 0.12)
+                        }
+                        border.width: 1
+                        border.color: {
+                            const h = BatteryHealthService.health
+                            if (h === "Excellent") return ThemeService.green
+                            if (h === "Good")       return ThemeService.blue
+                            if (h === "Fair")       return ThemeService.yellow
+                            if (h === "Poor")       return ThemeService.red
+                            return ThemeService.alpha(ThemeService.fg, 0.3)
+                        }
+
+                        Text {
+                            id: healthLabel
+                            anchors.centerIn: parent
+                            text: BatteryHealthService.health
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 11
+                            font.weight: Font.DemiBold
+                            color: {
+                                const h = BatteryHealthService.health
+                                if (h === "Excellent") return ThemeService.green
+                                if (h === "Good")       return ThemeService.blue
+                                if (h === "Fair")       return ThemeService.yellow
+                                if (h === "Poor")       return ThemeService.red
+                                return ThemeService.fg
+                            }
+                        }
+                    }
+                }
+
+                // Stats grid (3 columns × 2 rows)
+                GridLayout {
+                    Layout.fillWidth: true
+                    columns: 3
+                    rowSpacing: 8
+                    columnSpacing: 16
+
+                    // Wear %
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 2
+                        Text {
+                            text: BatteryHealthService.wearPercent.toFixed(1) + "%"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 16
+                            font.weight: Font.Bold
+                            color: ThemeService.fg
+                        }
+                        Text {
+                            text: "Wear"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 10
+                            color: ThemeService.alpha(ThemeService.fg, 0.55)
+                        }
+                    }
+
+                    // Cycle count
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 2
+                        Text {
+                            text: BatteryHealthService.cycleCount.toString()
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 16
+                            font.weight: Font.Bold
+                            color: ThemeService.fg
+                        }
+                        Text {
+                            text: "Cycles"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 10
+                            color: ThemeService.alpha(ThemeService.fg, 0.55)
+                        }
+                    }
+
+                    // Time remaining (to-empty or to-full)
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 2
+                        Text {
+                            text: {
+                                const t2e = BatteryHealthService.timeToEmptyHours
+                                const t2f = BatteryHealthService.timeToFullHours
+                                if (t2f > 0)
+                                    return t2f.toFixed(1) + "h"
+                                if (t2e > 0)
+                                    return t2e.toFixed(1) + "h"
+                                return "—"
+                            }
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 16
+                            font.weight: Font.Bold
+                            color: ThemeService.fg
+                        }
+                        Text {
+                            text: BatteryHealthService.timeToFullHours > 0
+                                  ? "To full"
+                                  : "To empty"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 10
+                            color: ThemeService.alpha(ThemeService.fg, 0.55)
+                        }
+                    }
+                }
+
+                // Detail row: current capacity vs design
+                Text {
+                    Layout.fillWidth: true
+                    Layout.topMargin: 4
+                    text: "Capacity: " + (BatteryHealthService.currentFullUah / 1000).toFixed(0)
+                          + " mAh / " + (BatteryHealthService.designFullUah / 1000).toFixed(0)
+                          + " mAh design"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 10
+                    color: ThemeService.alpha(ThemeService.fg, 0.55)
+                }
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────
         // v6.16.3.4.2 — Compact Material You status pill
         // ─────────────────────────────────────────────────────────────
         // Always-visible "current state" surface. Mirrors what the
@@ -370,7 +562,7 @@ ScrollView {
                 label: "Test notification"
                 description: "Fire a sample Battery Low notification now"
                 icon: "\uf1d8"
-                Button {
+                                ZenButton {
                     text: "Send test"
                     onClicked: SystemMonitorService._notify("normal",
                         "Battery Low (test)",
@@ -950,6 +1142,122 @@ ScrollView {
             }
         }
 
+        // ═══ v7.0.0-beta.1-hf36 — REFRESH RATE DOWNGRADE ═══
+        //
+        // Manual toggle: switch all enabled monitors to 60Hz to save
+        // battery + GPU work. When toggle is ON, every monitor above
+        // 60Hz is dropped to 60Hz via `hyprctl keyword monitor`. When
+        // toggled OFF, monitors restore to the rates they had at the
+        // moment we applied the downgrade (snapshotted in
+        // RefreshRateService.savedRates).
+        //
+        // Behavior is manual-only (no auto-switching on profile or
+        // battery state) per user preference — "manual toggle lang,
+        // walang auto-switch." User flips this when they want it.
+        //
+        // Persists across logout/restart via
+        // ~/.config/quickshell/zen-shell/refresh-rate.json — if toggle
+        // was on when shell last exited, the service re-snapshots
+        // current rates (now native, from hyprland-monitors.conf) and
+        // re-applies on startup.
+        //
+        // Does NOT write to hyprland-monitors.conf — DisplaysPage owns
+        // that file. We only apply via live hyprctl. So the user's
+        // "preferred" rates in the conf file always reflect their
+        // DisplaysPage choices and toggle-off cleanly restores them.
+        //
+        // Notification routed through native zen-shell toast pipeline
+        // (NotificationService.postInternal — hf32 addition) so the
+        // toast renders in ZenNotifyToast, consistent with power
+        // profile switch notifications.
+        HMSection {
+            title: "Refresh Rate"
+            subtitle: "Switch all monitors to 60Hz to save battery. Manual toggle — "
+                    + "stays where you set it across logouts."
+
+            HMRow {
+                label: "Reduce refresh rate to 60Hz"
+                description: {
+                    if (RefreshRateService.downgrade60Hz) {
+                        const names = []
+                        for (const n in RefreshRateService.savedRates) {
+                            const hz = RefreshRateService.savedRates[n]
+                            if (hz > 60.5) names.push(n + " (was " + Math.round(hz) + "Hz)")
+                        }
+                        return names.length > 0
+                            ? "Active — " + names.join(", ")
+                            : "Active — all monitors at 60Hz"
+                    }
+                    return "Off — monitors at their preferred refresh rate. "
+                         + "Toggle ON to drop everything to 60Hz."
+                }
+                icon: "\uf108"   // desktop
+                separator: true
+
+                HMSwitch {
+                    checked: RefreshRateService.downgrade60Hz
+                    onToggled: RefreshRateService.setDowngrade(checked)
+                }
+            }
+
+            // Re-apply button — useful if user plugged in a new
+            // monitor after toggle was already on. The new monitor
+            // wasn't part of the original snapshot so it would still
+            // be at its native rate. Re-apply walks the current
+            // monitor list and includes any newcomers.
+            HMRow {
+                label: "Re-apply to current monitors"
+                description: "Includes monitors plugged in after the toggle was enabled. "
+                           + "Re-snapshots current rates as the new restore point."
+                icon: "\uf021"   // refresh
+                visible: RefreshRateService.downgrade60Hz
+
+                Rectangle {
+                    Layout.preferredWidth: 88
+                    Layout.preferredHeight: 26
+                    radius: 6
+                    color: ThemeService.alpha(ThemeService.blue, 0.18)
+                    border.color: ThemeService.alpha(ThemeService.blue, 0.4)
+                    border.width: 1
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Re-apply"
+                        color: ThemeService.blue
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 11
+                        font.weight: Font.Medium
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: RefreshRateService.reapply()
+                    }
+                }
+            }
+
+            // Status row — shows current state with a colored dot,
+            // mirrors the pattern used by Smart Gaming Detection
+            // status row below.
+            HMRow {
+                label: "Status"
+                description: RefreshRateService.downgrade60Hz
+                             ? "60Hz mode active. Toggle off to restore native rates."
+                             : "Native refresh rates active. Toggle on to switch to 60Hz."
+                icon: "\uf05a"   // info circle
+
+                Rectangle {
+                    Layout.preferredWidth: 10
+                    Layout.preferredHeight: 10
+                    radius: 5
+                    color: RefreshRateService.downgrade60Hz
+                           ? ThemeService.green : ThemeService.alpha(ThemeService.fg, 0.25)
+                    Behavior on color { ColorAnimation { duration: 200 } }
+                }
+            }
+        }
+
         // ═══ v6.16.4.12.7 (Tachiagari) — Smart Gaming Detection ═══
         //
         // Independent toggle — works regardless of GPU mode above.
@@ -1295,6 +1603,162 @@ ScrollView {
                     color: ThemeService.grey1
                     wrapMode: Text.WordWrap
                     Layout.fillWidth: true
+                }
+            }
+        }
+
+        // ═══ LAPTOP MODE (v7.0.0-alpha.5 Karui · hf2) ═══
+        //
+        // Section is always visible. On detected laptops, the full
+        // controls (mode/status/sub-toggles) show by default. On
+        // desktops, only the "Manual override" toggle is reachable —
+        // the rest of the controls hide until the user flips that
+        // toggle. This avoids the alpha.5-hf1 dead-end where the
+        // override toggle was inside the hidden section.
+        HMSection {
+            id: laptopModeSection
+            title: "Laptop Mode"
+            subtitle: LaptopModeService.detectedAsLaptop
+                ? "Detected as laptop · adaptive polling available"
+                : (LaptopModeService.manualOverride
+                    ? "Desktop hardware · manual override active"
+                    : "Desktop hardware · enable manual override below to access controls")
+
+            // Section is always visible; inner rows gate themselves
+            // based on isLaptop / manualOverride.
+            //
+            // v7.0.0-beta.1-hf4: was `parent._showFull` on inner HMRows
+            // but `parent` in default property delegate context resolves
+            // to HMSection's contentItem (an internal Item), not the
+            // HMSection itself — so _showFull was undefined → repeated
+            // binding errors → memory pressure.
+            //
+            // Fix: give HMSection an id (`laptopModeSection`) and
+            // reference `laptopModeSection._showFull` from inner rows.
+            readonly property bool _showFull:
+                LaptopModeService.isLaptop || LaptopModeService.manualOverride
+
+            // ── MODE SELECTOR ──
+            HMRow {
+                visible: laptopModeSection._showFull
+                label: "Mode"
+                description: {
+                    if (LaptopModeService.mode === "off")       return "Service idle, services use defaults"
+                    if (LaptopModeService.mode === "balanced")  return "Moderate polling + governor when on battery"
+                    return "Aggressive polling + governor + sub-toggles below"
+                }
+                icon: "\uf240"   // battery
+                separator: true
+
+                ZenDropdown {
+                    width: root.dropdownWidth
+                    model: ["Off", "Balanced", "Endurance"]
+                    currentIndex: {
+                        switch (LaptopModeService.mode) {
+                            case "off":       return 0
+                            case "balanced":  return 1
+                            case "endurance": return 2
+                            default:          return 0
+                        }
+                    }
+                    onActivated: {
+                        const modes = ["off", "balanced", "endurance"]
+                        LaptopModeService.mode = modes[currentIndex] || "off"
+                    }
+                }
+            }
+
+            // ── LIVE STATUS ──
+            HMRow {
+                visible: laptopModeSection._showFull
+                label: "Status"
+                description: {
+                    var s = LaptopModeService.modeLabel(LaptopModeService.mode)
+                    if (LaptopModeService.batteryDetected) {
+                        s += " · " + LaptopModeService.batteryCapacity + "%"
+                        s += LaptopModeService.batteryCharging ? " (charging)" : " (on battery)"
+                        const r = LaptopModeService.estimatedRuntime()
+                        if (r) s += " · " + r
+                    } else {
+                        s += " · no battery"
+                    }
+                    return s
+                }
+                icon: "\uf0e7"   // bolt
+                separator: true
+
+                Text {
+                    text: LaptopModeService.mode === "off" ? "" :
+                          (LaptopModeService.intervalSystemMonitor / 1000).toFixed(0) + "s poll"
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 12
+                    color: ThemeService.grey1
+                }
+            }
+
+            // ── CHARGE LIMIT (battery health) ──
+            HMRow {
+                label: "Stop charging at 80%"
+                description: LaptopModeService.chargeLimitSupported
+                    ? "Halves cycle wear (kernel: " + LaptopModeService.chargeLimitDevice + ")"
+                    : "Not supported on this kernel/device"
+                icon: "\uf578"   // shield-alt
+                separator: true
+                visible: laptopModeSection._showFull && LaptopModeService.chargeLimitSupported
+
+                HMSwitch {
+                    checked: LaptopModeService.chargeLimit80
+                    onToggled: LaptopModeService.chargeLimit80 = checked
+                }
+            }
+
+            // ── ENDURANCE SUB-TOGGLE: animation downgrade ──
+            HMRow {
+                visible: laptopModeSection._showFull
+                label: "Endurance: animation downgrade"
+                description: "Push minimal Hyprland animations + disable blur + VRR off when on battery"
+                icon: "\uf021"   // refresh-arrows
+                separator: true
+                enabled: LaptopModeService.mode === "endurance"
+
+                HMSwitch {
+                    checked: LaptopModeService.animationDowngrade
+                    onToggled: LaptopModeService.animationDowngrade = checked
+                }
+            }
+
+            // ── ENDURANCE SUB-TOGGLE: aggressive idle ──
+            HMRow {
+                visible: laptopModeSection._showFull
+                label: "Endurance: aggressive idle"
+                description: "Tighter hypridle timeouts (dim 30s · screen 2m · suspend 5m)"
+                icon: "\uf186"   // moon
+                separator: true
+                enabled: LaptopModeService.mode === "endurance"
+
+                HMSwitch {
+                    checked: LaptopModeService.aggressiveIdle
+                    onToggled: LaptopModeService.aggressiveIdle = checked
+                }
+            }
+
+            // ── MANUAL OVERRIDE — ALWAYS VISIBLE on desktop hardware ──
+            //
+            // hf2: This row is the entry point on desktop. When the
+            // section auto-detects no laptop hardware, this is the
+            // ONLY visible row inside, prompting the user to flip it
+            // on if they want access to the full controls.
+            HMRow {
+                visible: !LaptopModeService.detectedAsLaptop
+                label: "Manual override on desktop"
+                description: LaptopModeService.manualOverride
+                    ? "Override active — controls above are accessible"
+                    : "Show full Laptop Mode controls on this desktop"
+                icon: "\uf109"   // desktop
+
+                HMSwitch {
+                    checked: LaptopModeService.manualOverride
+                    onToggled: LaptopModeService.manualOverride = checked
                 }
             }
         }

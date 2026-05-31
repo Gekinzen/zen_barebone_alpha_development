@@ -63,10 +63,46 @@ Rectangle {
             if (a.indexOf("wpctl") >= 0 && a.indexOf("toggle") >= 0) return "Mute/unmute audio"
             if (a.indexOf("brightnessctl") >= 0 && a.indexOf("+") >= 0) return "Brightness up 5%"
             if (a.indexOf("brightnessctl") >= 0 && a.indexOf("-") >= 0) return "Brightness down 5%"
+            // v7.0.0-beta.1-hf18: zen-volume-notify.sh — superset of wpctl
+            // that adds OSD + sound effect tick. Detect by action arg.
+            if (a.indexOf("zen-volume-notify") >= 0 && a.indexOf("vol-up") >= 0)
+                return "Volume up 5% (+ tick sound)"
+            if (a.indexOf("zen-volume-notify") >= 0 && a.indexOf("vol-down") >= 0)
+                return "Volume down 5% (+ tick sound)"
+            if (a.indexOf("zen-volume-notify") >= 0 && a.indexOf("vol-mute") >= 0)
+                return "Mute/unmute speaker"
+            if (a.indexOf("zen-volume-notify") >= 0 && a.indexOf("mic-mute") >= 0)
+                return "Mute/unmute microphone"
+            if (a.indexOf("zen-volume-notify") >= 0 && a.indexOf("bright-up") >= 0)
+                return "Brightness up 5%"
+            if (a.indexOf("zen-volume-notify") >= 0 && a.indexOf("bright-down") >= 0)
+                return "Brightness down 5%"
             if (a.indexOf("playerctl next") >= 0) return "Next track"
             if (a.indexOf("playerctl play") >= 0) return "Play/Pause"
             if (a.indexOf("playerctl prev") >= 0) return "Previous track"
             if (a.indexOf("control-center") >= 0) return "Legacy GTK control center"
+            // v7.0.0-beta.1-hf18: recent IPC keybinds (Karui era)
+            if (a.indexOf("zen togglesearch") >= 0) return "Open/close Spotlight search"
+            if (a.indexOf("zen toggleclipboard") >= 0) return "Clipboard history (cliphist)"
+            if (a.indexOf("zen toggleworkspaceoverview") >= 0)
+                return "Workspace Overview (Exposé-style grid)"
+            if (a.indexOf("zen togglenotifications") >= 0)
+                return "Notifications panel"
+            if (a.indexOf("zen togglecontrolcenter") >= 0)
+                return "Quick Settings panel"
+            if (a.indexOf("zen togglekeybindcheatsheet") >= 0)
+                return "This keybind cheatsheet"
+            if (a.indexOf("zen-panic.sh") >= 0)
+                return "Panic recovery (escape from frozen lock/shell)"
+            if (a.indexOf("zen-screenshot.sh") >= 0 && a.indexOf("region") >= 0)
+                return "Screenshot: select region"
+            if (a.indexOf("zen-screenshot.sh") >= 0 && a.indexOf("full") >= 0)
+                return "Screenshot: full active monitor"
+            if (a.indexOf("zen-screenshot.sh") >= 0 && a.indexOf("clipboard") >= 0)
+                return "Screenshot: monitor → clipboard"
+            if (a.indexOf("zen-screenshot.sh") >= 0 && a.indexOf("allscreens") >= 0)
+                return "Screenshot: all monitors"
+            if (a.indexOf("flameshot") >= 0) return "Screenshot: Flameshot GUI"
             return "Run: " + args.split("/").pop().split(" ")[0]
         }
 
@@ -117,10 +153,16 @@ Rectangle {
             return "Apps & Utilities"
         if (a.indexOf("togglestartmenu") >= 0 || a.indexOf("togglesettings") >= 0 ||
             a.indexOf("togglewallpaperpicker") >= 0 || a.indexOf("randomwallpaper") >= 0 ||
-            a.indexOf("cycletheme") >= 0 || a.indexOf("togglestyle") >= 0 || a.indexOf("reloadtheme") >= 0)
+            a.indexOf("cycletheme") >= 0 || a.indexOf("togglestyle") >= 0 || a.indexOf("reloadtheme") >= 0 ||
+            // v7.0.0-beta.1-hf18: all "zen ipc call zen <action>" overlays belong here
+            a.indexOf("zen togglesearch") >= 0 || a.indexOf("zen toggleclipboard") >= 0 ||
+            a.indexOf("zen toggleworkspaceoverview") >= 0 || a.indexOf("zen togglenotifications") >= 0 ||
+            a.indexOf("zen togglecontrolcenter") >= 0 || a.indexOf("zen togglekeybindcheatsheet") >= 0)
             return "Zen Shell"
         if (a.indexOf("power") >= 0) return "Power"
+        if (a.indexOf("zen-panic") >= 0) return "Power"   // recovery is power-adjacent
         if (a.indexOf("wpctl") >= 0 || a.indexOf("brightnessctl") >= 0 || a.indexOf("playerctl") >= 0 ||
+            a.indexOf("zen-volume-notify") >= 0 ||   // hf18: route OSD script here
             key.indexOf("XF86") >= 0) return "Media & Hardware"
         if (dispatcher === "exec") return "Apps & Utilities"
         return "Other"

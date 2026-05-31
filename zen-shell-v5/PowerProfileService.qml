@@ -5,7 +5,7 @@ import Quickshell.Io
 import QtQuick
 
 /*
- * PowerProfileService v6.16.0 — system power profile manager
+ * PowerProfileService v7.0.0-beta.1-hf32 — system power profile manager
  *
  * Wraps `powerprofilesctl` (power-profiles-daemon) on distros that
  * ship it (CachyOS, Arch with power-profiles-daemon installed,
@@ -16,13 +16,23 @@ import QtQuick
  * Behavior:
  *   - On startup: polls current profile with `powerprofilesctl get`
  *   - On setProfile(): fires `powerprofilesctl set <profile>`, re-polls,
- *     emits swaync notification, persists choice to SettingsStateV2.
+ *     emits **native zen-shell** notification via NotificationService
+ *     .postInternal() (renders through ZenNotifyToast), persists choice
+ *     to SettingsStateV2.
  *   - If powerprofilesctl is NOT installed, `available` stays false and
  *     UI pages hide the section. No crash.
  *   - Persisted choice reapplies on every login via
  *     ~/.local/bin/zen-power-profile-restore.sh (triggered by
  *     autostart.conf), so "kapag nag restart ng pc dapat applied padin"
  *     is covered at the system level too, not just QML.
+ *
+ * v7.0.0-beta.1-hf32 NOTE on notifications:
+ *   Previously emitted via `notify-send` which goes through D-Bus to
+ *   the notification daemon. Now that hf31 hard-kills swaync, the
+ *   D-Bus name is briefly unowned during transitions and notify-send
+ *   spawns could be lost. Routing through NotificationService
+ *   .postInternal() goes directly to the in-shell toast + history
+ *   pipeline (no D-Bus round-trip) so the toast ALWAYS appears.
  *
  * Used by: ControlPanel (quick toggle), SystemSettingsPage, Battery module.
  *
@@ -121,7 +131,37 @@ Singleton {
         }
     }
 
+    // v7.0.0-beta.1-hf32: `notifier` Process retained only as a
+    // legacy fallback for when NotificationService isn't yet
+    // available (very early startup race). All new code paths go
+    // through NotificationService.postInternal() instead so toasts
+    // render via ZenNotifyToast (the in-shell QML toast) and are
+    // recorded in the shell's own notification history list — NOT
+    // bounced through notify-send → external daemon.
     Process { id: notifier; running: false }
+
+    // v7.0.0-beta.1-hf32: helper that prefers the native zen-shell
+    // toast pipeline, falling back to notify-send only if
+    // NotificationService isn't loaded yet (shouldn't happen post-init
+    // since both are singletons, but defensive).
+    function _notify(summary, body, urgency, iconHint) {
+        // urgency: 0 low, 1 normal, 2 critical
+        if (typeof NotificationService !== "undefined"
+            && typeof NotificationService.postInternal === "function") {
+            NotificationService.postInternal(summary, body, "Zen Shell",
+                                             urgency, iconHint || "")
+            return
+        }
+        // Fallback path — pre-NotificationService boot or stripped builds
+        const urgFlag = (urgency === 2) ? "-u critical"
+                      : (urgency === 0) ? "-u low" : "-u normal"
+        const ic = iconHint || "dialog-information"
+        notifier.command = ["bash", "-c",
+            "notify-send -a 'Zen Shell' -i " + ic + " " + urgFlag + " " +
+            "'" + String(summary).replace(/'/g, "'\\''") + "' " +
+            "'" + String(body).replace(/'/g, "'\\''") + "'"]
+        notifier.running = true
+    }
 
     function setProfile(profile) {
         if (!root.available) {
@@ -146,13 +186,12 @@ Singleton {
             SettingsStateV2.markDirty()
         }
 
-        // swaync notification
-        const icon = profileIcon(profile)
+        // v7.0.0-beta.1-hf32: route through native zen-shell toast
+        // pipeline (ZenNotifyToast + NotificationCenter history) so
+        // the user sees feedback IN-SHELL, not via swaync — which is
+        // killed in hf31's daemon mode.
         const label = profileLabel(profile)
-        notifier.command = ["bash", "-c",
-            "notify-send -a 'Zen Shell' -i battery " +
-            "'Power Profile' 'Switched to " + label + "'"]
-        notifier.running = true
+        _notify("Power Profile", "Switched to " + label, 1, "battery")
     }
 
     // ── Init ──
@@ -200,7 +239,8 @@ Singleton {
     //      settings from SettingsStateV2 so nothing is lost.
     //
     // Uses hyprctl --batch for atomic apply. All state transitions
-    // emit a swaync notification with 🎮 icon.
+    // emit a NATIVE zen-shell toast (NotificationService.postInternal)
+    // with 🎮 icon — v7.0.0-beta.1-hf32.
 
     Process { id: boostProc; running: false }
 
@@ -212,10 +252,9 @@ Singleton {
         if (!root.available && enable) {
             console.warn("[PowerProfileService] Cannot enable gaming boost — "
                          + "powerprofilesctl not available")
-            notifier.command = ["bash", "-c",
-                "notify-send -a 'Zen Shell' -i dialog-warning " +
-                "'Gaming Boost' 'powerprofilesctl not installed'"]
-            notifier.running = true
+            // v7.0.0-beta.1-hf32: native zen-shell toast
+            _notify("Gaming Boost", "powerprofilesctl not installed",
+                    1, "dialog-warning")
             return
         }
 
@@ -241,12 +280,11 @@ Singleton {
             gamingBoostActive = true
             currentProfile = "performance"
 
-            notifier.command = ["bash", "-c",
-                "notify-send -a 'Zen Shell' -i input-gaming -u normal " +
-                "'🎮 Gaming Boost ON' " +
-                "'Performance mode + effects off for max FPS.\nPrevious: "
-                + _preBoostProfile + "'"]
-            notifier.running = true
+            // v7.0.0-beta.1-hf32: native zen-shell toast
+            _notify("🎮 Gaming Boost ON",
+                    "Performance mode + effects off for max FPS.\nPrevious: "
+                    + _preBoostProfile,
+                    1, "input-gaming")
 
         } else if (!enable && gamingBoostActive) {
             // ── TURN OFF ──
@@ -274,10 +312,10 @@ Singleton {
             gamingBoostActive = false
             currentProfile = restore
 
-            notifier.command = ["bash", "-c",
-                "notify-send -a 'Zen Shell' -i input-gaming -u low " +
-                "'Gaming Boost OFF' 'Restored " + restore + " + effects'"]
-            notifier.running = true
+            // v7.0.0-beta.1-hf32: native zen-shell toast
+            _notify("Gaming Boost OFF",
+                    "Restored " + restore + " + effects",
+                    0, "input-gaming")
         }
     }
 }

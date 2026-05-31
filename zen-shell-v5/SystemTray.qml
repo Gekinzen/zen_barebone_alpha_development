@@ -18,10 +18,17 @@ import Quickshell.Services.SystemTray
  */
 Rectangle {
     id: trayRoot
+
+    // v7.0.0-beta.1-hf93: explicit vertical mode. Vertical → tray icons
+    // stack in a column sized to the bar thickness. Default false →
+    // original horizontal row.
+    property bool zenVertical: false
+
     visible: SystemTray.items && SystemTray.items.values.length > 0
-    implicitWidth: visible ? trayRow.implicitWidth + 20 : 0
-    height: 40
-    radius: Theme.styleMode === "round" ? height / 2 : Theme.moduleRadius
+    implicitWidth: visible ? (zenVertical ? Math.round(Theme.moduleHeight) : trayRow.implicitWidth + 20) : 0
+    implicitHeight: zenVertical ? (visible ? trayRow.implicitHeight + 20 : 0) : 40
+    height: implicitHeight
+    radius: Theme.styleMode === "round" ? (zenVertical ? width / 2 : height / 2) : Theme.moduleRadius
 
     // Frosted: low alpha so Hyprland layer blur passes through
     color: Qt.rgba(ThemeService.bg0.r, ThemeService.bg0.g, ThemeService.bg0.b, 0.32)
@@ -38,10 +45,12 @@ Rectangle {
         border.color: ThemeService.alpha(ThemeService.fg, 0.04)
     }
 
-    RowLayout {
+    GridLayout {
         id: trayRow
         anchors.centerIn: parent
-        spacing: 8
+        columns: trayRoot.zenVertical ? 1 : 32
+        rowSpacing: 8
+        columnSpacing: 8
 
         Repeater {
             model: SystemTray.items

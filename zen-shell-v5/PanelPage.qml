@@ -23,12 +23,54 @@ ScrollView {
     // they were only reachable by hand-editing bar-layout.json or
     // via the PowerBadge toggle in Bar Modules settings. Battery was
     // missing from the selectable set since v6.16.0 shipped.
+    //
+    // v7.0.0-beta.1-hf42: registered the 5 hf39 productivity modules
+    // + "workflow" (which was missing despite being in the default
+    // barLayout). Without this they were invisible to the Settings
+    // UI even though Bar.qml's switch knew about them. Now all
+    // 18 modules are pickable.
     readonly property var allModules: [
         "start", "taskbar", "workspaces", "window",
         "music", "sysrow", "tray", "battery", "powerbadge",
         "notifications", "clock",
-        "weather", "sysmonitor"
+        "weather", "sysmonitor",
+        "clipboard",          // v7.0.0-alpha.6
+        "workflow",           // v7.0.0-alpha.13 (was missing from catalog!)
+        // v7.0.0-beta.1-hf39 — productivity features
+        "quicknotes",
+        "focusspaces",
+        "networkpulse",
+        "smartdim",
+        "titletranslator"
     ]
+
+    // v7.0.0-beta.1-hf42: Display labels + descriptions for each module
+    // so the +Add dropdown can show friendly names instead of raw IDs.
+    // Looked up by module id; falls back to capitalizing the id if
+    // not registered here.
+    readonly property var moduleMetadata: ({
+        "start":          { label: "Start menu",       icon: "\uf015" },
+        "taskbar":        { label: "Taskbar",          icon: "\uf03a" },
+        "workspaces":     { label: "Workspaces",       icon: "\uf245" },
+        "window":         { label: "Active window",    icon: "\uf2d2" },
+        "music":          { label: "Music player",     icon: "\uf001" },
+        "sysrow":         { label: "System tray row",  icon: "\uf2db" },
+        "tray":           { label: "System tray",      icon: "\uf2db" },
+        "battery":        { label: "Battery",          icon: "\uf240" },
+        "powerbadge":     { label: "Power profile",    icon: "\uf0e7" },
+        "notifications":  { label: "Notifications",    icon: "\uf0f3" },
+        "clock":          { label: "Clock + calendar", icon: "\uf017" },
+        "weather":        { label: "Weather",          icon: "\uf0c2" },
+        "sysmonitor":     { label: "CPU/RAM monitor",  icon: "\uf080" },
+        "clipboard":      { label: "Clipboard",        icon: "\uf0ea" },
+        "workflow":       { label: "Workflow profile", icon: "\uf0c0" },
+        // hf39 productivity modules
+        "quicknotes":      { label: "Quick Notes",        icon: "\uf249" },
+        "focusspaces":     { label: "Focus Spaces",       icon: "\uf2bb" },
+        "networkpulse":    { label: "Network Pulse",      icon: "\uf0e8" },
+        "smartdim":        { label: "Smart Dim",          icon: "\uf185" },
+        "titletranslator": { label: "Title Translator",   icon: "\uf1ab" }
+    })
 
     function modulesFor(zone) {
         return Theme.barLayout[zone] || []
@@ -139,24 +181,13 @@ ScrollView {
                 spacing: 10
 
                 Repeater {
-                    // v6.16.4.12.9.2 (Modori) hotfix: Left and Right
-                    // entries removed from this picker. They were
-                    // popup-only in Tachiagari/Modori (no actual
-                    // vertical bar rendering), and even though the
-                    // popup-direction logic worked, selecting Left or
-                    // Right broke the Settings sidebar layout (the
-                    // user row at the bottom of the sidebar would
-                    // disappear). Hiding the options is the safer
-                    // path until the full vertical-bar rendering
-                    // returns in a properly-validated future drop.
-                    //
-                    // The yellow "vertical bar coming in a follow-up
-                    // drop" notice that lived below this picker was
-                    // also removed — with no Left/Right options
-                    // visible, the notice has nothing to clarify.
+                    // v7.0.0-beta.1-hf90: Left/Right re-enabled — vertical
+                    // bar (Tategaki) Phase 1 renders a real side bar now.
                     model: [
                         { pos: "top",    icon: "\uf062", label: "Top",    orientation: "h" },
-                        { pos: "bottom", icon: "\uf063", label: "Bottom", orientation: "h" }
+                        { pos: "bottom", icon: "\uf063", label: "Bottom", orientation: "h" },
+                        { pos: "left",   icon: "\uf060", label: "Left",   orientation: "v" },
+                        { pos: "right",  icon: "\uf061", label: "Right",  orientation: "v" }
                     ]
                     delegate: Rectangle {
                         id: posCard
@@ -521,11 +552,114 @@ ScrollView {
         SettingsSection {
             title: "Background & Shape"
 
+            // v7.0.0-beta.1-hf83: auto-height opt-in. When on, the bar
+            // hugs its tallest module instead of the fixed slider value.
             SettingRow {
-                label: "Bar Height"
-                description: "Height in pixels (default 60)"
+                label: "Auto height"
+                description: "Bar grows/shrinks to fit its icons automatically"
+                HMSwitch {
+                    checked: PanelState.barAutoHeight
+                    onToggled: {
+                        PanelState.barAutoHeight = checked
+                        PanelState.saveState()
+                    }
+                }
+            }
+
+            SettingRow {
+                visible: PanelState.barAutoHeight
+                label: "Auto height padding"
+                description: "Breathing room above + below the icons"
                 Row {
                     spacing: 8
+                    Slider {
+                        width: 200; from: 0; to: 24; stepSize: 1
+                        value: PanelState.barAutoHeightPadding
+                        onValueChanged: {
+                            PanelState.barAutoHeightPadding = Math.round(value)
+                            PanelState.saveState()
+                        }
+                    }
+                    Text { text: PanelState.barAutoHeightPadding + "px"; color: ThemeService.fg; font.family: Theme.fontFamily; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+                }
+            }
+
+            // v7.0.0-beta.1-hf84: scale module content to the bar height.
+            SettingRow {
+                label: "Fit contents to bar"
+                description: "Icons + text scale with bar height (taller bar = bigger icons)"
+                HMSwitch {
+                    checked: PanelState.barFitContents
+                    onToggled: {
+                        PanelState.barFitContents = checked
+                        PanelState.saveState()
+                    }
+                }
+            }
+
+            // v7.0.0-beta.1-hf85: vertical breathing room around modules.
+            SettingRow {
+                label: "Content padding (top/bottom)"
+                description: "Keeps modules centered with an even gap above + below"
+                Row {
+                    spacing: 8
+                    Slider {
+                        width: 200; from: 0; to: 64; stepSize: 1
+                        value: PanelState.barContentPaddingV
+                        onValueChanged: {
+                            PanelState.barContentPaddingV = Math.round(value)
+                            PanelState.saveState()
+                        }
+                    }
+                    Text { text: PanelState.barContentPaddingV + "px"; color: ThemeService.fg; font.family: Theme.fontFamily; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+                }
+            }
+
+            // v7.0.0-beta.1-hf86: manual module size multiplier.
+            SettingRow {
+                label: "Module size"
+                description: "Scale all bar icons + text (works with or without Fit-contents)"
+                Row {
+                    spacing: 8
+                    Slider {
+                        width: 200; from: 0.6; to: 2.0; stepSize: 0.05
+                        value: PanelState.barModuleScale
+                        onValueChanged: {
+                            PanelState.barModuleScale = Math.round(value * 100) / 100
+                            PanelState.saveState()
+                        }
+                    }
+                    Text { text: Math.round(PanelState.barModuleScale * 100) + "%"; color: ThemeService.fg; font.family: Theme.fontFamily; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+                }
+            }
+
+            // v7.0.0-beta.1-hf88: where the quick-settings popup anchors.
+            SettingRow {
+                label: "Quick Settings position"
+                description: "Where the Control Center popup opens (until you drag it)"
+                ZenDropdown {
+                    width: 140
+                    model: ["center", "top", "bottom"]
+                    currentIndex: {
+                        const i = model.indexOf(PanelState.controlPanelPosition)
+                        return i >= 0 ? i : 0
+                    }
+                    onActivated: {
+                        PanelState.controlPanelPosition = model[currentIndex]
+                        PanelState.saveState()
+                    }
+                }
+            }
+
+            SettingRow {
+                label: "Bar Height"
+                description: PanelState.barAutoHeight
+                    ? "Ignored while Auto height is on"
+                    : "Height in pixels (default 60)"
+                Row {
+                    spacing: 8
+                    enabled: !PanelState.barAutoHeight
+                    opacity: PanelState.barAutoHeight ? 0.4 : 1.0
                     Slider {
                         width: 200; from: 36; to: 80; stepSize: 2
                         value: PanelState.barHeight
@@ -535,6 +669,23 @@ ScrollView {
                         }
                     }
                     Text { text: PanelState.barHeight + "px"; color: ThemeService.fg; font.family: Theme.fontFamily; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+                }
+            }
+
+            SettingRow {
+                label: "Taskbar width cap"
+                description: "How wide the taskbar may grow before < > scroll arrows appear (default 440)"
+                Row {
+                    spacing: 8
+                    Slider {
+                        width: 200; from: 240; to: 900; stepSize: 20
+                        value: PanelState.taskbarMaxWidth
+                        onValueChanged: {
+                            PanelState.taskbarMaxWidth = Math.round(value)
+                            PanelState.saveState()
+                        }
+                    }
+                    Text { text: PanelState.taskbarMaxWidth + "px"; color: ThemeService.fg; font.family: Theme.fontFamily; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
                 }
             }
 
@@ -1080,11 +1231,11 @@ ScrollView {
                 Layout.fillWidth: true
                 spacing: 8
 
-                Button {
+                                ZenButton {
                     text: "All → Center"
                     onClicked: root.moveToCenter()
                 }
-                Button {
+                                ZenButton {
                     text: "Reset Layout"
                     onClicked: root.resetDefaults()
                 }
@@ -1238,7 +1389,7 @@ ScrollView {
                             model: availableForZone
                         }
 
-                        Button {
+                                                ZenButton {
                             text: "+ Add"
                             enabled: addCombo.count > 0
                             onClicked: {
