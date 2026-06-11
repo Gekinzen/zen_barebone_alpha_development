@@ -181,6 +181,32 @@ echo ""
 echo "    Quickshell-native desktop environment for Hyprland."
 echo ""
 cat << 'ZSCHANGELOG'
+    v7.0.0-beta.1-hf96 — Mouse/touchpad invert fix + Online wallpaper fix
+
+      [Mouse invert]                 Settings → Input → "Natural scroll"
+                                     toggles (mouse + touchpad) did
+                                     nothing. Root cause: HMSwitch
+                                     emitted toggled() TWICE per click
+                                     (guarded onCheckedChanged + an
+                                     explicit re-emit), so flip-style
+                                     handlers (naturalScroll = !naturalScroll)
+                                     flipped twice = net no-op. Removed
+                                     the redundant re-emit. Fixes all
+                                     7 flip-style toggles in the shell.
+
+      [Online wallpapers]            Super+W → Online tab couldn't
+                                     select anything: the GitHub
+                                     contents API is 60 req/hr per IP
+                                     unauthenticated, and dev restarts
+                                     burn that budget → 403 → empty grid.
+                                     Listing fetch is now TTL-gated (6h
+                                     cache, no network on restart), with
+                                     a raw.githubusercontent manifest.json
+                                     fallback + stale-cache fallback.
+                                     Download guard added so overlapping
+                                     clicks can't clobber the target.
+                                     Empty-state text is now online-aware.
+
     v7.0.0-beta.1-hf82y — Universal taskbar drag + flameshot scale-fix v2
 
       [Taskbar drag]                 Press-and-hold ANY icon (pinned

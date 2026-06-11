@@ -4,7 +4,7 @@ import Quickshell
 import QtQuick
 
 /*
- * ZenVersion v7.0.0-beta.1-hf95.34 — single source of truth for the shell version
+ * ZenVersion v7.0.0-beta.1-hf96 — single source of truth for the shell version
  *
  * v7 RELEASE NOTES
  * ────────────────
@@ -47,11 +47,11 @@ import QtQuick
 Singleton {
     id: root
 
-    readonly property string version:        "v7.0.0-beta.1-hf95.34"
+    readonly property string version:        "v7.0.0-beta.1-hf96"
     readonly property string versionRaw:     "7.0.0-beta.1-hf90.1"
     readonly property string semver:         "7.0.0"
     readonly property string prerelease:     "beta.1-hf90.1"
-    readonly property string releaseDate:    "2026-05-30"
+    readonly property string releaseDate:    "2026-06-11"
     readonly property string channel:        "alpha"
     readonly property string codename:       "Karui"
     readonly property string codenameKanji:  "軽い"

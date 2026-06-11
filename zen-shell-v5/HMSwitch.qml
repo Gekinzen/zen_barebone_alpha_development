@@ -2,7 +2,15 @@ import QtQuick
 import QtQuick.Controls
 
 /*
- * HMSwitch v6.16.1.4 — Modern pill toggle for Zen Shell Settings
+ * HMSwitch v7.0.0-beta.1-hf96 — Modern pill toggle for Zen Shell Settings
+ *
+ * hf96: fixed a double-emit in the click handler that fired toggled()
+ *       twice per click. Flip-style consumers (`state = !state`) — the
+ *       mouse + touchpad "Natural scroll" inverts on InputPage among them
+ *       — flipped twice and landed back on the original value, so the
+ *       toggle did nothing. Now emits exactly once. See onClicked below.
+ *
+ * (orig v6.16.1.4) — Modern pill toggle for Zen Shell Settings
  *
  * Drop-in replacement for stock `Switch { checked: ... onToggled: ... }`.
  * Matches the inline Rectangle-based toggle design used in WidgetsPage,
@@ -102,9 +110,38 @@ Rectangle {
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onClicked: {
+            // ─────────────────────────────────────────────────────────
+            // v7.0.0-beta.1-hf96 — DOUBLE-EMIT FIX (mouse/touchpad invert)
+            //
+            // Previously this block did:
+            //     root._userToggled = true
+            //     root.checked = !root.checked   // → onCheckedChanged → toggled()  (emit #1)
+            //     root.toggled()                 // explicit               (emit #2)
+            //
+            // `checked = !checked` synchronously fires onCheckedChanged,
+            // and because _userToggled was set, that handler emitted
+            // toggled() ONCE — then the explicit root.toggled() emitted it
+            // AGAIN. Net: toggled() fired TWICE per click.
+            //
+            // Any consumer written as `state = !state` (InputPage's
+            // "Natural scroll (mouse wheel)" + "Natural scroll (touchpad)",
+            // and 5 other flip-style toggles) flipped twice → landed back
+            // on the original value → the toggle looked completely dead.
+            // The ControlPanel mouse toggle used an inline single-emit
+            // MouseArea, so it worked — confirming the double-fire here.
+            //
+            // The 51 `state = checked` consumers were immune (assigning the
+            // already-flipped `checked` twice is idempotent), which is why
+            // only the invert toggles visibly broke.
+            //
+            // Fix: emit toggled() EXACTLY once. We keep the _userToggled →
+            // onCheckedChanged emit (the documented compatibility layer)
+            // as the single source of truth and drop the redundant explicit
+            // call. Visual flip + emit semantics are otherwise identical.
+            // Wala tayong babawasan — same API, same look, just one emit.
+            // ─────────────────────────────────────────────────────────
             root._userToggled = true
             root.checked = !root.checked
-            root.toggled()
         }
     }
 }
