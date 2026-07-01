@@ -63,7 +63,16 @@ Item {
     // Default: height/2 (safe fallback for equal inflation both sides).
     property real slotCenterY: height / 2
 
-    readonly property string effectiveMode: isAudioActive ? "audio" : "static"
+    // v7.0.0-alpha.5 (Karui Laptop Mode): audio-mode falls back to
+    // static mode when LaptopModeService.audioRopeAllowed is false.
+    // This kicks in only when user is on battery + Endurance + capacity
+    // below 30% (see LaptopModeService.qml header for the table).
+    // When LaptopModeService is undefined (very early init) or its mode
+    // is "off", the rope behaves identically to v6.
+    readonly property bool _audioAllowed:
+        (typeof LaptopModeService === "undefined") || LaptopModeService.audioRopeAllowed
+    readonly property string effectiveMode:
+        (isAudioActive && _audioAllowed) ? "audio" : "static"
 
     // ── AUDIO MODE ──
     Glow {
@@ -98,6 +107,21 @@ Item {
                 }
                 strokeColor: {
                     var mix = colorMix(root.color1, root.color2, idx / root.segments)
+                    // v7.0.0-beta.1-hf38: Only apply the alternating
+                    // Qt.darker treatment when colorMode is "theme" or
+                    // "synced" — those modes deliberately add visual
+                    // rhythm through alternating tone variation.
+                    //
+                    // When the user picks specific custom hex colors,
+                    // they expect those EXACT colors to appear (e.g.
+                    // #ff6464ff red + #81f16eff green should produce
+                    // a clean red→green gradient without half the
+                    // strings being darkened to ~67% of the picked
+                    // value). This was the "iba yung lumalabas na
+                    // color" bug from Paul's hf37 test.
+                    if (ZenStringsState.colorMode === "custom") {
+                        return mix
+                    }
                     return (idx % 2 === 0) ? Qt.darker(mix, 1.5) : mix
                 }
                 fillColor: "transparent"

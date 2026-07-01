@@ -13,6 +13,51 @@ ShellRoot {
 
     property var startMenuScreen: null
 
+    // v7.0.0-alpha.6-hf3: per-screen clipboard panel state. Same
+    // pattern as startMenuScreen — without this, clipboardVisible
+    // would open the panel on ALL monitors simultaneously, and the
+    // first HyprlandFocusGrab to fire onCleared would close it on
+    // every screen instantly.
+    property var clipboardScreen: null
+
+    // v7.0.0-beta.1-hf71 — screen-pinning for all major popups.
+    // v7.0.0-beta.1-hf72 — FIXED: store screen NAME (string) instead
+    // of screen object. Object reference comparison (`===`) is unreliable
+    // in QML — screen objects from Quickshell.screens aren't reference-
+    // stable across bindings. String comparison always works.
+    //
+    // Pattern:
+    //   - toggle*() captures focused monitor name
+    //   - close*() sets to ""
+    //   - Variants visibility: `modelData.name === root.*ScreenName`
+    property string controlPanelScreenName: ""
+    property string calendarScreenName: ""
+    property string settingsScreenName: ""
+    property string notifPanelScreenName: ""
+
+    // Helper: get the focused Hyprland monitor name.
+    function getFocusedScreenName() {
+        if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name)
+            return Hyprland.focusedMonitor.name
+        if (Quickshell.screens.length > 0)
+            return Quickshell.screens[0].name || ""
+        return ""
+    }
+
+    function toggleClipboardOnScreen(screen) {
+        if (clipboardScreen === screen) clipboardScreen = null
+        else clipboardScreen = screen
+        // Mirror to the existing flag for IPC compatibility (Super+V
+        // route uses PanelState.clipboardVisible; we set it true and
+        // let the keybind handler pick a screen).
+        PanelState.clipboardVisible = (clipboardScreen !== null)
+    }
+
+    function closeClipboard() {
+        clipboardScreen = null
+        PanelState.clipboardVisible = false
+    }
+
     function toggleStartMenuOn(screen) {
         if (startMenuScreen === screen) startMenuScreen = null
         else startMenuScreen = screen
@@ -21,21 +66,207 @@ ShellRoot {
 
     property bool wallpaperPickerVisible: false
     property bool settingsVisible: false
+
+    // v7.0.0-beta.1-hf25: bridge with PanelState.settingsVisible so
+    // direct callers (PanelState.settingsVisible = true) also open
+    // the in-shell ZenSettings panel.
+    Connections {
+        target: PanelState
+        function onSettingsVisibleChanged() {
+            if (root.settingsVisible !== PanelState.settingsVisible) {
+                root.settingsVisible = PanelState.settingsVisible
+                if (root.settingsVisible && root.settingsScreenName === "") {
+                    root.settingsScreenName = root.getFocusedScreenName()
+                }
+            }
+        }
+        function onStartMenuVisibleChanged() {
+            if (PanelState.startMenuVisible && Quickshell.screens.length > 0) {
+                root.toggleStartMenuOn(Quickshell.screens[0])
+                PanelState.startMenuVisible = false  // one-shot trigger
+            }
+        }
+        // v7.0.0-beta.1-hf28: clipboard toggle from bar module
+        function onToggleClipboardOnScreenRequested(screen) {
+            if (screen) {
+                root.toggleClipboardOnScreen(screen)
+            }
+        }
+    }
+    onSettingsVisibleChanged: {
+        if (PanelState.settingsVisible !== root.settingsVisible) {
+            PanelState.settingsVisible = root.settingsVisible
+        }
+        if (root.settingsVisible && root.settingsScreenName === "") {
+            root.settingsScreenName = root.getFocusedScreenName()
+        }
+        if (!root.settingsVisible) root.settingsScreenName = ""
+    }
+
+    // v7.0.0-alpha.6-hf2: Pending settings page from search overlay.
+    // SettingsSearchOverlay sets this BEFORE flipping settingsVisible,
+    // so the ZenSettings instance can pick it up on its show handler
+    // and switch currentPage to the matched entry.
+    property string pendingSearchPage: ""
+
+    // v7.0.0-alpha.7: same pattern for ControlPanel — search overlay
+    // sets this before flipping controlPanelVisible, ControlPanel
+    // instance reads it on show and flips expandedTab to match.
+    property string pendingControlPanelTab: ""
     property bool settingsFullscreen: false
     property bool keybindCheatsheetVisible: false
-    property bool controlPanelVisible: false
+    // v7.0.0-beta.1-hf7: Mirror PanelState.controlPanelVisible (singleton-
+    // backed) so hot corners + IPC can toggle directly without external
+    // bash. shell.qml's own boolean is kept as a forwarder.
+    property bool controlPanelVisible: PanelState.controlPanelVisible
+    onControlPanelVisibleChanged: {
+        if (controlPanelVisible !== PanelState.controlPanelVisible) {
+            PanelState.controlPanelVisible = controlPanelVisible
+        }
+        // hf73 — capture screen on ANY open path, clear on ANY close
+        if (controlPanelVisible && controlPanelScreenName === "") {
+            controlPanelScreenName = getFocusedScreenName()
+        }
+        if (!controlPanelVisible) controlPanelScreenName = ""
+    }
+    Connections {
+        target: PanelState
+        function onControlPanelVisibleChanged() {
+            if (root.controlPanelVisible !== PanelState.controlPanelVisible) {
+                root.controlPanelVisible = PanelState.controlPanelVisible
+                if (root.controlPanelVisible && root.controlPanelScreenName === "") {
+                    root.controlPanelScreenName = root.getFocusedScreenName()
+                }
+            }
+        }
+    }
+
+    // v7.0.0-alpha.12-hf2: Native notification panel — shows the
+    // NotificationListPanel as a standalone PanelWindow, opened by
+    // left-clicking the bar bell icon. Replaces the previous routing
+    // to Control Panel (which was confusing since notifications and
+    // CC are conceptually different).
+    //
+    // v7.0.0-beta.1-hf5: Mirror PanelState.notifPanelVisible (singleton-
+    // backed) so the bell can toggle directly without IPC. shell.qml's
+    // own boolean is kept as a forwarder to preserve existing downstream
+    // bindings on root.notifPanelVisible (notifPanelWindow.visible, etc.)
+    property bool notifPanelVisible: PanelState.notifPanelVisible
+    onNotifPanelVisibleChanged: {
+        if (notifPanelVisible !== PanelState.notifPanelVisible) {
+            PanelState.notifPanelVisible = notifPanelVisible
+        }
+        if (notifPanelVisible && notifPanelScreenName === "") {
+            notifPanelScreenName = getFocusedScreenName()
+        }
+        if (!notifPanelVisible) notifPanelScreenName = ""
+    }
+    Connections {
+        target: PanelState
+        function onNotifPanelVisibleChanged() {
+            if (root.notifPanelVisible !== PanelState.notifPanelVisible) {
+                root.notifPanelVisible = PanelState.notifPanelVisible
+                if (root.notifPanelVisible && root.notifPanelScreenName === "") {
+                    root.notifPanelScreenName = root.getFocusedScreenName()
+                }
+            }
+        }
+    }
+
+    // v7.0.0-alpha.14: Workspace Overview — Exposé-style grid of all
+    // Hyprland workspaces. Triggered by Super+Tab keybind, bottom-left
+    // hot corner, or IPC toggleWorkspaceOverview.
+    //
+    // v7.0.0-beta.1-hf7: Mirrors PanelState.workspaceOverviewVisible
+    // (singleton-backed) so hot corners can toggle directly without
+    // external bash.
+    property bool workspaceOverviewVisible: PanelState.workspaceOverviewVisible
+    onWorkspaceOverviewVisibleChanged: if (workspaceOverviewVisible !== PanelState.workspaceOverviewVisible) {
+        PanelState.workspaceOverviewVisible = workspaceOverviewVisible
+    }
+    Connections {
+        target: PanelState
+        function onWorkspaceOverviewVisibleChanged() {
+            if (root.workspaceOverviewVisible !== PanelState.workspaceOverviewVisible) {
+                root.workspaceOverviewVisible = PanelState.workspaceOverviewVisible
+            }
+        }
+    }
+
+    // v7.0.0-alpha.14: HotCornerService instantiation guard.
+    // Singletons in QML are lazy-loaded — only created when first
+    // referenced. We force HotCornerService to load on shell startup
+    // by reading a property here, which kicks off its cursor poller.
+    Component.onCompleted: {
+        // Touch HotCornerService to force singleton instantiation.
+        // The poller starts immediately (interval 250ms) once the
+        // singleton is alive.
+        if (typeof HotCornerService !== "undefined") {
+            console.log("[shell] HotCornerService active=" + HotCornerService.enabled)
+        }
+        // v7.0.0-alpha.15: Also force GameProfileService + BatteryHealth
+        // Service to load. GameProfileService starts its toplevel-watch
+        // poller; BatteryHealthService starts its 60s /sys/class polling.
+        if (typeof GameProfileService !== "undefined") {
+            console.log("[shell] GameProfileService enabled=" + GameProfileService.enabled)
+        }
+        if (typeof BatteryHealthService !== "undefined") {
+            console.log("[shell] BatteryHealthService present=" + BatteryHealthService.present)
+        }
+        // v7.0.0-beta.1-hf36: Touch RefreshRateService so its FileView
+        // loads the persisted toggle state. If `downgrade60Hz` was on
+        // when the shell last exited, the service's onLoaded handler
+        // re-snapshots current monitor rates (which are the user's
+        // native preferred from hyprland-monitors.conf at this point)
+        // and re-applies 60Hz after a 1.5s delay (giving Hyprland time
+        // to settle monitor state).
+        if (typeof RefreshRateService !== "undefined") {
+            console.log("[shell] RefreshRateService downgrade60Hz="
+                      + RefreshRateService.downgrade60Hz)
+        }
+
+        // v7.0.0-beta.1-hf39: Touch the five new productivity services
+        // at startup so their Component.onCompleted fires (loads state
+        // from disk, scans notes dir, detects available tools, etc.)
+        // even before any bar module or settings page accesses them.
+        if (typeof QuickNotesService !== "undefined") {
+            console.log("[shell] QuickNotesService notes=" + QuickNotesService.notes.length)
+        }
+        if (typeof FocusSpacesService !== "undefined") {
+            console.log("[shell] FocusSpacesService spaces=" + FocusSpacesService.count())
+        }
+        if (typeof NetworkPulseService !== "undefined") {
+            console.log("[shell] NetworkPulseService enabled=" + NetworkPulseService.enabled)
+        }
+        if (typeof SmartDimService !== "undefined") {
+            console.log("[shell] SmartDimService enabled=" + SmartDimService.enabled)
+        }
+        if (typeof TitleTranslatorService !== "undefined") {
+            console.log("[shell] TitleTranslatorService enabled=" + TitleTranslatorService.enabled)
+        }
+    }
     // v6.16.2.3: Mirror PanelState.calendarVisible (singleton-backed) so
     // Clock.qml can toggle directly without IPC. shell.qml's own boolean
     // is kept as a forwarder to preserve existing downstream bindings.
     property bool calendarVisible: PanelState.calendarVisible
-    onCalendarVisibleChanged: if (calendarVisible !== PanelState.calendarVisible) {
-        PanelState.calendarVisible = calendarVisible
+    onCalendarVisibleChanged: {
+        if (calendarVisible !== PanelState.calendarVisible) {
+            PanelState.calendarVisible = calendarVisible
+        }
+        if (calendarVisible && calendarScreenName === "") {
+            calendarScreenName = getFocusedScreenName()
+        }
+        if (!calendarVisible) calendarScreenName = ""
     }
     Connections {
         target: PanelState
         function onCalendarVisibleChanged() {
-            if (root.calendarVisible !== PanelState.calendarVisible)
+            if (root.calendarVisible !== PanelState.calendarVisible) {
                 root.calendarVisible = PanelState.calendarVisible
+                if (root.calendarVisible && root.calendarScreenName === "") {
+                    root.calendarScreenName = root.getFocusedScreenName()
+                }
+            }
         }
     }
 
@@ -188,6 +419,23 @@ ShellRoot {
                 root._previousPanelMode = PanelState.panelMode
                 console.log("[ZenShell v6.16.2.3.1] Shell ready (via panelStateLoaded). "
                           + "panelMode=" + PanelState.panelMode)
+                // v7.0.0-beta.1-hf19: delay login chime by 1.5s.
+                // Firing immediately on panelStateLoaded was happening
+                // mid-binding-setup (many singletons still initializing
+                // their Process objects). Delaying lets everything
+                // settle before we spawn canberra-gtk-play.
+                loginChimeTimer.start()
+            }
+        }
+    }
+
+    Timer {
+        id: loginChimeTimer
+        interval: 1500
+        repeat: false
+        onTriggered: {
+            if (typeof SoundEffectsService !== "undefined") {
+                SoundEffectsService.play("login")
             }
         }
     }
@@ -233,6 +481,39 @@ ShellRoot {
             root._nuclearRestartPending = false
             console.log("[ZenShell v6.15.12] Nuclear flag cleared — "
                         + "if shell is still alive, respawn may have failed")
+        }
+    }
+
+    // v7.0.0-beta.1-hf35 MEMORY HYGIENE: periodic JS garbage collection.
+    //
+    // The only RAM-relief fix from hf33/hf34 that didn't break anything.
+    // QML's V8 engine garbage collects opportunistically — but if the
+    // application never signals memory pressure, the GC waits. Over a
+    // multi-hour session, scratch values (per-frame physics, cava data
+    // parsing, theme propagation, FileView reloads, etc.) accumulate
+    // even when no actual leaks exist.
+    //
+    // Calling Qt.gc() every 5 minutes is a gentle reminder. Cost is
+    // ~5-20ms pause on a modern machine — well below human perception
+    // threshold, and timed at 5-minute boundaries so users almost never
+    // notice. Frees scratch values that would otherwise accumulate.
+    //
+    // Safe: Qt.gc() is a documented QML API that doesn't touch user-
+    // referenced objects, only unreferenced scratch. Wrapped in try/catch
+    // because older QML runtimes may not expose Qt.gc.
+    Timer {
+        id: periodicGc
+        interval: 5 * 60 * 1000   // 5 minutes
+        repeat: true
+        running: true
+        triggeredOnStart: false
+        onTriggered: {
+            try {
+                Qt.gc()
+            } catch (e) {
+                // Qt.gc may not be available in older Quickshell/Qt
+                // builds. Silent fallback.
+            }
         }
     }
 
@@ -377,8 +658,98 @@ ShellRoot {
         function randomWallpaper() { WallpaperServiceV5.randomWallpaper() }
         function refreshWallpapers() { WallpaperServiceV5.refresh() }
 
-        function toggleSettings() { root.settingsVisible = !root.settingsVisible }
-        function closeSettings() { root.settingsVisible = false }
+        function toggleSettings() {
+            const scr = root.getFocusedScreenName()
+            if (root.settingsScreenName === scr && root.settingsVisible) {
+                root.settingsScreenName = ""
+                root.settingsVisible = false
+            } else {
+                root.settingsScreenName = scr
+                root.settingsVisible = true
+            }
+        }
+        function closeSettings() {
+            root.settingsScreenName = ""
+            root.settingsVisible = false
+        }
+
+        // v7.0.0-alpha.6-hf2: clipboard + search overlay IPC.
+        // Bound from Hyprland keybinds — see install.sh which patches
+        // ~/.config/hypr/binds.conf with `bind = SUPER, V, exec, qs ipc
+        // call zen toggleClipboard` and `bind = CTRL, F, exec, qs ipc
+        // call zen toggleSearch`.
+        //
+        // hf3: toggleClipboard now picks the focused screen (or first
+        // screen as fallback) and routes through root.toggleClipboardOnScreen
+        // so the panel only appears on ONE monitor — fixing the
+        // multi-monitor focus-grab race that was making the panel
+        // dismiss itself instantly on click.
+        function toggleClipboard() {
+            if (root.clipboardScreen) {
+                root.closeClipboard()
+                return
+            }
+            // Pick a screen — focused if we know which, else screen 0.
+            const screens = Quickshell.screens
+            const target = screens && screens.length > 0 ? screens[0] : null
+            if (target) root.toggleClipboardOnScreen(target)
+        }
+        function closeClipboard()  { root.closeClipboard() }
+
+        function toggleSearch() {
+            console.log("[ipc] toggleSearch called — was:", PanelState.searchOverlayVisible,
+                        "→ flipping to:", !PanelState.searchOverlayVisible)
+            PanelState.searchOverlayVisible = !PanelState.searchOverlayVisible
+        }
+        function closeSearch()  { PanelState.searchOverlayVisible = false }
+        function openSearch()   { PanelState.searchOverlayVisible = true }
+
+        // v7.0.0-beta.1-hf40: Quick Notes IPC handlers.
+        //
+        // Bound from Hyprland keybinds — see install.sh patches:
+        //   bind = SUPER SHIFT, N, exec, qs -c zen-shell ipc call zen quicknotes_toggle
+        //   bind = SUPER ALT,   N, exec, qs -c zen-shell ipc call zen quicknotes_new
+        //
+        // Note: $mainMod+N alone is already used by Paul's
+        // keybinds-update.conf for wifi-toggle.sh. SHIFT prefix avoids
+        // the conflict.
+        //
+        // quicknotes_toggle: flip the popover. If no current note,
+        // auto-create one so the editor has something to write to.
+        // quicknotes_new: ALWAYS create fresh note + open panel.
+        function quicknotes_toggle() {
+            // v7.0.0-beta.1-hf47: if user pressed Super+Shift+N AND
+            // they have at least one widget-mode sticky on the
+            // desktop, fire the highlight pulse so they can spot
+            // them visually (shake + glow + bounce). Acts as a
+            // "where are my notes?" finder.
+            if (typeof QuickNotesService !== "undefined"
+                && typeof QuickNotesService.widgetStickyCount === "function"
+                && QuickNotesService.widgetStickyCount() > 0) {
+                QuickNotesService.pulseHighlight()
+            }
+            if (!PanelState.quickNotesVisible) {
+                if (QuickNotesService.notes.length === 0
+                    || !QuickNotesService.getCurrentNote()) {
+                    QuickNotesService.createNote()
+                }
+            }
+            PanelState.quickNotesVisible = !PanelState.quickNotesVisible
+        }
+        function quicknotes_new() {
+            QuickNotesService.createNote()
+            PanelState.quickNotesVisible = true
+        }
+        function quicknotes_close() {
+            PanelState.quickNotesVisible = false
+        }
+        function quicknotes_sticky_current() {
+            // Toggle sticky mode on the current note — useful for
+            // hotkey users who want to spawn a sticky without
+            // opening the panel first.
+            const n = QuickNotesService.getCurrentNote()
+            if (n) QuickNotesService.toggleSticky(n.id)
+        }
 
         function reloadThemeFromFile() {
             ThemeService.reload()
@@ -410,10 +781,63 @@ ShellRoot {
         }
         function refreshThemeList() { ThemeService.refreshThemeList() }
 
-        function toggleControlCenter() { root.controlPanelVisible = !root.controlPanelVisible }
-        function closeControlCenter() { root.controlPanelVisible = false }
-        function toggleCalendar() { root.calendarVisible = !root.calendarVisible }
-        function closeCalendar() { root.calendarVisible = false }
+        // v7.0.0-beta.1-hf71 — screen-pinned toggles.
+        // Open on focused screen; close clears pin; reopen from
+        // different screen closes old + opens on new.
+        function toggleControlCenter() {
+            const scr = root.getFocusedScreenName()
+            if (root.controlPanelScreenName === scr && root.controlPanelVisible) {
+                root.controlPanelScreenName = ""
+                root.controlPanelVisible = false
+            } else {
+                root.controlPanelScreenName = scr
+                root.controlPanelVisible = true
+            }
+        }
+        function closeControlCenter() {
+            root.controlPanelScreenName = ""
+            root.controlPanelVisible = false
+        }
+
+        // v7.0.0-alpha.12-hf2: Native notification panel toggle
+        // v7.0.0-beta.1-hf72 — screen-pinned
+        function toggleNotifications() {
+            const scr = root.getFocusedScreenName()
+            if (root.notifPanelScreenName === scr && root.notifPanelVisible) {
+                root.notifPanelScreenName = ""
+                root.notifPanelVisible = false
+            } else {
+                root.notifPanelScreenName = scr
+                root.notifPanelVisible = true
+            }
+        }
+        function closeNotifications() {
+            root.notifPanelScreenName = ""
+            root.notifPanelVisible = false
+        }
+        function toggleDnd() { NotificationService.dndEnabled = !NotificationService.dndEnabled }
+
+        // v7.0.0-alpha.14: Workspace Overview IPC
+        function toggleWorkspaceOverview() {
+            root.workspaceOverviewVisible = !root.workspaceOverviewVisible
+        }
+        function closeWorkspaceOverview() {
+            root.workspaceOverviewVisible = false
+        }
+        function toggleCalendar() {
+            const scr = root.getFocusedScreenName()
+            if (root.calendarScreenName === scr && root.calendarVisible) {
+                root.calendarScreenName = ""
+                root.calendarVisible = false
+            } else {
+                root.calendarScreenName = scr
+                root.calendarVisible = true
+            }
+        }
+        function closeCalendar() {
+            root.calendarScreenName = ""
+            root.calendarVisible = false
+        }
         function toggleKeybindCheatsheet() { root.keybindCheatsheetVisible = !root.keybindCheatsheetVisible }
         function reloadTheme(schemeName: string) { Theme.loadScheme(schemeName) }
         function cycleTheme() { Theme.cycleTheme() }
@@ -422,7 +846,70 @@ ShellRoot {
         function powerShutdown() { root.triggerPowerAction("shutdown", "systemctl poweroff") }
         function powerReboot()   { root.triggerPowerAction("reboot", "systemctl reboot") }
         function powerLogout()   { root.triggerPowerAction("logout", "hyprctl dispatch exit") }
-        function powerLock()     { root.triggerPowerAction("lock", "hyprlock") }
+        // v7.0.0-beta.1-hf48 — wrap hyprlock with a post-unlock focus
+        // reset sequence to work around upstream Hyprland bug #5884
+        // (also tracked at hyprlock #483).
+        //
+        // The upstream bug: after hyprlock exits, Hyprland's input
+        // manager (CInputManager) ends up in a broken state where
+        // keyboard focus is "stuck" on the monitor that was active
+        // before lock. Multi-monitor users see this as: click sa
+        // ibang monitor walang nangyayari, kailangan i-drag pa yung
+        // mouse pabalik sa originally-active monitor, then click,
+        // then drag ulit para mawala yung weirdness.
+        //
+        // Hyprland devs confirmed yan ay bug nasa CInputManager.
+        // Until they fix it upstream, this workaround:
+        //
+        //   1. hyprlock runs as normal (locks all monitors)
+        //   2. When user types password + hyprlock exits, our bash
+        //      wrapper takes over
+        //   3. 400ms grace period for Hyprland to clean up the
+        //      lock-screen layer surfaces
+        //   4. Capture the current active monitor name
+        //   5. Cycle focusmonitor across ALL monitors (each cycle
+        //      kicks CInputManager to re-evaluate its focus state)
+        //   6. End by re-focusing the originally-active monitor
+        //
+        // Net effect: yung "stuck focus" state ma-clear automatically.
+        // User experience: lock → password → unlock → click anywhere
+        // works immediately, walang mag-drag-here-drag-there dance.
+        //
+        // The sequence runs in the BACKGROUND via & so the shell's
+        // execDetached returns immediately. The wrapper script lives
+        // inline as a bash heredoc — no extra files to install.
+        function powerLock() {
+            // Build the wrapper script. Uses jq when available, falls
+            // back to awk parsing of plain `hyprctl monitors` output
+            // so the workaround works even on minimal installs without
+            // jq. The dispatch sequence is identical either way.
+            const focusResetScript = ""
+                + "hyprlock; "
+                + "sleep 0.4; "
+                + "if command -v jq >/dev/null 2>&1; then "
+                + "  ORIG_MON=\"$(hyprctl monitors -j 2>/dev/null"
+                + "    | jq -r '.[] | select(.focused) | .name' 2>/dev/null)\"; "
+                + "  ALL_MONS=\"$(hyprctl monitors -j 2>/dev/null"
+                + "    | jq -r '.[].name' 2>/dev/null)\"; "
+                + "else "
+                + "  ORIG_MON=\"$(hyprctl monitors 2>/dev/null"
+                + "    | awk '/^Monitor / {name=$2} /focused: yes/ {print name; exit}')\"; "
+                + "  ALL_MONS=\"$(hyprctl monitors 2>/dev/null"
+                + "    | awk '/^Monitor / {print $2}')\"; "
+                + "fi; "
+                + "[ -z \"$ORIG_MON\" ] && ORIG_MON=\"$(echo \"$ALL_MONS\" | head -n1)\"; "
+                + "echo \"$ALL_MONS\" | while read -r mon; do "
+                + "  [ -n \"$mon\" ] && hyprctl dispatch focusmonitor \"$mon\" >/dev/null 2>&1; "
+                + "  sleep 0.08; "
+                + "done; "
+                + "if [ -n \"$ORIG_MON\" ]; then "
+                + "  hyprctl dispatch focusmonitor \"$ORIG_MON\" >/dev/null 2>&1; "
+                + "fi; "
+                + "hyprctl dispatch movefocus l >/dev/null 2>&1; "
+                + "hyprctl dispatch movefocus r >/dev/null 2>&1; "
+                + "echo \"[zen-shell hf48] post-unlock focus reset complete\" >&2"
+            root.triggerPowerAction("lock", focusResetScript)
+        }
 
         // v6.15: Screenshot rope overlay
         // Triggers cursor-monitor query → Process stdout handler sets
@@ -487,32 +974,39 @@ ShellRoot {
                 return modelData.name === target
             }
 
-            // v6.16.4.12: Position-aware anchoring
-            anchors.bottom: !PanelState.isTop
-            anchors.top: PanelState.isTop
-
-            // Horizontal anchoring:
-            //   fullwidth → anchored left+right (stretch)
-            //   floating  → anchored left+right (stretch, but with margins)
-            //   island    → NOT anchored horizontally (centered, hug-width)
-            anchors.left: PanelState.panelMode !== "island"
-            anchors.right: PanelState.panelMode !== "island"
+            // v6.16.4.12 / v7.0.0-beta.1-hf90.1: Position-aware anchoring.
+            // HORIZONTAL (top/bottom) path restored to EXACTLY the
+            // pre-hf90 behavior — these four lines are byte-identical to
+            // the original so top/bottom cannot regress. VERTICAL adds
+            // top+bottom+side anchors only when isVertical.
+            anchors.bottom: PanelState.isVertical ? true : !PanelState.isTop
+            anchors.top:    PanelState.isVertical ? true : PanelState.isTop
+            anchors.left:   PanelState.isVertical
+                            ? PanelState.isLeft
+                            : (PanelState.panelMode !== "island")
+            anchors.right:  PanelState.isVertical
+                            ? PanelState.isRight
+                            : (PanelState.panelMode !== "island")
 
             WlrLayershell.layer: WlrLayer.Top
             WlrLayershell.namespace: "zen-shell-bar"
 
-            // Original height — unchanged
-            implicitHeight: PanelState.barHeight + (PanelState.isTop ? PanelState.panelMarginTop : PanelState.panelMarginBottom)
+            // HEIGHT — horizontal branch is the ORIGINAL expression
+            // verbatim; vertical is 0 (full height via top+bottom anchors).
+            implicitHeight: PanelState.isVertical
+                ? 0
+                : ((PanelState.barAutoHeight
+                      ? Math.max(36, bar.contentImplicitHeight + PanelState.barAutoHeightPadding * 2)
+                      : PanelState.barHeight)
+                    + (PanelState.isTop ? PanelState.panelMarginTop : PanelState.panelMarginBottom))
 
-            // Width strategy per mode:
-            //   fullwidth → 0 (auto-stretch via anchors.left+right)
-            //   floating  → 0 (ALSO auto-stretch; anchors.left+right with
-            //               margins.left/right do the work. Previously we
-            //               tried `screen.width - 2*margin` but that fought
-            //               with the anchors and caused right-side clipping.)
-            //   island    → hug Bar.contentImplicitWidth + inner pad;
-            //               clamped to [400, screen - 2*margin].
+            // WIDTH — horizontal branch is the ORIGINAL expression
+            // verbatim; vertical is a fixed thickness + side gutter.
             implicitWidth: {
+                if (PanelState.isVertical) {
+                    return PanelState.barHeight
+                        + (PanelState.isLeft ? PanelState.panelMarginLeft : PanelState.panelMarginRight)
+                }
                 if (PanelState.panelMode === "fullwidth") return 0
                 if (PanelState.panelMode === "floating") return 0
                 // island: hug content.
@@ -525,40 +1019,80 @@ ShellRoot {
 
             color: "transparent"
 
-            margins.bottom: PanelState.isTop ? 0 : PanelState.panelMarginBottom
-            margins.top: PanelState.isTop ? PanelState.panelMarginTop : 0
-            margins.left: PanelState.panelMode === "fullwidth" ? 0
-                          : (PanelState.panelMode === "floating" ? PanelState.panelMarginSide : 0)
-            margins.right: PanelState.panelMode === "fullwidth" ? 0
-                           : (PanelState.panelMode === "floating" ? PanelState.panelMarginSide : 0)
+            // MARGINS — horizontal branches are the ORIGINAL expressions
+            // verbatim (isVertical just forces the vertical gutter instead).
+            margins.bottom: PanelState.isVertical ? 0 : (PanelState.isTop ? 0 : PanelState.panelMarginBottom)
+            margins.top: PanelState.isVertical ? 0 : (PanelState.isTop ? PanelState.panelMarginTop : 0)
+            margins.left: PanelState.isVertical
+                          ? (PanelState.isLeft ? PanelState.panelMarginLeft : 0)
+                          : (PanelState.panelMode === "fullwidth" ? 0
+                             : (PanelState.panelMode === "floating" ? PanelState.panelMarginSide : 0))
+            margins.right: PanelState.isVertical
+                           ? (PanelState.isRight ? PanelState.panelMarginRight : 0)
+                           : (PanelState.panelMode === "fullwidth" ? 0
+                              : (PanelState.panelMode === "floating" ? PanelState.panelMarginSide : 0))
 
             // Bar fills its parent window in ALL modes. The window itself
             // is sized per-mode above (0 for fullwidth, computed for
             // floating/island). Using anchors.fill is the simple, correct
             // way to let the bar's internal RowLayout stretch to the full
             // width of whatever window it lives in.
+            //
+            // v7.0.0-beta.1-hf90.2: the horizontal Bar only loads when the
+            // bar is horizontal; the vertical bar is a SEPARATE component
+            // (BarVertical) so the horizontal tree is never touched by
+            // vertical logic — the end-4 architecture (dedicated vertical
+            // content), and the reason this no longer regresses top/bottom.
+            // v7.0.0-beta.1-hf94.4: RESTORED the original direct Bar mount
+            // (id: bar, not a Loader/property). Changing `id: bar` into a
+            // `property var bar` on this PanelWindow caused a QML context
+            // property-lookup crash (initPropertyNames recursion) because
+            // this window is instantiated per-screen via Variants and other
+            // bindings resolve `bar` through the QML context. The original
+            // id-based mount is restored verbatim; the Bar simply hides its
+            // content when the bar is vertical (visible:false costs nothing
+            // and keeps the horizontal tree byte-identical), and BarVertical
+            // is mounted as a separate sibling for the vertical case.
             Bar {
                 id: bar
                 anchors.fill: parent
                 anchors.margins: PanelState.panelMode === "fullwidth" ? 3 : 0
+                visible: PanelState.isHorizontal
             }
 
-            // Publish the bar window's left edge in screen coords so
-            // the floating strings overlay can align correctly in
-            // island and floating modes.
-            //   fullwidth → 0
-            //   floating  → panelMarginSide
-            //   island    → (screenW - islandWidth) / 2
+            BarVertical {
+                anchors.fill: parent
+                visible: PanelState.isVertical
+            }
+
+            // v7.0.0-beta.1-hf98f — publish the bar's geometry for the
+            // strings overlay.
+            //   barWindowLeft  : kept for fullwidth/floating (and a
+            //                    last-resort island fallback).
+            //   barIslandWidth : the island hug-content width. The strings
+            //                    overlay centres itself from THIS plus its
+            //                    own screen width, which fixes the
+            //                    island-only "far-left after login" bug:
+            //                    the old barWindowLeft baked screenW into the
+            //                    stored value, and a lock→unlock could bake a
+            //                    transient-0 screenW → 0 → far-left. The
+            //                    island width does NOT depend on screenW, so
+            //                    it survives a lock/unlock unchanged.
             function _publishBarLeft() {
                 if (PanelState.panelMode === "fullwidth") {
                     ZenStringsState.barWindowLeft = 0
                 } else if (PanelState.panelMode === "floating") {
                     ZenStringsState.barWindowLeft = PanelState.panelMarginSide
                 } else {
-                    // island: centered
                     const islandW = barWindow.implicitWidth
                     const screenW = modelData.width
-                    ZenStringsState.barWindowLeft = Math.max(0, (screenW - islandW) / 2)
+                    if (islandW > 0 && screenW > 0) {
+                        ZenStringsState.barWindowLeft = Math.max(0, (screenW - islandW) / 2)
+                    }
+                    // screenW-independent width — guard against transients.
+                    if (islandW > 50) {
+                        ZenStringsState.barIslandWidth = islandW
+                    }
                 }
             }
             onImplicitWidthChanged: _publishBarLeft()
@@ -566,6 +1100,8 @@ ShellRoot {
             Connections {
                 target: PanelState
                 function onPanelModeChanged() { barWindow._publishBarLeft() }
+                // hf98d/f — re-publish on the unlock edge too.
+                function onSessionUnlocked()  { barWindow._publishBarLeft() }
             }
 
             // ZenStrings moved out of barWindow to a floating PanelWindow
@@ -573,6 +1109,117 @@ ShellRoot {
             // height, so curves that bow above/below the bar were getting
             // hard-clipped by Wayland (clip:false couldn't help). The
             // dedicated overlay window below has extra vertical headroom.
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ZEN DOCK — SECOND MODULE SURFACE (v7.0.0-beta.1-hf82k)
+    //
+    // A separate PanelWindow per screen that hosts ZenDock — a Mac-
+    // dock-style island/floating/fullwidth surface independent of the
+    // bar. Mirrors the bar's variant-per-screen structure exactly so
+    // multi-monitor + monitor targeting flow through the same way.
+    //
+    // Behavior:
+    //   - visible binding gates on DockState.enabled + monitor target
+    //   - position (top/bottom) is independent of bar position
+    //   - WlrLayer.Top so it sits over windows (like the bar) but
+    //     ExclusionMode.Ignore so it doesn't push tiled content
+    //     around — gives the Mac-dock feel where windows can sit
+    //     beneath it
+    //   - Theme/border/blur sync with bar when DockState.syncFromBar
+    //     is true (ZenDock.qml resolves the sync internally)
+    //
+    // User request (hf82k): "okay game paki dagdagan ng docker panel
+    // pre and yung docker pwd din malagyan ng ibang widgets, pero
+    // default kung anu yun nasa taskbar ko make it sure draggable din
+    // and same feature pati yun workspace numbers count and yun pop up
+    // as in same"
+    //
+    // Drag and workspace-popup behavior come "for free" because the
+    // dock reuses the existing Taskbar (with hf82g drag) and
+    // Workspaces (with popup) widgets unchanged — they're slotted
+    // into the dock's RowLayout via DockState.modules.
+    // ═══════════════════════════════════════════════════════════════
+    Variants {
+        model: Quickshell.screens
+
+        PanelWindow {
+            id: dockWindow
+            required property var modelData
+            screen: modelData
+
+            // Per-monitor target evaluation. Same logic the strings
+            // window uses for "show on focused monitor only".
+            property bool shouldShow: {
+                if (!DockState.enabled) return false
+                const target = DockState.showOnMonitor
+                if (target === "all") return true
+                if (target === "primary") {
+                    return Quickshell.screens && Quickshell.screens.length > 0
+                        && Quickshell.screens[0] === modelData
+                }
+                return modelData && modelData.name === target
+            }
+
+            visible: shouldShow
+
+            // Anchors: edge-side anchor determined by DockState.position,
+            // left/right anchored only in fullwidth mode (so the
+            // floating/island modes don't span the screen).
+            anchors.top:    DockState.isTop
+            anchors.bottom: DockState.isBottom
+            anchors.left:   DockState.mode === "fullwidth"
+            anchors.right:  DockState.mode === "fullwidth"
+
+            // Edge margin (gap from screen top/bottom).
+            margins.top:    DockState.isTop    ? DockState.marginEdge : 0
+            margins.bottom: DockState.isBottom ? DockState.marginEdge : 0
+
+            // Sizing:
+            //   - fullwidth: implicit = full screen width
+            //   - floating:  full-minus-2*sideMargin
+            //   - island:    hug content
+            implicitWidth: {
+                if (!modelData) return 800
+                if (DockState.mode === "fullwidth") return modelData.width
+                if (DockState.mode === "floating") {
+                    return Math.max(200, modelData.width - DockState.marginSide * 2)
+                }
+                // island
+                return Math.min(
+                    modelData.width - DockState.marginSide * 2,
+                    dockInner.contentImplicitWidth
+                )
+            }
+            implicitHeight: DockState.height
+
+            WlrLayershell.layer: WlrLayer.Top
+            WlrLayershell.namespace: "zen-shell-dock"
+            // v7.0.0-beta.1-hf83: reserve space so the dock no longer
+            // overlaps Hyprland tiles. When DockState.reserveSpace is on,
+            // we switch from ExclusionMode.Ignore (old Mac-dock overlap)
+            // to ExclusionMode.Normal with an explicit exclusiveZone of
+            // dock height + edge margin + reserveGap. The compositor keeps
+            // tiled windows out of that strip, leaving a clean gap below
+            // (or above) the dock. Toggle reserveSpace off to restore the
+            // old overlapping float — wala tayong babawasan.
+            exclusionMode: DockState.reserveSpace
+                ? ExclusionMode.Normal
+                : ExclusionMode.Ignore
+            exclusiveZone: DockState.reserveSpace ? DockState.exclusiveZonePx : 0
+            color: "transparent"
+
+            ZenDock {
+                id: dockInner
+                anchors.fill: parent
+                // hf95.31 — give the dock its usable width so it can shrink
+                // icons to fit / show arrows. Only constrain in
+                // fullwidth/floating; island stays hug-content (0 = no cap).
+                availableWidth: (DockState.mode === "island")
+                    ? 0
+                    : Math.max(0, dockWindow.width - DockState.contentPadding * 2)
+            }
         }
     }
 
@@ -630,6 +1277,15 @@ ShellRoot {
             // and start button is ~60px wide).
             property bool positionReady: false
 
+            // v7.0.0-beta.1-hf97 — last X (barLeftOffset + musicSlotLocalX)
+            // we committed as "ready". Used by _onPosChanged to tell a real
+            // layout disturbance (lock/unlock re-publishes both coords async,
+            // which the enabled margins Behavior would otherwise glide
+            // through inconsistent intermediates → "napabalik-balik, hindi
+            // naka-align") apart from harmless clock/taskbar jitter. Sentinel
+            // -99999 = nothing committed yet. Strictly additive.
+            property real _lastCommittedLeft: -99999
+
             Timer {
                 id: stringsStabilityTimer
                 interval: 600
@@ -660,6 +1316,9 @@ ShellRoot {
                 }
                 stringsWindow.positionReady = true
                 ZenStringsState.positionReady = true
+                // hf97: remember where we settled so a later async re-publish
+                // (lock/unlock swing) can be recognised as a real move.
+                stringsWindow._lastCommittedLeft = stringsWindow.barLeftOffset + ZenStringsState.musicSlotLocalX
                 stringsStabilityTimer.stop()
                 stringsMaxWaitTimer.stop()
             }
@@ -682,8 +1341,53 @@ ShellRoot {
                      && positionReady
 
             function _onPosChanged() {
-                // Once ready, stay ready — margin bindings follow smoothly
-                if (stringsWindow.positionReady) return
+                // v7.0.0-beta.1-hf97 — lock/unlock drift fix.
+                //
+                // Pre-hf97 this was a bare `if (positionReady) return` — once
+                // ready we let the margins binding glide. Correct for the
+                // steady state (clock width changes, taskbar items come and
+                // go → a few px of jitter the Behavior animates nicely).
+                //
+                // But a lock→unlock cycle has NO window teardown (unlike a
+                // monitor unplug or DPMS off, which Component.onCompleted
+                // already re-settles). The window stays alive, positionReady
+                // stays true, yet on wake Bar.qml re-publishes musicSlotLocalX
+                // AND barLeftOffset re-evaluates — asynchronously, from
+                // different sources. The enabled `Behavior on margins.left`
+                // then animates THROUGH the inconsistent intermediate values,
+                // so the strings visibly swing back and forth and can land
+                // misaligned ("napabalik-balik, hindi naka-align").
+                //
+                // Fix: while ready, watch for a disturbance too large to be
+                // normal jitter, or a value that's clearly pre-layout, and if
+                // seen drop back to the not-ready re-settle path (hide +
+                // invalidate slot + restart the stability/max-wait timers)
+                // exactly like the panel-mode-change handler does. The strings
+                // re-converge cleanly instead of gliding through garbage.
+                // Strictly additive — the steady-state path is unchanged.
+                if (stringsWindow.positionReady) {
+                    const newLeft = stringsWindow.barLeftOffset + ZenStringsState.musicSlotLocalX
+                    // >200px is never clock/taskbar jitter; only a mode change
+                    // or a lock-swing moves the slot that far. Conservative on
+                    // purpose so we never flicker on ordinary updates.
+                    const bigJump = stringsWindow._lastCommittedLeft > -99998
+                                    && Math.abs(newLeft - stringsWindow._lastCommittedLeft) > 200
+                    // musicSlotLocalX in [0,20) means Bar.qml is mid-rebuild
+                    // (see sanity gate above) — a transient we must not commit.
+                    const preLayout = ZenStringsState.musicSlotLocalX >= 0
+                                      && ZenStringsState.musicSlotLocalX < 20
+                    if (bigJump || preLayout) {
+                        // Re-settle. Order matters: clear positionReady FIRST so
+                        // the musicSlotLocalX write below re-enters this function
+                        // on the not-ready branch (no recursion into here).
+                        stringsWindow.positionReady = false
+                        ZenStringsState.positionReady = false
+                        ZenStringsState.musicSlotLocalX = -1
+                        stringsStabilityTimer.restart()
+                        stringsMaxWaitTimer.restart()
+                    }
+                    return
+                }
                 // Pre-ready: restart stability countdown
                 stringsStabilityTimer.restart()
             }
@@ -751,6 +1455,38 @@ ShellRoot {
                     stringsStabilityTimer.restart()
                     stringsMaxWaitTimer.restart()
                 }
+                // v7.0.0-beta.1-hf82i — also reset on top↔bottom flip.
+                // Without this, switching the bar position would keep the
+                // strings positionReady=true and the slotCenterY binding
+                // recomputes correctly but the WAYLAND-side anchor flip
+                // (margins.top vs margins.bottom) hasn't propagated yet,
+                // leading to a one-frame visible misalignment. Treating
+                // it like a panel-mode change forces a clean re-settle.
+                function onPanelPositionChanged() {
+                    stringsWindow.positionReady = false
+                    ZenStringsState.positionReady = false
+                    ZenStringsState.musicSlotLocalX = -1
+                    stringsStabilityTimer.restart()
+                    stringsMaxWaitTimer.restart()
+                }
+                // v7.0.0-beta.1-hf98 — lock/login re-align.
+                // PanelState's hyprlock watcher fires this on every unlock
+                // edge. A lock→unlock cycle keeps this window alive with
+                // positionReady=true, so we must force the same clean
+                // re-settle a panel-mode change does — otherwise the bar's
+                // async coord re-publish on wake glides the string off-slot
+                // (the "napupunta sa dulo, hindi naka-align" bug). Clearing
+                // positionReady disables the margins Behavior so the string
+                // SNAPS back to the correct slot instead of swinging there.
+                // Invalidating musicSlotLocalX makes the sanity gate wait for
+                // Bar.qml's safetyPoll to re-publish a fresh, trustworthy X.
+                function onSessionUnlocked() {
+                    stringsWindow.positionReady = false
+                    ZenStringsState.positionReady = false
+                    ZenStringsState.musicSlotLocalX = -1
+                    stringsStabilityTimer.restart()
+                    stringsMaxWaitTimer.restart()
+                }
             }
 
             Component.onCompleted: {
@@ -771,14 +1507,17 @@ ShellRoot {
                 if (PanelState.panelMode === "fullwidth") return 0
                 if (PanelState.panelMode === "floating")  return PanelState.panelMarginSide
                 // island: bar is centered with hug-content width.
-                // Recompute barWindow.implicitWidth identically:
-                const minW = 400
-                const maxW = modelData.width - (PanelState.panelMarginSide * 2)
-                const innerPad = 16
-                // bar.contentImplicitWidth isn't accessible from here, but
-                // barWindowLeft is written by barWindow itself via a
-                // Connections below. Use it when available; else fall back
-                // to marginSide (visually close for most module layouts).
+                //
+                // v7.0.0-beta.1-hf98f — centre from the published island
+                // width and THIS window's own screen width. modelData.width
+                // is always valid here (consumer side), and barIslandWidth
+                // doesn't depend on screenW, so this stays correct across a
+                // lock→unlock with no poll, no staleness, no far-left. The
+                // old barWindowLeft path is only a last-resort fallback now.
+                const islandW = ZenStringsState.barIslandWidth
+                if (islandW > 50 && modelData.width > 0) {
+                    return Math.max(0, (modelData.width - islandW) / 2)
+                }
                 if (ZenStringsState.barWindowLeft > 0) {
                     return ZenStringsState.barWindowLeft
                 }
@@ -850,6 +1589,7 @@ ShellRoot {
                 // may have been clamped to 0 (when vPad > panelMarginBottom),
                 // which shifts the bar's apparent position within our window.
                 //
+                // ── BOTTOM-ANCHORED BAR ──
                 // Window's bottom edge is at:
                 //   screenBottom - actualMarginBottom
                 // Bar's bottom edge is at:
@@ -858,7 +1598,38 @@ ShellRoot {
                 //   windowHeight - (panelMarginBottom - actualMarginBottom)
                 //        = (barHeight + 2*vPad) - (panelMarginBottom - margins.bottom)
                 // Bar center Y = bar bottom - barHeight/2
+                //
+                // ── TOP-ANCHORED BAR (v7.0.0-beta.1-hf82i FIX) ──
+                // User report:
+                //   "yung strings ko kapag top panel hindi naka pantay
+                //    sa mismong qml bar ko"
+                //
+                // The bottom-anchored math above produces the wrong Y
+                // when the bar is at the top, because `panelMarginBottom`
+                // is unused (or 0) and the strings window is anchored
+                // from the TOP via `margins.top`. The result was strings
+                // rendering at roughly `barHeight/2 + 2*vPad` below the
+                // actual bar center — misaligned downward by ~2*vPad.
+                //
+                // Mirror the bottom logic but for the top anchor:
+                //   Window's top edge is at:
+                //     screenTop + actualMarginTop
+                //   Bar's top edge is at:
+                //     screenTop + panelMarginTop
+                //   So bar top within this window is:
+                //     panelMarginTop - actualMarginTop
+                //   Bar center Y = bar top + barHeight/2
+                //
+                // margins.top may also be clamped to 0 (if vPad >
+                // panelMarginTop), in which case the strings overlay
+                // extends right to the screen edge but the bar still
+                // sits at its declared panelMarginTop offset.
                 slotCenterY: {
+                    if (PanelState.isTop) {
+                        const actualTopMargin = stringsWindow.margins.top
+                        const barTopInWindow = PanelState.panelMarginTop - actualTopMargin
+                        return barTopInWindow + PanelState.barHeight / 2
+                    }
                     const actualBottomMargin = stringsWindow.margins.bottom
                     const barBottomInWindow = stringsWindow.implicitHeight
                         - (PanelState.panelMarginBottom - actualBottomMargin)
@@ -891,6 +1662,128 @@ ShellRoot {
         }
     }
 
+
+    // ═══════════════════════════════════════════════════════════════
+    // ZEN STRINGS — VERTICAL OVERLAY (v7.0.0-beta.1-hf95.5)
+    //
+    // The horizontal stringsWindow above is suppressed on vertical bars
+    // (it draws left-to-right). This is its vertical sibling: a separate
+    // WlrLayer.Top overlay on the bar's edge that renders the SAME
+    // ZenStrings visual rotated 90°, so the string runs top-to-bottom and
+    // bows sideways into the screen. Centered on the music slot's Y, which
+    // BarVertical.qml reports into ZenStringsState. Independent of the
+    // horizontal window — horizontal behaviour is untouched.
+    // ═══════════════════════════════════════════════════════════════
+    Variants {
+        model: Quickshell.screens
+
+        PanelWindow {
+            id: stringsWindowV
+            required property var modelData
+            screen: modelData
+
+            property bool isBarMonitor: {
+                const target = PanelState.barTargetDisplay
+                if (target === "all") return true
+                if (target === "primary") return Quickshell.screens[0] === modelData
+                return modelData.name === target
+            }
+
+            // How far the string bows sideways (into the screen).
+            readonly property int hPad: ZenStringsState.curveHeight
+            // Vertical run length of the string — the compact, dynamic
+            // length shared with BarVertical's reserved music slot, so the
+            // string exactly fills its own space (no overlap) and shortens
+            // automatically with the bar.
+            readonly property real vLen: ZenStringsState.verticalStringLength
+            // Bar thickness + side gutter, so we can center the string on
+            // the bar's CONTENT center (over the music icon), not the
+            // window center.
+            readonly property int barThick: PanelState.barHeight
+            readonly property int gutter: PanelState.isLeft
+                                          ? PanelState.panelMarginLeft
+                                          : PanelState.panelMarginRight
+            // Bar content center X, measured inside this window (which is
+            // anchored to the same edge as the bar). Left bar: gutter in
+            // from the screen edge. Right bar: mirrored from the right.
+            readonly property real barContentCenterX: PanelState.isLeft
+                ? (gutter + barThick / 2)
+                : (implicitWidth - gutter - barThick / 2)
+
+            visible: isBarMonitor
+                     && PanelState.isVertical
+                     && ZenStringsState.enabled
+                     && ZenStringsState.musicSlotLocalY >= 0
+                     && ZenStringsState.musicSlotLocalHeight > 4
+
+            WlrLayershell.layer: WlrLayer.Top
+            WlrLayershell.namespace: "zen-shell-strings-v"
+            exclusionMode: ExclusionMode.Ignore
+            color: "transparent"
+
+            // Sit on the same screen edge as the bar.
+            anchors.left:  PanelState.isLeft
+            anchors.right: PanelState.isRight
+            anchors.top:   true
+
+            // Bow room on BOTH sides of the bar so the string bows
+            // symmetrically (the outer bow clips at the screen edge on an
+            // edge bar — expected). Tall enough for the string + end dots.
+            implicitWidth:  barThick + 2 * hPad
+            implicitHeight: vLen + 48
+
+            // hf95.7: when the bar column is globally scaled to fit
+            // (barRootV.vFitScale < 1), the music slot renders nearer the
+            // top (scaled about the column's top), so the overlay must
+            // follow the SCALED slot center. slotTopOffset is rootColV's
+            // top inset (anchors.topMargin). At fitScale 1.0 this reduces
+            // exactly to the unscaled center, so a bar that already fits
+            // is unchanged.
+            readonly property real fitS: ZenStringsState.verticalFitScale
+            readonly property int slotTopOffset: 8
+            readonly property real scaledSlotCenterY:
+                slotTopOffset
+                + (ZenStringsState.musicSlotLocalY - slotTopOffset) * fitS
+                + (ZenStringsState.musicSlotLocalHeight * fitS) / 2
+
+            // Center the window vertically on the (scaled) music slot.
+            margins.top: Math.max(0, scaledSlotCenterY - stringsWindowV.implicitHeight / 2)
+            Behavior on margins.top {
+                enabled: ZenStringsState.positionReady
+                NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+            }
+
+            // Click-through (same rationale as the horizontal window).
+            mask: Region {}
+
+            ZenStrings {
+                id: vStrings
+                // Pre-rotation: width = the vertical run, height = the bow
+                // span. After a 90° rotation about center, (vLen × bowSpan)
+                // becomes (bowSpan × vLen) — vertical string, sideways bow.
+                width:  stringsWindowV.vLen
+                height: 2 * ZenStringsState.curveHeight + 16
+                slotCenterY: height / 2
+                isAudioActive: ZenStringsState.isAudioActive
+                cavaData: ZenStringsState.cavaData
+                rotation: 90
+                transformOrigin: Item.Center
+                // hf95.7: shrink in sync with the bar's modules when the
+                // column is globally scaled to fit. Scale is about the
+                // item center, so the centered position below is preserved.
+                scale: stringsWindowV.fitS
+                // hf95.6: center the string LINE on the BAR's thickness
+                // center (over the music icon), not the window center —
+                // otherwise it sat ~hPad/2 too far in and bowed into the
+                // windows beside the bar. Rotation is about the item
+                // center, so its visual center = (x + width/2, y +
+                // height/2); solve x,y so that center lands on
+                // (barContentCenterX, window vertical center).
+                x: stringsWindowV.barContentCenterX - width / 2
+                y: (stringsWindowV.height - height) / 2
+            }
+        }
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // START MENU
@@ -938,8 +1831,10 @@ ShellRoot {
             margins.left: {
                 if (!PanelState.isHorizontal) {
                     // Vertical bar: anchored to left (anchors.left when
-                    // bar is on left) — push past the bar by barHeight + 2.
-                    if (PanelState.isLeft) return PanelState.barHeight + 2
+                    // bar is on left) — overlap the bar's border by 1px
+                    // so the panel + bar borders merge into one continuous
+                    // line (v7.0.0-alpha.4-hf2 sticky-border behavior).
+                    if (PanelState.isLeft) return PanelState.barHeight - 1
                     return 0
                 }
                 const btnX = PanelState.startButtonCenterX
@@ -952,17 +1847,22 @@ ShellRoot {
                 const maxLeft = screenW - w - 8
                 return Math.max(8, Math.min(maxLeft, desired))
             }
-            margins.right: PanelState.isRight ? (PanelState.barHeight + 2) : 0
+            margins.right: PanelState.isRight ? (PanelState.barHeight - 1) : 0
 
-            // v6.16.4.12: Sticky to bar — 2px gap for visual separation
-            // v6.16.4.12.7.1: Only applies when bar is horizontal. For
-            // vertical bars, the perpendicular gap is handled by
-            // margins.left/right above; vertical placement is anchor-top
-            // with a small fixed margin.
+            // v7.0.0-alpha.4-hf2: Sticky to bar — 1px OVERLAP (not gap)
+            // so the panel's border draws right on top of the bar's
+            // border at the shared edge, forming a single continuous
+            // visual line. Combined with PanelState.startMenuBorderMode
+            // = "match-bar" (same color/width), the bar + panel look
+            // like one unit.
+            //
+            // Previously this was `barHeight + 2` — a 2px visual gap.
+            // The Densho identity sweep (Karui line) treats the bar +
+            // panel as a unified surface; the gap broke that.
             margins.bottom: PanelState.isBottom
-                ? (PanelState.barHeight + 2 + PanelState.panelMarginBottom) : 0
+                ? (PanelState.barHeight - 1 + PanelState.panelMarginBottom) : 0
             margins.top: PanelState.isTop
-                ? (PanelState.barHeight + 2 + PanelState.panelMarginTop)
+                ? (PanelState.barHeight - 1 + PanelState.panelMarginTop)
                 : (PanelState.isVertical ? 8 : 0)
 
             HyprlandFocusGrab {
@@ -1060,7 +1960,9 @@ ShellRoot {
                 return Hyprland.focusedMonitor.name === modelData.name
             }
 
-            visible: root.settingsVisible && isFocusedMonitor
+            // v7.0.0-beta.1-hf71 — pinned to screen
+            // hf72 — pinned by screen name
+            visible: root.settingsVisible && modelData.name === root.settingsScreenName
 
             anchors.top: true
             anchors.bottom: true
@@ -1068,8 +1970,31 @@ ShellRoot {
             anchors.right: true
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "zen-shell-settings"
+            WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
             exclusionMode: ExclusionMode.Ignore
             color: "transparent"
+
+            // v7.0.0-alpha.7-hf4: WlrLayershell.keyboardFocus = OnDemand
+            //
+            // Without this, the layer-shell surface had keyboardFocus =
+            // None (default), meaning typing in the search bar (or any
+            // input field inside Settings) would let keystrokes leak
+            // through to whatever application was focused before
+            // Settings opened — terminals, browsers, etc. Paul reported
+            // typing in the sidebar search was sending characters to
+            // his terminal in the background.
+            //
+            // OnDemand = panel takes keyboard focus when clicked, releases
+            // when user clicks another window. Matches desktop app
+            // behavior. Click-through still works for clicks OUTSIDE
+            // the panel rectangle (handled by `mask: Region` below) —
+            // those events go to the desktop, which naturally moves
+            // keyboard focus there too.
+            //
+            // We deliberately don't use Exclusive (would grab keyboard
+            // even when modals like file pickers spawn on top) and don't
+            // use HyprlandFocusGrab (would close panel on click-outside,
+            // breaking the v6.13 desktop-app stay-open behavior).
 
             // v6.13 fix: Removed HyprlandFocusGrab AND backdrop MouseArea.
             // The panel no longer closes on click-outside — only via:
@@ -1113,8 +2038,791 @@ ShellRoot {
                 anchors.fill: root.settingsFullscreen ? parent : undefined
 
                 // Reset drag state when panel reopens or leaves fullscreen
-                onVisibleChanged: if (visible) hasBeenDragged = false
+                onVisibleChanged: {
+                    if (visible) {
+                        hasBeenDragged = false
+                        // v7.0.0-alpha.6-hf2: consume pendingSearchPage
+                        // from search overlay navigation. Set on show
+                        // so the page reflects the user's search choice
+                        // even if Settings was already open (in which
+                        // case visible doesn't change but we still want
+                        // the navigation — handled by Connections below).
+                        if (root.pendingSearchPage) {
+                            currentPage = root.pendingSearchPage
+                            root.pendingSearchPage = ""
+                        }
+                    }
+                }
                 onIsFullscreenChanged: hasBeenDragged = false
+
+                // v7.0.0-alpha.6-hf2: also react when pendingSearchPage
+                // changes while panel is already visible (e.g. user
+                // hits Ctrl+F again from inside Settings, picks another
+                // entry — onVisibleChanged won't fire because we're
+                // already visible).
+                Connections {
+                    target: root
+                    function onPendingSearchPageChanged() {
+                        if (zenSettingsPanel.visible && root.pendingSearchPage) {
+                            zenSettingsPanel.currentPage = root.pendingSearchPage
+                            root.pendingSearchPage = ""
+                        }
+                    }
+                }
+            }
+
+            // v7.0.0-alpha.8-hf1 — Floating search bar, mounted at the
+            // PanelWindow level (NOT inside ZenSettings), positioned
+            // relative to the ZenSettings instance's geometry.
+            //
+            // Why at PanelWindow level instead of inside ZenSettings:
+            //   - Inside ZenSettings, anything that affects the inner
+            //     panel layout (drag, fullscreen toggle, content scroll
+            //     wheel events) could potentially cause repaint blips
+            //     that make the bar look like it's moving.
+            //   - At PanelWindow level, the bar's position is computed
+            //     ONLY from zenSettingsPanel.x + zenSettingsPanel.width
+            //     which are already-resolved layout values — completely
+            //     decoupled from any internal scrolling or repainting.
+            //
+            // v7.0.0-alpha.9: Auto-hide while scrolling content. Bar
+            // fades out smoothly when zenSettingsPanel.isContentScrolling
+            // becomes true, fades back in after 400ms of no scroll
+            // activity. Prevents the bar from visually overlapping the
+            // scrolling content.
+            //
+            // Visibility tied to ZenSettings visibility — when Settings
+            // closes, the bar disappears with it.
+            // v7.0.0-alpha.10-hf3: Peek-tab pattern instead of full
+            // hide. When user scrolls content:
+            //   - Full search bar slides RIGHT (off-screen)
+            //   - A tiny arrow tab stays visible on the right edge
+            //   - Click the tab → bar slides back in immediately
+            //
+            // This way user always knows search is available without
+            // it visually overlapping the scrolling content.
+            FloatingSettingsSearch {
+                id: settingsFloatingSearch
+                visible: zenSettingsPanel.visible
+                width: 220
+                height: 32
+
+                readonly property bool tucked: zenSettingsPanel.isContentScrolling
+                                               && !manuallyShown
+                property bool manuallyShown: false   // toggled by peek-tab click
+
+                // Resting position: top-right corner of panel
+                readonly property real restingX:
+                    zenSettingsPanel.x + zenSettingsPanel.width - width - 110
+                // Tucked position: slid right so only ~12px of left edge
+                // sticks out (visible as a thin sliver under the peek tab)
+                readonly property real tuckedX:
+                    zenSettingsPanel.x + zenSettingsPanel.width - 12
+
+                x: tucked ? tuckedX : restingX
+                // hf95.20: rest BELOW the hyprbars mimic title bar when it's
+                // showing, so the search aligns with the "Settings" header
+                // band instead of overlapping the centered title at the very
+                // top. zenSettingsPanel.hyprbarsMimic exposes height/visible.
+                y: zenSettingsPanel.y + 12
+                   + ((zenSettingsPanel.hyprbarsMimic
+                       && zenSettingsPanel.hyprbarsMimic.visible)
+                      ? zenSettingsPanel.hyprbarsMimic.height : 0)
+
+                Behavior on x {
+                    NumberAnimation {
+                        duration: 220
+                        easing.type: Easing.OutCubic
+                    }
+                }
+
+                opacity: tucked ? 0.0 : 1.0
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: 200
+                        easing.type: Easing.OutCubic
+                    }
+                }
+
+                z: 200
+                surfaceFilter: "settings"
+                onNavigateRequested: function(entry) {
+                    if (entry && entry.page) {
+                        zenSettingsPanel.currentPage = entry.page
+                    }
+                    manuallyShown = false   // reset on navigation
+                }
+
+                enabled: opacity > 0.5
+            }
+
+            // Peek-tab arrow — visible only when bar is tucked.
+            // Click → manuallyShown = true → bar slides back in.
+            //
+            // Mounted as separate Item (not inside FloatingSettingsSearch)
+            // because it needs to STAY visible while the bar fades to 0.
+            Rectangle {
+                id: peekTab
+                visible: zenSettingsPanel.visible
+                         && zenSettingsPanel.isContentScrolling
+                         && !settingsFloatingSearch.manuallyShown
+
+                width: 28
+                height: 36
+                radius: 8
+                z: 201   // above the floater itself
+
+                // Anchor to the panel's right edge, vertically aligned
+                // with where the search bar would be
+                x: zenSettingsPanel.x + zenSettingsPanel.width - width - 4
+                y: zenSettingsPanel.y + 10
+
+                color: peekTabMa.containsMouse
+                       ? ThemeService.alpha(ThemeService.blue, 0.92)
+                       : ThemeService.alpha(ThemeService.bg1, 0.95)
+                border.color: peekTabMa.containsMouse
+                              ? ThemeService.blue
+                              : ThemeService.alpha(ThemeService.fg, 0.18)
+                border.width: 1
+                Behavior on color { ColorAnimation { duration: 120 } }
+                Behavior on border.color { ColorAnimation { duration: 120 } }
+
+                // Smooth fade-in when scrolling starts
+                opacity: visible ? 1.0 : 0.0
+                Behavior on opacity { NumberAnimation { duration: 220 } }
+
+                // Left-pointing chevron (◀) — indicates "click here to
+                // pull search back in from the right"
+                Text {
+                    anchors.centerIn: parent
+                    text: "\u25C0"   // BLACK LEFT-POINTING TRIANGLE
+                    font.family: Theme.fontFamily
+                    font.pixelSize: 11
+                    color: peekTabMa.containsMouse
+                           ? ThemeService.bg0
+                           : ThemeService.grey0
+                }
+
+                MouseArea {
+                    id: peekTabMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        // Show the bar manually — it will stay shown
+                        // until user navigates or scrolls again.
+                        settingsFloatingSearch.manuallyShown = true
+                    }
+                }
+            }
+
+            // Reset manuallyShown when scrolling resumes (so peek tab
+            // returns the next time user scrolls)
+            Connections {
+                target: zenSettingsPanel
+                function onIsContentScrollingChanged() {
+                    if (!zenSettingsPanel.isContentScrolling) {
+                        // User stopped scrolling — keep manuallyShown
+                        // false so normal show-on-stop behavior works
+                        settingsFloatingSearch.manuallyShown = false
+                    }
+                }
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // SETTINGS SEARCH OVERLAY (v7.0.0-alpha.6-hf2 · Ctrl+F)
+    //
+    // Spotlight-style global search modal. Mounted at WlrLayer.Overlay
+    // so it sits above all shell surfaces. Triggered via IPC
+    // (toggleSearch / openSearch — Hyprland binds.conf hooks bind
+    // Ctrl+F to `qs -c zen-shell ipc call zen toggleSearch`).
+    //
+    // Single Variants iteration → one overlay per screen. Visible
+    // only on the screen the user is currently using (handled by
+    // HyprlandFocusGrab `windows: [searchOverlayWindow]` which keeps
+    // it active only on the active screen).
+    // ═══════════════════════════════════════════════════════════════
+    Variants {
+        model: Quickshell.screens
+
+        PanelWindow {
+            id: searchOverlayWindow
+            required property var modelData
+            screen: modelData
+
+            // v7.0.0-alpha.10-hf5: focused-monitor guard. Same pattern as
+            // settingsWindow — without this, every monitor tries to show
+            // the overlay simultaneously, which on multi-monitor setups
+            // causes Wayland to reject duplicate layer-shell surfaces or
+            // render them invisibly. Show ONLY on the currently-focused
+            // monitor.
+            property bool isFocusedMonitor: {
+                if (!Hyprland.focusedMonitor) return Quickshell.screens[0] === modelData
+                return Hyprland.focusedMonitor.name === modelData.name
+            }
+
+            visible: PanelState.searchOverlayVisible && isFocusedMonitor
+
+            anchors.top:    true
+            anchors.bottom: true
+            anchors.left:   true
+            anchors.right:  true
+
+            // v7.0.0-alpha.10-hf2: explicit implicit dimensions. Without
+            // these, on some compositors the layer-shell surface renders
+            // as 0x0 even with all four anchors=true.
+            implicitWidth: modelData ? modelData.width : 1920
+            implicitHeight: modelData ? modelData.height : 1080
+
+            // v7.0.0-alpha.10-hf4: switched WlrLayer.Overlay → WlrLayer.Top.
+            // On some Hyprland setups, Overlay layer was rendering invisibly
+            // (surface created but compositor not compositing it on top of
+            // applications). Top layer is the most-compatible choice for
+            // modal-style overlays — it's what every layer-shell launcher
+            // (rofi, wofi, fuzzel) uses by default.
+            //
+            // Also added an explicit dim color directly on the PanelWindow
+            // so the dim is part of the surface, not a child Rectangle —
+            // guarantees the dim is always visible even if child rendering
+            // has issues.
+            WlrLayershell.layer: WlrLayer.Top
+            WlrLayershell.namespace: "zen-shell-search"
+            exclusionMode: ExclusionMode.Ignore
+            color: searchOverlayWindow.visible
+                   ? Qt.rgba(0, 0, 0, 0.55)
+                   : "transparent"
+
+            HyprlandFocusGrab {
+                id: focusGrab
+                active: searchOverlayWindow.visible
+                windows: [searchOverlayWindow]
+                onCleared: {
+                    console.log("[search overlay] focus grab cleared — closing")
+                    PanelState.searchOverlayVisible = false
+                }
+            }
+
+            // Click-anywhere-outside to close (the dim color above is
+            // already on the PanelWindow — this MouseArea catches the
+            // clicks)
+            MouseArea {
+                anchors.fill: parent
+                onClicked: PanelState.searchOverlayVisible = false
+            }
+
+            onVisibleChanged: {
+                console.log("[search overlay] visibleChanged:", visible,
+                            "screen:", modelData ? modelData.name : "?",
+                            "size:",
+                            (modelData ? modelData.width : "?") + "x" +
+                            (modelData ? modelData.height : "?"))
+            }
+
+            SettingsSearchOverlay {
+                anchors.fill: parent
+                visible: searchOverlayWindow.visible
+                onCloseRequested: PanelState.searchOverlayVisible = false
+                onNavigateRequested: function(entry) {
+                    if (!entry) return
+                    if (entry.surface === "settings" && entry.page) {
+                        // Set the pending page first so ZenSettings can
+                        // read it on its onVisibleChanged handler. Then
+                        // open Settings — order matters because the
+                        // instance reads pendingSearchPage on show.
+                        root.pendingSearchPage = entry.page
+                        root.settingsVisible = true
+                    } else if (entry.surface === "controlpanel") {
+                        // v7.0.0-alpha.7: Open Control Panel + flip
+                        // to the matching tab via expandedTab map.
+                        root.controlPanelVisible = true
+                        const tabMap = {
+                            "wifi":      "wifi",
+                            "bluetooth": "bluetooth",
+                            "audio":     "audio",
+                            "input":     "input",
+                            "power":     "power"
+                        }
+                        root.pendingControlPanelTab = tabMap[entry.page] || entry.page
+                    } else if (entry.surface === "app" && entry._appData) {
+                        // v7.0.0-alpha.10: launch app via AppLauncherService
+                        // _appData is the full DesktopEntry-like object
+                        // attached by SettingsSearchService when building
+                        // the result. AppLauncherService.launch() handles
+                        // the gtk-launch / dex spawn.
+                        AppLauncherService.launch(entry._appData)
+                    } else if (entry.surface === "calculator" && entry._calcResult) {
+                        // v7.0.0-alpha.10: copy result to clipboard.
+                        // Spawns wl-copy with the formatted answer so
+                        // user can paste it elsewhere immediately.
+                        Quickshell.execDetached({
+                            command: ["sh", "-c",
+                                "echo -n '" + entry._calcResult + "' | wl-copy"]
+                        })
+                    } else if (entry.surface === "file" && entry._filePath) {
+                        // v7.0.0-alpha.11: open file via xdg-open. The
+                        // user's MIME type handler picks the right app
+                        // (editor for text, viewer for images, etc.)
+                        FileSearchService.open(entry._filePath)
+                    }
+                }
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // NOTIFICATION TOAST + OSD POPUP (v7.0.0-alpha.12 · Karui)
+    //
+    // Toast popups (right side, stacked) for incoming notifications.
+    // OSD popup (bottom-center) for transient volume/brightness changes.
+    // Both per-screen via Variants. Both render in WlrLayer.Overlay
+    // so they float above all app windows.
+    //
+    // Volume/brightness changes go to OSD ONLY — never enter the
+    // notification list (filtered by NotificationService.onNotification
+    // hint detection).
+    // ═══════════════════════════════════════════════════════════════
+    Variants {
+        model: Quickshell.screens
+
+        PanelWindow {
+            id: notifToastWindow
+            required property var modelData
+            screen: modelData
+
+            // v7.0.0-alpha.12-hf5: visibility tied to queue presence
+            // again. The hf4 "always visible" approach was blocking
+            // clicks on bar widgets (calendar arrow, weather, temps)
+            // because the 380px right-side strip was always claiming
+            // input region. The OSD replay bug from hf4 is fixed
+            // separately via opacity-based always-rendered approach
+            // (see OSDPopup.qml).
+            //
+            // Multi-monitor: respect Settings → Notifications "Show on".
+            // "primary" → only on primary monitor (Quickshell.screens[0])
+            // "all"     → on every monitor
+            visible: toastInstance.activeQueue.length > 0
+                     && (NotificationService.displayTarget === "all"
+                         || Quickshell.screens[0] === modelData)
+
+            // v7.0.0-alpha.12-hf6: anchor logic per position picker.
+            // The hf5 approach set both anchors.left+right when
+            // isCenter, but combined with isRight/isLeft also setting
+            // its respective anchor caused the panel to span full
+            // width (center+right both true → span). Now we anchor
+            // only on the relevant edge(s), and the inner
+            // ZenNotifyToast ColumnLayout handles horizontal
+            // alignment within the strip.
+            //
+            // Positions:
+            //   top-left      → anchor top + left
+            //   top-center    → anchor top  (full width strip, inner centers)
+            //   top-right     → anchor top + right
+            //   bottom-left   → anchor bottom + left
+            //   bottom-center → anchor bottom  (full width strip)
+            //   bottom-right  → anchor bottom + right
+            anchors.top: NotificationService.isTop
+            anchors.bottom: NotificationService.isBottom
+            anchors.left: NotificationService.isLeft || NotificationService.isCenter
+            anchors.right: NotificationService.isRight || NotificationService.isCenter
+
+            implicitWidth: NotificationService.isCenter
+                           ? (modelData ? modelData.width : 1920)
+                           : 380
+            implicitHeight: NotificationService.isCenter
+                            ? 600
+                            : (modelData ? Math.min(modelData.height, 600) : 600)
+
+            // Margins for bar + edge
+            margins.top: NotificationService.isTop
+                         ? (PanelState.isTop ? PanelState.barHeight + 4 : 12)
+                         : 0
+            margins.bottom: NotificationService.isBottom
+                            ? (PanelState.isBottom ? PanelState.barHeight + 4 : 12)
+                            : 0
+            margins.left: NotificationService.isLeft
+                          ? (PanelState.isLeft ? PanelState.barHeight + 4 : 12)
+                          : 0
+            margins.right: NotificationService.isRight
+                           ? (PanelState.isRight ? PanelState.barHeight + 4 : 12)
+                           : 0
+
+            WlrLayershell.layer: WlrLayer.Overlay
+            WlrLayershell.namespace: "zen-shell-toasts"
+            exclusionMode: ExclusionMode.Ignore
+            color: "transparent"
+
+            // v7.0.0-alpha.12-hf5: Empty mask Region — when toasts
+            // are rendered (visible:true above), the surface is non-
+            // interactive in surrounding transparent areas. Toast
+            // rectangles inside still get clicks because their
+            // MouseAreas register their own input regions on the
+            // composited surface.
+            mask: Region {}
+
+            ZenNotifyToast {
+                id: toastInstance
+                anchors.fill: parent
+            }
+        }
+    }
+
+    // OSD popup — bottom-center on focused monitor only
+    Variants {
+        model: Quickshell.screens
+
+        PanelWindow {
+            id: osdWindow
+            required property var modelData
+            screen: modelData
+
+            property bool isFocusedMonitor: {
+                if (!Hyprland.focusedMonitor) return Quickshell.screens[0] === modelData
+                return Hyprland.focusedMonitor.name === modelData.name
+            }
+
+            // v7.0.0-alpha.12-hf5: same fix pattern as Toast.
+            //
+            // - Visible only when OSD content showing (no input region
+            //   dead zone)
+            // - Respect multi-monitor display setting (primary/all)
+            // - Respect Settings position picker
+            //
+            // The hf4 always-visible approach blocked clicks on bar
+            // widgets sa baba (or wherever OSD anchored). The OSD
+            // replay bug from hf1 era is fixed by removing the
+            // problematic "Behavior on transform" — opacity-only
+            // animation works correctly on repeat triggers.
+            // v7.0.0-beta.1-hf22: ALWAYS-ON PanelWindow.
+            //
+            // The previous approach (binding visible to osdInstance.visible)
+            // had a fundamental flakiness: toggling Wayland layer-shell
+            // surface visibility rapidly (multiple times within 1500ms)
+            // caused Qt/Quickshell to drop or coalesce the transitions.
+            // First trigger worked, then second/third clicks → nothing.
+            //
+            // Fix: keep PanelWindow.visible = true always. The OSD pill
+            // INSIDE controls its own opacity (0 = hidden visually). Since
+            // mask: Region {} is empty, the always-on PanelWindow has zero
+            // input footprint — clicks pass through to apps underneath.
+            // Wayland surface stays mounted, no lifecycle churn, opacity
+            // animation is the ONLY thing changing.
+            visible: NotificationService.displayTarget === "all"
+                     || Quickshell.screens[0] === modelData
+
+            // OSD anchors at bottom-center by default for transient
+            // value-display feedback (industry standard). Position
+            // picker controls horizontal alignment when bottom anchored;
+            // for top positions it follows top-X picker.
+            anchors.top: NotificationService.isTop
+            anchors.bottom: NotificationService.isBottom
+            anchors.left: true
+            anchors.right: true
+
+            implicitWidth: modelData ? modelData.width : 1920
+            implicitHeight: 120
+
+            WlrLayershell.layer: WlrLayer.Overlay
+            WlrLayershell.namespace: "zen-shell-osd"
+            exclusionMode: ExclusionMode.Ignore
+            color: "transparent"
+
+            margins.top: NotificationService.isTop
+                         ? (PanelState.isTop ? PanelState.barHeight + 24 : 24)
+                         : 0
+            margins.bottom: NotificationService.isBottom
+                            ? (PanelState.isBottom ? PanelState.barHeight + 24 : 24)
+                            : 0
+
+            // v7.0.0-alpha.12-hf1: Empty mask Region for click-through.
+            // The OSD pill inside is purely visual — no MouseArea, no
+            // interaction expected. Empty mask ensures clicks anywhere
+            // on the bottom 120px strip pass through to the app
+            // underneath.
+            mask: Region {}
+
+            OSDPopup {
+                id: osdInstance
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // NOTIFICATION LIST PANEL (v7.0.0-alpha.12-hf2 · Karui)
+    //
+    // Standalone notification panel. Opens via:
+    //   - Left-click on bar bell icon
+    //   - IPC: qs -c zen-shell ipc call zen toggleNotifications
+    //
+    // Anchored to top-right, just below the bar — same approach as
+    // StartMenu (sticky to bar). HyprlandFocusGrab closes on click-
+    // outside. Mounts on focused monitor only.
+    // ═══════════════════════════════════════════════════════════════
+    Variants {
+        model: Quickshell.screens
+
+        PanelWindow {
+            id: notifPanelWindow
+            required property var modelData
+            screen: modelData
+
+            property bool isFocusedMonitor: {
+                if (!Hyprland.focusedMonitor) return Quickshell.screens[0] === modelData
+                return Hyprland.focusedMonitor.name === modelData.name
+            }
+
+            // hf72 — pinned by screen name
+            visible: root.notifPanelVisible && modelData.name === root.notifPanelScreenName
+
+            // v7.0.0-alpha.12-hf3: anchor based on Settings → Notifications
+            // position picker. Reads from NotificationService.positionX/Y
+            // which loads from ~/.config/quickshell/zen-shell/notification-
+            // state.json (same file NotificationPage writes to).
+            anchors.top: NotificationService.isTop
+            anchors.bottom: NotificationService.isBottom
+            anchors.left: NotificationService.isLeft
+            anchors.right: NotificationService.isRight
+
+            implicitWidth: 420
+            implicitHeight: 520
+
+            WlrLayershell.layer: WlrLayer.Overlay
+            WlrLayershell.namespace: "zen-shell-notif-panel"
+            exclusionMode: ExclusionMode.Ignore
+            color: "transparent"
+
+            // v7.0.0-alpha.12-hf3: position-aware margins. Sticky-to-bar
+            // on the side closest to the bar; 12px from the screen edge
+            // on the opposite side. Bar height clearance for top/bottom
+            // when the bar is on a horizontal edge.
+            margins.top: NotificationService.isTop
+                         ? (PanelState.isTop ? PanelState.barHeight + 4 : 12)
+                         : 0
+            margins.bottom: NotificationService.isBottom
+                            ? (PanelState.isBottom ? PanelState.barHeight + 4 : 12)
+                            : 0
+            margins.left: NotificationService.isLeft
+                          ? (PanelState.isLeft ? PanelState.barHeight + 4 : 12)
+                          : 0
+            margins.right: NotificationService.isRight
+                           ? (PanelState.isRight ? PanelState.barHeight + 4 : 12)
+                           : 0
+
+            HyprlandFocusGrab {
+                active: notifPanelWindow.visible
+                windows: [notifPanelWindow]
+                onCleared: root.notifPanelVisible = false
+            }
+
+            mask: Region { item: notifListContent }
+
+            NotificationListPanel {
+                id: notifListContent
+                width: 412
+                height: 512
+
+                // Anchor inside the PanelWindow based on position.
+                // top-* → top edge; bottom-* → bottom edge.
+                // left → left edge; right → right edge; center →
+                // horizontalCenter
+                anchors.top: NotificationService.isTop ? parent.top : undefined
+                anchors.bottom: NotificationService.isBottom ? parent.bottom : undefined
+                anchors.left: NotificationService.isLeft ? parent.left : undefined
+                anchors.right: NotificationService.isRight ? parent.right : undefined
+                anchors.horizontalCenter: NotificationService.isCenter
+                                          ? parent.horizontalCenter
+                                          : undefined
+            }
+
+            // Esc key support
+            Keys.onEscapePressed: root.notifPanelVisible = false
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // WORKSPACE OVERVIEW (v7.0.0-alpha.14 · Karui)
+    //
+    // Exposé-style overlay showing all Hyprland workspaces as
+    // clickable tiles. Triggered by:
+    //   - Super+Tab keybind (set in binds.conf)
+    //   - Bottom-left hot corner (HotCornerService default)
+    //   - IPC: qs -c zen-shell ipc call zen toggleWorkspaceOverview
+    //
+    // Mounted on focused monitor only. Centered. Esc or click-outside
+    // closes. Click any workspace tile → switches workspace + closes.
+    // ═══════════════════════════════════════════════════════════════
+    Variants {
+        model: Quickshell.screens
+
+        PanelWindow {
+            id: workspaceOverviewWindow
+            required property var modelData
+            screen: modelData
+
+            property bool isFocusedMonitor: {
+                if (!Hyprland.focusedMonitor) return Quickshell.screens[0] === modelData
+                return Hyprland.focusedMonitor.name === modelData.name
+            }
+
+            visible: root.workspaceOverviewVisible && isFocusedMonitor
+
+            anchors.top: true
+            anchors.bottom: true
+            anchors.left: true
+            anchors.right: true
+
+            implicitWidth: modelData ? modelData.width : 1920
+            implicitHeight: modelData ? modelData.height : 1080
+
+            WlrLayershell.layer: WlrLayer.Overlay
+            WlrLayershell.namespace: "zen-shell-workspace-overview"
+            // v7.0.0-alpha.14-hf3: REVERTED to OnDemand from Exclusive.
+            //
+            // Exclusive keyboard focus caused crashes because:
+            //   1. It conflicted with HyprlandFocusGrab on the same
+            //      surface (now removed below)
+            //   2. Even alone, Exclusive on layer-shell overlay
+            //      sometimes prevents Quickshell from releasing focus
+            //      cleanly when overlay closes → next interaction
+            //      crashes
+            //
+            // OnDemand is safer: focus granted only when user clicks
+            // inside the overview. After first click, all keyboard
+            // shortcuts (arrows, Enter, 1-9, Esc) work fine.
+            //
+            // Alternative: bind keys at Hyprland level via submap
+            // (future polish — see binds.conf).
+            WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+            exclusionMode: ExclusionMode.Ignore
+            color: "transparent"
+
+            // v7.0.0-alpha.14-hf4: Simplified — no mask:Region (was
+            // causing binding loops on Item geometry). Dim backdrop
+            // and overview Item are siblings; backdrop catches outer
+            // clicks, overview's own MouseAreas handle inner clicks.
+            //
+            // No HyprlandFocusGrab — completely removed (was conflict
+            // source even when disabled, kept the Connections alive).
+
+            // Dim backdrop — clicking outside the overview card closes
+            Rectangle {
+                id: dimBackdrop
+                anchors.fill: parent
+                color: Qt.rgba(0, 0, 0, 0.55)
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: root.workspaceOverviewVisible = false
+                }
+            }
+
+            // Overview centered in panel.
+            // The overview has its own internal MouseAreas (tiles +
+            // window cards + move menu), so clicks inside the overview
+            // bounds get captured by those — they don't fall through
+            // to the backdrop MouseArea.
+            //
+            // BUT: empty space inside the overview Rectangle (between
+            // tiles, header area) would fall through. We block that
+            // with a single overlay MouseArea anchored to fill the
+            // overview, mounted BEHIND child content via z=-1.
+            WorkspaceOverview {
+                anchors.centerIn: parent
+
+                // Catch-all to prevent click-through to backdrop.
+                // z=-1 puts this below tile MouseAreas, so tile clicks
+                // still register first. Only "empty space inside the
+                // card" clicks land here, where we simply consume them.
+                MouseArea {
+                    anchors.fill: parent
+                    z: -1
+                    onClicked: function(mouse) { mouse.accepted = true }
+                }
+            }
+
+            Keys.onEscapePressed: root.workspaceOverviewVisible = false
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // CLIPBOARD PANEL (v7.0.0-alpha.6 · Super+V)
+    //
+    // Per-screen ClipboardPanel mount. Bound to PanelState.clipboardVisible
+    // via IPC (toggleClipboard).
+    // ═══════════════════════════════════════════════════════════════
+    Variants {
+        model: Quickshell.screens
+
+        PanelWindow {
+            id: clipboardWindow
+            required property var modelData
+            screen: modelData
+
+            // v7.0.0-alpha.6-hf3: per-screen visibility. Was reading
+            // PanelState.clipboardVisible directly which opened the
+            // panel on ALL monitors simultaneously, making the focus
+            // grabs fight each other and dismiss the panel instantly.
+            visible: root.clipboardScreen === modelData
+
+            anchors.bottom: PanelState.isBottom
+            anchors.top: PanelState.isTop || PanelState.isVertical
+            anchors.left: PanelState.isHorizontal || PanelState.isLeft
+            anchors.right: PanelState.isRight
+
+            WlrLayershell.layer: WlrLayer.Overlay
+            WlrLayershell.namespace: "zen-shell-clipboard"
+            exclusionMode: ExclusionMode.Ignore
+
+            implicitWidth: 460
+            implicitHeight: 540
+            color: "transparent"
+
+            // Same sticky-to-bar geometry as StartMenu (v7.0.0-alpha.4-hf2)
+            //
+            // v7.0.0-alpha.6-hf4: position-aware horizontal margin.
+            // Anchors the panel's RIGHT edge to the clipboard module's
+            // right edge in the bar (so panel opens directly from the
+            // icon, not pinned to screen-left). Mirrors StartMenu's
+            // approach but uses right-anchor instead of left-anchor
+            // because clipboard typically sits on the bar's right side.
+            //
+            // Clamps so the panel never escapes the screen edge.
+            margins.left: {
+                if (PanelState.isLeft) return PanelState.barHeight - 1
+                if (PanelState.isRight) return 0
+                // Horizontal bar: anchor RIGHT edge of panel to RIGHT
+                // edge of the clipboard button
+                const btnRight = PanelState.clipboardButtonRightX
+                if (btnRight < 0) return 8   // no report yet → fallback
+                const w = clipboardWindow.implicitWidth
+                const screenW = modelData.width
+                const desired = btnRight - w   // panel's left edge
+                const maxLeft = screenW - w - 8
+                return Math.max(8, Math.min(maxLeft, desired))
+            }
+            margins.right: PanelState.isRight ? (PanelState.barHeight - 1) : 0
+            margins.bottom: PanelState.isBottom
+                ? (PanelState.barHeight - 1 + PanelState.panelMarginBottom) : 0
+            margins.top: PanelState.isTop
+                ? (PanelState.barHeight - 1 + PanelState.panelMarginTop)
+                : (PanelState.isVertical ? 8 : 0)
+
+            HyprlandFocusGrab {
+                active: clipboardWindow.visible
+                windows: [clipboardWindow]
+                onCleared: {
+                    if (root.clipboardScreen === modelData) root.closeClipboard()
+                }
+            }
+
+            ClipboardPanel {
+                anchors.fill: parent
+                visible: clipboardWindow.visible
+                onCloseRequested: root.closeClipboard()
+                onEntryPasted: root.closeClipboard()
             }
         }
     }
@@ -1149,7 +2857,11 @@ ShellRoot {
             HyprlandFocusGrab {
                 active: powerWindow.visible
                 windows: [powerWindow]
-                onCleared: root.powerConfirmVisible = false
+                // hf65 — MUST call cancel() so the countdown timer stops.
+                // Previously just hid the dialog — timer kept running in
+                // the background and auto-executed the action after 60s
+                // even though user cancelled. Critical bug.
+                onCleared: { powerConfirmDlg.cancel(); root.powerConfirmVisible = false }
             }
 
             Rectangle {
@@ -1157,11 +2869,13 @@ ShellRoot {
                 color: Qt.rgba(0, 0, 0, 0.7)
                 MouseArea {
                     anchors.fill: parent
-                    onClicked: root.powerConfirmVisible = false
+                    // hf65 — backdrop click = cancel, not just hide.
+                    onClicked: { powerConfirmDlg.cancel(); root.powerConfirmVisible = false }
                 }
             }
 
             PowerConfirmDialog {
+                id: powerConfirmDlg
                 anchors.centerIn: parent
                 width: 420
                 height: 480
@@ -1195,7 +2909,8 @@ ShellRoot {
                 return Hyprland.focusedMonitor.name === modelData.name
             }
 
-            visible: root.controlPanelVisible && isFocusedMonitor
+            // v7.0.0-beta.1-hf72 — pinned by screen name (string comparison)
+            visible: root.controlPanelVisible && modelData.name === root.controlPanelScreenName
 
             anchors.top: true
             anchors.bottom: true
@@ -1203,8 +2918,14 @@ ShellRoot {
             anchors.right: true
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "zen-shell-controlpanel"
+            WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
             exclusionMode: ExclusionMode.Ignore
             color: "transparent"
+
+            // v7.0.0-alpha.7-hf4: see settingsWindow above for the full
+            // explanation of why OnDemand. Same reasoning here — without
+            // this, typing inside any CC input (e.g. WiFi password field)
+            // would leak to the focused background app.
 
             // v6.16.2.3.2: Click-through outside the ControlPanel rectangle.
             // Previous v6.16.0.2 backdrop MouseArea spanned the entire
@@ -1229,12 +2950,49 @@ ShellRoot {
                 visible: controlPanelWindow.visible
                 onCloseRequested: root.controlPanelVisible = false
 
-                // Center by default, break anchor on drag
-                anchors.centerIn: (!hasBeenDragged) ? parent : undefined
+                // v7.0.0-beta.1-hf88: position-aware anchoring. When not
+                // dragged, anchor to center (default), top, or bottom edge
+                // per PanelState.controlPanelPosition so the popup can sit
+                // near a top/bottom bar. Dragging still breaks all anchors.
+                anchors.centerIn: (!hasBeenDragged && PanelState.controlPanelPosition === "center")
+                                  ? parent : undefined
+                anchors.horizontalCenter: (!hasBeenDragged && PanelState.controlPanelPosition !== "center")
+                                  ? parent.horizontalCenter : undefined
+                anchors.top: (!hasBeenDragged && PanelState.controlPanelPosition === "top")
+                                  ? parent.top : undefined
+                anchors.bottom: (!hasBeenDragged && PanelState.controlPanelPosition === "bottom")
+                                  ? parent.bottom : undefined
+                anchors.topMargin: PanelState.controlPanelEdgeMargin
+                anchors.bottomMargin: PanelState.controlPanelEdgeMargin
 
                 onVisibleChanged: if (visible) {
                     hasBeenDragged = false
                     expanded = false
+
+                    // v7.0.0-alpha.7: consume pendingControlPanelTab
+                    // from search overlay navigation. Same pattern as
+                    // ZenSettings.pendingSearchPage.
+                    if (root.pendingControlPanelTab) {
+                        expandedTab = root.pendingControlPanelTab
+                        expanded = true
+                        root.pendingControlPanelTab = ""
+                    }
+                }
+
+                // Connection-fallback for when ControlPanel is already
+                // visible and search overlay fires another navigate
+                // (e.g. user hits Ctrl+F from inside CC and picks a
+                // different tab).
+                Connections {
+                    target: root
+                    function onPendingControlPanelTabChanged() {
+                        if (controlPanelInstance.visible
+                            && root.pendingControlPanelTab) {
+                            controlPanelInstance.expandedTab = root.pendingControlPanelTab
+                            controlPanelInstance.expanded = true
+                            root.pendingControlPanelTab = ""
+                        }
+                    }
                 }
             }
         }
@@ -1332,7 +3090,9 @@ ShellRoot {
                 return Hyprland.focusedMonitor.name === modelData.name
             }
 
-            visible: root.calendarVisible && isFocusedMonitor
+            // v7.0.0-beta.1-hf71 — pinned to screen
+            // hf72 — pinned by screen name
+            visible: root.calendarVisible && modelData.name === root.calendarScreenName
 
             // v6.16.4.12: Position-aware
             // v6.16.4.12.7.1: Extended to 4 directions. The calendar
@@ -1519,11 +3279,56 @@ ShellRoot {
             anchors.right: true
             WlrLayershell.layer: WlrLayer.Bottom
             WlrLayershell.namespace: "zen-shell-widgets"
+            // v7.0.0-beta.1-hf50: enable on-demand keyboard focus so
+            // widget-mode sticky notes (DesktopStickyNotes) can
+            // receive keyboard input when their TextArea is clicked.
+            // Without this, the Bottom-layer surface ignores all
+            // keyboard events and the user can't type into widget-
+            // mode stickies. OnDemand means: only when an interactive
+            // child explicitly requests focus (TextArea click), the
+            // compositor routes keys to this surface. Idle behavior
+            // (clock/weather widgets) is unchanged — they never
+            // request keyboard focus.
+            WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
             exclusionMode: ExclusionMode.Ignore
             color: "transparent"
 
             DesktopWidgets {
                 id: dwInstance
+                anchors.fill: parent
+            }
+
+            // v7.0.0-beta.1-hf47 — widget-mode sticky notes.
+            //
+            // Mounted as a sibling of DesktopWidgets in the SAME
+            // per-screen Bottom-layer surface. So widget-mode sticky
+            // notes behave exactly like clock/weather/CPU temp
+            // widgets — below regular windows, above wallpaper,
+            // draggable across the screen.
+            //
+            // Normal-mode (toggle off) stickies still render via
+            // shell.qml's QuickNotesSticky Repeater on the Overlay
+            // layer. The two sets are mutually exclusive per note ID
+            // (DesktopStickyNotes only renders stickies where
+            // isStickyDraggable(id) === true).
+            DesktopStickyNotes {
+                anchors.fill: parent
+            }
+
+            // v7.0.0-beta.1-hf82o — desktop file/folder icons layer.
+            //
+            // Mounted as a SIBLING of DesktopWidgets + DesktopStickyNotes
+            // in the SAME per-screen Bottom-layer surface so icons + widgets
+            // + sticky notes z-order correctly with each other (icons sit
+            // on top so labels are readable over widget backgrounds).
+            //
+            // visible: bound internally to DesktopIconsState.enabled, so
+            // the entire layer is a no-op when the feature is off (default).
+            //
+            // No widget management here — DesktopWidgets above already
+            // handles clock/weather/sysmon/etc. This Item only adds the
+            // file/folder icon repeater that was previously missing.
+            DesktopSurface {
                 anchors.fill: parent
             }
         }
@@ -1612,6 +3417,117 @@ ShellRoot {
                 onHideWindowRequested: screenshotRopeWindow.captureInProgress = true
                 onShowWindowRequested: screenshotRopeWindow.captureInProgress = false
             }
+        }
+    }
+
+    // v7.0.0-beta.1-hf37: Event-driven hot corners.
+    //
+    // One HotCornerOverlay per screen, each containing 4 invisible
+    // PanelWindows at WlrLayer.Overlay anchored to the screen corners.
+    // Wayland delivers cursor enter events directly to those surfaces
+    // — no polling, no subprocess overhead, instant trigger, works
+    // even under fullscreen windows (browser/games).
+    //
+    // The actual HoverHandler callbacks live inside HotCornerOverlay.qml.
+    // They call HotCornerService.triggerCorner(corner, screenName) which
+    // applies debounce + per-corner enable filter + dispatches the
+    // configured action.
+    //
+    // Replaces the broken hyprctl cursorpos -j polling approach from
+    // hf21-hf36 that was silently failing on Paul's setup. See
+    // CHANGELOG-v7.0.0-beta.1-hf37.md for the architectural rationale.
+    Variants {
+        model: Quickshell.screens
+        HotCornerOverlay {
+            required property var modelData
+            screen: modelData
+        }
+    }
+
+    // v7.0.0-beta.1-hf39: Quick Notes popover panel.
+    //
+    // Per-screen PanelWindow gated by PanelState.quickNotesVisible.
+    // Mounted at WlrLayer.Overlay so it floats above bar + fullscreen
+    // windows. HyprlandFocusGrab dismisses when user clicks outside.
+    Variants {
+        model: Quickshell.screens
+
+        PanelWindow {
+            id: quickNotesWindow
+            required property var modelData
+            screen: modelData
+            visible: PanelState.quickNotesVisible
+                  && (modelData === (Quickshell.screens[0] || null))
+
+            WlrLayershell.layer: WlrLayer.Overlay
+            WlrLayershell.namespace: "zen-shell-quicknotes"
+            WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+            exclusionMode: ExclusionMode.Ignore
+
+            anchors.top: true
+            anchors.left: true
+            anchors.right: true
+            anchors.bottom: true
+
+            implicitWidth: 720
+            implicitHeight: 480
+            color: "transparent"
+
+            // v7.0.0-beta.1-hf50 — click-through outside panel rect.
+            //
+            // User report:
+            //   "kapag naka super shift n dapat nakakapag click click
+            //    padin ako sa background"
+            //
+            // Before hf50: the PanelWindow at WlrLayer.Overlay captured
+            // ALL pointer events across the screen, so clicks on the
+            // desktop / browser / any app below were swallowed.
+            //
+            // Fix (same as ControlPanel pattern): mask: Region {
+            // item: quickNotesPanelInstance } makes ONLY the panel
+            // rectangle block clicks. Outside the panel = clicks fall
+            // through to the layer below (your apps).
+            //
+            // HyprlandFocusGrab was also REMOVED — it was set up to
+            // auto-close the panel on outside click, which fights the
+            // click-through goal. Now the panel stays open until the
+            // user closes via:
+            //   1. The ✕ button in the drag handle (hf50 addition)
+            //   2. Esc key (handled inside QuickNotesPanel)
+            //   3. Super+Shift+N toggle again
+            mask: Region { item: quickNotesPanelInstance }
+
+            QuickNotesPanel {
+                id: quickNotesPanelInstance
+                // v7.0.0-beta.1-hf49: same pattern as ControlPanel.
+                // Center by default; break anchor on drag so x/y
+                // become free and the panel follows the cursor.
+                anchors.centerIn: (!hasBeenDragged) ? parent : undefined
+                visible: quickNotesWindow.visible
+                onVisibleChanged: if (visible) hasBeenDragged = false
+                onCloseRequested: PanelState.quickNotesVisible = false
+            }
+        }
+    }
+
+    // v7.0.0-beta.1-hf40: Quick Notes sticky windows (Post-It style).
+    //
+    // For each note ID in QuickNotesService.stickyIds, mount one
+    // floating sticky window on the primary screen. Sticky state
+    // persists in quick-notes.json so stickies survive shell restart.
+    //
+    // When user clicks the ⭐ button on a sticky (or in the panel),
+    // toggleSticky() removes the ID from stickyIds → Repeater
+    // re-evaluates → that QuickNotesSticky instance disappears.
+    //
+    // Repeater pattern (not Variants) — iterates over a string array,
+    // not the screens collection.
+    Repeater {
+        model: QuickNotesService.stickyIds
+
+        QuickNotesSticky {
+            noteId: modelData
+            modelData: Quickshell.screens[0] || null
         }
     }
 }

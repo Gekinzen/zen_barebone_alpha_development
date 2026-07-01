@@ -1,0 +1,25 @@
+{
+  "id": "densho-yoru",
+  "name": "Densho Yoru",
+  "description": "Sumi ink ground with warm vermilion accent — traditional Japanese night mode (伝承 夜)",
+  "is_builtin": true,
+  "version": "1.0",
+  "colors": {
+    "bg0":   "#1F1816",
+    "bg1":   "#161210",
+    "bg2":   "#2A2120",
+    "bg3":   "#332925",
+    "bg4":   "#3D332A",
+    "fg":    "#E8DCC4",
+    "grey0": "#888780",
+    "grey1": "#A89A7E",
+    "grey2": "#C7B89A",
+    "red":    "#D4715C",
+    "orange": "#D88B5C",
+    "yellow": "#D4A85A",
+    "green":  "#8FA678",
+    "aqua":   "#8AAEAA",
+    "blue":   "#7A98A0",
+    "purple": "#A8889A"
+  }
+}

@@ -77,6 +77,56 @@ notify() {
 }
 
 # ──────────────────────────────────────────────────────────────
+# v7.0.0-beta.1-hf18: Sound effect helper.
+#
+# Reads the zen-shell sound-effects.json config and plays the
+# freedesktop "audio-volume-change" tick if BOTH the master toggle
+# AND the volume sub-toggle are enabled.
+#
+# Why bash and not QML? XF86 keys hit wpctl directly; our QML poll
+# is 3s, so going via SoundEffectsService.play() would have a
+# ~3-second delay before the tick. Calling canberra-gtk-play right
+# here makes the tick instant (~5ms after keypress).
+#
+# Single source of truth: same JSON config the QML side reads.
+# Toggle off in Settings → no script-side sounds either.
+# ──────────────────────────────────────────────────────────────
+SOUND_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/quickshell/zen-shell/sound-effects.json"
+
+play_volume_tick() {
+    # Bail if canberra not installed (no error spam)
+    command -v canberra-gtk-play >/dev/null 2>&1 || return 0
+
+    # Read config; default ON if file missing or unreadable
+    local enabled=true volEnabled=true vol="0.6"
+    if [ -f "$SOUND_CONFIG" ] && command -v python3 >/dev/null 2>&1; then
+        local parsed
+        parsed=$(python3 -c "
+import json
+try:
+    with open('$SOUND_CONFIG') as f: d = json.load(f)
+    print(str(d.get('enabled', True)).lower())
+    print(str(d.get('playVolumeSounds', True)).lower())
+    print(d.get('volume', 0.6))
+except Exception: pass
+" 2>/dev/null)
+        if [ -n "$parsed" ]; then
+            enabled=$(echo "$parsed"    | sed -n '1p')
+            volEnabled=$(echo "$parsed" | sed -n '2p')
+            vol=$(echo "$parsed"        | sed -n '3p')
+        fi
+    fi
+
+    [ "$enabled"    = "true" ] || return 0
+    [ "$volEnabled" = "true" ] || return 0
+
+    canberra-gtk-play \
+        -i audio-volume-change \
+        --property=canberra.volume="$vol" \
+        2>/dev/null &
+}
+
+# ──────────────────────────────────────────────────────────────
 # Volume helpers (wpctl — PipeWire)
 # ──────────────────────────────────────────────────────────────
 get_volume() {
@@ -118,6 +168,7 @@ case "$ACTION" in
     vol-up)
         wpctl set-mute @DEFAULT_AUDIO_SINK@ 0 2>/dev/null || true
         wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ "${STEP}%+" 2>/dev/null
+        play_volume_tick
         pct=$(get_volume)
         bar=$(progress_bar "$pct")
         icon="audio-volume-high"
@@ -127,6 +178,7 @@ case "$ACTION" in
         ;;
     vol-down)
         wpctl set-volume @DEFAULT_AUDIO_SINK@ "${STEP}%-" 2>/dev/null
+        play_volume_tick
         pct=$(get_volume)
         bar=$(progress_bar "$pct")
         icon="audio-volume-high"
@@ -137,6 +189,7 @@ case "$ACTION" in
         ;;
     vol-mute)
         wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle 2>/dev/null
+        play_volume_tick
         if is_muted; then
             notify "Volume" "Muted" "audio-volume-muted" "" "zen-volume"
         else

@@ -74,6 +74,10 @@ Rectangle {
         width: PanelState.startButtonIconSize
         height: PanelState.startButtonIconSize
 
+        // v7.0.0-alpha.3 (Densho Surfaces): hide the distro logo when
+        // Densho mode is on — the kanji 禅 overlay below replaces it.
+        visible: !DenshoService.denshoMode
+
         readonly property string _resolved: PanelState.resolveStartButtonLogo()
         readonly property string _osTag: UserProfileService
             ? String(UserProfileService.osLogo || "").toLowerCase()
@@ -105,6 +109,35 @@ Rectangle {
         onStatusChanged: if (status === Image.Error) {
             console.warn("[StartMenu] logo failed to load:", source, "falling back to Arch")
             source = Quickshell.iconPath("distributor-logo-archlinux")
+        }
+    }
+
+    // v7.0.0-alpha.3 (Densho Surfaces): kanji 禅 overlay shown only
+    // when DenshoService.denshoMode is on. Sits in the same anchored
+    // center as logoImg. Thin shu-iro circle ring + kanji center.
+    Item {
+        id: denshoLogoOverlay
+        visible: DenshoService.denshoMode
+        anchors.centerIn: parent
+        width: PanelState.startButtonIconSize
+        height: PanelState.startButtonIconSize
+
+        Rectangle {
+            anchors.fill: parent
+            radius: width / 2
+            color: "transparent"
+            border.color: ThemeService ? ThemeService.red : "#B85540"
+            border.width: 1.4
+            opacity: ma.containsMouse ? 0.95 : 0.85
+            Behavior on opacity { NumberAnimation { duration: 150 } }
+        }
+        Text {
+            anchors.centerIn: parent
+            text: "禅"
+            color: ThemeService ? ThemeService.red : "#B85540"
+            font.family: "Noto Serif CJK JP, serif"
+            font.pixelSize: Math.round(parent.width * 0.6)
+            font.weight: Font.Medium
         }
     }
 
@@ -153,7 +186,10 @@ Rectangle {
             if (win && win.screen) {
                 root.toggleStartMenuOn(win.screen)
             } else {
-                Quickshell.execDetached({command: ["qs", "-c", "zen-shell", "ipc", "call", "zen", "toggleStartMenu"]})
+                // v7.0.0-beta.1-hf25: was Quickshell.execDetached([qs ipc...])
+                // which could spawn a new shell instance if current
+                // instance is mid-crash. Use direct PanelState toggle.
+                PanelState.startMenuVisible = !PanelState.startMenuVisible
             }
         }
     }

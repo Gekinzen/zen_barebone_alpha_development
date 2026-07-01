@@ -117,6 +117,53 @@ if [ -f "$PANEL_STATE" ] && [ -f "$HYPRLOCK_CONF" ] && command -v jq >/dev/null 
     log "fonts synced: clock=${CLOCK_FONT}  msg=${MSG_FONT}  (fontFamilyId=${FONT_ID})"
 fi
 
+# ── Step 3.5: Sync accent colors from active theme (hf98c) ──
+#
+# Makes the lock screen's power buttons follow the live theme. We read
+# the active palette from current-theme.json (the same file ThemeService
+# writes) and rewrite every hyprlock.conf color line tagged with a
+#   # ZEN_COLOR_OVERRIDE:<key>:<alpha>
+# marker to rgba(<themehex><alpha>). hyprlock accepts 8-digit hex colors
+# (RRGGBBAA), so we just splice the theme hex + the alpha byte from the
+# marker. Lines without the marker (clock, weather, input field) are left
+# exactly as-is — design unchanged, only the tagged accents re-theme.
+#
+# Requires gawk (the 3-arg match() with capture groups). Arch/CachyOS
+# ship gawk as `awk` by default. If absent, this step no-ops and the
+# fallback colors baked into hyprlock.conf are used.
+THEME_JSON="$HOME/.config/hypr-control-center/current-theme.json"
+if [ -f "$THEME_JSON" ] && [ -f "$HYPRLOCK_CONF" ] && command -v jq >/dev/null 2>&1; then
+    COLOR_KV=$(jq -r '.colors | to_entries[] | "\(.key)=\(.value)"' "$THEME_JSON" 2>/dev/null \
+               | tr -d '#' | paste -sd';' -)
+    if [ -n "$COLOR_KV" ]; then
+        awk -v kv="$COLOR_KV" '
+            BEGIN {
+                n = split(kv, a, ";")
+                for (i = 1; i <= n; i++) { split(a[i], b, "="); col[b[1]] = b[2] }
+            }
+            {
+                p = index($0, "# ZEN_COLOR_OVERRIDE:")
+                if (p > 0) {
+                    nf = split(substr($0, p), parts, ":")   # [# ZEN_COLOR_OVERRIDE][key][alpha...]
+                    if (nf >= 3) {
+                        key   = parts[2]
+                        alpha = substr(parts[3], 1, 2)
+                        hex   = col[key]
+                        eq = index($0, "=")
+                        hp = index($0, "#")
+                        if (hex != "" && eq > 0 && hp > eq) {
+                            $0 = substr($0, 1, eq) " rgba(" hex alpha ")  " substr($0, hp)
+                        }
+                    }
+                }
+                print
+            }
+        ' "$HYPRLOCK_CONF" > "$HYPRLOCK_CONF.ztmp" 2>/dev/null \
+            && mv "$HYPRLOCK_CONF.ztmp" "$HYPRLOCK_CONF" \
+            && log "theme colors synced from $(basename "$THEME_JSON")"
+    fi
+fi
+
 # ── Step 4: Launch hyprlock (idempotent) ──
 if pgrep -x hyprlock >/dev/null 2>&1; then
     log "hyprlock already running — exit 0"

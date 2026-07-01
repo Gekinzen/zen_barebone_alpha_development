@@ -52,23 +52,16 @@ ScrollView {
         spacing: 18
 
         // ── Page header ──
-        ColumnLayout {
+        // v7.0.0-alpha.11: Unified bilingual page header (Densho-aware).
+        // When DenshoService.denshoMode is on, renders 一般 / Ippan as
+        // the primary heading with "General" as English subtitle. When
+        // off, just shows "General" the normal way.
+        DenshoPageHeader {
             Layout.fillWidth: true
-            spacing: 4
-
-            Text {
-                text: "General"
-                font.family: Theme.fontFamily
-                font.pixelSize: 22
-                font.weight: Font.Bold
-                color: ThemeService.fg
-            }
-            Text {
-                text: "Window gaps, borders, layout, tearing, snap"
-                font.family: Theme.fontFamily
-                font.pixelSize: 12
-                color: ThemeService.grey1
-            }
+            title: "General"
+            subtitle: "Window gaps, borders, layout, tearing, snap"
+            kanji: "一般"
+            romaji: "Ippan"
         }
 
         // ═════════════════════════════════════════════════════════
@@ -76,6 +69,29 @@ ScrollView {
         // Save/load/share entire shell configuration as profiles.
         // ═════════════════════════════════════════════════════════
         ProfileManagerSection {}
+
+        // ═════════════════════════════════════════════════════════
+        // v7.0.0-beta.1-hf86: SETTINGS UI — left-panel hover style
+        // ═════════════════════════════════════════════════════════
+        HMSection {
+            title: "Settings UI"
+            subtitle: "Appearance of this settings window"
+
+            HMRow {
+                label: "Sidebar hover style"
+                description: "Rounded (pill) or square highlight on left-panel items"
+                ZenDropdown {
+                    width: 160
+                    model: ["rounded", "square"]
+                    currentIndex: PanelState.settingsHoverStyle === "square" ? 1 : 0
+                    onActivated: {
+                        PanelState.settingsHoverStyle = model[currentIndex]
+                        PanelState.saveState()
+                    }
+                }
+            }
+        }
+
 
         // ═════════════════════════════════════════════════════════
         // GAPS
@@ -570,6 +586,295 @@ ScrollView {
                 HMSwitch {
                     checked: ZenStringsState.screenshotRopeEnabled
                     onToggled: { ZenStringsState.screenshotRopeEnabled = checked; ZenStringsState.markDirty() }
+                }
+            }
+
+            // hf82j: screenshot rope color picker — independent
+            // from the music strings color above. Mode "inherit"
+            // preserves pre-hf82j behavior (rope follows strings color).
+            HMRow {
+                visible: ZenStringsState.enabled && ZenStringsState.screenshotRopeEnabled
+                label: "Rope color"
+                description: "Inherit = match string color · Theme = accent · Synced = palette key · Custom = hex"
+                ZenDropdown {
+                    width: 140
+                    model: ["inherit", "theme", "synced", "custom"]
+                    currentIndex: {
+                        if (ZenStringsState.ropeColorMode === "theme")  return 1
+                        if (ZenStringsState.ropeColorMode === "synced") return 2
+                        if (ZenStringsState.ropeColorMode === "custom") return 3
+                        return 0
+                    }
+                    onActivated: {
+                        ZenStringsState.ropeColorMode = model[currentIndex]
+                        ZenStringsState.markDirty()
+                    }
+                }
+            }
+
+            HMRow {
+                visible: ZenStringsState.enabled
+                       && ZenStringsState.screenshotRopeEnabled
+                       && ZenStringsState.ropeColorMode === "synced"
+                label: "Rope palette key"
+                ZenDropdown {
+                    width: 120
+                    model: ["blue", "purple", "red", "orange", "yellow", "green", "aqua", "fg", "grey0"]
+                    currentIndex: {
+                        var i = model.indexOf(ZenStringsState.ropeSyncedColorKey)
+                        return i >= 0 ? i : 0
+                    }
+                    onActivated: {
+                        ZenStringsState.ropeSyncedColorKey = model[currentIndex]
+                        ZenStringsState.markDirty()
+                    }
+                }
+            }
+
+            HMRow {
+                visible: ZenStringsState.enabled
+                       && ZenStringsState.screenshotRopeEnabled
+                       && ZenStringsState.ropeColorMode === "custom"
+                label: "Rope hex color"
+                ColorSwatch {
+                    value: ZenStringsState.ropeCustomColor
+                    onValueEdited: hex => {
+                        ZenStringsState.ropeCustomColor = hex
+                        ZenStringsState.markDirty()
+                    }
+                }
+            }
+        }
+
+        // ═══ ZEN CLEANUP (v7.0.0-alpha.7) ═══
+        //
+        // RAM hygiene + zombie reaper. Auto-trigger fires when free
+        // RAM drops below threshold; manual button always available.
+        HMSection {
+            title: "System Cleanup"
+            subtitle: ZenCleanupService.memoryPressure
+                ? "⚠ Memory pressure detected · " + ZenCleanupService.freeMemPercent.toFixed(1) + "% free"
+                : "RAM hygiene + zombie process reaper"
+
+            HMRow {
+                label: "Free RAM now"
+                description: ZenCleanupService.isRunning
+                    ? "Running cleanup… (you may see a pkexec prompt)"
+                    : "Drops caches, defragments memory, reaps zombie processes"
+                icon: "\uf021"   // refresh
+                separator: true
+
+                Rectangle {
+                    Layout.preferredHeight: 32
+                    Layout.preferredWidth: 110
+                    radius: 7
+                    color: cleanupBtnMa.containsMouse && !ZenCleanupService.isRunning
+                           ? ThemeService.blue
+                           : ThemeService.alpha(ThemeService.blue, ZenCleanupService.isRunning ? 0.4 : 0.85)
+                    Behavior on color { ColorAnimation { duration: 120 } }
+                    enabled: !ZenCleanupService.isRunning
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: ZenCleanupService.isRunning ? "Cleaning…" : "Free RAM"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 12
+                        font.weight: Font.Medium
+                        color: ThemeService.bg0
+                    }
+
+                    MouseArea {
+                        id: cleanupBtnMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: ZenCleanupService.isRunning
+                                     ? Qt.ArrowCursor : Qt.PointingHandCursor
+                        enabled: !ZenCleanupService.isRunning
+                        onClicked: ZenCleanupService.freeMemoryNow()
+                    }
+                }
+            }
+
+            HMRow {
+                visible: ZenCleanupService.lastFreedBytes > 0
+                label: "Last cleanup result"
+                description: "Freed " + ZenCleanupService.formatBytes(ZenCleanupService.lastFreedBytes)
+                              + " · Total since install: " + ZenCleanupService.formatBytes(ZenCleanupService.totalBytesFreed)
+                icon: "\uf058"   // check-circle
+                separator: true
+            }
+
+            HMRow {
+                label: "Auto-trigger when memory low"
+                description: "Cleanup automatically fires after 60s of sustained low memory"
+                icon: "\uf0e7"   // bolt
+                separator: true
+
+                HMSwitch {
+                    checked: ZenCleanupService.autoTrigger
+                    onToggled: ZenCleanupService.autoTrigger = checked
+                }
+            }
+
+            HMRow {
+                visible: ZenCleanupService.autoTrigger
+                label: "Trigger threshold"
+                description: "Auto-cleanup fires when free RAM drops below this percentage"
+                icon: "\uf080"   // chart
+                separator: true
+
+                NumericStepper {
+                    value: ZenCleanupService.freeRamThreshold
+                    from: 1
+                    to: 20
+                    stepSize: 1
+                    onValueChanged: ZenCleanupService.freeRamThreshold = value
+                }
+            }
+
+            HMRow {
+                visible: ZenCleanupService.sessionSuppressed
+                label: "Auto-trigger suppressed for this session"
+                description: "Click to re-enable auto-cleanup until you log out / restart"
+                icon: "\uf05e"   // ban
+
+                Rectangle {
+                    Layout.preferredHeight: 28
+                    Layout.preferredWidth: 90
+                    radius: 6
+                    color: unsuppressMa.containsMouse
+                           ? ThemeService.alpha(ThemeService.fg, 0.10)
+                           : ThemeService.alpha(ThemeService.fg, 0.06)
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Re-enable"
+                        font.family: Theme.fontFamily
+                        font.pixelSize: 11
+                        color: ThemeService.fg
+                    }
+
+                    MouseArea {
+                        id: unsuppressMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: ZenCleanupService.sessionSuppressed = false
+                    }
+                }
+            }
+        }
+
+        // ─────────────────────────────────────────────────
+        // v7.0.0-beta.1-hf16: System sound effects (login chime
+        // a la KDE Plasma / Cosmic Pop). Master toggle + sub-toggles
+        // for individual events. Plays via canberra-gtk-play using
+        // the freedesktop sound theme.
+        // ─────────────────────────────────────────────────
+        HMSection {
+            title: "System Sound Effects"
+            subtitle: "Login chime + optional UI sounds (freedesktop theme)"
+
+            HMRow {
+                label: "Enable sound effects"
+                description: SoundEffectsService.enabled
+                             ? "Master switch is ON — sub-toggles below apply"
+                             : "Master switch is OFF — no system sounds play"
+                icon: "\uf028"  // speaker
+
+                HMSwitch {
+                    checked: SoundEffectsService.enabled
+                    onToggled: SoundEffectsService.enabled = checked
+                }
+            }
+
+            HMRow {
+                label: "Login chime"
+                description: "Play a sound when zen-shell becomes ready"
+                icon: "\uf2f6"  // sign-in
+                enabled: SoundEffectsService.enabled
+
+                Row {
+                    spacing: 8
+                    Rectangle {
+                        width: 80; height: 26; radius: 6
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: testLoginMa.containsMouse
+                               ? ThemeService.alpha(ThemeService.fg, 0.12)
+                               : ThemeService.alpha(ThemeService.fg, 0.06)
+                        opacity: SoundEffectsService.enabled
+                                 && SoundEffectsService.playLoginSound ? 1.0 : 0.4
+                        Text {
+                            anchors.centerIn: parent
+                            text: "Preview"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 11
+                            color: ThemeService.fg
+                        }
+                        MouseArea {
+                            id: testLoginMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: SoundEffectsService.play("login")
+                        }
+                    }
+                    HMSwitch {
+                        anchors.verticalCenter: parent.verticalCenter
+                        checked: SoundEffectsService.playLoginSound
+                        onToggled: SoundEffectsService.playLoginSound = checked
+                    }
+                }
+            }
+
+            HMRow {
+                label: "Volume change ticks"
+                description: "Play a soft click when volume goes up/down (throttled)"
+                icon: "\uf028"  // speaker
+                enabled: SoundEffectsService.enabled
+
+                Row {
+                    spacing: 8
+                    Rectangle {
+                        width: 80; height: 26; radius: 6
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: testVolMa.containsMouse
+                               ? ThemeService.alpha(ThemeService.fg, 0.12)
+                               : ThemeService.alpha(ThemeService.fg, 0.06)
+                        opacity: SoundEffectsService.enabled
+                                 && SoundEffectsService.playVolumeSounds ? 1.0 : 0.4
+                        Text {
+                            anchors.centerIn: parent
+                            text: "Preview"
+                            font.family: Theme.fontFamily
+                            font.pixelSize: 11
+                            color: ThemeService.fg
+                        }
+                        MouseArea {
+                            id: testVolMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: SoundEffectsService.play("volume-change")
+                        }
+                    }
+                    HMSwitch {
+                        anchors.verticalCenter: parent.verticalCenter
+                        checked: SoundEffectsService.playVolumeSounds
+                        onToggled: SoundEffectsService.playVolumeSounds = checked
+                    }
+                }
+            }
+
+            HMRow {
+                label: "UI click sounds"
+                description: "Subtle clicks on buttons (chatty — off by default)"
+                icon: "\uf245"  // mouse-pointer
+                enabled: SoundEffectsService.enabled
+
+                HMSwitch {
+                    checked: SoundEffectsService.playClickSounds
+                    onToggled: SoundEffectsService.playClickSounds = checked
                 }
             }
         }

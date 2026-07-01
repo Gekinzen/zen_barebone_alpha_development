@@ -124,11 +124,28 @@ Singleton {
                             ? customName
                             : ("Custom " + ts.substring(0, 8))
 
+        // v7.0.0-beta.1-hf44: snapshot the FULL theme state, not just
+        // colors. Previously the saved profile contained only the
+        // `colors` object so reloading the profile restored colors
+        // BUT lost everything else (bar opacity, bar radius, style
+        // mode, bar module layout, Densho settings, fonts, etc.).
+        // That broke the "save my exact setup as a named profile"
+        // expectation — user would tweak panel radius + brush
+        // separators, save profile, switch theme, switch back → lose
+        // all those tweaks.
+        //
+        // The schema is backward-compatible: old profiles without
+        // these fields still load correctly (applyJson uses
+        // `if (data.X !== undefined)` checks). New profiles get the
+        // full snapshot.
         const data = {
             id: id,
             name: displayName,
             description: "Custom profile saved from Zen Shell on " + new Date().toLocaleString(),
             is_builtin: false,
+            // v7.0.0-beta.1-hf44: format version stamp. Lets future
+            // hotfixes evolve the schema without breaking older saves.
+            schemaVersion: 2,
             colors: {
                 bg0: colorToHex(bg0),
                 bg1: colorToHex(bg1),
@@ -146,7 +163,48 @@ Singleton {
                 aqua:   colorToHex(aqua),
                 blue:   colorToHex(blue),
                 purple: colorToHex(purple)
-            }
+            },
+            // v7.0.0-beta.1-hf44: Theme.qml visual + layout properties.
+            // These are the bar/panel surface knobs the user can tweak
+            // via Settings → Panel, Settings → General, etc.
+            theme: (function() {
+                try {
+                    if (typeof Theme === "undefined") return {}
+                    return {
+                        styleMode:   Theme.styleMode,
+                        barOpacity:  Theme.barOpacity,
+                        barRadius:   Theme.barRadius,
+                        fontFamily:  Theme.fontFamily,
+                        monoFont:    Theme.monoFont,
+                        fontSize:    Theme.fontSizeBase,
+                        iconSize:    Theme.iconSizeBase,
+                        barLayout:   Theme.barLayout
+                    }
+                } catch (e) {
+                    console.warn("[ThemeService] Could not snapshot Theme props:", e)
+                    return {}
+                }
+            })(),
+            // v7.0.0-beta.1-hf44: Densho (traditional Japanese style)
+            // sub-toggles. Brush-stroke separators shown in the
+            // screenshot are one of these. Without this block, toggling
+            // brush separators off and saving the profile then
+            // restoring it would silently turn them back on.
+            densho: (function() {
+                try {
+                    if (typeof DenshoService === "undefined") return {}
+                    return {
+                        denshoMode:      DenshoService.denshoMode,
+                        kanjiWorkspaces: DenshoService.kanjiWorkspaces,
+                        verticalDate:    DenshoService.verticalDate,
+                        seasonalKanji:   DenshoService.seasonalKanji,
+                        brushSeparators: DenshoService.brushSeparators
+                    }
+                } catch (e) {
+                    console.warn("[ThemeService] Could not snapshot Densho:", e)
+                    return {}
+                }
+            })()
         }
 
         const json = JSON.stringify(data, null, 2)
@@ -177,6 +235,7 @@ Singleton {
                     root.themeChanged()
                     terminalThemer.running = true
                     swayncThemer.running = true
+                    syncSddmIfEnabled()
                 } else {
                     root.statusMsg = "Failed to save custom profile"
                 }
@@ -463,8 +522,84 @@ Singleton {
             if (c.blue)   blue   = c.blue
             if (c.purple) purple = c.purple
 
+            // v7.0.0-beta.1-hf44: restore non-color theme state when
+            // the saved profile includes it. Old profiles (schemaVersion
+            // missing or 1) don't have these blocks and that's fine —
+            // we just skip the restore for those, preserving the user's
+            // currently-applied non-color settings. New profiles
+            // (schemaVersion >= 2) restore the full snapshot.
+            //
+            // The `data.theme` block contains Theme.qml visual + layout
+            // properties (bar opacity, radius, style mode, fonts, bar
+            // module layout). The `data.densho` block contains
+            // DenshoService toggles (densho mode + sub-features).
+            //
+            // We use `if (X !== undefined)` checks so falsy values like
+            // `false` and `0` are still applied correctly — naive
+            // truthy checks would skip them.
+            if (data.theme && typeof Theme !== "undefined") {
+                try {
+                    if (typeof data.theme.styleMode === "string")
+                        Theme.styleMode = data.theme.styleMode
+                    if (typeof data.theme.barOpacity === "number")
+                        Theme.barOpacity = data.theme.barOpacity
+                    if (typeof data.theme.barRadius === "number")
+                        Theme.barRadius = data.theme.barRadius
+                    if (typeof data.theme.fontFamily === "string"
+                        && data.theme.fontFamily.length > 0)
+                        Theme.fontFamily = data.theme.fontFamily
+                    if (typeof data.theme.monoFont === "string"
+                        && data.theme.monoFont.length > 0)
+                        Theme.monoFont = data.theme.monoFont
+                    if (typeof data.theme.fontSize === "number"
+                        && data.theme.fontSize > 0)
+                        Theme.fontSizeBase = data.theme.fontSize
+                    if (typeof data.theme.iconSize === "number"
+                        && data.theme.iconSize > 0)
+                        Theme.iconSizeBase = data.theme.iconSize
+                    if (data.theme.barLayout
+                        && typeof data.theme.barLayout === "object") {
+                        Theme.barLayout = data.theme.barLayout
+                    }
+                    console.log("[ThemeService] hf44: restored Theme props from profile")
+                } catch (e) {
+                    console.warn("[ThemeService] Theme restore error:", e)
+                }
+            }
+
+            if (data.densho && typeof DenshoService !== "undefined") {
+                try {
+                    if (typeof data.densho.denshoMode === "boolean")
+                        DenshoService.denshoMode = data.densho.denshoMode
+                    if (typeof data.densho.kanjiWorkspaces === "boolean")
+                        DenshoService.kanjiWorkspaces = data.densho.kanjiWorkspaces
+                    if (typeof data.densho.verticalDate === "boolean")
+                        DenshoService.verticalDate = data.densho.verticalDate
+                    if (typeof data.densho.seasonalKanji === "boolean")
+                        DenshoService.seasonalKanji = data.densho.seasonalKanji
+                    if (typeof data.densho.brushSeparators === "boolean")
+                        DenshoService.brushSeparators = data.densho.brushSeparators
+                    console.log("[ThemeService] hf44: restored Densho prefs from profile")
+                } catch (e) {
+                    console.warn("[ThemeService] Densho restore error:", e)
+                }
+            }
+
+            // Persist non-color restored state. PanelState.saveState()
+            // writes Theme props (barOpacity/Radius/Layout/styleMode) to
+            // panel-state.json so the next shell launch sees them as
+            // defaults. DenshoService has its own auto-save via
+            // property bindings, so no explicit call needed.
+            if ((data.theme || data.densho)
+                && typeof PanelState !== "undefined"
+                && typeof PanelState.saveState === "function") {
+                try { Qt.callLater(PanelState.saveState) }
+                catch (e) {}
+            }
+
             themeChanged()
-            console.log("[ThemeService] Current:", themeName)
+            console.log("[ThemeService] Current:", themeName,
+                        data.schemaVersion ? "(schema v" + data.schemaVersion + ")" : "(legacy)")
         } catch (e) {
             console.error("[ThemeService] Parse error:", e)
         }
@@ -518,6 +653,7 @@ Singleton {
                     // v6.6: regenerate SwayNC style.css + reload daemon
                     // (notifications now match theme colors).
                     swayncThemer.running = true
+                    syncSddmIfEnabled()
                     if (root.autoReloadOnApply) {
                         shellReloadTimer.start()
                     }
@@ -537,6 +673,32 @@ Singleton {
             "  echo 'regen-terminal-themes.sh not installed, skipping'; " +
             "fi"]
         running: false
+    }
+
+    // v7.0.0-beta.1-hf95.11: Re-sync the Zen Tokyo SDDM greeter to the
+    // newly-applied theme, so the login screen follows the user's colour
+    // choice (not just at logout/login). Fire-and-forget via pkexec; the
+    // polkit rule installed by zen-sddm-install.sh allows it without a
+    // prompt. Completely no-op if the SDDM theme/sync isn't installed
+    // (the `-x` guard), so users who never set up the greeter are
+    // unaffected. Wala tayong babawasan.
+    Process {
+        id: sddmThemer
+        command: ["bash", "-c",
+            "if [ -x /usr/local/bin/zen-sddm-sync.sh ]; then " +
+            "  pkexec /usr/local/bin/zen-sddm-sync.sh \"--user=$USER\" " +
+            "    > /tmp/zen-sddm-sync.log 2>&1 || true; " +
+            "else " +
+            "  echo 'zen-sddm-sync.sh not installed, skipping'; " +
+            "fi"]
+        running: false
+    }
+    // hf95.12: only push to the greeter when the user enabled it in
+    // Settings → Login Screen. Wrapper so the three apply sites stay one
+    // line and the gate lives in one place.
+    function syncSddmIfEnabled() {
+        if (typeof SettingsState !== "undefined" && SettingsState.sddmLoginEnabled)
+            sddmThemer.running = true
     }
 
     // v6.6: Regenerates SwayNC style.css from current-theme.json + reloads
@@ -1153,6 +1315,7 @@ Singleton {
                     root.themeChanged()
                     terminalThemer.running = true
                     swayncThemer.running = true
+                    syncSddmIfEnabled()
                     if (root.autoReloadOnApply) shellReloadTimer.start()
                     root.matugenAppliedFor(root.matugenStatePath) // generic ping
                 } else {

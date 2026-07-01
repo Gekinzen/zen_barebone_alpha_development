@@ -60,6 +60,12 @@ ComboBox {
     // ── Public API extensions ──
     property int  maxPopupHeight: 320
     property int  flipMargin: 80
+    // v7.0.0-beta.1-hf95.32 — force the popup to open UPWARD. For
+    // dropdowns near the bottom of a window (e.g. the dock's "Add module"
+    // row), opening down spills the list outside the window onto whatever
+    // is behind it, which then can't be clicked. preferAbove makes it open
+    // up whenever there's reasonable room above.
+    property bool preferAbove: false
     property int  searchThreshold: 6
     property string emptyText: "No matches"
 
@@ -171,9 +177,12 @@ ComboBox {
             Layout.preferredWidth: 12
             Layout.preferredHeight: 12
             radius: 6
+            // v7.0.0-beta.1-hf4: !!(...) coerces to bool; previously the
+            // && chain could evaluate to a string/number/undefined,
+            // triggering "Unable to assign [undefined] to bool" floods.
             visible: {
                 const e = _entries[currentIndex]
-                return e && e.swatch && e.swatch.length > 0
+                return !!(e && e.swatch && e.swatch.length > 0)
             }
             color: visible ? _entries[currentIndex].swatch : "transparent"
             border.width: 1
@@ -184,7 +193,7 @@ ComboBox {
         Text {
             visible: {
                 const e = _entries[currentIndex]
-                return e && e.icon && e.icon.length > 0
+                return !!(e && e.icon && e.icon.length > 0)
             }
             text: visible ? _entries[currentIndex].icon : ""
             font.family: "JetBrainsMono Nerd Font"
@@ -214,6 +223,7 @@ ComboBox {
         rotation: root.popup.visible ? 180 : 0
         Behavior on rotation { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
         Canvas {
+            id: arrowCanvas
             anchors.fill: parent
             onPaint: {
                 const ctx = getContext("2d")
@@ -230,7 +240,11 @@ ComboBox {
             }
             Connections {
                 target: ThemeService
-                function onThemeChanged() { parent.requestPaint() }
+                // v7.0.0-beta.1: fixed `parent.requestPaint()` → `arrowCanvas.requestPaint()`.
+                // The Connections' `parent` resolves to the surrounding Item, not the Canvas,
+                // so requestPaint was being called on a non-Canvas object → repeated TypeErrors
+                // → accumulated memory pressure.
+                function onThemeChanged() { arrowCanvas.requestPaint() }
             }
         }
     }
@@ -258,10 +272,14 @@ ComboBox {
             return Math.max(120, root.mapToItem(null, 0, 0).y - 16)
         }
 
-        // Auto-flip upward if there's not enough space below AND more above
-        readonly property bool flipUp:
-            (popupCol.implicitHeight + 16 > spaceBelow)
-            && (spaceAbove > spaceBelow)
+        // Auto-flip upward if there's not enough space below AND more
+        // above — OR if preferAbove is set and there's room above.
+        readonly property bool flipUp: {
+            if (root.preferAbove && spaceAbove >= Math.min(maxPopupHeight, popupCol.implicitHeight + 16))
+                return true
+            return (popupCol.implicitHeight + 16 > spaceBelow)
+                   && (spaceAbove > spaceBelow)
+        }
         y: flipUp
             ? -(Math.min(maxPopupHeight, popupCol.implicitHeight + 16)) - 6
             : (root.height + 6)

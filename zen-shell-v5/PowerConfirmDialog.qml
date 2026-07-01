@@ -62,9 +62,9 @@ import Quickshell
 Rectangle {
     id: dialogRoot
     radius: 20
-    color: Theme.alpha(Theme.bg0, 0.97)
+    color: ThemeService.alpha(ThemeService.bg0, 0.97)
     border.width: 1
-    border.color: Theme.alpha(Theme.fg, 0.15)
+    border.color: ThemeService.alpha(ThemeService.fg, 0.15)
 
     property string action: ""      // "shutdown" | "reboot" | "suspend" | "logout" | "lock"
     property string command: ""
@@ -83,32 +83,32 @@ Rectangle {
             case "shutdown":
                 return { icon:    "\udb81\udc25",                     // nf-md-power
                          title:   "Shutdown",
-                         color:   Theme.red,
+                         color:   ThemeService.red,
                          subtitle:"System will power off" }
             case "reboot":
                 return { icon:    "\udb81\udf09",                     // nf-md-restart
                          title:   "Restart",
-                         color:   Theme.orange,
+                         color:   ThemeService.orange,
                          subtitle:"System will reboot" }
             case "suspend":
                 return { icon:    "\udb82\udd04",                     // nf-md-power_sleep
                          title:   "Suspend",
-                         color:   Theme.purple,
+                         color:   ThemeService.purple,
                          subtitle:"System will sleep" }
             case "logout":
                 return { icon:    "\udb80\udf43",                     // nf-md-logout
                          title:   "Logout",
-                         color:   Theme.yellow,
+                         color:   ThemeService.yellow,
                          subtitle:"Exit Hyprland session" }
             case "lock":
                 return { icon:    "\udb80\udf3e",                     // nf-md-lock
                          title:   "Lock",
-                         color:   Theme.blue,
+                         color:   ThemeService.blue,
                          subtitle:"Lock the screen" }
         }
         return { icon:    "\udb80\udc28",                             // nf-md-alert_circle
                  title:   "Action",
-                 color:   Theme.fg,
+                 color:   ThemeService.fg,
                  subtitle:"" }
     }
 
@@ -116,7 +116,7 @@ Rectangle {
     Timer {
         id: countdownTimer
         interval: 1000
-        running: true
+        running: dialogRoot.visible   // hf65 — only run when actually visible
         repeat: true
         onTriggered: {
             if (dialogRoot.countdown > 0) {
@@ -125,6 +125,18 @@ Rectangle {
                 running = false
                 dialogRoot.executeAction()
             }
+        }
+    }
+
+    // hf65 — safety: reset countdown when dialog appears, stop when hidden.
+    // Prevents stale countdown from a previously-cancelled action carrying
+    // over to the next power dialog invocation.
+    onVisibleChanged: {
+        if (visible) {
+            countdown = 60
+            countdownTimer.running = true
+        } else {
+            countdownTimer.running = false
         }
     }
 
@@ -158,7 +170,7 @@ Rectangle {
             Layout.preferredWidth: 96
             Layout.preferredHeight: 96
             radius: 48
-            color: Theme.alpha(dialogRoot.actionInfo.color, 0.15)
+            color: ThemeService.alpha(dialogRoot.actionInfo.color, 0.15)
             border.width: 2
             border.color: dialogRoot.actionInfo.color
 
@@ -179,7 +191,7 @@ Rectangle {
         Text {
             Layout.alignment: Qt.AlignHCenter
             text: dialogRoot.actionInfo.title
-            color: Theme.fg
+            color: ThemeService.fg
             font.family: Theme.fontFamily
             font.pixelSize: 22
             font.bold: true
@@ -189,7 +201,7 @@ Rectangle {
         Text {
             Layout.alignment: Qt.AlignHCenter
             text: dialogRoot.actionInfo.subtitle
-            color: Theme.fgDim
+            color: ThemeService.fgDim
             font.family: Theme.fontFamily
             font.pixelSize: 13
         }
@@ -200,9 +212,9 @@ Rectangle {
             Layout.preferredWidth: 200
             Layout.preferredHeight: 44
             radius: 22
-            color: Theme.alpha(dialogRoot.actionInfo.color, 0.12)
+            color: ThemeService.alpha(dialogRoot.actionInfo.color, 0.12)
             border.width: 1
-            border.color: Theme.alpha(dialogRoot.actionInfo.color, 0.3)
+            border.color: ThemeService.alpha(dialogRoot.actionInfo.color, 0.3)
 
             RowLayout {
                 anchors.centerIn: parent
@@ -229,7 +241,7 @@ Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 4
             radius: 2
-            color: Theme.alpha(Theme.fg, 0.1)
+            color: ThemeService.alpha(ThemeService.fg, 0.1)
             clip: true
 
             Rectangle {
@@ -255,9 +267,9 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 44
                 radius: 12
-                color: cancelMa.containsMouse ? Theme.bg2 : Theme.bg1
+                color: cancelMa.containsMouse ? ThemeService.bg2 : ThemeService.bg1
                 border.width: 1
-                border.color: Theme.alpha(Theme.fg, 0.15)
+                border.color: ThemeService.alpha(ThemeService.fg, 0.15)
                 Behavior on color { ColorAnimation { duration: 150 } }
 
                 RowLayout {
@@ -265,20 +277,20 @@ Rectangle {
                     spacing: 8
                     Text {
                         text: "\udb80\udd56"        // nf-md-close
-                        color: Theme.fgDim
+                        color: ThemeService.fgDim
                         font.family: Theme.monoFont
                         font.pixelSize: 16
                     }
                     Text {
                         text: "Cancel"
-                        color: Theme.fg
+                        color: ThemeService.fg
                         font.family: Theme.fontFamily
                         font.pixelSize: 13
                         font.bold: true
                     }
                     Text {
                         text: "Esc"
-                        color: Theme.fgDim
+                        color: ThemeService.fgDim
                         font.family: Theme.monoFont
                         font.pixelSize: 10
                     }
@@ -300,7 +312,7 @@ Rectangle {
                 radius: 12
                 color: confirmMa.containsMouse
                     ? dialogRoot.actionInfo.color
-                    : Theme.alpha(dialogRoot.actionInfo.color, 0.75)
+                    : ThemeService.alpha(dialogRoot.actionInfo.color, 0.75)
                 Behavior on color { ColorAnimation { duration: 150 } }
 
                 RowLayout {
@@ -308,13 +320,13 @@ Rectangle {
                     spacing: 8
                     Text {
                         text: "\udb80\udd2c"        // nf-md-check
-                        color: Theme.bg0
+                        color: ThemeService.bg0
                         font.family: Theme.monoFont
                         font.pixelSize: 16
                     }
                     Text {
                         text: "Confirm now"
-                        color: Theme.bg0
+                        color: ThemeService.bg0
                         font.family: Theme.fontFamily
                         font.pixelSize: 13
                         font.bold: true

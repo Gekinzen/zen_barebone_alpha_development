@@ -175,12 +175,1288 @@ else
 fi
 
 echo ""
-echo "    Zen Shell v6.16.4.12.9.12 — Modori (戻り) hotfix 12"
+echo "    Zen Shell $(grep 'property string version:' "$SCRIPT_DIR/zen-shell-v5/ZenVersion.qml" 2>/dev/null | sed -E 's/.*"([^"]+)".*/\1/' | head -1) — Karui (軽い)"
 echo "    ─────────────────────────────────────────────────────"
 echo ""
 echo "    Quickshell-native desktop environment for Hyprland."
 echo ""
 cat << 'ZSCHANGELOG'
+    v7.0.0-beta.1-hf98 — Music strings lock/login re-align (deterministic) + hyprlock power buttons
+
+      [Music strings align v2]       hf97's reactive >200px guard still
+                                     missed the lock/login drift: an unlock
+                                     often re-publishes the SAME slot X (no
+                                     change signal) or drifts <200px (under
+                                     the guard), so the string still stuck
+                                     off-place. Now deterministic: PanelState
+                                     watches the hyprlock process and emits
+                                     sessionUnlocked() on the unlock edge;
+                                     stringsWindow does a clean re-settle
+                                     (positionReady=false → Behavior disabled
+                                     → SNAP, not glide). Covers Zen lock,
+                                     hypridle lock, and suspend/resume. hf97
+                                     guard kept as a second line of defence.
+
+      [hyprlock power buttons]       Lock screen now has clickable Shutdown
+                                     (systemctl poweroff) and Restart
+                                     (systemctl reboot) Nerd Font icons pinned
+                                     bottom-center, via hyprlock's onclick.
+                                     Same verbs as the desktop power menu.
+                                     Icon font pinned, NOT tagged
+                                     ZEN_FONT_OVERRIDE, so glyphs never tofu.
+
+    v7.0.0-beta.1-hf97 — Bar settings reset fix + music strings lock/unlock align
+
+      [Bar settings reset]           Bar settings sometimes reset on their
+                                     own. Root cause: ThemeService runs
+                                     applyJson() on its file-load at login
+                                     and queues PanelState.saveState(); the
+                                     theme + panel-state FileViews load
+                                     concurrently, so when theme won the race
+                                     it wrote DEFAULT in-memory values over
+                                     your saved panel-state.json. Added a
+                                     _loaded guard — saves are suppressed
+                                     until panel-state.json has actually
+                                     loaded — plus a last-known-good .bak
+                                     written on every clean load.
+
+      [Music strings align]          After lock screen → login the music
+                                     strings swung back and forth and landed
+                                     misaligned. A lock/unlock cycle has no
+                                     window teardown, so positionReady stayed
+                                     true while Bar.qml re-published slot X
+                                     and barLeftOffset re-evaluated async —
+                                     the margins Behavior then animated
+                                     THROUGH the inconsistent intermediates.
+                                     Now a big (>200px) or pre-layout jump
+                                     while ready triggers a clean re-settle
+                                     instead of gliding through garbage.
+
+      [Login error]                  DIAGNOSED, not yet patched — needs your
+                                     logs to confirm. Two suspects: (1) dual
+                                     plugin load (systemd zen-plugin-loader +
+                                     autostart zen-plugin-bootstrap both run
+                                     at login), or (2) the benign Hyprland
+                                     version-bump notify-send from the
+                                     bootstrap script being read as an error.
+                                     See CHANGELOG-v7.0.0-beta.1-hf97.md.
+
+    v7.0.0-beta.1-hf96 — Mouse/touchpad invert fix + Online wallpaper fix
+
+      [Mouse invert]                 Settings → Input → "Natural scroll"
+                                     toggles (mouse + touchpad) did
+                                     nothing. Root cause: HMSwitch
+                                     emitted toggled() TWICE per click
+                                     (guarded onCheckedChanged + an
+                                     explicit re-emit), so flip-style
+                                     handlers (naturalScroll = !naturalScroll)
+                                     flipped twice = net no-op. Removed
+                                     the redundant re-emit. Fixes all
+                                     7 flip-style toggles in the shell.
+
+      [Online wallpapers]            Super+W → Online tab couldn't
+                                     select anything: the GitHub
+                                     contents API is 60 req/hr per IP
+                                     unauthenticated, and dev restarts
+                                     burn that budget → 403 → empty grid.
+                                     Listing fetch is now TTL-gated (6h
+                                     cache, no network on restart), with
+                                     a raw.githubusercontent manifest.json
+                                     fallback + stale-cache fallback.
+                                     Download guard added so overlapping
+                                     clicks can't clobber the target.
+                                     Empty-state text is now online-aware.
+
+    v7.0.0-beta.1-hf82y — Universal taskbar drag + flameshot scale-fix v2
+
+      [Taskbar drag]                 Press-and-hold ANY icon (pinned
+                                     or running-but-not-pinned) for
+                                     350ms to drag-reorder. Running
+                                     icons get auto-pinned on drag
+                                     start; auto-pin reverses on
+                                     drag cancel. Matches GNOME/KDE/
+                                     Windows 11 behavior.
+
+      [Flameshot scale]              v6.12-6.13 attempts to use
+                                     --region with native or logical
+                                     dimensions both cropped on
+                                     1.25x / 1.5x scaled monitors.
+                                     hf82g (script v6.14) drops
+                                     --region entirely and lets
+                                     flameshot's auto-detection pick
+                                     the focused monitor — works on
+                                     scaled displays.
+
+    v7.0.0-beta.1-hf82a–82f — see CHANGELOG-v7.0.0-beta.1-hfXX.md
+    in the release tarball for the per-drop notes (notification
+    sanitization, FileView text() unwrap, calendar/sticky title
+    rendering, ZenVersion bump cadence, etc).
+
+    v7.0.0-beta.1-hf62 — Heavy recovery (atomic rebuild + load)
+
+      [Why .so kept disappearing]    Modern hyprpm builds plugin .so
+                                     files into $XDG_RUNTIME_DIR/hyprpm
+                                     (tmpfs). After hyprpm reload
+                                     finishes, the build dir gets
+                                     cleaned up — .sos disappear from
+                                     disk unless they were loaded by
+                                     hyprpm itself during reload.
+                                     For plugins NOT in hyprpm's
+                                     enabled list (like Paul's
+                                     hyprbars), .so files vanish and
+                                     subsequent `hyprctl plugin load`
+                                     calls have nothing to find.
+
+      [Heavy recovery]               When lightweight auto-load
+                                     exhausts (3 attempts, still
+                                     missing .so), auto-fires an
+                                     atomic chain in ONE bash command:
+                                       hyprpm enable hyprbars
+                                       hyprpm reload
+                                       find .so  (during reload window)
+                                       hyprctl plugin load
+                                     The .so is on disk for ~5-10s
+                                     during this window — we exploit
+                                     it before cleanup kicks in.
+
+      [Once per session by default]  Heavy recovery is expensive
+                                     (~10s blocking, rebuilds .so),
+                                     so auto-fired max 1x per shell
+                                     session. User-triggered "Rebuild
+                                     + load" button (NEW orange,
+                                     beside Force load) bypasses the
+                                     cap — always allowed manually.
+
+      [Surfaces hyprpm-list hint]    If heavy recovery still can't
+                                     leave .so on disk, diagnostic
+                                     message now suggests running
+                                       hyprpm list | grep hyprbars
+                                     in terminal — most likely cause
+                                     is hyprpm doesn't have hyprbars
+                                     in its enabled list at all.
+
+      [Badge / dot updated]          New states surfaced:
+                                       • "Heavy recovery in progress —
+                                          rebuilding via hyprpm…"
+                                       • "Heavy recovery exhausted —
+                                          click 'Rebuild + load'…"
+                                     Dot turns yellow during heavy
+                                     recovery (same as light auto-load).
+
+    v7.0.0-beta.1-hf61 — CRITICAL: fix .so search path (XDG runtime dir)
+
+      [The actual root cause]        Modern hyprpm builds plugin .so
+                                     files to $XDG_RUNTIME_DIR/hyprpm/
+                                     $USER/<plugin>/<plugin>.so —
+                                     typically /run/user/$UID/hyprpm/
+                                     $USER/hyprbars/hyprbars.so.
+
+                                     Our code searched only
+                                     ~/.local/share/hyprpm/ which
+                                     returned nothing on modern
+                                     hyprpm even when the .so was
+                                     built successfully. Auto-load
+                                     emitted STATUS=missing-so, hit
+                                     attempt cap of 3, badge stuck on
+                                     "Auto-load exhausted." The .so
+                                     was there the whole time, just
+                                     in a different directory.
+
+      [Multi-location search]        New _findSoSnippet() looks in
+                                     priority order:
+                                       1. $XDG_RUNTIME_DIR/hyprpm
+                                          (modern hyprpm)
+                                       2. ~/.local/share/hyprpm
+                                          (older hyprpm)
+                                       3. ~/.cache/hyprpm
+                                          (rare fallback)
+                                     Used by auto-load, manual load,
+                                     install verify, enable verify,
+                                     checkStatus. Centralized so any
+                                     future location change is a
+                                     one-spot edit.
+
+      [Diagnostic shows location]    "Check status" Step 4 now reports
+                                     which directory the .so was
+                                     found in:
+                                       (found in: /run/user/1000/
+                                                  hyprpm)
+                                     Helpful for confirming the fix
+                                     worked on user's specific setup.
+
+      [Settings text update]         Diagnostic card error message
+                                     now lists all 3 search locations
+                                     so user understands what was
+                                     checked when no .so found.
+
+    v7.0.0-beta.1-hf60 — Surface load error + mimic gating
+
+      [Real error visible]           Auto-load command now captures
+                                     `hyprctl plugin load` stderr +
+                                     reports .so existence to the
+                                     Settings UI via lastLoadError /
+                                     soPath / soExists properties.
+                                     "Auto-load exhausted" no longer
+                                     a dead-end — user sees WHY.
+
+      [Diagnostic panel]             New red-bordered detail card
+                                     under the badge when plugin
+                                     can't load. Shows:
+                                       • Built .so path (or missing)
+                                       • Last hyprctl plugin load error
+                                       • ABI mismatch hint + fix path
+                                     Visible only when there's
+                                     something to surface.
+
+      [Mimic gating]                 HyprbarsMimic (in-shell fake
+                                     bars on Zen popups) now hidden
+                                     by default when real plugin
+                                     isn't loaded. Was confusing —
+                                     bars on Settings popup but not
+                                     on regular windows. Now consistent.
+
+      [Mimic fallback toggle]        NEW pill toggle in Settings to
+                                     restore legacy behavior: "Show
+                                     fallback bars on Zen popups
+                                     when plugin unavailable."
+                                     Default OFF. Persists in
+                                     `hyprbars.json` as
+                                     `showMimicFallback`.
+
+      [Why real bar can't paint]     Architectural note added to
+                                     Settings: real hyprbars only
+                                     renders on XDG/X11 toplevels.
+                                     Zen Shell popups are layer-shell
+                                     surfaces — Hyprland's plugin
+                                     can't draw on those. Mimic is
+                                     the only option there.
+
+    v7.0.0-beta.1-hf59 — Auto force-load + Hyprland reload watchdog
+
+      [Why bars still gone]          hf58 surfaced WHY plugin wasn't
+                                     loading (hyprpm reload reports OK
+                                     but doesn't inject .so — upstream
+                                     bug). Force load button works,
+                                     pero kailangan i-click every time
+                                     Hyprland reloads (theme change,
+                                     monitor hotplug, manual reload).
+                                     Painful — user shouldn't have to
+                                     open Settings every time.
+
+      [Auto force-load]              Verify routine now AUTO-triggers
+                                     manual `hyprctl plugin load <.so>`
+                                     when it sees the plugin is missing
+                                     but `enabled=true`. Same code path
+                                     as the Force load button — just
+                                     fired automatically. Bounded to
+                                     3 attempts per minute so a
+                                     genuinely broken setup (no .so /
+                                     ABI mismatch) doesn't spam.
+
+      [Reload watchdog]              Every 30s, polls `hyprctl plugin
+                                     list`. If plugin drops mid-session
+                                     (Hyprland reload, monitor hotplug,
+                                     theme change), auto-recovery kicks
+                                     in transparently. User just sees
+                                     bars stay on screen.
+
+      [Beefier enablePlugin]         `enablePlugin()` now mirrors
+                                     `installPlugin()` Step 8 fallback
+                                     — manual hyprctl plugin load when
+                                     hyprpm reload didn't inject.
+                                     Symmetric with install path.
+
+      [post-writeConfig verify]      After every config write that
+                                     fires `hyprctl reload`, schedules
+                                     a 1s post-settle verify so auto-
+                                     load can recover if the reload
+                                     dropped the plugin.
+
+      [Settings: auto-load toggle]   New pill in Settings → Hyprbars
+                                     to toggle auto-load behavior.
+                                     Default ON. Persists in
+                                     `hyprbars.json`. Badge shows
+                                     live auto-load attempt count.
+
+      [Paths fully dynamic]          All .so lookups still use $HOME
+                                     (not /home/paul). Source line
+                                     still `~/.config/hypr/...` tilde
+                                     form. Pure additive — no core
+                                     framework changes outside the
+                                     Hyprbars module.
+
+    v7.0.0-beta.1-hf58 — Comprehensive diagnostic + manual force-load
+
+      [Why bars not appearing]       User report: errors gone after
+                                     hf57 but no bars on floating
+                                     windows. Means plugin .so was
+                                     never built/loaded successfully.
+                                     Many possible causes:
+                                       • hyprpm build failed silently
+                                       • ABI version mismatch
+                                       • Permission management blocking
+                                       • .so built but never injected
+                                     hf58 surfaces ALL of these.
+
+      [Comprehensive diagnostic]     "Check status" button now runs
+                                     7-step diagnostic showing:
+                                       1. Hyprland version
+                                       2. hyprpm availability + path
+                                       3. hyprpm list state
+                                       4. Plugin .so file existence
+                                       5. hyprctl plugin list runtime
+                                       6. Permission management state
+                                       7. Source line presence
+                                     Plus NEXT STEPS hints based on
+                                     which check failed.
+
+      [Force load button]            NEW purple "Force load" button
+                                     in Settings. Runs
+                                       hyprctl plugin load <.so>
+                                     directly — bypasses hyprpm's
+                                     reload mechanism. Useful when
+                                     .so is built but reload didn't
+                                     inject it.
+
+      [Better install script]        Now also runs `hyprpm update`
+                                     FIRST to refresh manifest +
+                                     rebuild plugin. Adds manual
+                                     load fallback if hyprpm reload
+                                     fails to inject the plugin.
+
+    v7.0.0-beta.1-hf57 — Path portability + plugin verification gate
+
+      [Portable source line]         FIXED hardcoded /home/paul/ in
+                                     hyprland.conf — was breaking
+                                     across users. Now writes
+                                       source = ~/.config/hypr/
+                                         zen-hyprbars.conf
+                                     using ~/ which Hyprland natively
+                                     expands. Matches the style of
+                                     all other source lines in your
+                                     existing hyprland.conf.
+
+                                     Auto-migrates broken hardcoded
+                                     paths from hf52-hf56 via sed —
+                                     idempotent strip + add cycle on
+                                     every shell boot.
+
+      [Plugin verification gate]     CRITICAL fix for "config option
+                                     <windowrule:hyprbars:no_bar>
+                                     does not exist" error. Root
+                                     cause was emitting windowrules
+                                     while the plugin wasn't actually
+                                     loaded into Hyprland. The
+                                     windowrule effects only exist
+                                     when plugin is active.
+
+                                     hf57 adds pluginLoaded property
+                                     populated from `hyprctl plugin
+                                     list` output. Windowrules are
+                                     ONLY emitted when:
+                                       1. floatingOnly toggle is ON
+                                       2. pluginLoaded is verified true
+                                     If plugin isn't loaded, the
+                                     config file is pure plugin block
+                                     — no windowrules — which always
+                                     parses cleanly.
+
+                                     Verification runs:
+                                       - 800ms after every install/
+                                         enable/disable op
+                                       - 800ms after shell boot
+
+      [Safer default]                floatingOnly default changed
+                                     from true → false. Fresh installs
+                                     no longer hit windowrule errors
+                                     before plugin loads. User opts
+                                     in manually after verifying via
+                                     "Check status" button.
+
+      [Status badge in Settings]     Green/red dot indicator next to
+                                     "Plugin loaded" text. Live shows
+                                     whether hyprctl plugin list
+                                     confirms hyprbars is active.
+
+    v7.0.0-beta.1-hf56 — Hyprbars windowrule BLOCK syntax (third time's the charm)
+
+      [3rd attempt at correct syntax] hf53 emitted inline syntax with
+                                     no value:
+                                       windowrule = hyprbars:no_bar,
+                                         floating:0
+                                       → "missing a value"
+                                     hf55 added explicit value:
+                                       windowrule = hyprbars:no_bar on,
+                                         floating:0
+                                       → "invalid field type
+                                          hyprbars:no_bar"
+                                     hf56 switches to BLOCK syntax —
+                                     per upstream Issue #586 the ONLY
+                                     form that works for plugin-
+                                     registered effects since
+                                     Hyprland 0.53:
+                                       windowrule {
+                                           name = zen-no-bar-tiled
+                                           hyprbars:no_bar = true
+                                           match:float = 0
+                                       }
+                                     The inline form was deprecated
+                                     for plugin effects; the block
+                                     form is what plugin authors
+                                     expect.
+
+      [Auto-fix still active]        hf55's boot-rewrite Timer still
+                                     fires 800ms after shell start
+                                     when hyprbars is enabled. So
+                                     existing broken configs from
+                                     hf53/hf55 also get fixed
+                                     automatically on next reload.
+
+      [User examples updated]        Settings → Hyprbars → "Exclude
+                                     specific apps" section now
+                                     shows block-form examples for
+                                     class matching, no_bar override,
+                                     and bar_color override. Copy-
+                                     pasteable into hyprland.conf
+                                     without syntax errors.
+
+    v7.0.0-beta.1-hf55 — CRITICAL FIX: hyprbars windowrule syntax
+
+      [Syntax bug]                   FIXED config error spam:
+                                       "invalid field hyprbars:no_bar:
+                                        missing a value"
+                                     hf53/hf54 emitted broken-since-
+                                     Hyprland-0.53 syntax:
+                                       windowrule = hyprbars:no_bar,
+                                         floating:0
+                                     Per upstream Issue #586 and
+                                     Discussion #12390, since 0.53
+                                     the effect needs an explicit
+                                     value:
+                                       windowrule = hyprbars:no_bar on,
+                                         floating:0
+                                       windowrule = hyprbars:no_bar on,
+                                         fullscreen:1
+
+      [Auto-fix on startup]          Service now auto-rewrites the
+                                     config file 800ms after boot
+                                     when hyprbars is enabled. So
+                                     existing users with broken
+                                     hf53/hf54 configs get them
+                                     fixed automatically on next
+                                     shell start — no manual toggle
+                                     needed. Errors disappear after
+                                     the auto hyprctl reload.
+
+      [Examples updated]             Settings page exclude-apps
+                                     examples now show the correct
+                                     `hyprbars:no_bar on, class:...`
+                                     form so users don't paste
+                                     broken syntax into their
+                                     hyprland.conf.
+
+    v7.0.0-beta.1-hf54 — Mimic layout fix + robust install with verify
+
+      [ControlPanel mimic position]  FIXED double-header overlap.
+                                     hf53 mounted HyprbarsMimic at
+                                     parent.top BUT the existing
+                                     "☰ Quick Settings ✕" header
+                                     also rendered there → stacked
+                                     bars na walang clearance.
+                                     Fix: existing header now hides
+                                     when HyprbarsMimic is visible,
+                                     and mainLayout topMargin grows
+                                     dynamically to clear the mimic.
+
+      [ZenSettings mimic position]   Same fix applied. Existing
+                                     gear-icon "Settings" header
+                                     hides when mimic shows; main
+                                     RowLayout pushed down to clear
+                                     the mimic's height.
+
+      [Robust install script]        Pre-flight checks before fire:
+                                       • Verify hyprpm exists
+                                       • Verify build deps (cpio,
+                                         cmake, git, meson, gcc)
+                                     Then write source line + run
+                                     hyprpm add/enable/reload + run
+                                     hyprctl reload + VERIFY hyprbars
+                                     is in `hyprctl plugin list`.
+                                     If any step fails, the status
+                                     message + toast notification
+                                     surfaces a clear error message.
+
+      [Diagnostic Check status btn]  NEW yellow "Check status" button
+                                     beside Install / Update. Fires
+                                     a diagnostic that shows:
+                                       • Hyprland version
+                                       • Loaded plugins (live list)
+                                       • Config file presence + size
+                                       • Source line in hyprland.conf
+                                       • hyprpm enabled list entry
+                                     Surfaces exactly why bars aren't
+                                     appearing if something's broken.
+
+    v7.0.0-beta.1-hf53 — Hyprbars floating-only + status feedback + Zen popup mimic
+
+      [Install feedback]             FIXED silent install failure.
+                                     Previously installPlugin() fired
+                                     hyprpm but provided no UI
+                                     feedback — user couldn't tell
+                                     if it ran. hf53 adds:
+                                       • stdout/stderr captured into
+                                         statusMessage + lastError
+                                       • busy flag drives spinner UI
+                                       • Toast notification on
+                                         success/failure
+                                       • Step-by-step progress logs
+
+      [Floating-only rule]           NEW toggle. When ON (default),
+                                     the generated config also emits:
+                                       windowrule = hyprbars:no_bar,
+                                         floating:0
+                                       windowrule = hyprbars:no_bar,
+                                         fullscreen:1
+                                     → bars appear ONLY on floating,
+                                     non-fullscreen windows. Tiled
+                                     windows + fullscreen apps stay
+                                     clean. Hyprland re-evaluates
+                                     these rules dynamically.
+
+      [HyprbarsMimic component]      NEW reusable component. When the
+                                     hyprbars plugin is enabled,
+                                     ControlPanel (Quick Settings)
+                                     and ZenSettings (Hyprland
+                                     Control Center) automatically
+                                     render an in-shell title bar
+                                     that matches the hyprbars
+                                     styling — same colors, button
+                                     side, button visibility.
+                                     Visual consistency between
+                                     Hyprland-managed windows and
+                                     Zen Shell layer-shell popups.
+
+                                     Auto-hides when plugin is
+                                     disabled — zero cost when off.
+
+    v7.0.0-beta.1-hf52 — Hyprbars plugin integration (window title bars)
+
+      [NEW HyprbarsService]          Manages the hyprbars Hyprland
+                                     plugin via hyprpm. Install /
+                                     enable / disable / update from
+                                     within Zen Shell settings.
+                                     Generates plugin config to
+                                     ~/.config/hypr/zen-hyprbars.conf
+                                     and ensures hyprland.conf
+                                     sources it.
+
+      [Color sync with theme]        ThemeService colors drive the
+                                     hyprbars config — bar background
+                                     = bg1, text = fg, buttons =
+                                     red/yellow/green from palette.
+                                     Auto-regenerates config on every
+                                     theme change + runs hyprctl
+                                     reload to apply live.
+
+      [Button side toggle]           Left (macOS-style) ↔ Right
+                                     (Windows-style) segmented
+                                     control. Uses
+                                     bar_buttons_alignment under the
+                                     hood. Button declaration order
+                                     adjusted so close stays at the
+                                     outermost edge in both modes.
+
+      [Per-button visibility]        Toggle minimize / maximize /
+                                     close individually. All three
+                                     ON by default.
+
+      [Appearance controls]          Bar height (16-40px) + text
+                                     size (8-16pt) + blur + bar
+                                     part-of-window sliders/toggles.
+
+      [Settings page]                NEW HyprbarsSettingsPage under
+                                     Settings → Appearance → Hyprbars.
+                                     Includes copy-paste examples for
+                                     `windowrule = hyprbars:no_bar`
+                                     to exclude specific apps.
+
+    v7.0.0-beta.1-hf51 — Sticky editor focus-loss safety
+
+      [DesktopStickyNotes editor]    SAFETY: TextArea now releases
+                                     focus + clears selection when
+                                     activeFocus flips false (user
+                                     clicked away to another app).
+                                     Prevents accidental typing leak
+                                     into notes when the sticky is
+                                     not the active surface.
+
+                                     Also: card border tints blue +
+                                     thickens to 2px when the editor
+                                     has focus, returns to muted tan
+                                     1px when idle. Clear visual
+                                     "this sticky is active for
+                                     editing" indicator.
+
+      [QuickNotesPanel editor]       Same safety applied to the
+                                     main panel editor — deselect +
+                                     focus release on activeFocus
+                                     loss.
+
+    v7.0.0-beta.1-hf50 — Quick Notes click-through + close button + widget input/drag/sync
+
+      [Quick Notes panel]            CLICK-THROUGH: outside the panel
+                                     rect, clicks now fall through to
+                                     apps below. Same pattern as
+                                     ControlPanel: mask: Region {
+                                     item: panelInstance }. Removed
+                                     HyprlandFocusGrab that was auto-
+                                     closing on outside click.
+
+                                     CLOSE BUTTON: red ✕ in the drag
+                                     handle's right edge. Esc key
+                                     also closes (Keys.onEscapePressed).
+
+      [DesktopStickyNotes Loader]    CRITICAL FIX: removed the Loader
+                                     wrapper around each sticky card.
+                                     The Loader had 0x0 bounds (no
+                                     anchors/size set), so mouse hit-
+                                     testing on the card inside FAILED
+                                     even though the card rendered.
+                                     Drag silently broken since hf47,
+                                     no amount of MouseArea fixes
+                                     could help until the Loader was
+                                     removed. Repeater now uses the
+                                     card Rectangle directly as its
+                                     delegate.
+
+      [Widget keyboard focus]        Added WlrLayershell.keyboardFocus:
+                                     OnDemand to the widgets-layer
+                                     PanelWindow. Without this, the
+                                     Bottom-layer surface ignored
+                                     keyboard events and the widget-
+                                     mode sticky TextArea couldn't
+                                     receive typing. OnDemand means
+                                     focus is requested only when an
+                                     interactive child (TextArea)
+                                     gets clicked — clock/weather
+                                     widgets unaffected.
+
+      [Live sync, no cursor jump]    Replaced declarative text:
+                                     bindings on both QuickNotesPanel
+                                     and DesktopStickyNotes TextAreas
+                                     with imperative sync via
+                                     Connections + _syncingFromService
+                                     guard. Now: type in panel ⇄
+                                     widget reflects live, and vice
+                                     versa, without clobbering cursor
+                                     position or triggering binding
+                                     loops.
+
+    v7.0.0-beta.1-hf49 — Sticky drag really works + Quick Notes panel draggable
+
+      [DesktopStickyNotes drag]      FIXED widget-mode sticky drag.
+                                     The hf46/47 implementation used
+                                     `z: -1` on the drag MouseArea
+                                     which placed it BELOW the parent
+                                     Rectangle's draw layer — clicks
+                                     and drags on title bar empty
+                                     space never reached the MouseArea.
+                                     Fix: restructure to ControlPanel's
+                                     proven pattern — drag MouseArea
+                                     is the FIRST child of titleBar
+                                     (anchors.fill: parent), and the
+                                     button RowLayout follows as a
+                                     LATER sibling. Natural QML render
+                                     order puts buttons on top; their
+                                     own MouseAreas catch their clicks;
+                                     empty space falls through to the
+                                     drag handler below.
+
+      [QuickNotesPanel draggable]    NEW drag handle along the top
+                                     edge of the panel — same UX as
+                                     ControlPanel + Quick Settings.
+                                     18px strip with three centered
+                                     dots showing the drag affordance.
+                                     hasBeenDragged flag flips on
+                                     press; shell.qml breaks
+                                     anchors.centerIn binding when
+                                     dragged so x/y become free.
+                                     Resets to centered on every
+                                     open/close cycle.
+
+    v7.0.0-beta.1-hf48 — Hyprlock unlock focus reset workaround
+
+      [Upstream bug workaround]      WORKAROUND for known upstream
+                                     Hyprland bug #5884 / hyprlock
+                                     #483: after unlocking hyprlock on
+                                     multi-monitor setup, keyboard +
+                                     mouse focus gets stuck on the
+                                     originally-active monitor. User
+                                     report: "kapag nag lock screen
+                                     tas sa isang monitor ako nag
+                                     login tas now hindi ko ma cclick
+                                     yun nasa kabila ko monitor unless
+                                     drag ko papunta sa isa monitor."
+
+                                     Hyprland devs confirmed the bug
+                                     is in CInputManager — ongoing
+                                     since v0.35, not fixed upstream.
+
+                                     hf48 wraps the hyprlock command:
+                                       1. Runs hyprlock as normal
+                                       2. After unlock, waits 400ms
+                                       3. Captures original focused
+                                          monitor
+                                       4. Cycles focusmonitor across
+                                          ALL monitors (80ms apart)
+                                          — this kicks CInputManager
+                                          back to a clean state
+                                       5. Restores focus to the
+                                          originally-active monitor
+                                       6. Nudges keyboard focus with
+                                          movefocus l;r
+
+                                     Net effect: click anywhere on
+                                     any monitor works immediately
+                                     after unlock. No more drag-here
+                                     drag-there dance.
+
+                                     Uses jq when present, falls back
+                                     to awk parsing of plain hyprctl
+                                     output so the workaround works
+                                     even without jq installed.
+
+    v7.0.0-beta.1-hf47 — Sticky notes integrated as desktop widgets
+
+      [DesktopStickyNotes.qml] NEW   Sibling of DesktopWidgets.qml.
+                                     Mounted in the same per-screen
+                                     PanelWindow at WlrLayer.Bottom.
+                                     Hosts widget-mode sticky notes
+                                     alongside clock/weather/CPU temp
+                                     — same drag system, same parent
+                                     surface, same below-windows
+                                     layering, same persistence.
+
+      [Responsibility split]         QuickNotesSticky.qml now ONLY
+                                     renders normal-mode (toggle off)
+                                     stickies on the Overlay layer.
+                                     Widget-mode (toggle on) stickies
+                                     are rendered by DesktopStickyNotes.
+                                     Mutually exclusive per note ID
+                                     via visible: bindings on
+                                     isStickyDraggable(id).
+
+      [Pop out button]               QuickNotesPanel editor header
+                                     gets a new ⤧ button: one-click
+                                     stickies the note AND enables
+                                     widget mode. Result: note jumps
+                                     to the desktop as a draggable
+                                     widget instantly.
+
+      [Highlight pulse]              Super+Shift+N now also fires
+                                     QuickNotesService.pulseHighlight()
+                                     when at least one sticky is in
+                                     widget mode. All widget stickies
+                                     play a shake + glow + bounce
+                                     animation so user can spot them
+                                     among the rest of the desktop.
+
+                                     Shake: 3 cycles, 60ms each, ±6px
+                                     Bounce: 1 cycle, 360ms total
+                                     Glow:   2 loops green border
+                                             pulse, ~1.4s total
+
+      [Position memory]              Saved position is SHARED between
+                                     normal and widget modes. Last
+                                     drag location is remembered
+                                     regardless of which mode it was
+                                     in. Toggling the mode does NOT
+                                     reset position.
+
+    v7.0.0-beta.1-hf46 — Sticky note draggable toggle (widget-mode)
+
+      [QuickNotesSticky]             NEW rounded pill toggle in the
+                                     sticky note's title bar — same
+                                     design language as Bluetooth/
+                                     WiFi/Audio toggles. 32x16 pill
+                                     with 12x12 sliding thumb,
+                                     green when active.
+
+                                     When toggle is ON, the title
+                                     bar becomes a drag handle.
+                                     Cursor shows OpenHand → ClosedHand
+                                     during drag. Sticky moves around
+                                     the screen like the clock/weather/
+                                     CPU temp desktop widgets.
+
+                                     When OFF (default), sticky is
+                                     locked to its saved or hash-
+                                     derived position.
+
+                                     Drag pattern mirrors
+                                     DesktopWidgets.qml: imperative
+                                     x/y on the card Rectangle, not
+                                     declarative binding (which would
+                                     fight drag.target mid-gesture).
+                                     preventStealing keeps the
+                                     gesture intact.
+
+      [QuickNotesService]            stickyPositions: { id: {x,y} }
+                                     stickyDraggable: { id: bool }
+                                     setStickyPosition / getStickyPosition
+                                     setStickyDraggable / isStickyDraggable
+                                     All persisted to quick-notes.json
+                                     so positions + drag-mode survive
+                                     shell restart.
+
+    v7.0.0-beta.1-hf45 — Bar layout save sync + Title Translator browser fallback
+
+      [PanelState dual-source sync]  FIXED bar layout reverting on
+                                     restart. Root cause: external
+                                     scripts (like the PowerBadge
+                                     toggle in Bar Modules settings)
+                                     mutate bar-layout.json directly,
+                                     update Theme.barLayout via
+                                     reloadBarLayout(), but
+                                     panel-state.json was NEVER
+                                     synced. On next launch the
+                                     stale panel-state.json overrode
+                                     bar-layout.json.
+
+                                     hf45 adds a Connections watcher
+                                     in PanelState that auto-saves
+                                     panel-state.json on every
+                                     Theme.barLayout / barOpacity /
+                                     barRadius / styleMode change —
+                                     from ANY source. Initial-load
+                                     guard prevents writing default
+                                     values during startup.
+
+      [TitleTranslator backend]      FIXED translation appearing
+                                     dead. The hf39 default URL
+                                     (translate.argosopentech.com)
+                                     is no longer reachable. Updated
+                                     to https://translate.cutie.dating
+                                     per the official LibreTranslate
+                                     mirrors list.
+
+      [TitleTranslator browser]      Bar module left-click now opens
+                                     Google Translate in the browser
+                                     with the foreign title pre-
+                                     filled. Always works (no API
+                                     key, no rate limit, full
+                                     translation page with examples).
+
+                                     Middle-click still attempts
+                                     inline LibreTranslate API
+                                     translation for users with a
+                                     working self-hosted backend.
+
+                                     If inline API fails, automatic
+                                     browser fallback fires
+                                     (browserFallback: true default).
+
+    v7.0.0-beta.1-hf44 — Custom theme profiles save FULL state (not just colors)
+
+      [ThemeService saveAsCustomTheme]
+                                     EXPANDED snapshot. Previously only
+                                     `colors` was persisted in the
+                                     profile JSON. Re-selecting that
+                                     profile later restored colors but
+                                     lost ALL non-color tweaks:
+
+                                       • Bar opacity / radius
+                                       • Style mode (Round / Square /
+                                         Floating / Island)
+                                       • Bar module layout (which
+                                         modules in left/center/right)
+                                       • Font family / size / mono /
+                                         icon size
+                                       • Densho mode + sub-toggles
+                                         (kanji workspaces, vertical
+                                         date, seasonal kanji,
+                                         brush-stroke separators)
+
+                                     hf44 adds `theme` + `densho`
+                                     blocks to the saved JSON capturing
+                                     all of those. Schema version stamp
+                                     (v2) tags the new format.
+
+      [ThemeService applyJson]       Backward-compatible loader. New
+                                     `theme` + `densho` blocks restored
+                                     on profile select. Old (v1) saves
+                                     still load colors fine — their
+                                     missing blocks are detected and
+                                     the user's CURRENT non-color
+                                     settings are preserved (no nuking
+                                     of unrelated state).
+
+                                     Calls PanelState.saveState() after
+                                     applying so the restored Theme
+                                     props persist to panel-state.json
+                                     for next shell launch.
+
+    v7.0.0-beta.1-hf43 — Quick Notes panel clipping + rounded toggle pills in Input tab
+
+      [QuickNotesPanel]              FIXED: editor pane title text was
+                                     escaping the panel bounds when the
+                                     note's first-line title was long
+                                     enough that Layout.fillWidth alone
+                                     wasn't enough to constrain it.
+                                     Visually rendered the title at the
+                                     top-right of the SCREEN, outside
+                                     the panel container.
+
+                                     Fix layered defenses:
+                                       • clip: true on root panel Item
+                                       • clip: true on editor Rectangle
+                                       • clip: true on sidebar delegate
+                                       • Layout.maximumWidth on title
+                                         Text (parent.width - 60)
+                                       • maximumLineCount: 1 + clip on
+                                         title Text itself
+                                       • Layout.maximumHeight: 28 on
+                                         the header RowLayout
+
+      [ControlPanel Input tab]       Replaced QQC2 Switch components
+                                     for Natural scroll + Touchpad
+                                     natural scroll with the same
+                                     rounded toggle pill design used by
+                                     Bluetooth/WiFi/Audio toggles in
+                                     Quick Settings:
+
+                                       42×22 pill with sliding 18×18
+                                       circular thumb. Green when
+                                       active, neutral when off. 150ms
+                                       OutCubic animation on thumb
+                                       position.
+
+                                     One toggle design across the
+                                     entire shell now — no more mix of
+                                     generic QQC2 Switch with the
+                                     custom pill.
+
+    v7.0.0-beta.1-hf42 — Productivity modules ACTUALLY visible + usage docs
+
+      [PanelPage allModules]         Registered all 5 hf39 productivity
+                                     modules + workflow (which had been
+                                     missing). The +Add picker in
+                                     Settings → Panel → Module Layout
+                                     now shows all 19 modules with
+                                     friendly labels + icons via the
+                                     new moduleMetadata catalog.
+
+      [Theme.qml barLayout]          Default barLayout now includes
+                                     "quicknotes" + "titletranslator"
+                                     so fresh installs see them on the
+                                     bar immediately. Other 3 features
+                                     (focusspaces / networkpulse /
+                                     smartdim) stay opt-in.
+
+      [PanelState migration]         hf42 migration auto-injects
+                                     quicknotes + titletranslator into
+                                     EXISTING user barLayouts on first
+                                     load with this version. Idempotent
+                                     (checks for existing tokens) and
+                                     self-stamping via saveVersion =
+                                     "7.0.0-beta.1-hf42".
+
+      [PRODUCTIVITY-FEATURES-USAGE.md]
+                                     NEW comprehensive usage guide in
+                                     the tarball root explaining all 5
+                                     features. Covers Quick Notes,
+                                     Title Translator, Focus Spaces,
+                                     Network Pulse, Smart Dim — how to
+                                     use, where data lives, privacy
+                                     notes, and add-to-bar instructions.
+
+    v7.0.0-beta.1-hf41 — Collapsible Settings search + Input tab redesigned sliders
+
+      [FloatingSettingsSearch]       NEW collapsible mode. Defaults
+                                     to collapsed: shows only a 32x32
+                                     search-glyph button. Click the
+                                     glyph to expand into the full
+                                     220x32 search bar; ESC or click
+                                     outside collapses back. State
+                                     persists in PanelState across
+                                     Settings open/close.
+
+                                     CRITICAL BUG FIX:
+                                     Removed onActiveFocusChanged
+                                     auto-open. Previously the dropdown
+                                     would pop open whenever the field
+                                     regained focus — including focus
+                                     reshuffles during scroll. Now the
+                                     dropdown opens ONLY when the user
+                                     actively types AND the bar is
+                                     expanded.
+
+      [PanelState]                   Added settingsSearchExpanded
+                                     property — backs the collapsed
+                                     state for FloatingSettingsSearch.
+
+      [ControlPanel Input tab]       Replaced default QQC2 Slider for
+                                     mouse sensitivity (-1.0..+1.0)
+                                     and scroll factor (0.1..3.0) with
+                                     the same custom Rectangle-based
+                                     slider design used by the volume
+                                     slider in the Audio tab. Adds:
+
+                                       • Center anchor tick on
+                                         sensitivity (baseline 0.0)
+                                       • Baseline tick on scroll
+                                         (baseline 1.0×)
+                                       • Filled portion + 14px knob
+                                         exactly matching volume
+                                       • Drag, click-to-set, wheel
+                                         scroll, and double-click-
+                                         to-reset gestures
+                                       • Visually consistent with the
+                                         bar's sound popup + audio
+                                         tab — one design language
+                                         across the shell
+
+                                     Toggle switches (natural scroll,
+                                     touchpad natural scroll) and the
+                                     Reset button kept unchanged —
+                                     they match the rest of the QML.
+
+    v7.0.0-beta.1-hf40 — Quick Notes: keybinds + sticky-note windows
+
+      [keybinds-update.conf]         Auto-installed Hyprland keybinds:
+                                       Super+Shift+N → toggle panel
+                                                        (auto-creates note if empty)
+                                       Super+Alt+N   → always new note
+                                     Super+N alone is preserved for
+                                     Paul's existing wifi-toggle.sh.
+
+      [QuickNotesSticky] NEW         Floating Post-It style sticky
+                                     note windows. WlrLayer.Overlay
+                                     so they stay above bar + most
+                                     windows. Yellow tint. Per-note
+                                     position via stable hash of
+                                     noteId so multiple stickies
+                                     don't perfectly overlap.
+
+                                     Toggle from Quick Notes panel
+                                     editor (⭐ button next to ★ pin).
+                                     Each sticky note has its own
+                                     editable textarea that auto-
+                                     saves to the same .md file.
+
+                                     Sticky state persists in
+                                     quick-notes.json so stickies
+                                     survive shell restart.
+
+      [shell.qml IPC handlers]       New IPC functions:
+                                       quicknotes_toggle
+                                       quicknotes_new
+                                       quicknotes_close
+                                       quicknotes_sticky_current
+
+      [shell.qml Repeater]           Mounts one QuickNotesSticky per
+                                     entry in QuickNotesService.
+                                     stickyIds. Adds/removes windows
+                                     dynamically when user toggles
+                                     sticky on a note.
+
+      [QuickNotesPanel]              Added ⭐ sticky button next to
+                                     ★ pin button in editor header.
+                                     Tooltips on hover explain each.
+
+      [QuickNotesPage]               Updated Hotkeys section to
+                                     reflect actual Super+Shift+N
+                                     binding + explain Super+N
+                                     conflict with wifi-toggle.
+
+    v7.0.0-beta.1-hf39 — MEGA hotfix: 5 new productivity features + bar modules + Settings
+
+      [QuickNotesService] NEW        Markdown scratchpad. Files at
+                                     ~/.local/share/zen-notes/
+                                     YYYY-MM-DD-HHMM.md. Auto-save
+                                     every keystroke (500ms debounce).
+                                     Pin-to-top + tags (#hashtag).
+                                     Bar: QuickNotesModule + popover.
+
+      [FocusSpacesService] NEW       Save/restore workspace layouts.
+                                     hyprctl clients -j → snapshot all
+                                     windows w/ position+workspace.
+                                     Restore: hyprctl --batch dispatch
+                                     movetoworkspacesilent + launch
+                                     missing apps. Bar: FocusSpaces-
+                                     Module → right-click opens
+                                     Settings page with full list.
+
+      [NetworkPulseService] NEW      Live per-app bandwidth monitoring
+                                     via /proc/net/dev + ss -tunp.
+                                     Bar: NetworkPulseModule shows
+                                     ↓ ↑ rates. Click → Settings page
+                                     with active connection list +
+                                     block-app management.
+
+      [SmartDimService] NEW          Context-aware brightness rules.
+                                     Detects active window class via
+                                     hyprctl activewindow, matches
+                                     against rule table (video,
+                                     reading, ide, gaming,
+                                     battery_critical), applies
+                                     brightness offset via existing
+                                     BrightnessService. Off by
+                                     default — opt-in.
+
+      [TitleTranslatorService] NEW   Detect non-Latin window titles
+                                     (Japanese hira/kata/CJK, Chinese
+                                     CJK, Korean Hangul, Cyrillic,
+                                     Arabic). Hover bar module → see
+                                     translation tooltip. LibreTranslate
+                                     backend (configurable, defaults
+                                     to public endpoint).
+                                     Auto-translate off by default.
+
+      [Bar.qml]                      Added 5 module ids: "quicknotes",
+                                     "focusspaces", "networkpulse",
+                                     "smartdim", "titletranslator".
+                                     User adds any subset to their
+                                     barLayout array to enable.
+
+      [ZenSettings.qml]              New "PRODUCTIVITY" sidebar section
+                                     with 5 dedicated config pages.
+
+      [PanelState.qml]               Added focusSpacesVisible,
+                                     quickNotesVisible,
+                                     networkPulseVisible properties
+                                     plus openSettingsPage(id)
+                                     function for bar-module → Settings
+                                     deep-linking.
+
+    v7.0.0-beta.1-hf38 — Custom string colors respected + screenshot annotations transparent
+
+      [ZenStrings]                   Custom color mode now respects
+                                     user's exact picked hex colors.
+                                     Previously every other segment
+                                     was Qt.darker(mix, 1.5) which
+                                     made #ff6464ff red look like a
+                                     darker burgundy on half the
+                                     strings. Theme/synced modes
+                                     still get the alternating tone
+                                     rhythm (intentional visual
+                                     variation) but custom mode is
+                                     literal — what you pick is what
+                                     you see.
+
+      [ZenScreenshotOverlay]         Screenshot annotation overlay
+                                     now properly transparent.
+                                     ImageMagick was applying its
+                                     default white background to the
+                                     SVG before compositing because
+                                     `-background none` was placed
+                                     AFTER the SVG read in the magick
+                                     command (flags only affect the
+                                     next image read in IM). Fixed
+                                     by moving `-background none
+                                     -density 96` BEFORE the SVG
+                                     path, plus `-alpha set` after
+                                     for explicit alpha channel
+                                     enablement.
+
+                                     Also added explicit
+                                     `style="background-color:
+                                     transparent"` to the SVG root
+                                     element as belt-and-suspenders
+                                     for older librsvg delegate
+                                     versions that ignore IM's
+                                     -background flag.
+
+    v7.0.0-beta.1-hf37 — Hot corners: event-driven overlays (no more polling)
+
+      [HotCornerService]             ARCHITECTURE CHANGE. Stopped
+                                     polling `hyprctl cursorpos -j`
+                                     every 500ms (which was silently
+                                     failing on multi-monitor setups
+                                     since hf21). Service is now
+                                     CONFIG-ONLY — holds action
+                                     mappings + per-corner enable
+                                     flags + debounce state. Actual
+                                     hover detection moved to per-
+                                     screen invisible PanelWindows.
+
+      [HotCornerOverlay] NEW         Per-screen invisible corner
+                                     trigger component. 4 tiny
+                                     (16-40px scaled by monitor
+                                     width) PanelWindows at
+                                     WlrLayer.Overlay anchored to
+                                     each screen corner. MouseArea
+                                     with hoverEnabled fires the
+                                     moment the cursor crosses the
+                                     surface boundary. Wayland
+                                     delivers events directly — no
+                                     polling, no subprocess, zero
+                                     CPU when idle, instant trigger.
+                                     Works under fullscreen apps
+                                     (browser/games) which polling
+                                     missed.
+
+      [shell.qml]                    Mounts HotCornerOverlay via
+                                     Variants { model:
+                                     Quickshell.screens } so every
+                                     connected monitor gets its own
+                                     set of 4 corner triggers
+                                     automatically. New monitors
+                                     plugged in mid-session work
+                                     immediately.
+
+      Per-corner enable flags        NEW: hotcorners.json supports
+                                     enableTopLeft / enableTopRight /
+                                     enableBottomLeft /
+                                     enableBottomRight booleans so
+                                     conflicting corners (e.g.
+                                     top-right vs window close button)
+                                     can be selectively disabled
+                                     without losing the action
+                                     mapping.
+
+    v7.0.0-beta.1-hf36 — Refresh rate downgrade toggle (manual 60Hz mode)
+
+      [RefreshRateService]           NEW: Battery & Power → "Reduce
+                                     refresh rate to 60Hz" toggle.
+                                     Drops every enabled monitor to
+                                     60Hz when ON, restores native
+                                     rates when OFF. Snapshots
+                                     original rates per-monitor at
+                                     toggle-on. Persists across
+                                     restarts via
+                                     ~/.config/quickshell/zen-shell/
+                                     refresh-rate.json.
+
+                                     Manual toggle only — no
+                                     auto-switching tied to power
+                                     profile or battery state, per
+                                     user preference. User flips it
+                                     when they want it.
+
+                                     Toast notification on every
+                                     transition via the native
+                                     in-shell pipeline
+                                     (NotificationService.postInternal)
+                                     listing the affected monitors:
+                                     "DP-2 144Hz → 60Hz" etc. Toast
+                                     also fires on restore.
+
+                                     Includes a "Re-apply" button for
+                                     when a new monitor is plugged in
+                                     after toggle was already on.
+
+      [BatterySettingsPage]          New section between GPU Switcher
+                                     and Smart Gaming Detection
+                                     containing the toggle + status
+                                     dot + re-apply button. Status
+                                     row shows "60Hz mode active" or
+                                     "Native refresh rates active".
+
+    v7.0.0-beta.1-hf35 — Full restore: music strings + screenshot tools work again
+
+    v7.0.0-beta.1-hf32 — Native power-profile toasts + login sound + hot corners
+
     v6.16.4.12.6.20 — Plugins auto-install + Hyprland 0.54+ syntax fix
 
       [8.7/9] hyprpm auto-install   Auto-installs hyprbars, hyprexpo,
@@ -517,6 +1793,17 @@ if [ "$DM_NAME" = "lightdm" ] || [ "$DM_NAME" = "lxdm" ]; then
     echo "        sudo systemctl disable $DM_NAME; sudo systemctl enable sddm"
     echo ""
 fi
+# v7.0.0-beta.1-hf95.12: This installer does NOT touch your display
+# manager or install any login theme — login/SDDM is entirely optional.
+# A matching login greeter (Zen Tokyo) ships separately and is opt-in:
+#   sudo ./sddm/zen-sddm-install.sh    (only if you use SDDM and want it)
+# Skipping it changes nothing about your Zen Shell desktop install.
+if [ -f "$SCRIPT_DIR/sddm/zen-sddm-install.sh" ]; then
+    echo "    Optional: a matching SDDM login greeter is available (opt-in)."
+    echo "      Install later with: sudo ./sddm/zen-sddm-install.sh"
+    echo "      (Safe to skip — it does not affect this desktop install.)"
+    echo ""
+fi
 
 # ── Write hardware.conf (preserve-if-exists) ───────────────────
 HW_CONF="$HYPR_DIR/modules/hardware.conf"
@@ -631,6 +1918,47 @@ fi
 echo ""
 
 # ═══════════════════════════════════════════════════════════════
+# v7.0.0-beta.1-hf81 — [0/9] Version pin check (versions.lock)
+# ═══════════════════════════════════════════════════════════════
+# Soft-pins hyprland / quickshell / qt6 stack to the major.minor
+# recorded in versions.lock when this release was built. Patch
+# versions (.X) auto-float — Arch rolling bumps patches all the
+# time and we don't want to whine about every 0.54.3 → 0.54.4.
+#
+# Major.minor mismatches:
+#   • Installed NEWER  → warn ("may surface syntax/ABI breaks")
+#   • Installed OLDER  → block; ask user to confirm continue
+#
+# Override: ZEN_FORCE_VERSIONS=1 ./install.sh
+# ═══════════════════════════════════════════════════════════════
+if [ -f "$SCRIPT_DIR/scripts/zen-version-check.sh" ] && [ -f "$SCRIPT_DIR/versions.lock" ]; then
+    echo ""
+    echo "[0/9] Version pin check..."
+    # shellcheck source=scripts/zen-version-check.sh
+    . "$SCRIPT_DIR/scripts/zen-version-check.sh"
+    if zen_version_check_init "$SCRIPT_DIR/versions.lock"; then
+        zen_version_check_report
+        case "${ZEN_PIN_RC:-0}" in
+            2)
+                # OLDER than pinned — needs upgrade. Ask before continuing.
+                echo ""
+                read -rp "    Continue anyway (NOT recommended)? [y/N] " __zen_ans
+                if [ "${__zen_ans,,}" != "y" ]; then
+                    echo "    Aborted. Upgrade the flagged packages, or re-run with ZEN_FORCE_VERSIONS=1."
+                    exit 1
+                fi
+                ;;
+            1)
+                # NEWER than pinned — warn-only, do not gate.
+                : # message already printed by zen_version_check_report
+                ;;
+        esac
+    else
+        echo "    ⚠ versions.lock present but unreadable — skipping pin check."
+    fi
+fi
+
+# ═══════════════════════════════════════════════════════════════
 # [1/9] Dependency check
 # ═══════════════════════════════════════════════════════════════
 echo ""
@@ -697,6 +2025,8 @@ check_cmd swaync swaync
 check_cmd grim grim
 check_cmd slurp slurp
 check_cmd wl-copy wl-clipboard
+# v7.0.0-alpha.7: clipboard history backend
+check_cmd cliphist cliphist
 check_cmd magick imagemagick   # v6.15: annotation compose + JPG copy
 check_cmd nmcli networkmanager
 check_cmd bluetoothctl bluez-utils
@@ -825,6 +2155,17 @@ if command -v fc-list >/dev/null 2>&1; then
         echo "  ○ gnome-themes-extra (optional: Adwaita theme pack) — will offer"
         add_opt "gnome-themes-extra"
     fi
+
+    # v7.0.0-alpha.8: Material Symbols Outlined (search bar +
+    # clipboard panel icons). Without this font, MaterialIcons
+    # singleton falls back to Nerd Font glyphs (functional but less
+    # crisp). Detected via fc-list match on "Material Symbols Outlined".
+    if fc-list 2>/dev/null | grep -iq "Material Symbols Outlined"; then
+        echo "    ✓ Material Symbols Outlined (installed)"
+    else
+        echo "  ○ Material Symbols Outlined missing — will offer: ttf-material-symbols-variable-git (AUR)"
+        add_opt "ttf-material-symbols-variable-git"
+    fi
 else
     echo "  ○ fc-list not available — can't verify font variants"
     add_opt "fontconfig"
@@ -900,8 +2241,27 @@ fi
 echo ""
 echo "[2/9] Backup..."
 if [ -d "$SHELL_DIR" ]; then
+    # v7.0.0-alpha.4: detect v6 → v7 transition and print a louder
+    # banner so user knows their previous install is preserved.
+    OLD_VER=""
+    if [ -f "$SHELL_DIR/ZenVersion.qml" ]; then
+        OLD_VER=$(grep -m1 'readonly property string version:' "$SHELL_DIR/ZenVersion.qml" \
+            | sed 's/.*"\([^"]*\)".*/\1/')
+    fi
     cp -r "$SHELL_DIR" "$SHELL_DIR.bak-$TS"
-    echo "    $SHELL_DIR → .bak-$TS"
+    if [ -n "$OLD_VER" ] && [ "${OLD_VER#v6}" != "$OLD_VER" ]; then
+        echo "    ┌──────────────────────────────────────────────────────────┐"
+        echo "    │  v6 → v7 MAJOR UPGRADE                                    │"
+        echo "    │  Previous install backed up to:                           │"
+        echo "    │    $SHELL_DIR.bak-$TS"
+        echo "    │  This is your safety net. To roll back manually:          │"
+        echo "    │    rm -rf '$SHELL_DIR'"
+        echo "    │    mv '$SHELL_DIR.bak-$TS' '$SHELL_DIR'"
+        echo "    │    qs -r"
+        echo "    └──────────────────────────────────────────────────────────┘"
+    else
+        echo "    $SHELL_DIR → .bak-$TS"
+    fi
 fi
 [ -f "$HYPR_DIR/modules/binds.conf" ] && \
     cp "$HYPR_DIR/modules/binds.conf" "$HYPR_DIR/modules/binds.conf.bak-$TS" && \
@@ -938,9 +2298,82 @@ echo "    Done"
 # ═══════════════════════════════════════════════════════════════
 echo ""
 echo "[4/9] Install QML files..."
+# v7.0.0-beta.1-hf95: CLEAN the old top-level *.qml BEFORE copying, and
+# clear Qt's compiled QML cache. A plain merge-copy left stale modules in
+# place — if a build removed/renamed a file, or a property name changed
+# (e.g. `vertical` → `zenVertical`), the OLD compiled copy in the config
+# dir / qmlcache kept loading and broke the launch with
+# "Cannot assign to non-existent property". Settings (*.json), scripts/,
+# and other subdirs are preserved — only stale top-level QML + the
+# compiled cache are wiped, then the fresh QML copied in.
+echo "    Clearing Qt/Quickshell compiled QML cache (*.qmlc/*.jsc)…"
+for cdir in \
+    "$HOME/.cache/quickshell/qmlcache" \
+    "$HOME/.cache/quickshell" \
+    "${XDG_CACHE_HOME:-$HOME/.cache}/qmlcache" ; do
+    [ -d "$cdir" ] && find "$cdir" -type f \( -name "*.qmlc" -o -name "*.jsc" \) -delete 2>/dev/null || true
+done
+find "$SHELL_DIR" -type f \( -name "*.qmlc" -o -name "*.jsc" \) -delete 2>/dev/null || true
+
+# v7.0.0-beta.1-hf95.16: ATOMIC update order. The previous code deleted
+# ALL top-level *.qml and THEN copied the new ones. If Quickshell was
+# running (live config) and happened to reload during that gap, shell.qml
+# didn't exist yet → "Failed to load configuration … shell.qml[-1:-1]:
+# File not found" (exactly the transient install-time error). Fix:
+#   1) copy the fresh QML in FIRST (overwrites in place — shell.qml is
+#      never missing), then
+#   2) PRUNE only the stale top-level QML that no longer exists in source
+#      (handles renamed/removed modules, the original reason for cleaning).
+echo "    Installing fresh QML (copy-first, atomic)…"
 cp "$SCRIPT_DIR/zen-shell-v5/"*.qml "$SHELL_DIR/"
+echo "    Pruning stale top-level QML no longer in this build…"
+for f in "$SHELL_DIR"/*.qml; do
+    [ -e "$f" ] || continue
+    base="$(basename "$f")"
+    if [ ! -e "$SCRIPT_DIR/zen-shell-v5/$base" ]; then
+        rm -f "$f"
+        echo "      removed stale: $base"
+    fi
+done
 INSTALLED_QML_COUNT=$(ls "$SHELL_DIR/"*.qml 2>/dev/null | wc -l)
 echo "    $INSTALLED_QML_COUNT QML files installed"
+# v7.0.0-beta.1-hf95: verify the freshly-installed source carries the
+# current vertical property, so a stale file can never silently linger.
+if grep -q 'property bool zenVertical' "$SHELL_DIR/Workspaces.qml" 2>/dev/null; then
+    echo "    ✓ Workspaces.qml has zenVertical (vertical bar will load)"
+else
+    echo "    ⚠️  Workspaces.qml missing zenVertical — source copy may have failed!"
+fi
+# v7.0.0-beta.1-hf95.1: widen the stale-file guard beyond Workspaces.
+# BarVertical.qml assigns `zenVertical: true` to EVERY module below, so a
+# stale copy of ANY of them aborts the vertical-bar load with the same
+# "Cannot assign to non-existent property zenVertical" error. Additive —
+# the Workspaces check above is preserved; this covers the remaining set.
+for _vm in Clock MusicWidget SysRow SystemTray Taskbar WindowTitle; do
+    if grep -q 'property bool zenVertical' "$SHELL_DIR/$_vm.qml" 2>/dev/null; then
+        echo "    ✓ $_vm.qml has zenVertical"
+    else
+        echo "    ⚠️  $_vm.qml missing zenVertical — source copy may have failed!"
+    fi
+done
+
+# v7.0.0-beta.1-hf31 (Karui) — Updates Panel helper scripts.
+# These live INSIDE the install dir (not in $BIN_DIR) so that snapshot
+# and rollback cover them atomically along with the QML — script
+# versions stay matched to QML versions across rollback boundaries.
+# ZenUpdateService.qml calls them by full path via `scriptsDir`.
+mkdir -p "$SHELL_DIR/scripts"
+V7_SCRIPTS=(zen-update-check.sh zen-snapshot-create.sh zen-rollback.sh zen-update-install.sh)
+V7_INSTALLED=0
+for s in "${V7_SCRIPTS[@]}"; do
+    src="$SCRIPT_DIR/scripts/$s"
+    if [ -f "$src" ]; then
+        cp "$src" "$SHELL_DIR/scripts/$s"
+        chmod +x "$SHELL_DIR/scripts/$s"
+        V7_INSTALLED=$((V7_INSTALLED + 1))
+    fi
+done
+echo "    $V7_INSTALLED/${#V7_SCRIPTS[@]} v7 update-panel scripts installed → $SHELL_DIR/scripts/"
 
 # v6.16.3.5: Deploy bundled Start Button logos
 # These ship with the shell under zen-shell-v5/assets/logos/ and get
@@ -979,8 +2412,22 @@ echo "    Auto-applying bar modules..."
 # time. Bar.qml uses `Clock {}` directly; ZenClock.qml is unused at
 # runtime and only kept on disk for back-compat. The pair entry is
 # kept in this comment block as documentation; the loop now only
-# handles Workspaces and SysMonitor pairs.
-for pair in "ZenWorkspaces.qml:Workspaces.qml" "ZenSysMonitor.qml:SysMonitor.qml"; do
+# handles the SysMonitor pair (Workspaces removed in hf95.2 — see below).
+# v7.0.0-beta.1-hf95.2: the `ZenWorkspaces.qml:Workspaces.qml` pair has
+# ALSO been REMOVED from this loop — for the exact same reason Clock was
+# removed in .53. Workspaces.qml is the canonical runtime module (Bar.qml
+# AND BarVertical.qml instantiate `Workspaces {}` directly); ZenWorkspaces.qml
+# is legacy and unused at runtime (only referenced as a manual auto-apply
+# label in BarModulesPage). The size heuristic backfired catastrophically:
+# the legacy ZenWorkspaces.qml (3845B, no `zenVertical`) is 89% the size of
+# the live Workspaces.qml (4288B, has `zenVertical`) — a <20% gap, so the
+# loop took the `src→dst` branch and clobbered the fresh Workspaces.qml with
+# the stale alias, DROPPING the `zenVertical` property and crashing the
+# vertical bar with "Cannot assign to non-existent property zenVertical".
+# The fresh Workspaces.qml is already in place from the [4/9] bulk copy, so
+# we simply leave it. ZenWorkspaces.qml stays on disk for back-compat.
+# Wala tayong babawasan — no file removed, only the clobber stopped.
+for pair in "ZenSysMonitor.qml:SysMonitor.qml"; do
     src="${pair%%:*}"; dst="${pair##*:}"
     [ -f "$SHELL_DIR/$src" ] || continue
 
@@ -1034,6 +2481,46 @@ if [ -f "$SHELL_DIR/Clock.qml" ]; then
 fi
 
 # ═══════════════════════════════════════════════════════════════
+# [4/9] Self-heal — authoritative re-assert of canonical bar modules
+# ═══════════════════════════════════════════════════════════════
+# v7.0.0-beta.1-hf95.2: the LAST word on the vertical-bar modules. Any
+# alias/auto-apply/compat step above (now, or added in future) could
+# re-copy an older file over a freshly-installed canonical module — which
+# is exactly what the Zen*→canonical loop did to Workspaces.qml, dropping
+# the `zenVertical` property and crashing the bar. To make install.sh
+# self-healing, re-copy every module that BarVertical.qml assigns
+# `zenVertical: true` to, straight from the tarball source, then clear the
+# compiled QML cache one final time. Idempotent + additive: identical
+# files overwrite themselves, nothing is removed.
+echo ""
+echo "[4/9] Self-heal: re-asserting canonical vertical-bar modules…"
+SELF_HEAL_OK=1
+for _vm in Clock MusicWidget SysRow SystemTray Taskbar WindowTitle Workspaces; do
+    _srcf="$SCRIPT_DIR/zen-shell-v5/$_vm.qml"
+    [ -f "$_srcf" ] && cp "$_srcf" "$SHELL_DIR/$_vm.qml"
+    if grep -q 'property bool zenVertical' "$SHELL_DIR/$_vm.qml" 2>/dev/null; then
+        echo "      ✓ $_vm.qml (zenVertical present)"
+    else
+        echo "      ⚠️  $_vm.qml STILL missing zenVertical after re-copy — check tarball source!"
+        SELF_HEAL_OK=0
+    fi
+done
+# Recompile clean: clear compiled QML cache so the re-asserted sources win.
+for cdir in \
+    "$HOME/.cache/quickshell/qmlcache" \
+    "$HOME/.cache/quickshell" \
+    "$HOME/.cache/org.quickshell" \
+    "${XDG_CACHE_HOME:-$HOME/.cache}/qmlcache" ; do
+    [ -d "$cdir" ] && find "$cdir" -type f \( -name "*.qmlc" -o -name "*.jsc" \) -delete 2>/dev/null || true
+done
+find "$SHELL_DIR" -type f \( -name "*.qmlc" -o -name "*.jsc" \) -delete 2>/dev/null || true
+if [ "$SELF_HEAL_OK" = "1" ]; then
+    echo "      All vertical-bar modules verified — the zenVertical crash cannot occur."
+else
+    echo "      ⚠️  Self-heal could not verify every module — the vertical bar may fail to load."
+fi
+
+# ═══════════════════════════════════════════════════════════════
 # [5/9] Install scripts
 # ═══════════════════════════════════════════════════════════════
 echo ""
@@ -1053,8 +2540,11 @@ for script in \
     zen-monitor-profile \
     zen-smart-game-watcher.sh \
     zen-quickprompt.sh \
+    zen-quickterm.sh \
     zen-hyprpm-fix.sh \
+    zen-hyprbars-doctor.sh \
     zen-darkmode.sh \
+    zen-debug-launch.sh \
     install-hyprbars.sh
 do
     src="$SCRIPT_DIR/scripts/$script"
@@ -1215,6 +2705,99 @@ if [ -f "$SERVICE_SRC" ]; then
                 pid=$(systemctl --user show -p MainPID zen-monitor-watcher.service 2>/dev/null | cut -d= -f2)
                 echo "    ✓ watcher restarted (now running v2, PID ${pid:-?})"
             fi
+        fi
+    fi
+fi
+
+# ═══════════════════════════════════════════════════════════════
+# v7.0.0-beta.1-hf82y — Zen Plugin Loader systemd service
+# ═══════════════════════════════════════════════════════════════
+# Replaces the exec-once = zen-plugin-bootstrap.sh autostart line with
+# a proper systemd --user service ordered after graphical-session.target.
+#
+# Why systemd over exec-once:
+#   - exec-once fires DURING Hyprland startup, before IPC socket is fully
+#     ready → bootstrap had to `sleep` and pray
+#   - systemd waits for graphical-session.target → IPC guaranteed up
+#   - Uses cached .so paths to do direct `hyprctl plugin load /path/foo.so`
+#     instead of `hyprpm reload` (which re-scans + rebuilds = slow)
+#   - 5x faster: ~300-500ms vs 2-5 seconds for hyprpm reload
+#   - Falls back to zen-plugin-bootstrap.sh if cache is stale (Hyprland
+#     version changed) or any .so fails to load — never leaves user with
+#     no plugins loaded
+# ═══════════════════════════════════════════════════════════════
+# v7.0.0-beta.1-hf82y — Migrate legacy style names (pixel→compact, samsung→squircle)
+# ═══════════════════════════════════════════════════════════════
+# hf82w shipped with style values "pixel" and "samsung". hf82x renames
+# these for trademark safety to "compact" and "squircle". Migrate any
+# existing user state silently. Idempotent. Backup only created if a
+# rename actually happens.
+DESKTOP_STATE="$HOME/.local/share/quickshell/zen-shell/desktop-icons.json"
+if [ -f "$DESKTOP_STATE" ] && grep -qE '"style":\s*"(pixel|samsung)"' "$DESKTOP_STATE" 2>/dev/null; then
+    cp "$DESKTOP_STATE" "$DESKTOP_STATE.pre-hf82x-${TS}"
+    sed -i -E 's/("style":\s*)"pixel"/\1"compact"/g; s/("style":\s*)"samsung"/\1"squircle"/g' "$DESKTOP_STATE"
+    echo ""
+    echo "  • Migrated desktop style names (pixel→compact, samsung→squircle)"
+    echo "    Backup: $DESKTOP_STATE.pre-hf82x-${TS}"
+fi
+
+echo ""
+echo "  • Plugin loader (instant boot)"
+
+# Install the loader + cache rebuild scripts
+for s in zen-plugin-loader.sh zen-plugin-cache-rebuild.sh; do
+    src="$SCRIPT_DIR/scripts/$s"
+    if [ -f "$src" ]; then
+        cp "$src" "$BIN_DIR/$s"
+        chmod +x "$BIN_DIR/$s"
+        echo "    $BIN_DIR/$s"
+    fi
+done
+
+# Install the systemd user service unit
+PLUGIN_SERVICE_SRC="$SCRIPT_DIR/systemd/zen-plugin-loader.service"
+if [ -f "$PLUGIN_SERVICE_SRC" ]; then
+    mkdir -p "$SYSTEMD_USER_DIR"
+    cp "$PLUGIN_SERVICE_SRC" "$SYSTEMD_USER_DIR/zen-plugin-loader.service"
+    echo "    $SYSTEMD_USER_DIR/zen-plugin-loader.service"
+
+    # Reload systemd user manager + enable the service
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl --user daemon-reload 2>/dev/null || true
+        if systemctl --user enable zen-plugin-loader.service 2>&1 \
+            | grep -v "^Created symlink" | grep -v "^$"; then
+            : # Print non-trivial output
+        fi
+        echo "    enabled zen-plugin-loader.service (fires on graphical-session.target)"
+    fi
+
+    # Remove the legacy exec-once from autostart.conf since the service
+    # supersedes it. If the user has customized autostart, we only remove
+    # OUR line — keep everything else intact. Backup created first.
+    AUTOSTART="$HYPR_DIR/modules/autostart.conf"
+    if [ -f "$AUTOSTART" ] && grep -q "^exec-once = ~/.local/bin/zen-plugin-bootstrap.sh" "$AUTOSTART"; then
+        cp "$AUTOSTART" "$AUTOSTART.pre-hf82w-${TS}"
+        # Remove our exec-once line + the preceding comment lines we added
+        # (v6.16.4.12.6.44 explainer block + the "Load Hyprland plugins" header)
+        perl -i -0777 -pe '
+            s{\n#\s*Load Hyprland plugins.*?\nexec-once = ~/\.local/bin/zen-plugin-bootstrap\.sh\n}{
+\n# v7.0.0-beta.1-hf82y: plugin bootstrap moved to systemd user service
+#   zen-plugin-loader.service (fires after graphical-session.target).
+#   Direct hyprctl plugin load from cache — 5x faster than hyprpm reload.
+#   Falls back to zen-plugin-bootstrap.sh if cache is stale.
+}sm;
+        ' "$AUTOSTART"
+        echo "    removed legacy exec-once from autostart.conf (backup: .pre-hf82w-${TS})"
+    fi
+
+    # Build the initial cache so the first boot after install uses fast path.
+    # Don't fail install if this errors — the loader falls back to bootstrap.
+    if [ -x "$BIN_DIR/zen-plugin-cache-rebuild.sh" ] && command -v hyprctl >/dev/null 2>&1; then
+        if hyprctl version >/dev/null 2>&1; then
+            cache_result=$("$BIN_DIR/zen-plugin-cache-rebuild.sh" 2>&1 || true)
+            echo "    $cache_result"
+        else
+            echo "    (skipping initial cache build — Hyprland not running; will build on next bootstrap)"
         fi
     fi
 fi
@@ -1392,12 +2975,33 @@ echo "[6/9] Hyprland configs..."
 [ -f "$SCRIPT_DIR/hypr-config/binds.conf" ] && \
     cp "$SCRIPT_DIR/hypr-config/binds.conf" "$HYPR_DIR/modules/binds.conf" && \
     echo "    binds.conf"
+# v7.0.0-beta.1-hf82y: sanitize binds.conf for the user's Hyprland
+# version (handles 0.54+ togglesplit/swapsplit removal). Idempotent
+# no-op on older versions.
+_sanitize_hl_conf "$HYPR_DIR/modules/binds.conf"
+
 [ -f "$SCRIPT_DIR/hypr-config/keybinds-update.conf" ] && \
     cp "$SCRIPT_DIR/hypr-config/keybinds-update.conf" "$SHELL_DIR/config/keybinds-update.conf" && \
     echo "    keybinds-update.conf (v6.15: carried from v6.14)"
+# v7.0.0-beta.1-hf82y: sanitize the v8 install dir version too
+_sanitize_hl_conf "$SHELL_DIR/config/keybinds-update.conf"
+
 [ -f "$SCRIPT_DIR/hypr-config/hyprland-layer-rules.conf" ] && \
     cp "$SCRIPT_DIR/hypr-config/hyprland-layer-rules.conf" "$SHELL_DIR/config/hyprland-layer-rules.conf" && \
     echo "    hyprland-layer-rules.conf (v6.15: carried from v6.14)"
+
+# v7.0.0-beta.1-hf95.13: quick drop-down terminal config (SEPARATE from
+# the user's normal Alacritty). Preserve-if-exists so user edits survive.
+QUICK_ALA_DIR="$HOME/.config/alacritty-quick"
+if [ -f "$SCRIPT_DIR/hypr-config/alacritty-quick/alacritty.toml" ]; then
+    mkdir -p "$QUICK_ALA_DIR"
+    if [ ! -f "$QUICK_ALA_DIR/alacritty.toml" ]; then
+        cp "$SCRIPT_DIR/hypr-config/alacritty-quick/alacritty.toml" "$QUICK_ALA_DIR/alacritty.toml"
+        echo "    alacritty-quick/alacritty.toml (quick drop-down terminal)"
+    else
+        echo "    alacritty-quick/alacritty.toml (kept existing — user customizable)"
+    fi
+fi
 
 # ─────────────────────────────────────────────────────────────────
 # v6.15.15: animations.conf / autostart.conf / look_and_feel.conf
@@ -1410,9 +3014,14 @@ for mod in animations.conf autostart.conf look_and_feel.conf lid-behavior.conf p
     if [ -f "$src" ]; then
         if [ -f "$dst" ]; then
             echo "    $mod (already exists — preserved)"
+            # v7.0.0-beta.1-hf82y: sanitize EXISTING file too — user's
+            # current file may contain deprecated keys from a previous
+            # install before they upgraded Hyprland.
+            _sanitize_hl_conf "$dst"
         else
             cp "$src" "$dst"
             echo "    $mod (installed default)"
+            _sanitize_hl_conf "$dst"
         fi
     fi
 done
@@ -1478,6 +3087,153 @@ fi
 HCONF="$HYPR_DIR/hyprland.conf"
 TEMPLATE="$SCRIPT_DIR/hypr-config/hyprland.conf.template"
 
+# v7.0.0-beta.1-hf82y ───────────────────────────────────────────────
+# HYPRLAND VERSION-AWARE CONFIG SANITIZER
+#
+# Why this exists: Hyprland ships breaking changes in minor versions
+# that remove or rename config keys / dispatchers. Examples:
+#   - 0.54: removed `togglesplit` + `swapsplit` dispatchers
+#           (use `layoutmsg, togglesplit` / `layoutmsg, swapsplit`)
+#   - 0.55: removed `dwindle:pseudotile`
+#           removed `decoration:shadow:ignore_window`
+#           removed `render:cm_fs_passthrough`
+#           moved `misc:vfr` to `debug:vfr`
+#
+# Each removal makes Hyprland error-spam on startup until the user
+# (or their distro maintainer) edits the config. Zen Shell ships
+# its own hyprland.conf.template + modules/*.conf, so we own the
+# responsibility for keeping these compatible across Hyprland
+# versions our users actually run.
+#
+# Strategy:
+#   1. Detect installed Hyprland version (`hyprctl version`)
+#   2. For each known breaking change, if user's version >= the
+#      version that removed the key, strip the key from any file
+#      we're about to write (template + modules/*.conf)
+#   3. Keep older versions working too — the strip is idempotent
+#      and only removes lines that ARE deprecated by the version
+#
+# When Hyprland 0.56 ships and removes more keys, add a new
+# `_strip_hl56_*` function and invoke it from `_sanitize_hl_conf`.
+# That's the only file-edit needed to extend the matrix.
+#
+# Tested compat range as of hf82l:
+#   - 0.53 (older) — passes through, all keys present
+#   - 0.54         — strips togglesplit/swapsplit invocations
+#   - 0.55         — additionally strips pseudotile/shadow:ignore_window/
+#                    cm_fs_passthrough; rewrites misc:vfr → debug:vfr
+#   - 0.56+        — same as 0.55 until we discover new breakages
+# ───────────────────────────────────────────────────────────────────
+
+# Detect Hyprland major.minor (e.g. "0.55"). Returns "0.0" if hyprctl
+# isn't installed or returns something unparseable — we then fall back
+# to assuming "newest" (apply all known sanitizers) since shipping
+# extra removals is safer than missing a removal.
+_detect_hl_minor() {
+    local raw
+    raw=$(hyprctl version 2>/dev/null | grep -oE 'Tag: v?[0-9]+\.[0-9]+' | head -1 | sed 's/Tag: v\?//')
+    if [ -z "$raw" ]; then
+        # Try alternate format
+        raw=$(hyprctl version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+' | head -1)
+    fi
+    if [ -z "$raw" ]; then
+        echo "999.999"  # unknown — assume newest
+        return
+    fi
+    echo "$raw"
+}
+
+# Compare two semver-ish strings (X.Y format only). Returns 0 if
+# $1 >= $2, 1 otherwise. Used in if-statements like:
+#   if _hl_version_at_least "$HL_MIN" "0.54"; then ...
+_hl_version_at_least() {
+    local have_maj have_min want_maj want_min
+    have_maj=$(echo "$1" | cut -d. -f1)
+    have_min=$(echo "$1" | cut -d. -f2)
+    want_maj=$(echo "$2" | cut -d. -f1)
+    want_min=$(echo "$2" | cut -d. -f2)
+    [ "$have_maj" -gt "$want_maj" ] && return 0
+    [ "$have_maj" -lt "$want_maj" ] && return 1
+    [ "$have_min" -ge "$want_min" ] && return 0
+    return 1
+}
+
+# Strip Hyprland 0.54 breakages (togglesplit/swapsplit) from a file.
+# Operates in-place. Backs up to ${f}.pre-hl54-${TS} on first edit.
+_strip_hl54_breakages() {
+    local f="$1"
+    [ -f "$f" ] || return 0
+    if grep -qE "(^|[^a-zA-Z_])togglesplit([^a-zA-Z_]|$)" "$f" 2>/dev/null \
+       || grep -qE "(^|[^a-zA-Z_])swapsplit([^a-zA-Z_]|$)" "$f" 2>/dev/null; then
+        cp "$f" "${f}.pre-hl54-${TS}" 2>/dev/null || true
+        # bind = MOD, KEY, togglesplit          → bind = MOD, KEY, layoutmsg, togglesplit
+        # bind = MOD, KEY, swapsplit            → bind = MOD, KEY, layoutmsg, swapsplit
+        # bindd = MOD, KEY, desc, togglesplit   → bindd = MOD, KEY, desc, layoutmsg, togglesplit
+        #
+        # Pattern: capture the "," + optional whitespace separator that
+        # comes BEFORE togglesplit, then prepend "layoutmsg, ". The
+        # negation guard `/layoutmsg.*togglesplit/!{...}` skips lines
+        # that ALREADY have `layoutmsg, togglesplit` so reruns are
+        # idempotent.
+        sed -i -E '
+            /layoutmsg[[:space:]]*,[[:space:]]*togglesplit/!{s/(,[[:space:]]*)togglesplit\b/\1layoutmsg, togglesplit/g}
+            /layoutmsg[[:space:]]*,[[:space:]]*swapsplit/!{s/(,[[:space:]]*)swapsplit\b/\1layoutmsg, swapsplit/g}
+        ' "$f"
+        echo "    hl54 sanitize: rewrote togglesplit/swapsplit → layoutmsg in $(basename "$f")"
+    fi
+}
+
+# Strip Hyprland 0.55 breakages from a file.
+_strip_hl55_breakages() {
+    local f="$1"
+    [ -f "$f" ] || return 0
+    local backed_up=0
+    local backup_path="${f}.pre-hl55-${TS}"
+
+    # 1. dwindle:pseudotile — remove the whole line
+    if grep -qE "^[[:space:]]*pseudotile[[:space:]]*=" "$f" 2>/dev/null; then
+        cp "$f" "$backup_path" && backed_up=1
+        sed -i -E "/^[[:space:]]*pseudotile[[:space:]]*=/d" "$f"
+        echo "    hl55 sanitize: removed pseudotile= from $(basename "$f")"
+    fi
+
+    # 2. decoration:shadow:ignore_window — remove the line (default is now enabled)
+    if grep -qE "^[[:space:]]*ignore_window[[:space:]]*=" "$f" 2>/dev/null; then
+        [ "$backed_up" -eq 0 ] && cp "$f" "$backup_path" && backed_up=1
+        sed -i -E "/^[[:space:]]*ignore_window[[:space:]]*=/d" "$f"
+        echo "    hl55 sanitize: removed ignore_window= from $(basename "$f")"
+    fi
+
+    # 3. render:cm_fs_passthrough — remove
+    if grep -qE "^[[:space:]]*cm_fs_passthrough[[:space:]]*=" "$f" 2>/dev/null; then
+        [ "$backed_up" -eq 0 ] && cp "$f" "$backup_path" && backed_up=1
+        sed -i -E "/^[[:space:]]*cm_fs_passthrough[[:space:]]*=/d" "$f"
+        echo "    hl55 sanitize: removed cm_fs_passthrough= from $(basename "$f")"
+    fi
+
+    # 4. misc:vfr → debug:vfr — this one's trickier because we need
+    # context (which block we're in). For now just leave a warning;
+    # auto-migration would require a proper hyprlang parser.
+    if grep -qE "^[[:space:]]*vfr[[:space:]]*=" "$f" 2>/dev/null; then
+        echo "    hl55 NOTE: $(basename "$f") contains 'vfr =' which may need to move from misc{ } to debug{ } block manually"
+    fi
+}
+
+# Master sanitizer: detect version + apply all relevant strip
+# functions to the given file.
+_sanitize_hl_conf() {
+    local f="$1"
+    [ -f "$f" ] || return 0
+    local HL_MIN
+    HL_MIN=$(_detect_hl_minor)
+    if _hl_version_at_least "$HL_MIN" "0.54"; then
+        _strip_hl54_breakages "$f"
+    fi
+    if _hl_version_at_least "$HL_MIN" "0.55"; then
+        _strip_hl55_breakages "$f"
+    fi
+}
+
 # Helper: dedupe quickshell/qs exec-once lines from a hyprland.conf
 # (autostart.conf is the single source of truth for quickshell startup)
 dedupe_quickshell_execonce() {
@@ -1499,10 +3255,17 @@ if [ -f "$TEMPLATE" ]; then
         mkdir -p "$HYPR_DIR"
         cp "$TEMPLATE" "$HCONF"
         echo "    hyprland.conf — installed canonical template (fresh install)"
+        # v7.0.0-beta.1-hf82y: version-aware sanitizer pass
+        _sanitize_hl_conf "$HCONF"
     else
         # Existing hyprland.conf — preserve, just append missing source
         # lines + dedupe quickshell exec-once
         added=0
+
+        # v7.0.0-beta.1-hf82y: sanitize the existing file FIRST so
+        # subsequent appends don't re-introduce removed keys via the
+        # template (template itself is sanitized once when read).
+        _sanitize_hl_conf "$HCONF"
 
         # First, dedupe any double quickshell launches
         dedupe_quickshell_execonce "$HCONF" && added=$((added+1))
@@ -1542,6 +3305,106 @@ if [ -f "$TEMPLATE" ]; then
         grep -q "hyprland-layer-rules.conf" "$HCONF" || {
             echo "source = ~/.config/quickshell/zen-shell/config/hyprland-layer-rules.conf" >> "$HCONF"
             added=$((added+1)); }
+        # v7.0.0-beta.1-hf82y: zen-window-rules.conf — managed by
+        # Settings → App Float Rules page (added in hf82n).
+        #
+        # IMPORTANT FIX from hf82n: Hyprland 0.52+ treats `source=`
+        # with a missing target as a HARD ERROR (not a warning), per
+        # upstream issue github.com/hyprwm/Hyprland/discussions/12737
+        # and confirmed in user reports. The hf82n install only wrote
+        # the source line, expecting WindowRulesService.qml to create
+        # the file on first toggle — but on FRESH boot before any
+        # toggle, Hyprland would error: "source= globbing error: found
+        # no match".
+        #
+        # Fix: ALWAYS create an empty placeholder file before writing
+        # the source line. Idempotent (won't clobber an existing file
+        # with rules in it). WindowRulesService.qml later overwrites
+        # this placeholder with real windowrulev2 lines when the user
+        # toggles their first app's float.
+        mkdir -p "$HYPR_DIR/modules"
+        if [ ! -f "$HYPR_DIR/modules/zen-window-rules.conf" ]; then
+            cat > "$HYPR_DIR/modules/zen-window-rules.conf" << 'ZWRPLACEHOLDER'
+# Managed by Zen Shell — Settings → App Float Rules
+# This file is created empty at install time so Hyprland's source=
+# directive doesn't error on first boot. When you toggle any app's
+# float rule in Settings, WindowRulesService.qml overwrites this
+# file with the actual windowrulev2 lines.
+#
+# To stop using zen-shell-managed float rules entirely:
+#   1. Remove the matching source= line from ~/.config/hypr/hyprland.conf
+#   2. Delete this file: rm ~/.config/hypr/modules/zen-window-rules.conf
+ZWRPLACEHOLDER
+            echo "    Created empty placeholder zen-window-rules.conf"
+        fi
+        # Now safe to add the source line (the target file always exists).
+        grep -q "modules/zen-window-rules.conf" "$HCONF" || {
+            echo "source = ~/.config/hypr/modules/zen-window-rules.conf" >> "$HCONF"
+            added=$((added+1)); }
+
+        # v7.0.0-beta.1-hf82y: migrate any deprecated/broken windowrule
+        # syntax to the Hyprland 0.53+ canonical form, then add smart
+        # defaults (center + size%) to bare 'float on' lines.
+        #
+        # Four historical formats that need handling:
+        #   1. hf82n-s legacy:     windowrulev2 = float, class:^(N)$
+        #   2. hf82t intermediate: windowrule   = float, class:^(N)$           (broken on 0.55)
+        #   3. hf82u syntax-only:  windowrule   = match:class ^(N)$, float on  (works but no smart sizing)
+        #   4. hf82v current:      windowrule   = match:class ^(N)$, float on, center on, size W% H%
+        #
+        # Two-pass Perl rewrite:
+        #   Pass A: formats 1+2 → format 3 (fix syntax)
+        #   Pass B: format 3 → format 4 (add smart defaults)
+        #
+        # The QML service ALSO runs _migrateFromConf on first launch and
+        # re-writes the file from JSON. So this install-time migration is
+        # belt-and-suspenders — guarantees no error overlay on first
+        # post-install Hyprland reload, even before Quickshell restarts.
+        if [ -f "$HYPR_DIR/modules/zen-window-rules.conf" ]; then
+            # Detect if any migration is needed
+            needs_migration=0
+            if grep -qE "(windowrulev2[[:space:]]*=[[:space:]]*float)|(^[[:space:]]*windowrule[[:space:]]*=[[:space:]]*float[[:space:]]*,[[:space:]]*class:)" \
+                "$HYPR_DIR/modules/zen-window-rules.conf" 2>/dev/null; then
+                needs_migration=1
+            fi
+            if grep -qE "^[[:space:]]*windowrule[[:space:]]*=[[:space:]]*match:class[[:space:]]*\^\([^)]+\)\\\$,[[:space:]]*float[[:space:]]+on[[:space:]]*#" \
+                "$HYPR_DIR/modules/zen-window-rules.conf" 2>/dev/null; then
+                # Has hf82u-style bare 'float on' lines without center/size
+                needs_migration=1
+            fi
+
+            if [ "$needs_migration" -eq 1 ]; then
+                cp "$HYPR_DIR/modules/zen-window-rules.conf" \
+                   "$HYPR_DIR/modules/zen-window-rules.conf.pre-hf82v-${TS}"
+
+                # Pass A: fix broken syntax (formats 1+2 → 3)
+                perl -i -pe '
+                    s{^(\s*)windowrule(?:v2)?(\s*=\s*)float\s*,\s*class:\^\(([^)]+)\)\$(.*)$}
+                     {$1windowrule$2match:class ^($3)\$, float on$4}gx;
+                ' "$HYPR_DIR/modules/zen-window-rules.conf"
+
+                # Pass B: add smart defaults to bare 'float on' lines (format 3 → 4)
+                # Smart bucket function in Perl mirrors QML sizeBuckets
+                perl -i -pe '
+                    if (/^(\s*windowrule\s*=\s*match:class\s*\^\(([^)]+)\)\$,\s*float\s+on)(\s*#\s*zen-shell-float.*)?$/) {
+                        my ($prefix, $cls, $tail) = ($1, $2, $3 // "");
+                        my ($w, $h);
+                        if    ($cls =~ /calc/i)                                                       { ($w, $h) = (25, 35); }
+                        elsif ($cls =~ /picture[\s\-_]?in[\s\-_]?picture/i)                          { ($w, $h) = (30, 30); }
+                        elsif ($cls =~ /^(brave|firefox|chromium|vivaldi|opera|brave-browser)/i)      { ($w, $h) = (75, 75); }
+                        elsif ($cls =~ /^(code|codium|vscode)/i)                                      { ($w, $h) = (80, 80); }
+                        elsif ($cls =~ /(kitty|foot|wezterm|alacritty|gnome-terminal|xterm)/i)        { ($w, $h) = (60, 70); }
+                        elsif ($cls =~ /(pavucontrol|blueman|nm-connection|nm-applet)/i)              { ($w, $h) = (40, 60); }
+                        elsif ($cls =~ /(steam|lutris|heroic)/i)                                      { ($w, $h) = (70, 80); }
+                        elsif ($cls =~ /(thunar|nautilus|dolphin|nemo|pcmanfm)/i)                     { ($w, $h) = (65, 70); }
+                        else                                                                          { ($w, $h) = (65, 70); }
+                        $_ = "${prefix}, center on, size ${w}% ${h}%${tail}\n";
+                    }
+                ' "$HYPR_DIR/modules/zen-window-rules.conf"
+
+                echo "    Migrated rules → smart defaults (backup: .pre-hf82v-${TS})"
+            fi
+        fi
 
         if [ $added -gt 0 ]; then
             echo "    Added $added line(s) to hyprland.conf"
@@ -1782,6 +3645,78 @@ _hyprpm_run_update() {
     return 0
 }
 
+# ════════════════════════════════════════════════════════════════
+# v7.0.0-beta.1-hf95.24 — SMART Hyprland/hyprpm compatibility detection
+# ════════════════════════════════════════════════════════════════
+# hyprpm pins plugins to a Hyprland release tag and builds them against
+# headers it fetches for THAT tag. If the running Hyprland (e.g. a
+# CachyOS / -git / fast-moving repo build) doesn't match the headers
+# hyprpm can resolve, the plugin build fails with header/ABI errors —
+# which is the recurring hyprbars failure. These helpers detect the
+# situation up front and pick the right path automatically instead of
+# blindly running hyprpm and dumping a wall of errors.
+
+# Print the running Hyprland version tag (e.g. 0.55.2) and commit.
+_hypr_detect_version() {
+    local raw tag commit
+    raw="$(hyprctl version 2>/dev/null)"
+    tag="$(echo "$raw" | grep -oE 'Tag: v?[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1 | sed 's/Tag: v\?//')"
+    [ -z "$tag" ] && tag="$(echo "$raw" | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1)"
+    commit="$(echo "$raw" | grep -oE 'commit [0-9a-f]{7,}' | head -1 | awk '{print $2}')"
+    echo "${tag:-unknown}|${commit:-unknown}"
+}
+
+# Is the Hyprland install a git/AUR/dev build (vs a tagged repo release)?
+# hyprpm's pinned headers rarely match these, so we prefer AUR -git.
+_hypr_is_dev_build() {
+    local raw
+    raw="$(hyprctl version 2>/dev/null)"
+    # "dirty", a date-based/dev tag, or the AUR -git package present.
+    echo "$raw" | grep -qiE "dirty|dev|git" && return 0
+    pacman -Qq hyprland-git >/dev/null 2>&1 && return 0
+    return 1
+}
+
+# Do system hyprland headers exist + match the running version? hyprpm
+# needs matching headers to build; if /usr/include/hyprland is present
+# (from the hyprland package) AUR plugins can build against it directly.
+_hypr_have_system_headers() {
+    [ -d /usr/include/hyprland ] || [ -d /usr/include/hyprland/src ] \
+        || pkg-config --exists hyprland 2>/dev/null
+}
+
+# Automatic AUR fallback: build hyprbars against the SYSTEM headers via
+# the AUR -git package, then symlink into hyprpm's dir. Mirrors
+# scripts/install-hyprbars.sh but non-interactive-friendly. Returns 0 on
+# success. Used when hyprpm can't produce a matching build.
+_hyprbars_aur_fallback() {
+    local HELPER="" PKG="" SO="" HYPRPM_DIR
+    command -v paru >/dev/null && HELPER=paru
+    [ -z "$HELPER" ] && command -v yay >/dev/null && HELPER=yay
+    if [ -z "$HELPER" ]; then
+        echo "      (no AUR helper paru/yay — cannot auto-fallback)"
+        return 1
+    fi
+    # Prefer -git (matches a fast-moving Hyprland), then stable.
+    for c in hyprland-plugin-hyprbars-git hyprland-plugin-hyprbars; do
+        if $HELPER -Si "$c" >/dev/null 2>&1; then PKG="$c"; break; fi
+    done
+    [ -z "$PKG" ] && { echo "      (no hyprbars AUR package found)"; return 1; }
+    echo "      Building $PKG from AUR against system headers…"
+    $HELPER -S --needed --noconfirm "$PKG" 2>&1 | sed 's/^/        /' || return 1
+    for candidate in /usr/lib/libhyprbars.so \
+                     /usr/lib/hyprland-plugins/hyprbars.so \
+                     /usr/lib/hyprland/hyprbars.so; do
+        [ -f "$candidate" ] && SO="$candidate" && break
+    done
+    [ -z "$SO" ] && { echo "      (built, but .so not found in expected paths)"; return 1; }
+    HYPRPM_DIR="$HOME/.local/share/hyprpm/hyprland-plugins/hyprbars"
+    mkdir -p "$HYPRPM_DIR"
+    ln -sf "$SO" "$HYPRPM_DIR/hyprbars.so"
+    echo "      ✓ AUR hyprbars installed + symlinked ($SO)"
+    return 0
+}
+
 # Detect plugins that are already enabled in hyprpm — for `--needed`
 # semantics. Returns space-separated list.
 _hyprpm_already_enabled() {
@@ -1923,10 +3858,44 @@ else
         echo "      ✓ No conflicting sources detected"
     fi
 
+    # ── PHASE 0: smart pre-flight (hf95.24) ──
+    # Detect the Hyprland build and decide whether hyprpm is even likely
+    # to work, so we can route straight to the AUR path on dev/mismatched
+    # builds instead of failing through hyprpm first.
+    HYPR_VC="$(_hypr_detect_version)"
+    HYPR_TAG="${HYPR_VC%%|*}"
+    HYPR_COMMIT="${HYPR_VC##*|}"
+    PREFER_AUR=0
+    echo ""
+    echo "    Phase 0b/4: Detecting Hyprland build…"
+    echo "      Hyprland version: ${HYPR_TAG}  (commit ${HYPR_COMMIT})"
+    if _hypr_is_dev_build; then
+        echo "      Detected a git/dev Hyprland build — hyprpm's pinned headers"
+        echo "      usually won't match these. Will prefer the AUR -git plugin."
+        PREFER_AUR=1
+    fi
+    if _hypr_have_system_headers; then
+        echo "      System Hyprland headers present → AUR plugins can build"
+        echo "      directly against them if hyprpm can't."
+    else
+        echo "      No system Hyprland headers found (install 'hyprland' package"
+        echo "      to enable the AUR fallback build path)."
+    fi
+
     # ── PHASE 1: hyprpm update with smart retry ──
     echo ""
     echo "    Phase 1/4: Updating hyprpm headers (may prompt for sudo)..."
-    if _hyprpm_run_update; then
+    if [ "$PREFER_AUR" = "1" ] && _hypr_have_system_headers; then
+        echo "    (dev build) Trying AUR hyprbars first…"
+        if _hyprbars_aur_fallback; then
+            echo "    ✓ hyprbars installed via AUR — skipping hyprpm header build."
+            HYPRPM_OK=1
+            HYPRBARS_VIA_AUR=1
+        fi
+    fi
+    if [ "${HYPRBARS_VIA_AUR:-0}" = "1" ]; then
+        : # already handled via AUR; skip hyprpm update
+    elif _hyprpm_run_update; then
         echo "    ✓ Headers updated successfully"
     else
         echo ""
@@ -1947,22 +3916,104 @@ else
             echo ""
             echo "    ✗ hyprpm update STILL failed after purge-cache."
             echo ""
+            # v7.0.0-beta.1-hf95.24 — AUTOMATIC AUR fallback. hyprpm can't
+            # produce matching headers (the classic version-mismatch), so
+            # build hyprbars against the system headers via AUR instead of
+            # just printing manual steps.
+            echo "    Auto-fallback: building hyprbars from AUR against system headers…"
+            if _hypr_have_system_headers && _hyprbars_aur_fallback; then
+                echo "    ✓ hyprbars installed via AUR fallback."
+                echo "      (Other hyprpm plugins still need matching headers; this"
+                echo "       fallback covers hyprbars specifically.)"
+                HYPRPM_OK=1
+                HYPRBARS_VIA_AUR=1
+            else
+            echo "    ✗ Automatic AUR fallback unavailable or failed."
+            echo ""
             echo "    Common causes + fixes:"
             echo "      • Hyprland version mismatch with hyprland-headers"
             echo "        → Reinstall: sudo pacman -S --needed hyprland"
             echo "      • Missing polkit/auth daemon (sudo prompt didn't show)"
             echo "        → Check polkit running: systemctl status polkit"
             echo "      • Custom Hyprland build (git/AUR) without matching headers"
-            echo "        → Use official repo Hyprland or build headers manually"
+            echo "        → Install an AUR helper (paru/yay) for the auto-fallback,"
+            echo "          or build headers manually"
             echo ""
             echo "    For verbose error: hyprpm -v update"
             echo "    Then check: tail -50 ~/.local/share/hyprpm/state.toml"
             echo ""
             echo "    Skipping plugin install — you can retry later via Settings"
             echo "    → Hyprland Plugins → Copy install command per plugin."
+            echo ""
+            echo "    ─────────────────────────────────────────────────────"
+            echo "    📋 MANUAL RECOVERY — copy-paste these AFTER you fix"
+            echo "       the headers issue (e.g. via 'hyprpm update' once"
+            echo "       hyprctl reports the correct Hyprland version):"
+            echo ""
+            echo "       hyprpm add https://github.com/hyprwm/hyprland-plugins"
+            echo "       hyprpm enable hyprbars"
+            echo "       hyprpm reload"
+            echo ""
+            echo "       Or, to build hyprbars from AUR (matches your system):"
+            echo "       ./scripts/install-hyprbars.sh"
+            echo ""
+            echo "       ★ EASIEST — diagnose + auto-repair in one shot:"
+            echo "       zen-hyprbars-doctor.sh"
+            echo "       (bypasses hyprpm's header build entirely — the real"
+            echo "        cause of 'Outdated headers' on git/CachyOS Hyprland)"
+            echo "    ─────────────────────────────────────────────────────"
             HYPRPM_OK=0
+            fi
         fi
     fi
+
+    # ─────────────────────────────────────────────────────────────
+    # v7.0.0-beta.1-hf82y — Write Hyprland version stamp
+    # ─────────────────────────────────────────────────────────────
+    # Capture tag + commit of the running Hyprland for the
+    # zen-plugin-bootstrap.sh boot-time version check (added in hf82m).
+    # On next boot, bootstrap compares the running Hyprland's tag/commit
+    # against this stamp. If they differ (e.g. user upgrades 0.55.0 →
+    # 0.55.2 via pacman without re-running install.sh), bootstrap
+    # automatically runs `hyprpm update` to rebuild plugins against
+    # the new Hyprland headers + notifies the user.
+    #
+    # Written here AFTER Phase 1 hyprpm update succeeds, so at this
+    # point we know:
+    #   - User's Hyprland version is detectable
+    #   - Plugin headers are now in sync with that version
+    #   - Future boots can use this as the "known good" baseline
+    #
+    # Stamp written even if HYPRPM_OK=0 (headers update failed), since
+    # we still want to record the version we attempted against — leaves
+    # bootstrap able to notice the NEXT change.
+    if command -v hyprctl >/dev/null 2>&1; then
+        STAMP_FILE_INSTALL="$HOME/.local/share/zen-shell/hyprland-version-stamp.json"
+        STAMP_RAW=$(hyprctl version 2>/dev/null)
+        STAMP_TAG=$(echo "$STAMP_RAW" | grep -oE 'Tag: v?[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1 | sed 's/Tag: v\?//')
+        STAMP_COMMIT=$(echo "$STAMP_RAW" | grep -oE 'commit[[:space:]]+[a-f0-9]{7,}' | head -1 | awk '{print $2}')
+        [ -z "$STAMP_TAG" ]    && STAMP_TAG="unknown"
+        [ -z "$STAMP_COMMIT" ] && STAMP_COMMIT="unknown"
+
+        mkdir -p "$(dirname "$STAMP_FILE_INSTALL")"
+        cat > "$STAMP_FILE_INSTALL" << ZSTAMP_EOF
+{
+  "tag": "$STAMP_TAG",
+  "commit": "$STAMP_COMMIT",
+  "stamped_at": "$(date -Iseconds)",
+  "stamped_by": "install.sh (hf82m)",
+  "zen_shell_version": "v7.0.0-beta.1-hf82y"
+}
+ZSTAMP_EOF
+        echo ""
+        echo "    Wrote Hyprland version stamp:"
+        echo "      tag    = $STAMP_TAG"
+        echo "      commit = $STAMP_COMMIT"
+        echo "      path   = $STAMP_FILE_INSTALL"
+        echo "      → boot-time bootstrap will detect future Hyprland"
+        echo "        upgrades and auto-rebuild plugins."
+    fi
+    # ─────────────────────────────────────────────────────────────
 
     # ── PHASE 2: Add plugin repos (verbose, --needed semantics) ──
     if [ "${HYPRPM_OK:-1}" = "1" ]; then
@@ -2103,6 +4154,56 @@ else
         echo "    Phase 4/4: Reloading hyprpm..."
         hyprpm reload 2>&1 | sed 's/^/      /' || \
             echo "      (reload skipped — Hyprland will pick up plugins on next config reload)"
+
+        # ── PHASE 4b: Ensure hyprbars specifically (hf63) ──
+        #
+        # User report: hyprbars silently drops from hyprpm's enabled list
+        # across install.sh runs, even though Phase 3b's `hyprpm enable`
+        # reports success. This post-reload ensure re-verifies and
+        # force-enables + manual-loads if needed.
+        #
+        # The .so lives in $XDG_RUNTIME_DIR/hyprpm/ (tmpfs) and is only
+        # available during/right after hyprpm reload. So we do this
+        # immediately — before tmpfs cleanup.
+        echo ""
+        echo "    Phase 4b/4: Ensuring hyprbars is loaded..."
+        if hyprctl plugin list 2>/dev/null | grep -qi hyprbars; then
+            echo "      ✅ hyprbars already loaded in Hyprland"
+        else
+            echo "      → hyprbars not loaded — attempting enable + manual load..."
+            hyprpm enable hyprbars 2>&1 | tail -3 | sed 's/^/        /'
+            hyprpm reload 2>&1 | tail -3 | sed 's/^/        /'
+            sleep 0.3
+            if hyprctl plugin list 2>/dev/null | grep -qi hyprbars; then
+                echo "      ✅ hyprbars loaded after re-enable + reload"
+            else
+                echo "      → Still not loaded — trying manual hyprctl plugin load..."
+                # Search modern + legacy hyprpm locations
+                SO=""
+                for SEARCH_DIR in \
+                    "${XDG_RUNTIME_DIR:-/run/user/$(id -u 2>/dev/null)}/hyprpm" \
+                    "$HOME/.local/share/hyprpm" \
+                    "$HOME/.cache/hyprpm" ; do
+                    [ -d "$SEARCH_DIR" ] || continue
+                    FOUND=$(find "$SEARCH_DIR" -name 'hyprbars*.so' 2>/dev/null | head -1)
+                    if [ -n "$FOUND" ]; then SO="$FOUND"; break; fi
+                done
+                if [ -n "$SO" ]; then
+                    echo "      Found .so at: $SO"
+                    hyprctl plugin load "$SO" 2>&1 | sed 's/^/        /'
+                    sleep 0.3
+                    if hyprctl plugin list 2>/dev/null | grep -qi hyprbars; then
+                        echo "      ✅ hyprbars loaded via manual hyprctl plugin load"
+                    else
+                        echo "      ❌ Manual load failed — possible ABI mismatch"
+                        echo "      Run: hyprpm update -v for verbose build output"
+                    fi
+                else
+                    echo "      ❌ No hyprbars*.so found in any hyprpm location"
+                    echo "      Run: hyprpm update -v to see build errors"
+                fi
+            fi
+        fi
 
         echo ""
         echo "    Plugin install summary:"
@@ -2299,14 +4400,21 @@ fi
 
 echo ""
 echo "[9/9] Pre-launch cleanup — kill any running zen-shell instances..."
-# v6.16.4.12.6.31: Use the proven kill recipe — pkill -9 + sleep 2.
-# Previous SIGTERM-then-SIGKILL loop was unreliable, leading to double
-# bars after install.
+# v7.0.0-beta.1-hf74: SIGTERM first (graceful) → gives QuickNotes
+# time to flush pending saves to disk. Wait 2s, then SIGKILL to
+# ensure cleanup. Previous approach was SIGKILL-only which caused
+# data loss for unsaved sticky note content.
+echo "    [kill] Sending SIGTERM (graceful shutdown)..."
+pkill -TERM -f 'quickshell' 2>/dev/null || true
+pkill -TERM -x qs 2>/dev/null || true
+sleep 2
+# Now force-kill any stragglers
+echo "    [kill] Sending SIGKILL (forced cleanup)..."
 pkill -9 -f 'quickshell' 2>/dev/null || true
 pkill -9 -x qs 2>/dev/null || true
 pkill -9 -f 'qs.*zen-shell' 2>/dev/null || true
 rm -rf "/run/user/$(id -u)/quickshell/by-id"/* 2>/dev/null || true
-sleep 2
+sleep 1
 
 SURV1=$(pgrep -f 'quickshell.*zen-shell' 2>/dev/null | wc -l)
 SURV1=$(echo "$SURV1" | tr -cd '0-9' | head -c 6)
@@ -2348,7 +4456,7 @@ PCTL_OK="no";      command -v playerctl >/dev/null 2>&1 && PCTL_OK="yes"
 echo ""
 echo "╔═══════════════════════════════════════════════════════════════╗"
 echo "║                                                               ║"
-echo "║    🎉  ZEN SHELL v6.16.4.12.9.12 · MODORI HF12 INSTALLED  🎉   ║"
+echo "║   🎉  ZEN SHELL v7.0.0-beta.1-hf82y · KARUI ALPHA 5 INSTALLED  🎉  ║"
 echo "║                                                               ║"
 echo "╚═══════════════════════════════════════════════════════════════╝"
 echo ""
@@ -2657,13 +4765,18 @@ if command -v quickshell >/dev/null 2>&1; then
     #
     # We do exactly this — straightforward, no clever process-substitution
     # tricks that may eat the kill signal under fish/bash differences.
-    echo "    [launch] Force-killing all quickshell instances (SIGKILL)..."
+    # v7.0.0-beta.1-hf74: SIGTERM first for graceful save flush.
+    echo "    [launch] Sending SIGTERM (graceful shutdown)..."
+    pkill -TERM -f 'quickshell' 2>/dev/null || true
+    pkill -TERM -x qs 2>/dev/null || true
+    sleep 2
+    echo "    [launch] Sending SIGKILL (forced cleanup)..."
     pkill -9 -f 'quickshell' 2>/dev/null || true
     pkill -9 -x qs 2>/dev/null || true
     pkill -9 -f 'qs.*zen-shell' 2>/dev/null || true
     # Clear stale IPC sockets so fresh shell can claim its by-id slot
     rm -rf "/run/user/$(id -u)/quickshell/by-id"/* 2>/dev/null || true
-    sleep 2
+    sleep 1
 
     # Verify nothing survived the SIGKILL
     REMAINING=$(pgrep -f 'quickshell.*zen-shell' 2>/dev/null | wc -l)
@@ -2724,6 +4837,6 @@ if [ -f "$PANEL_STATE_FILE" ] && grep -q '"calendar"' "$PANEL_STATE_FILE"; then
     echo "        Calendar popup now built into Clock module (click clock to open)"
 fi
 
-echo "  ✅  Done. Enjoy Zen Shell v6.16.4.12.9.12 Modori (戻り)."
+echo "  ✅  Done. Enjoy Zen Shell $(grep 'property string version:' "$SHELL_DIR/ZenVersion.qml" 2>/dev/null | sed -E 's/.*"([^"]+)".*/\1/' | head -1) Karui (軽い)."
 echo ""
 exit 0

@@ -5,10 +5,17 @@ import Quickshell.Wayland
 
 Rectangle {
     id: titleRoot
+
+    // v7.0.0-beta.1-hf94: explicit vertical mode. Vertical shows the app
+    // icon + the title as ROTATED text (reads bottom-to-top) so it fits
+    // the thin bar. Default false → original horizontal pill.
+    property bool zenVertical: false
+
     visible: rawTitle !== ""
-    implicitWidth: visible ? titleRow.implicitWidth + 24 : 0
-    height: Theme.moduleHeight
-    radius: Theme.styleMode === "round" ? height / 2 : Theme.moduleRadius
+    implicitWidth: zenVertical ? Math.round(Theme.moduleHeight) : (visible ? titleRow.implicitWidth + 24 : 0)
+    implicitHeight: zenVertical ? (visible ? (vTitleCol.implicitHeight + 16) : 0) : Theme.moduleHeight
+    height: implicitHeight
+    radius: Theme.styleMode === "round" ? (zenVertical ? width / 2 : height / 2) : Theme.moduleRadius
     color: "transparent"
 
     property var activeToplevel: {
@@ -45,6 +52,7 @@ Rectangle {
 
     RowLayout {
         id: titleRow
+        visible: !titleRoot.zenVertical
         anchors.centerIn: parent
         spacing: 6
 
@@ -63,6 +71,42 @@ Rectangle {
             Layout.maximumWidth: 350
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSize
+        }
+    }
+
+    // v7.0.0-beta.1-hf94.1: vertical title — app icon + a very short,
+    // clipped horizontal label underneath. (The earlier rotated-text
+    // version risked a layout feedback crash; a plain clipped label is
+    // bulletproof. Rotation can return in a later, carefully-tested drop.)
+    Column {
+        id: vTitleCol
+        visible: titleRoot.zenVertical
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        anchors.topMargin: 8
+        spacing: 4
+
+        Image {
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: 20; height: 20
+            source: Quickshell.iconPath(titleRoot.iconName, true) || ""
+            sourceSize: Qt.size(20, 20)
+            visible: source !== ""
+        }
+
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: Math.round(Theme.moduleHeight) - 6
+            horizontalAlignment: Text.AlignHCenter
+            elide: Text.ElideRight
+            text: {
+                let t = titleRoot.displayTitle
+                if (t.length > 6) t = t.substring(0, 6)
+                return t
+            }
+            color: Theme.fg
+            font.family: Theme.fontFamily
+            font.pixelSize: 9
         }
     }
 }

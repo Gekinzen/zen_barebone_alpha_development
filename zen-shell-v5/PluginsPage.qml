@@ -891,9 +891,9 @@ ScrollView {
                                     Layout.fillWidth: true
                                     elide: Text.ElideMiddle
                                 }
-                                Button {
+                                                                ZenButton {
                                     text: "Copy"
-                                    font.pixelSize: 10
+                                    fontPixelSize: 10
                                     onClicked: {
                                         copyHelper.command = ["bash", "-lc",
                                             "echo -n 'hyprpm add " + def.repo + "' | wl-copy"]
@@ -1201,9 +1201,9 @@ ScrollView {
                         Layout.fillWidth: true
                         spacing: 8
 
-                        Button {
+                                                ZenButton {
                             text: "Run recovery"
-                            font.pixelSize: 11
+                            fontPixelSize: 11
                             onClicked: {
                                 hyprpmFixRunner.command = ["bash", "-lc",
                                     "if command -v alacritty >/dev/null 2>&1; then " +

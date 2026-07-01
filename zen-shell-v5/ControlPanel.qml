@@ -88,6 +88,25 @@ Rectangle {
     radius: 16
     border.width: 1
     border.color: ThemeService.alpha(ThemeService.fg, 0.12)
+
+    // v7.0.0-beta.1-hf53 — HyprbarsMimic was here.
+    // v7.0.0-beta.1-hf64 — REMOVED per user request.
+    //
+    // User wants the original header (drag handle + fullscreen +
+    // close button) to ALWAYS show on the Hypr Control Panel, even
+    // when hyprbars is enabled. The mimic was confusing — replace-
+    // ing the familiar header with traffic lights felt inconsistent.
+    //
+    // The real hyprbars plugin handles regular Hyprland windows.
+    // Zen Shell popups keep their native Zen header style.
+    //
+    // HyprbarsMimic instance removed. hyprbarsMimic references
+    // below replaced with { visible: false, height: 0 } shim.
+    QtObject {
+        id: hyprbarsMimic
+        property bool visible: false
+        property int height: 0
+    }
     clip: true
 
     Behavior on height {
@@ -112,6 +131,30 @@ Rectangle {
 
     Keys.onEscapePressed: closeRequested()
 
+    // v7.0.0-alpha.10-hf4: Absorb scroll wheel events at the CC root
+    // level. Without this, scroll wheel events on the CC's layer-shell
+    // surface were causing focus dance with WlrKeyboardFocus.OnDemand —
+    // user reported "scroll ko nag close siya sabay nag open lage kada
+    // scroll ko" (CC closes then reopens on every scroll). The handler
+    // accepts every wheel event so it never propagates to the layer-
+    // shell focus subsystem. Children that genuinely need scroll
+    // (ScrollViews inside CC sections) still get their events because
+    // they're INSIDE this handler — the handler only catches wheels
+    // that bubble all the way up to the root.
+    WheelHandler {
+        target: null   // don't redirect — just consume
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        onWheel: function(event) {
+            // Swallow — event doesn't propagate further. Children that
+            // already handled the event (ScrollViews) will have set
+            // event.accepted = true before reaching here, so this is
+            // a no-op for them. For the empty CC chrome areas, this
+            // prevents the wheel from triggering layer-shell focus
+            // changes.
+            event.accepted = true
+        }
+    }
+
     ColumnLayout {
         id: mainLayout
         anchors.top: parent.top
@@ -120,12 +163,22 @@ Rectangle {
         anchors.right: root.cascadeMode ? undefined : parent.right
         width: root.cascadeMode ? (root.columnWidth - 32) : undefined
         anchors.margins: 16
+        // v7.0.0-beta.1-hf54: extra top clearance when HyprbarsMimic
+        // is visible so content sits below the mimic bar instead of
+        // overlapping it. hyprbarsMimic.height = HyprbarsService.barHeight
+        // when visible, 0 when hidden.
+        anchors.topMargin: 16 + (hyprbarsMimic.visible ? hyprbarsMimic.height + 4 : 0)
         spacing: 12
 
         // ═══════════════════════════════════════════════
         // HEADER — drag handle + close button
+        //
+        // v7.0.0-beta.1-hf64: always visible. Previously hidden
+        // when HyprbarsMimic was showing. Now mimic is removed
+        // from ControlPanel — native header always stays.
         // ═══════════════════════════════════════════════
         Item {
+            visible: true
             Layout.fillWidth: true
             Layout.preferredHeight: 36
 
@@ -134,6 +187,12 @@ Rectangle {
                 spacing: 8
 
                 // Drag handle area (icon + title)
+                // v7.0.0-alpha.7-hf3: SearchBar removed from CC header.
+                // CC has limited horizontal space (320px column) which
+                // can't fit search bar + close button + drag handle.
+                // Use Ctrl+F overlay (works system-wide) to search CC
+                // entries — same SettingsSearchService backend, just
+                // accessed via overlay instead of inline bar.
                 Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
@@ -149,13 +208,32 @@ Rectangle {
                             color: ThemeService.blue
                         }
 
-                        Text {
-                            text: "Quick Settings"
-                            font.family: Theme.fontFamily
-                            font.pixelSize: 15
-                            font.weight: Font.DemiBold
-                            color: ThemeService.fg
+                        // v7.0.0-alpha.11: Densho mode bilingual title.
+                        // 操 (sou) = "operation/control", per the Densho
+                        // naming convention (one kanji per major surface).
+                        ColumnLayout {
                             Layout.fillWidth: true
+                            spacing: -2
+
+                            Text {
+                                visible: DenshoService.denshoMode
+                                text: "操"
+                                font.family: "Noto Sans CJK JP"
+                                font.pixelSize: 13
+                                font.weight: Font.DemiBold
+                                color: ThemeService.alpha(ThemeService.fg, 0.55)
+                                Layout.alignment: Qt.AlignVCenter
+                            }
+
+                            Text {
+                                text: "Quick Settings"
+                                font.family: Theme.fontFamily
+                                font.pixelSize: 15
+                                font.weight: Font.DemiBold
+                                color: ThemeService.fg
+                                Layout.fillWidth: true
+                                elide: Text.ElideRight
+                            }
                         }
                     }
 
@@ -168,6 +246,16 @@ Rectangle {
                         onPressed: root.hasBeenDragged = true
                     }
                 }
+
+                // Spacer to push search + close to right
+                // v7.0.0-alpha.7-hf3: search bar removed from CC header.
+                // CC has tight horizontal space (compact 320px panel) —
+                // a 240px search bar plus close button plus drag handle
+                // didn't fit cleanly. Use Ctrl+F overlay (system-wide
+                // global modal) to search Control Center entries —
+                // same SettingsSearchService backend, surfaces all
+                // CC entries with `surface: "controlpanel"` filter
+                // applied automatically.
 
                 // Close button
                 Rectangle {
@@ -202,6 +290,23 @@ Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 1
             color: ThemeService.alpha(ThemeService.fg, 0.08)
+        }
+
+        // ═══════════════════════════════════════════════
+        // v7.0.0-alpha.13: WORKFLOW PROFILES
+        //
+        // 5-tile picker for one-click profile switching:
+        // Work / Gaming / Focus / Movie / Sleep
+        //
+        // Each profile bundles brightness + DND + power profile.
+        // Active profile gets blue ring. Click to switch.
+        // ═══════════════════════════════════════════════
+        SettingsSection {
+            title: ""
+
+            WorkflowProfilePicker {
+                Layout.fillWidth: true
+            }
         }
 
         // ═══════════════════════════════════════════════
@@ -265,42 +370,67 @@ Rectangle {
                         }
                     }
 
-                    Slider {
-                        id: volSlider
+                    // v7.0.0-beta.1-hf16: replace QQC2 Slider with the
+                    // same custom Rectangle-based slider used in the bar
+                    // sound popup. Cleaner drag (no binding loop), full
+                    // theme control, and visually consistent with the bar
+                    // popup so users see one design across the shell.
+                    Item {
+                        id: volSliderTrack
                         Layout.fillWidth: true
-                        from: 0
-                        to: 100
-                        stepSize: 1
-                        value: ConnectivityService.audioVolume
-                        onMoved: ConnectivityService.setVolume(value)
+                        Layout.preferredHeight: 16
+                        readonly property real ratio:
+                            Math.max(0, Math.min(1,
+                                ConnectivityService.audioVolume / 100))
 
-                        background: Rectangle {
-                            x: volSlider.leftPadding
-                            y: volSlider.topPadding + volSlider.availableHeight / 2 - height / 2
-                            width: volSlider.availableWidth
-                            height: 4
-                            radius: 2
-                            color: ThemeService.alpha(ThemeService.fg, 0.12)
-
-                            Rectangle {
-                                width: volSlider.visualPosition * parent.width
-                                height: parent.height
-                                radius: 2
-                                color: ConnectivityService.audioMuted
-                                       ? ThemeService.grey2
-                                       : ThemeService.blue
-                            }
+                        // Track background
+                        Rectangle {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: parent.width; height: 4; radius: 2
+                            color: ThemeService.alpha(ThemeService.fg, 0.15)
                         }
-
-                        handle: Rectangle {
-                            x: volSlider.leftPadding + volSlider.visualPosition * (volSlider.availableWidth - width)
-                            y: volSlider.topPadding + volSlider.availableHeight / 2 - height / 2
-                            width: 14
-                            height: 14
-                            radius: 7
-                            color: volSlider.pressed ? ThemeService.fg : ThemeService.alpha(ThemeService.fg, 0.9)
-                            border.width: 2
-                            border.color: ThemeService.alpha(ThemeService.bg0, 0.5)
+                        // Filled portion
+                        Rectangle {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: parent.width * volSliderTrack.ratio
+                            height: 4; radius: 2
+                            color: ConnectivityService.audioMuted
+                                   ? ThemeService.grey2
+                                   : ThemeService.blue
+                            Behavior on width { NumberAnimation { duration: 80 } }
+                        }
+                        // Knob
+                        Rectangle {
+                            width: 14; height: 14; radius: 7
+                            y: (parent.height - height) / 2
+                            x: Math.max(0, parent.width * volSliderTrack.ratio - width / 2)
+                            color: ThemeService.fg
+                            border.width: 1
+                            border.color: ThemeService.alpha(ThemeService.bg0, 0.4)
+                            Behavior on x { NumberAnimation { duration: 80 } }
+                        }
+                        // Drag / click area
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            preventStealing: true
+                            function _set(x) {
+                                const r = Math.max(0, Math.min(1, x / width))
+                                ConnectivityService.setVolume(Math.round(r * 100))
+                            }
+                            onPressed: function(m) { _set(m.x) }
+                            onPositionChanged: function(m) {
+                                if (pressed) _set(m.x)
+                            }
+                            onWheel: function(w) {
+                                const cur = ConnectivityService.audioVolume
+                                const next = w.angleDelta.y > 0
+                                             ? Math.min(100, cur + 5)
+                                             : Math.max(0, cur - 5)
+                                ConnectivityService.setVolume(next)
+                                w.accepted = true
+                            }
                         }
                     }
                 }
@@ -359,43 +489,60 @@ Rectangle {
                         }
                     }
 
-                    Slider {
-                        id: micSlider
+                    // v7.0.0-beta.1-hf16: same custom slider design as
+                    // speaker above + bar popup (consistent across shell).
+                    Item {
+                        id: micSliderTrack
                         Layout.fillWidth: true
-                        from: 0
-                        to: 100
-                        stepSize: 1
-                        value: ConnectivityService.micVolume
-                        onMoved: {
-                            const v = Math.round(value)
-                            // wpctl set-volume for source
+                        Layout.preferredHeight: 16
+                        readonly property real ratio:
+                            Math.max(0, Math.min(1,
+                                ConnectivityService.micVolume / 100))
+
+                        Rectangle {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: parent.width; height: 4; radius: 2
+                            color: ThemeService.alpha(ThemeService.fg, 0.15)
                         }
-
-                        background: Rectangle {
-                            x: micSlider.leftPadding
-                            y: micSlider.topPadding + micSlider.availableHeight / 2 - height / 2
-                            width: micSlider.availableWidth
-                            height: 4
-                            radius: 2
-                            color: ThemeService.alpha(ThemeService.fg, 0.12)
-
-                            Rectangle {
-                                width: micSlider.visualPosition * parent.width
-                                height: parent.height
-                                radius: 2
-                                color: ConnectivityService.micMuted ? ThemeService.grey2 : ThemeService.purple
+                        Rectangle {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: parent.width * micSliderTrack.ratio
+                            height: 4; radius: 2
+                            color: ConnectivityService.micMuted
+                                   ? ThemeService.grey2
+                                   : ThemeService.purple
+                            Behavior on width { NumberAnimation { duration: 80 } }
+                        }
+                        Rectangle {
+                            width: 14; height: 14; radius: 7
+                            y: (parent.height - height) / 2
+                            x: Math.max(0, parent.width * micSliderTrack.ratio - width / 2)
+                            color: ThemeService.fg
+                            border.width: 1
+                            border.color: ThemeService.alpha(ThemeService.bg0, 0.4)
+                            Behavior on x { NumberAnimation { duration: 80 } }
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            preventStealing: true
+                            function _set(x) {
+                                const r = Math.max(0, Math.min(1, x / width))
+                                ConnectivityService.setMicVolume(Math.round(r * 100))
                             }
-                        }
-
-                        handle: Rectangle {
-                            x: micSlider.leftPadding + micSlider.visualPosition * (micSlider.availableWidth - width)
-                            y: micSlider.topPadding + micSlider.availableHeight / 2 - height / 2
-                            width: 12
-                            height: 12
-                            radius: 6
-                            color: micSlider.pressed ? ThemeService.fg : ThemeService.alpha(ThemeService.fg, 0.85)
-                            border.width: 2
-                            border.color: ThemeService.alpha(ThemeService.bg0, 0.5)
+                            onPressed: function(m) { _set(m.x) }
+                            onPositionChanged: function(m) {
+                                if (pressed) _set(m.x)
+                            }
+                            onWheel: function(w) {
+                                const cur = ConnectivityService.micVolume
+                                const next = w.angleDelta.y > 0
+                                             ? Math.min(100, cur + 5)
+                                             : Math.max(0, cur - 5)
+                                ConnectivityService.setMicVolume(next)
+                                w.accepted = true
+                            }
                         }
                     }
                 }
@@ -1813,6 +1960,18 @@ Rectangle {
                     }
 
                     // Sensitivity slider  (-1.0 … +1.0)
+                    // v7.0.0-beta.1-hf41: replaced QQC2 Slider with the
+                    // same custom Rectangle slider used by volume in
+                    // the Audio tab. Visually consistent across the
+                    // shell, plus cleaner drag behavior (no binding
+                    // loop, no theme override quirks).
+                    //
+                    // Range is signed (-1.0 to +1.0) so the "ratio"
+                    // calculation maps -1.0 → 0, 0 → 0.5, +1.0 → 1.0
+                    // for the visual fill. Filled portion grows from
+                    // CENTER, not left edge, to make the sign visible
+                    // — negative = fill left of center, positive =
+                    // fill right of center.
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 4
@@ -1832,18 +1991,95 @@ Rectangle {
                                 color: ThemeService.blue
                             }
                         }
-                        Slider {
+                        Item {
+                            id: sensSliderTrack
                             Layout.fillWidth: true
-                            from: -1.0; to: 1.0; stepSize: 0.05
-                            value: MouseSettingsService.sensitivity
-                            onMoved: {
-                                MouseSettingsService.sensitivity = value
-                                MouseSettingsService.apply(true)
+                            Layout.preferredHeight: 16
+                            readonly property real value: MouseSettingsService.sensitivity
+                            // Map -1.0..+1.0 → 0.0..1.0 (center-anchored visually)
+                            readonly property real ratio:
+                                Math.max(0, Math.min(1, (value + 1.0) / 2.0))
+
+                            // Track background
+                            Rectangle {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: parent.width; height: 4; radius: 2
+                                color: ThemeService.alpha(ThemeService.fg, 0.15)
+                            }
+                            // Center tick marker (visual anchor at 0.0)
+                            Rectangle {
+                                anchors.verticalCenter: parent.verticalCenter
+                                x: parent.width / 2 - width / 2
+                                width: 2; height: 8
+                                color: ThemeService.alpha(ThemeService.fg, 0.35)
+                                radius: 1
+                            }
+                            // Filled portion — grows from CENTER outward
+                            Rectangle {
+                                anchors.verticalCenter: parent.verticalCenter
+                                height: 4; radius: 2
+                                color: ThemeService.blue
+                                x: sensSliderTrack.value >= 0
+                                   ? parent.width / 2
+                                   : parent.width * sensSliderTrack.ratio
+                                width: Math.abs(
+                                    parent.width * sensSliderTrack.ratio
+                                    - parent.width / 2)
+                                Behavior on width { NumberAnimation { duration: 60 } }
+                                Behavior on x { NumberAnimation { duration: 60 } }
+                            }
+                            // Knob
+                            Rectangle {
+                                width: 14; height: 14; radius: 7
+                                y: (parent.height - height) / 2
+                                x: Math.max(0,
+                                    parent.width * sensSliderTrack.ratio - width / 2)
+                                color: ThemeService.fg
+                                border.width: 1
+                                border.color: ThemeService.alpha(ThemeService.bg0, 0.4)
+                                Behavior on x { NumberAnimation { duration: 60 } }
+                            }
+                            // Drag / click / wheel area
+                            MouseArea {
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                preventStealing: true
+                                function _setFromX(x) {
+                                    const r = Math.max(0, Math.min(1, x / width))
+                                    // Map 0..1 → -1.0..+1.0, snap to 0.05
+                                    let v = r * 2.0 - 1.0
+                                    v = Math.round(v / 0.05) * 0.05
+                                    v = Math.max(-1.0, Math.min(1.0, v))
+                                    MouseSettingsService.sensitivity = v
+                                    MouseSettingsService.apply(true)
+                                }
+                                onPressed: function(m) { _setFromX(m.x) }
+                                onPositionChanged: function(m) {
+                                    if (pressed) _setFromX(m.x)
+                                }
+                                onWheel: function(w) {
+                                    const cur = MouseSettingsService.sensitivity
+                                    const next = w.angleDelta.y > 0
+                                                 ? Math.min(1.0, cur + 0.05)
+                                                 : Math.max(-1.0, cur - 0.05)
+                                    MouseSettingsService.sensitivity = Math.round(next * 100) / 100
+                                    MouseSettingsService.apply(true)
+                                    w.accepted = true
+                                }
+                                // Double-click → reset to 0 (baseline)
+                                onDoubleClicked: {
+                                    MouseSettingsService.sensitivity = 0.0
+                                    MouseSettingsService.apply(true)
+                                }
                             }
                         }
                     }
 
                     // Scroll factor slider (0.1 … 3.0)
+                    // v7.0.0-beta.1-hf41: same custom Rectangle slider
+                    // design as Sensitivity above. Range is positive-
+                    // only (0.1 .. 3.0) with 1.0 as the "baseline" tick.
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 4
@@ -1863,18 +2099,95 @@ Rectangle {
                                 color: ThemeService.blue
                             }
                         }
-                        Slider {
+                        Item {
+                            id: scrollSliderTrack
                             Layout.fillWidth: true
-                            from: 0.1; to: 3.0; stepSize: 0.1
-                            value: MouseSettingsService.scrollFactor
-                            onMoved: {
-                                MouseSettingsService.scrollFactor = value
-                                MouseSettingsService.apply(true)
+                            Layout.preferredHeight: 16
+                            readonly property real value: MouseSettingsService.scrollFactor
+                            // Map 0.1..3.0 → 0.0..1.0
+                            readonly property real ratio:
+                                Math.max(0, Math.min(1, (value - 0.1) / (3.0 - 0.1)))
+                            // Position of 1.0 baseline along the track (0..1)
+                            readonly property real baselineRatio:
+                                (1.0 - 0.1) / (3.0 - 0.1)
+
+                            // Track background
+                            Rectangle {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: parent.width; height: 4; radius: 2
+                                color: ThemeService.alpha(ThemeService.fg, 0.15)
+                            }
+                            // Baseline tick at 1.0×
+                            Rectangle {
+                                anchors.verticalCenter: parent.verticalCenter
+                                x: parent.width * scrollSliderTrack.baselineRatio
+                                   - width / 2
+                                width: 2; height: 8
+                                color: ThemeService.alpha(ThemeService.fg, 0.35)
+                                radius: 1
+                            }
+                            // Filled portion (left → current position)
+                            Rectangle {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: parent.width * scrollSliderTrack.ratio
+                                height: 4; radius: 2
+                                color: ThemeService.blue
+                                Behavior on width { NumberAnimation { duration: 60 } }
+                            }
+                            // Knob
+                            Rectangle {
+                                width: 14; height: 14; radius: 7
+                                y: (parent.height - height) / 2
+                                x: Math.max(0,
+                                    parent.width * scrollSliderTrack.ratio - width / 2)
+                                color: ThemeService.fg
+                                border.width: 1
+                                border.color: ThemeService.alpha(ThemeService.bg0, 0.4)
+                                Behavior on x { NumberAnimation { duration: 60 } }
+                            }
+                            // Drag / click / wheel area
+                            MouseArea {
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                preventStealing: true
+                                function _setFromX(x) {
+                                    const r = Math.max(0, Math.min(1, x / width))
+                                    let v = 0.1 + r * (3.0 - 0.1)
+                                    v = Math.round(v * 10) / 10
+                                    v = Math.max(0.1, Math.min(3.0, v))
+                                    MouseSettingsService.scrollFactor = v
+                                    MouseSettingsService.apply(true)
+                                }
+                                onPressed: function(m) { _setFromX(m.x) }
+                                onPositionChanged: function(m) {
+                                    if (pressed) _setFromX(m.x)
+                                }
+                                onWheel: function(w) {
+                                    const cur = MouseSettingsService.scrollFactor
+                                    const next = w.angleDelta.y > 0
+                                                 ? Math.min(3.0, cur + 0.1)
+                                                 : Math.max(0.1, cur - 0.1)
+                                    MouseSettingsService.scrollFactor = Math.round(next * 10) / 10
+                                    MouseSettingsService.apply(true)
+                                    w.accepted = true
+                                }
+                                // Double-click → reset to 1.0 (baseline)
+                                onDoubleClicked: {
+                                    MouseSettingsService.scrollFactor = 1.0
+                                    MouseSettingsService.apply(true)
+                                }
                             }
                         }
                     }
 
                     // Natural scroll (mouse wheel)
+                    // v7.0.0-beta.1-hf43: replaced QQC2 Switch with the
+                    // same rounded toggle pill used by Bluetooth/WiFi/
+                    // Audio toggles in this same Control Panel. 42×22
+                    // pill with sliding 18×18 circular thumb. Green when
+                    // active, neutral when off. Visually consistent with
+                    // all other on/off controls in the shell.
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 10
@@ -1885,11 +2198,31 @@ Rectangle {
                             color: ThemeService.fg
                             Layout.fillWidth: true
                         }
-                        Switch {
-                            checked: MouseSettingsService.naturalScroll
-                            onToggled: {
-                                MouseSettingsService.naturalScroll = checked
-                                MouseSettingsService.apply(true)
+                        Rectangle {
+                            Layout.preferredWidth: 42
+                            Layout.preferredHeight: 22
+                            radius: 11
+                            color: MouseSettingsService.naturalScroll
+                                   ? ThemeService.alpha(ThemeService.green, 0.85)
+                                   : ThemeService.alpha(ThemeService.fg, 0.15)
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Rectangle {
+                                width: 18; height: 18; radius: 9
+                                color: ThemeService.fg
+                                y: 2
+                                x: MouseSettingsService.naturalScroll
+                                   ? parent.width - width - 2 : 2
+                                Behavior on x {
+                                    NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                                }
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    MouseSettingsService.naturalScroll = !MouseSettingsService.naturalScroll
+                                    MouseSettingsService.apply(true)
+                                }
                             }
                         }
                     }
@@ -1905,11 +2238,31 @@ Rectangle {
                             color: ThemeService.fg
                             Layout.fillWidth: true
                         }
-                        Switch {
-                            checked: MouseSettingsService.touchpadNaturalScroll
-                            onToggled: {
-                                MouseSettingsService.touchpadNaturalScroll = checked
-                                MouseSettingsService.apply(true)
+                        Rectangle {
+                            Layout.preferredWidth: 42
+                            Layout.preferredHeight: 22
+                            radius: 11
+                            color: MouseSettingsService.touchpadNaturalScroll
+                                   ? ThemeService.alpha(ThemeService.green, 0.85)
+                                   : ThemeService.alpha(ThemeService.fg, 0.15)
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Rectangle {
+                                width: 18; height: 18; radius: 9
+                                color: ThemeService.fg
+                                y: 2
+                                x: MouseSettingsService.touchpadNaturalScroll
+                                   ? parent.width - width - 2 : 2
+                                Behavior on x {
+                                    NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                                }
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    MouseSettingsService.touchpadNaturalScroll = !MouseSettingsService.touchpadNaturalScroll
+                                    MouseSettingsService.apply(true)
+                                }
                             }
                         }
                     }

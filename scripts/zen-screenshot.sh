@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# zen-screenshot.sh v6.12 — screenshot tool for Hyprland
+# zen-screenshot.sh v6.14 — screenshot tool for Hyprland
 #
 # Supports both grim+slurp AND flameshot with proper Wayland env.
 # Captures specific active monitor or all screens.
@@ -12,6 +12,35 @@
 #   zen-screenshot.sh allscreens   # all monitors combined → save
 #   zen-screenshot.sh flameshot    # force flameshot GUI
 #
+# v6.14 (Zen Shell v7.0.0-beta.1-hf82g) changes:
+#   - FIX: flameshot --region on scaled monitors (1.25x, 1.5x, etc)
+#     was cropping the capture/selection area regardless of whether
+#     we passed native OR logical dimensions. Different scale values
+#     gave different crop amounts; no constant transform made it
+#     work right.
+#   - Root cause: flameshot on Wayland-Hyprland with --region has
+#     known buggy coordinate handling that interacts poorly with
+#     fractional scaling. Upstream flameshot's Wayland support
+#     relies on wlr-screencopy or xdg-desktop-portal, and the
+#     --region geometry isn't consistently interpreted across
+#     either path on scaled displays.
+#   - Decision: drop --region from `flameshot gui` and `flameshot
+#     full` calls entirely. Without --region, flameshot uses its
+#     own focused-monitor detection (good enough on Hyprland's
+#     Wayland) and captures the full visible workspace, which is
+#     what the user wanted anyway.
+#   - Trade-off: in very rare multi-monitor edge cases where
+#     flameshot's auto-detection picks the wrong screen, the
+#     workaround is to move the mouse cursor to the desired screen
+#     before triggering the keybind. The hf82e attempt to enforce
+#     focused-monitor targeting via --region caused more problems
+#     than it solved on scaled displays.
+#   - get_active_monitor_geometry() preserved (used elsewhere
+#     potentially in future) but not called for flameshot anymore.
+#
+# v6.13 (hf82e) changes:
+#   - get_active_monitor_geometry() printed logical dimensions
+#     instead of native. Was a partial fix; v6.14 supersedes.
 # v6.12 changes:
 #   - Flameshot GUI now opens on focused monitor (--region targeting)
 #   - Fixed: gui no longer spawns on wrong monitor in multi-display
@@ -35,6 +64,15 @@ get_active_monitor_name() {
 }
 
 # Get active monitor geometry as WxH+X+Y (for flameshot --region)
+#
+# v7.0.0-beta.1-hf82e FIX: this used to print m['width']x m['height']
+# (native pixels) which was WRONG for flameshot — flameshot's region
+# picker on Hyprland Wayland operates in LOGICAL coordinate space.
+# A 3440x1440 monitor at 1.5x scale has a logical workspace of
+# 2293x960; passing the native 3440x1440 caused the region to
+# overshoot bounds.
+#
+# Now divides w + h by scale, matching the slurp helper below.
 get_active_monitor_geometry() {
     hyprctl monitors -j 2>/dev/null | \
         python3 -c "
@@ -42,13 +80,17 @@ import sys, json, math
 monitors = json.load(sys.stdin)
 for m in monitors:
     if m.get('focused'):
-        # Account for scale
+        # Use LOGICAL dimensions for flameshot --region.
+        # Native = m['width'] / m['height'] (physical pixels)
+        # Logical = native / scale (CSS-pixel equivalents)
         scale = m.get('scale', 1.0)
-        w = int(m['width'] / scale)
-        h = int(m['height'] / scale)
+        if scale <= 0:
+            scale = 1.0
+        w = int(round(m['width'] / scale))
+        h = int(round(m['height'] / scale))
         x = m['x']
         y = m['y']
-        print(f'{m[\"width\"]}x{m[\"height\"]}+{x}+{y}')
+        print(f'{w}x{h}+{x}+{y}')
         break
 " 2>/dev/null
 }
@@ -145,35 +187,24 @@ EOF
 
     case "$MODE" in
         full)
-            # Capture specific active monitor using --region
-            local GEOM
-            GEOM=$(get_active_monitor_geometry)
-            if [ -n "$GEOM" ]; then
-                flameshot full --region "$GEOM" -p "$SCREENSHOTS_DIR"
-            else
-                flameshot full -p "$SCREENSHOTS_DIR"
-            fi
+            # v7.0.0-beta.1-hf82g: dropped --region — caused cropping
+            # on scaled displays no matter what dimensions were passed.
+            # flameshot's auto-detection of focused monitor is good
+            # enough on Hyprland Wayland.
+            flameshot full -p "$SCREENSHOTS_DIR"
             ;;
         region|flameshot)
-            # v6.12 fix: Target flameshot GUI to the focused monitor.
-            # Without --region, flameshot opens on whatever monitor it
-            # defaults to (usually the first), not where your cursor is.
-            local GUI_GEOM
-            GUI_GEOM=$(get_active_monitor_geometry)
-            if [ -n "$GUI_GEOM" ]; then
-                flameshot gui --region "$GUI_GEOM"
-            else
-                flameshot gui
-            fi
+            # v7.0.0-beta.1-hf82g: dropped --region. See header.
+            #
+            # flameshot gui without --region shows the entire visible
+            # workspace of the focused monitor for selection — which
+            # is the actual behavior the user wanted on a 1.5x scaled
+            # 3440x1440 monitor.
+            flameshot gui
             ;;
         clipboard)
-            local GEOM
-            GEOM=$(get_active_monitor_geometry)
-            if [ -n "$GEOM" ]; then
-                flameshot full --region "$GEOM" --clipboard
-            else
-                flameshot full --clipboard
-            fi
+            # v7.0.0-beta.1-hf82g: same fix applies to --clipboard mode.
+            flameshot full --clipboard
             ;;
         allscreens)
             flameshot full -p "$SCREENSHOTS_DIR"

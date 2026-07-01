@@ -55,8 +55,11 @@ Rectangle {
             }
         }
 
-        Button {
+        ZenButton {
             text: "Open"
+            accent: true
+            iconText: "\uf08e"   // external-link glyph
+            Layout.alignment: Qt.AlignVCenter
             onClicked: {
                 ccLauncher.command = ["bash", "-c", "cd ~/.config/hypr-control-center && python3 main.py &"]
                 ccLauncher.running = true

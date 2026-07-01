@@ -342,6 +342,10 @@ Singleton {
 
     function setBrightness(pct) {
         setBrightnessOn(currentDevice, pct)
+        // v7.0.0-alpha.12: OSD ring on direct user brightness change
+        if (typeof NotificationService !== "undefined" && NotificationService.showBrightnessOSD) {
+            NotificationService.showBrightnessOSD(Math.max(0, Math.min(100, pct)) / 100)
+        }
     }
 
     function selectDevice(name) {

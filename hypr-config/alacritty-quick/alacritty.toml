@@ -1,0 +1,58 @@
+# ════════════════════════════════════════════════════════════════
+# Zen Quick Terminal — Alacritty config (Yakuake-style drop-down)
+# ════════════════════════════════════════════════════════════════
+# This is a SEPARATE config used ONLY by the Super+Shift+T drop-down
+# terminal (launched with --class zen-quickterm). Your normal Alacritty
+# config at ~/.config/alacritty/ is never read or modified by this.
+#
+# Edit freely — these settings apply only to the drop-down.
+# ════════════════════════════════════════════════════════════════
+
+[window]
+opacity = 0.95
+padding = { x = 10, y = 8 }
+dynamic_padding = true
+decorations = "None"
+# The quick terminal is centered floating; Hyprland window rules control
+# the actual on-screen size (1100x600) / centering, so geometry here is
+# just a sane fallback if launched outside Hyprland.
+dimensions = { columns = 110, lines = 30 }
+
+[font]
+size = 11.0
+# Matches the rest of the rice; change if you prefer another Nerd Font.
+normal = { family = "JetBrainsMono Nerd Font", style = "Regular" }
+bold   = { family = "JetBrainsMono Nerd Font", style = "Bold" }
+italic = { family = "JetBrainsMono Nerd Font", style = "Italic" }
+
+[cursor]
+style = { shape = "Beam", blinking = "On" }
+
+[scrolling]
+history = 10000
+
+# Tokyo-Night colours (seed). If you want this to track your active Zen
+# scheme too, say the word and we'll have the theme regen write here.
+[colors.primary]
+background = "#1a1b26"
+foreground = "#c0caf5"
+
+[colors.normal]
+black   = "#15161e"
+red     = "#f7768e"
+green   = "#9ece6a"
+yellow  = "#e0af68"
+blue    = "#7aa2f7"
+magenta = "#bb9af7"
+cyan    = "#7dcfff"
+white   = "#a9b1d6"
+
+[colors.bright]
+black   = "#414868"
+red     = "#f7768e"
+green   = "#9ece6a"
+yellow  = "#e0af68"
+blue    = "#7aa2f7"
+magenta = "#bb9af7"
+cyan    = "#7dcfff"
+white   = "#c0caf5"

@@ -33,8 +33,44 @@ Singleton {
     property real barRadius: 16
     property string fontFamily: "Adwaita Sans"
     property string monoFont: "JetBrainsMono Nerd Font Propo"
-    property int fontSize: 14
-    property int iconSize: 20
+
+    // ── Module content sizing (v7.0.0-beta.1-hf84) ──
+    //
+    // The *Base values are the user/theme preference (written by
+    // ThemeService when a theme is loaded). The VISIBLE sizes below
+    // (fontSize / iconSize / moduleHeight) derive from these times
+    // barContentScale, so when "Fit contents to bar" is on, every bar
+    // module that reads Theme.iconSize / Theme.fontSize / Theme.moduleHeight
+    // scales to the bar height automatically — no per-module change.
+    // Default scale is 1.0, so with the toggle off these equal their
+    // base values exactly (nothing changes for existing users).
+    property int fontSizeBase: 14
+    property int iconSizeBase: 20
+
+    // barContentScale: 1.0 unless PanelState.barFitContents is on, in
+    // which case it tracks the FIXED barHeight slider relative to the
+    // 60px baseline the default sizes were tuned for. Derived from the
+    // slider value (never the auto-computed height) so it can't feed
+    // back into barAutoHeight. Guarded + clamped for legibility.
+    readonly property real barContentScale: {
+        if (typeof PanelState === "undefined") return 1.0
+        // Manual multiplier always applies; fit-to-height adds on top.
+        const manual = (PanelState.barModuleScale && PanelState.barModuleScale > 0)
+                       ? PanelState.barModuleScale : 1.0
+        let s = manual
+        if (PanelState.barFitContents) {
+            const ref = 60
+            const h = (PanelState.barHeight && PanelState.barHeight > 0)
+                      ? PanelState.barHeight : ref
+            s = s * (h / ref)
+        }
+        if (s < 0.6) s = 0.6
+        if (s > 2.4) s = 2.4
+        return s
+    }
+
+    readonly property int fontSize: Math.max(8, Math.round(fontSizeBase * barContentScale))
+    readonly property int iconSize: Math.max(10, Math.round(iconSizeBase * barContentScale))
 
     // Style-dependent properties
     // v6.16.4.12.7 (Tachiagari): pill mode now uses a SMALL radius (10)
@@ -45,7 +81,11 @@ Singleton {
     // what gives it that look. workspaceRadius gets the same treatment
     // so workspace dots also look rectangular in pill mode.
     property real moduleRadius: styleMode === "round" ? 20 : 10
-    property real moduleHeight: 40
+    // v7.0.0-beta.1-hf84: scales with barContentScale (see above) so
+    // module pills grow/shrink to fill the bar when Fit-contents is on.
+    // Base 40 preserved when scale is 1.0.
+    readonly property real moduleHeightBase: 40
+    readonly property real moduleHeight: moduleHeightBase * barContentScale
     property real workspaceRadius: styleMode === "round" ? 20 : 6
 
     // ── Bar layout config ──
@@ -61,7 +101,7 @@ Singleton {
     property var barLayout: ({
         "left": ["start", "taskbar"],
         "center": ["workspaces", "window"],
-        "right": ["music", "sysrow", "tray", "battery", "powerbadge", "notifications", "clock"]
+        "right": ["music", "sysrow", "tray", "workflow", "clipboard", "quicknotes", "titletranslator", "battery", "powerbadge", "notifications", "clock"]
     })
 
     // ── Theme schemes ──

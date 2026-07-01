@@ -62,6 +62,54 @@ if [ "$TOD" = "night" ] && [ "$WBUCKET" = "clear" ]; then
     WBUCKET="starry"
 fi
 
+# ════════════════════════════════════════════════════════════════
+# GREETING LINE (hf98c2) — time-aware greeting + WEATHER-matched emoji
+# ════════════════════════════════════════════════════════════════
+# Shown right below the lock-screen clock. Paul: "dapat may Hi, yun
+# username" + "kung maulan dapat same din yung emoji dun sa pagbati."
+# So the trailing emoji follows the SAME weather bucket as the mood line
+# below — rainy greeting gets 🌧️, stormy gets ⛈️, not a fixed sun.
+# Placed AFTER WBUCKET is computed so it can read the weather.
+#   zen-lock-message.sh greet       -> "Good afternoon, Paul ⛈️"
+#   zen-lock-message.sh greet hi    -> "Hi, Paul ⛈️"
+if [ "$MODE" = "greet" ]; then
+    UNAME_RAW="${USER:-$(id -un 2>/dev/null)}"
+    [ -z "$UNAME_RAW" ] && UNAME_RAW="there"
+    # Capitalise the first letter (paul -> Paul). GNU sed \U.
+    UNAME_CAP="$(printf '%s' "$UNAME_RAW" | sed 's/^\(.\)/\U\1/' 2>/dev/null)"
+    [ -z "$UNAME_CAP" ] && UNAME_CAP="$UNAME_RAW"
+
+    # Emoji matches the weather bucket (clear is time-aware).
+    case "$WBUCKET" in
+        rain)    GREET_EMO="🌧️" ;;
+        storm)   GREET_EMO="⛈️" ;;
+        snow)    GREET_EMO="🌨️" ;;
+        cloudy)  GREET_EMO="☁️" ;;
+        foggy)   GREET_EMO="🌫️" ;;
+        starry)  GREET_EMO="🌌" ;;
+        clear)
+            case "$TOD" in
+                morning)   GREET_EMO="☀️" ;;
+                afternoon) GREET_EMO="🌤️" ;;
+                evening)   GREET_EMO="🌇" ;;
+                night)     GREET_EMO="🌙" ;;
+            esac ;;
+        *)       GREET_EMO="💭" ;;
+    esac
+
+    if [ "${2:-time}" = "hi" ]; then
+        echo "Hi, $UNAME_CAP $GREET_EMO"
+        exit 0
+    fi
+    case "$TOD" in
+        morning)   echo "Good morning, $UNAME_CAP $GREET_EMO" ;;
+        afternoon) echo "Good afternoon, $UNAME_CAP $GREET_EMO" ;;
+        evening)   echo "Good evening, $UNAME_CAP $GREET_EMO" ;;
+        night)     echo "Working late, $UNAME_CAP $GREET_EMO" ;;
+    esac
+    exit 0
+fi
+
 pick() {
     local pool=("$@")
     local count=${#pool[@]}

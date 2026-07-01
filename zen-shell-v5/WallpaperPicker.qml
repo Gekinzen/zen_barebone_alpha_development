@@ -189,7 +189,16 @@ Rectangle {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: WallpaperServiceV5.refresh()
+                    // v7.0.0-beta.1-hf96: in Online mode this forces a fresh
+                    // repo pull (bypassing the TTL cache) so the user can
+                    // manually recover an empty/stale Online tab; in Local
+                    // mode it rescans the local folder as before.
+                    onClicked: {
+                        if (root.onlineMode)
+                            WallpaperRepoService.refresh(true)
+                        else
+                            WallpaperServiceV5.refresh()
+                    }
                 }
             }
 
@@ -414,14 +423,31 @@ Rectangle {
                 }
             }
 
-            // Empty state
+            // Empty state — v7.0.0-beta.1-hf96: online-aware. In Online
+            // mode the previous text wrongly said "No wallpapers found in
+            // <local folder>", masking the real cause (GitHub rate-limit /
+            // offline). Now it reflects repo loading/error and points at
+            // the refresh button.
             Text {
                 anchors.centerIn: parent
+                width: parent.width - 48
                 visible: grid.count === 0
-                text: WallpaperServiceV5.loading
-                      ? "Loading..."
-                      : ("No wallpapers found in\n" + WallpaperServiceV5.localFolder)
                 horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
+                text: {
+                    if (root.onlineMode) {
+                        if (WallpaperRepoService.loading)
+                            return "Loading online wallpapers…"
+                        if (WallpaperRepoService.lastError.length > 0)
+                            return WallpaperRepoService.lastError
+                                 + "\n\nTap the refresh icon to retry."
+                        return "No online wallpapers yet.\n"
+                             + "Tap the refresh icon to fetch the list."
+                    }
+                    return WallpaperServiceV5.loading
+                         ? "Loading…"
+                         : ("No wallpapers found in\n" + WallpaperServiceV5.localFolder)
+                }
                 color: ThemeService.grey1
                 font.family: Theme.fontFamily
                 font.pixelSize: 13

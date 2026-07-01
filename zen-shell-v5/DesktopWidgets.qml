@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Window
 import Quickshell
 import Quickshell.Io
 
@@ -27,6 +28,17 @@ import Quickshell.Io
 Item {
     id: dw
     anchors.fill: parent
+
+    // v7.0.0-alpha.3 (Densho Surfaces): seasonal kanji column.
+    // Mounted on the right edge, vertically centered. Collapses to
+    // zero size when DenshoService.useSeasonalKanji is false, so the
+    // widget surface is unaffected when Densho mode is off.
+    DenshoSeasonal {
+        anchors.right: parent.right
+        anchors.rightMargin: 12
+        anchors.verticalCenter: parent.verticalCenter
+        z: 0   // sits behind interactive widgets but above wallpaper
+    }
 
     readonly property string configDir: Quickshell.env("HOME") + "/.config/quickshell/zen-shell"
     readonly property string configPath: configDir + "/widgets-state.json"
@@ -1371,7 +1383,12 @@ Item {
                         RowLayout {
                             Layout.fillWidth: true
                             Text {
-                                text: parent.parent.g.name || "GPU " + parent.parent.index
+                                // v7.0.0-beta.1: null guards on g.* access. Repeater
+                                // delegates sometimes evaluate bindings before modelData
+                                // is fully bound, causing repeated TypeErrors that pile
+                                // up memory.
+                                text: (parent.parent.g && parent.parent.g.name)
+                                      || ("GPU " + (parent.parent.index || 0))
                                 font.family: "Adwaita Sans"
                                 font.pixelSize: 12 * dw._scale
                                 font.weight: Font.DemiBold
@@ -1380,12 +1397,12 @@ Item {
                                 elide: Text.ElideRight
                             }
                             Text {
-                                text: (parent.parent.g.type || "").toUpperCase()
+                                text: ((parent.parent.g && parent.parent.g.type) || "").toUpperCase()
                                 font.family: "Adwaita Sans"
                                 font.pixelSize: 9 * dw._scale
                                 font.weight: Font.Bold
                                 color: {
-                                    const t = parent.parent.g.type
+                                    const t = (parent.parent.g && parent.parent.g.type) || ""
                                     if (t === "nvidia") return "#76b900"
                                     if (t === "amd") return "#ed1c24"
                                     if (t === "intel") return "#0071c5"
@@ -1550,5 +1567,98 @@ Item {
             else ctx.lineTo(x, y)
         }
         ctx.stroke()
+    }
+
+    // ═════════════════════════════════════════════════════════════
+    // v7.0.0-beta.1-hf82r — Collision-region registration
+    // ═════════════════════════════════════════════════════════════
+    //
+    // The new DesktopSurface (also mounted in this widgetWindow as
+    // sibling) auto-flows file/folder icons across the screen.
+    // Without coordination it'd happily place icons on top of the
+    // clock / weather / sysmon widgets that we render below.
+    //
+    // Fix: each visible widget self-registers its bounding box in
+    // DesktopIconsState.collisionRegions. The DesktopSurface flow
+    // algorithm consults this and skips cells that would overlap.
+    //
+    // Connections-based — no edits to the widget Rectangle blocks
+    // themselves, purely additive. Re-fires on x/y/visible change so
+    // dragging a widget updates the collision map live.
+    //
+    // Region id format: "<type>-<screenName>" so multi-monitor users
+    // get one entry per (widget, monitor) pair without ID collisions.
+
+    function _regionId(widgetType) {
+        // Best-effort screen name. The dw root sits inside a
+        // PanelWindow with `screen: modelData` — Qt exposes it as
+        // the parent surface name via Window.window?.screen.name.
+        let scr = ""
+        try {
+            if (Window && Window.window && Window.window.screen) {
+                scr = Window.window.screen.name || ""
+            }
+        } catch (e) {}
+        return widgetType + "-" + (scr || "default")
+    }
+
+    Connections {
+        target: clockWidget
+        function _update() {
+            if (typeof DesktopIconsState === "undefined") return
+            const id = _regionId("clock")
+            if (clockWidget.visible && clockWidget.width > 0) {
+                DesktopIconsState.registerCollisionRegion(
+                    id, clockWidget.x, clockWidget.y,
+                    clockWidget.width, clockWidget.height)
+            } else {
+                DesktopIconsState.unregisterCollisionRegion(id)
+            }
+        }
+        function onXChanged()       { _update() }
+        function onYChanged()       { _update() }
+        function onWidthChanged()   { _update() }
+        function onHeightChanged()  { _update() }
+        function onVisibleChanged() { _update() }
+    }
+
+    Connections {
+        target: weatherWidget
+        function _update() {
+            if (typeof DesktopIconsState === "undefined") return
+            const id = _regionId("weather")
+            if (weatherWidget.visible && weatherWidget.width > 0) {
+                DesktopIconsState.registerCollisionRegion(
+                    id, weatherWidget.x, weatherWidget.y,
+                    weatherWidget.width, weatherWidget.height)
+            } else {
+                DesktopIconsState.unregisterCollisionRegion(id)
+            }
+        }
+        function onXChanged()       { _update() }
+        function onYChanged()       { _update() }
+        function onWidthChanged()   { _update() }
+        function onHeightChanged()  { _update() }
+        function onVisibleChanged() { _update() }
+    }
+
+    Connections {
+        target: sysmonWidget
+        function _update() {
+            if (typeof DesktopIconsState === "undefined") return
+            const id = _regionId("sysmon")
+            if (sysmonWidget.visible && sysmonWidget.width > 0) {
+                DesktopIconsState.registerCollisionRegion(
+                    id, sysmonWidget.x, sysmonWidget.y,
+                    sysmonWidget.width, sysmonWidget.height)
+            } else {
+                DesktopIconsState.unregisterCollisionRegion(id)
+            }
+        }
+        function onXChanged()       { _update() }
+        function onYChanged()       { _update() }
+        function onWidthChanged()   { _update() }
+        function onHeightChanged()  { _update() }
+        function onVisibleChanged() { _update() }
     }
 }

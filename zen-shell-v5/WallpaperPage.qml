@@ -95,15 +95,14 @@ ScrollView {
                         font.pixelSize: 11
                     }
 
-                    Button {
+                                        ZenButton {
                         text: "Browse"
-                        highlighted: true
+                        accent: true
                         onClicked: folderPicker.running = true
                     }
 
-                    Button {
-                        text: "\uf021"
-                        font.family: "JetBrainsMono Nerd Font"
+                                        ZenButton {
+                        iconText: "\uf021"
                         onClicked: WallpaperServiceV5.refresh()
                     }
                 }
@@ -313,7 +312,7 @@ ScrollView {
 
                 Item { Layout.fillWidth: true }
 
-                Button {
+                                ZenButton {
                     text: "← Previous"
                     enabled: WallpaperServiceV5.currentPage > 0
                     onClicked: WallpaperServiceV5.prevPage()
@@ -329,7 +328,7 @@ ScrollView {
                     horizontalAlignment: Text.AlignHCenter
                 }
 
-                Button {
+                                ZenButton {
                     text: "Next →"
                     enabled: WallpaperServiceV5.currentPage < WallpaperServiceV5.totalPages - 1
                     onClicked: WallpaperServiceV5.nextPage()

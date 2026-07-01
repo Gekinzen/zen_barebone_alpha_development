@@ -168,6 +168,31 @@ if [ "$CONFLICTING" = "1" ]; then
 fi
 
 # ═══════════════════════════════════════════════════════════════
+# v7.0.0-beta.1-hf81 — Show pinned versions before installing
+# ═══════════════════════════════════════════════════════════════
+# bootstrap.sh is what FIRST-installs hyprland/quickshell, so a hard
+# block here doesn't make sense (nothing's installed yet). Instead
+# we just inform the user which versions this release was tested
+# against; paru will pull whatever is current from repos/AUR.
+# install.sh runs the strict pin check afterwards.
+if [ -f "$SCRIPT_DIR/scripts/zen-version-check.sh" ] && [ -f "$SCRIPT_DIR/versions.lock" ]; then
+    # shellcheck source=scripts/zen-version-check.sh
+    . "$SCRIPT_DIR/scripts/zen-version-check.sh"
+    if zen_version_check_init "$SCRIPT_DIR/versions.lock"; then
+        echo ""
+        echo "${C_DIM}    Tested against (versions.lock):${C_END}"
+        for __pkg in $(printf '%s\n' "${!ZEN_PIN_MM[@]}" | sort); do
+            printf "${C_DIM}      %-20s %s.x   (tested %s)${C_END}\n" \
+                "$__pkg" "${ZEN_PIN_MM[$__pkg]}" "${ZEN_PIN_FULL[$__pkg]:-?}"
+        done
+        echo ""
+        echo "${C_DIM}    paru will install latest from repos/AUR. If those have moved past${C_END}"
+        echo "${C_DIM}    a tested major.minor (e.g. hyprland 0.55 vs 0.54.x), install.sh will${C_END}"
+        echo "${C_DIM}    warn afterwards. Override with ZEN_FORCE_VERSIONS=1.${C_END}"
+    fi
+fi
+
+# ═══════════════════════════════════════════════════════════════
 # [4/6] Package installation
 # ═══════════════════════════════════════════════════════════════
 echo ""

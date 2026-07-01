@@ -50,8 +50,11 @@ Rectangle {
     property real inertia: 0.5        // momentum carry — 50%
     property real springForce: 0.45   // spring pull — 45%
 
-    // Color — inherits from theme
-    property color ropeColor: ZenStringsState.color1
+    // Color — hf82j: uses dedicated ropeColor instead of color1.
+    // This lets the user pick a screenshot-rope color independently
+    // from the music-strings color (inherit/theme/synced/custom).
+    // "inherit" mode preserves pre-hf82j behavior (uses color1).
+    property color ropeColor: ZenStringsState.ropeColor
 
     anchors.fill: parent
 
@@ -123,10 +126,27 @@ Rectangle {
             }
         }
 
-        // Physics tick — 60fps simulation
+        // Physics tick — 60fps simulation.
+        //
+        // v7.0.0-beta.1-hf33 MEMORY FIX: gated behind ropeRect.visible.
+        // Previously `running: true` meant the timer fired 60 times/sec
+        // FOREVER from shell startup — but ZenRope is ONLY used inside
+        // ZenScreenshotOverlay (4 instances per screen for corner ropes
+        // to selection box). With a typical 2-monitor setup that's
+        // 8 ropes × 60Hz = 480 useless physics ticks/sec churning JS
+        // scratch values (sqrt/pow allocations, vec2 temporaries) into
+        // the V8 heap, forcing GC pressure that contributed to bloated
+        // RAM. Gating with `running: ropeRect.visible` means the timer
+        // only runs while the screenshot overlay is actually shown —
+        // which is the only time the rope physics matter visually.
+        //
+        // Also: resetPhysics() is already called when overlay opens
+        // (see ZenScreenshotOverlay.resetState() path), so when timer
+        // resumes it starts from a clean known state — no stale
+        // velocities to flush.
         Timer {
             interval: 1000 / 60
-            running: true
+            running: ropeRect.visible
             repeat: true
 
             onTriggered: {
@@ -189,10 +209,22 @@ Rectangle {
                 property double vy: 0
 
                 onCenterXChanged: {
-                    pathCurves.pathElements[index].x = centerX
+                    // v7.0.0-beta.1-hf14: null guard — pathCurves.pathElements[index]
+                    // may be undefined during the race window when ropeRect.segments
+                    // triggers new Instantiator instances faster than the
+                    // onObjectAdded pushes them into pathCurves.pathElements.
+                    // Without this guard, every animation frame fires a TypeError
+                    // ("Value is undefined and could not be converted to an
+                    // object") — accumulates to SIGSEGV. Line 69 above already
+                    // has this guard pattern; these inline handlers needed it too.
+                    if (pathCurves.pathElements[index]) {
+                        pathCurves.pathElements[index].x = centerX
+                    }
                 }
                 onCenterYChanged: {
-                    pathCurves.pathElements[index].y = centerY
+                    if (pathCurves.pathElements[index]) {
+                        pathCurves.pathElements[index].y = centerY
+                    }
                 }
                 Component.onCompleted: {
                     // v6.15.1: Use flicko-original init — small offset
@@ -203,8 +235,11 @@ Rectangle {
                     // (overlay just appeared, no drag yet).
                     centerX = ropeRect.anchorX + index
                     centerY = ropeRect.anchorY + index
-                    pathCurves.pathElements[index].x = centerX
-                    pathCurves.pathElements[index].y = centerY
+                    // v7.0.0-beta.1-hf14: same null guard as above
+                    if (pathCurves.pathElements[index]) {
+                        pathCurves.pathElements[index].x = centerX
+                        pathCurves.pathElements[index].y = centerY
+                    }
                 }
 
                 radiusX: 1; radiusY: 1

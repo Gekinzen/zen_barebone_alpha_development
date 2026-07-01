@@ -31,6 +31,11 @@ Item {
     property string positionY: "top"     // "top" | "bottom"
     property string display: "all"       // "all" | "primary"
 
+    // v7.0.0-alpha.12-hf6: daemon mode toggle
+    //   "zen"    — zen-shell native NotificationService (default)
+    //   "swaync" — fallback to SwayNC (legacy daemon)
+    property string daemonMode: "zen"
+
     readonly property string statePath: Quickshell.env("HOME") + "/.config/quickshell/zen-shell/notification-state.json"
     readonly property string swayncConfigPath: Quickshell.env("HOME") + "/.config/swaync/config.json"
 
@@ -80,6 +85,156 @@ Item {
                 Layout.rightMargin: 24
                 Layout.bottomMargin: 24
                 spacing: 16
+
+                // ═══════════════════════════════════════
+                // DAEMON MODE TOGGLE (v7.0.0-alpha.12-hf6)
+                // ═══════════════════════════════════════
+                SettingsSection {
+                    title: "Daemon Mode"
+                    subtitle: "Choose which notification daemon handles incoming notifications"
+
+                    Layout.fillWidth: true
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.topMargin: 8
+                        spacing: 12
+
+                        // Zen Shell native
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 72
+                            radius: 10
+                            color: root.daemonMode === "zen"
+                                   ? ThemeService.alpha(ThemeService.blue, 0.18)
+                                   : ThemeService.alpha(ThemeService.bg2, 0.5)
+                            border.width: root.daemonMode === "zen" ? 2 : 1
+                            border.color: root.daemonMode === "zen"
+                                          ? ThemeService.blue
+                                          : ThemeService.alpha(ThemeService.fg, 0.12)
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 12
+                                spacing: 4
+
+                                RowLayout {
+                                    spacing: 6
+                                    Layout.fillWidth: true
+
+                                    Text {
+                                        text: "\uf0eb"   // lightbulb / spark
+                                        font.family: "JetBrainsMono Nerd Font"
+                                        font.pixelSize: 14
+                                        color: root.daemonMode === "zen"
+                                               ? ThemeService.blue
+                                               : ThemeService.alpha(ThemeService.fg, 0.7)
+                                    }
+                                    Text {
+                                        text: "Zen Shell (prototype)"
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: 13
+                                        font.weight: Font.DemiBold
+                                        color: ThemeService.fg
+                                        Layout.fillWidth: true
+                                    }
+                                    Rectangle {
+                                        visible: root.daemonMode === "zen"
+                                        width: 6; height: 6; radius: 3
+                                        color: ThemeService.blue
+                                    }
+                                }
+
+                                Text {
+                                    text: "Native daemon, theme-aware toasts, OSD popups"
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: 11
+                                    color: ThemeService.alpha(ThemeService.fg, 0.65)
+                                    Layout.fillWidth: true
+                                    wrapMode: Text.Wrap
+                                }
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    root.daemonMode = "zen"
+                                    root._saveAndApply()
+                                }
+                            }
+                        }
+
+                        // SwayNC fallback
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 72
+                            radius: 10
+                            color: root.daemonMode === "swaync"
+                                   ? ThemeService.alpha(ThemeService.blue, 0.18)
+                                   : ThemeService.alpha(ThemeService.bg2, 0.5)
+                            border.width: root.daemonMode === "swaync" ? 2 : 1
+                            border.color: root.daemonMode === "swaync"
+                                          ? ThemeService.blue
+                                          : ThemeService.alpha(ThemeService.fg, 0.12)
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 12
+                                spacing: 4
+
+                                RowLayout {
+                                    spacing: 6
+                                    Layout.fillWidth: true
+
+                                    Text {
+                                        text: "\uf013"   // gear (legacy)
+                                        font.family: "JetBrainsMono Nerd Font"
+                                        font.pixelSize: 14
+                                        color: root.daemonMode === "swaync"
+                                               ? ThemeService.blue
+                                               : ThemeService.alpha(ThemeService.fg, 0.7)
+                                    }
+                                    Text {
+                                        text: "SwayNC (legacy)"
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: 13
+                                        font.weight: Font.DemiBold
+                                        color: ThemeService.fg
+                                        Layout.fillWidth: true
+                                    }
+                                    Rectangle {
+                                        visible: root.daemonMode === "swaync"
+                                        width: 6; height: 6; radius: 3
+                                        color: ThemeService.blue
+                                    }
+                                }
+
+                                Text {
+                                    text: "Original SwayNC daemon — stable fallback"
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: 11
+                                    color: ThemeService.alpha(ThemeService.fg, 0.65)
+                                    Layout.fillWidth: true
+                                    wrapMode: Text.Wrap
+                                }
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    root.daemonMode = "swaync"
+                                    root._saveAndApply()
+                                }
+                            }
+                        }
+                    }
+                }
 
                 // ═══════════════════════════════════════
                 // POSITION SELECTOR — visual 3x2 grid
@@ -346,6 +501,7 @@ Item {
         const px = positionX
         const py = positionY
         const disp = display
+        const dm = daemonMode
         const sp = statePath
 
         // Stop previous run if still going
@@ -357,22 +513,63 @@ Item {
             "printf '%s\\n' '{' " +
             "'  \"positionX\": \"" + px + "\",' " +
             "'  \"positionY\": \"" + py + "\",' " +
-            "'  \"display\": \"" + disp + "\"' " +
+            "'  \"display\": \"" + disp + "\",' " +
+            "'  \"daemonMode\": \"" + dm + "\"' " +
             "'}' > '" + sp + "' && " +
-            "echo '[NotificationPage] State saved: " + py + "-" + px + "'"
+            "echo '[NotificationPage] State saved: " + py + "-" + px + " daemon=" + dm + "'"
         ]
         stateSaver.running = true
+
+        // v7.0.0-alpha.12-hf3: tell NotificationService to re-read the
+        // file so the bar bell + notification panel reposition immediately.
+        // 600ms delay so stateSaver finishes writing before reload.
+        nsReloadTimer.restart()
+    }
+
+    Timer {
+        id: nsReloadTimer
+        interval: 600
+        repeat: false
+        onTriggered: {
+            if (typeof NotificationService !== "undefined"
+                && NotificationService._loadPosition) {
+                NotificationService._loadPosition()
+            }
+        }
     }
 
     function _patchAndRestart() {
+        // Stop previous run if still going (user clicked rapidly)
+        if (swayncPatcher.running) swayncPatcher.running = false
+
+        // v7.0.0-beta.1-hf98f — zen mode must NOT start swaync. The old code
+        // ran patch-swaync-position.sh unconditionally, which START()s swaync;
+        // swaync then grabs the org.freedesktop.Notifications D-Bus name and
+        // blocks Quickshell's native NotificationServer, so notifications
+        // silently stop ("prang d na gumagana"). Changing the position never
+        // flips daemonMode, so NotificationService's own kill logic didn't
+        // re-fire. In zen mode we now reuse that robust kill (systemctl stop
+        // + disable + pkill) to KEEP swaync dead so the zen daemon owns the
+        // bus. The zen-side position is already saved + reloaded by
+        // _saveZenState(). swaync mode is unchanged — wala tayong binawasan.
+        if (daemonMode === "zen") {
+            if (typeof NotificationService !== "undefined"
+                && NotificationService._applyDaemonMode) {
+                NotificationService._applyDaemonMode()
+            } else {
+                swayncPatcher.command = ["bash", "-c",
+                    "pkill -TERM swaync 2>/dev/null; sleep 0.4; " +
+                    "pkill -9 -x swaync 2>/dev/null; true"]
+                swayncPatcher.running = true
+            }
+            return
+        }
+
         const px = positionX
         const py = positionY
         const script = Quickshell.env("HOME") + "/.local/bin/patch-swaync-position.sh"
 
         console.log("[NotificationPage] _patchAndRestart: calling script with px=" + px + " py=" + py)
-
-        // Stop previous run if still going (user clicked rapidly)
-        if (swayncPatcher.running) swayncPatcher.running = false
 
         swayncPatcher.command = ["bash", "-c",
             "'" + script + "' '" + px + "' '" + py + "'"
@@ -387,6 +584,22 @@ Item {
     function _restartSwaync() {
         // Stop previous run if still going
         if (swayncPatcher.running) swayncPatcher.running = false
+
+        // hf98f — in zen mode the "Apply" button must not start swaync. The
+        // zen daemon IS Quickshell's always-running NotificationServer, so
+        // applying just means freeing the bus name from any stray swaync,
+        // then firing a test toast THROUGH the zen daemon to confirm it works.
+        if (daemonMode === "zen") {
+            swayncPatcher.command = ["bash", "-c",
+                "systemctl --user stop swaync.service 2>/dev/null; " +
+                "systemctl --user disable swaync.service 2>/dev/null; " +
+                "pkill -TERM swaync 2>/dev/null; sleep 1; " +
+                "if pgrep -x swaync >/dev/null 2>&1; then pkill -9 -x swaync 2>/dev/null; sleep 0.5; fi; " +
+                "notify-send -t 2500 'Zen notifications active' 'Native daemon is handling notifications' 2>/dev/null"
+            ]
+            swayncPatcher.running = true
+            return
+        }
 
         swayncPatcher.command = ["bash", "-c",
             "pkill -TERM swaync 2>/dev/null; sleep 1; " +
@@ -404,8 +617,9 @@ Item {
             if (s.positionX) positionX = s.positionX
             if (s.positionY) positionY = s.positionY
             if (s.display) display = s.display
+            if (s.daemonMode) daemonMode = s.daemonMode
             console.log("[NotificationPage] Loaded state: " + positionY + "-" + positionX +
-                        " display=" + display)
+                        " display=" + display + " daemon=" + daemonMode)
         } catch (e) {
             console.error("[NotificationPage] Parse error:", e)
         }

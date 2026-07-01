@@ -24,7 +24,16 @@ input {
 
 # ── Tiling ──
 dwindle {
-    pseudotile = true
+    # v7.0.0-beta.1-hf82l — `pseudotile = true` removed because
+    # `dwindle:pseudotile` config option was removed in Hyprland 0.55
+    # (Hyprland release notes: "dwindle:pseudotile has been removed
+    # as it wasn't doing anything"). The `pseudo` dispatcher (bound
+    # to SUPER+P in modules/binds.conf) still works per-window — it
+    # toggles the pseudotile state on the focused window directly,
+    # which is what users actually wanted from this config option
+    # anyway. Removing the line keeps 0.55+ users error-free while
+    # preserving identical UX on 0.53/0.54 (where the line was a
+    # no-op per Hyprland's own description).
     preserve_split = true
 }
 

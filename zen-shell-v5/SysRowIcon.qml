@@ -22,19 +22,29 @@ Item {
     property string tipDetail: ""
     property color iconColor: ThemeService.fg
 
+    // v7.0.0-beta.1-hf84: scale the glyph with the bar when Fit-contents
+    // is on (1.0 otherwise → identical to before). Tooltip text is left
+    // unscaled — it's a popup, not a bar element.
+    readonly property real _fit: (typeof Theme !== "undefined" && Theme.barContentScale)
+                                 ? Theme.barContentScale : 1.0
+
     signal clicked()
 
+    // v7.0.0-beta.1-hf93: height capped to moduleHeight. In a horizontal
+    // bar `parent.height` IS moduleHeight (unchanged). In a vertical
+    // SysRow column, `parent.height` would be the whole column height, so
+    // the cap keeps each icon a single module tall instead of ballooning.
     Layout.preferredWidth: iconText.implicitWidth + 12
-    Layout.preferredHeight: parent ? parent.height : 28
+    Layout.preferredHeight: Math.min(parent ? parent.height : 28, Theme.moduleHeight)
     implicitWidth: iconText.implicitWidth + 12
-    implicitHeight: parent ? parent.height : 28
+    implicitHeight: Math.min(parent ? parent.height : 28, Theme.moduleHeight)
 
     Text {
         id: iconText
         anchors.centerIn: parent
         text: root.icon
         font.family: "JetBrainsMono Nerd Font"
-        font.pixelSize: 14
+        font.pixelSize: Math.round(14 * root._fit)
         color: root.iconColor
     }
 
@@ -72,8 +82,9 @@ Item {
         anchor.edges: PanelState.popupAnchorEdges
         anchor.gravity: PanelState.popupAnchorGravity
         visible: iconMouse.containsMouse && root.tipTitle.length > 0
-        width: Math.max(tipCol.implicitWidth + 24, 100)
-        height: tipCol.implicitHeight + 16
+        // v7.0.0-beta.1-hf4: implicit* (bare width/height deprecated)
+        implicitWidth: Math.max(tipCol.implicitWidth + 24, 100)
+        implicitHeight: tipCol.implicitHeight + 16
         color: "transparent"
 
         Rectangle {

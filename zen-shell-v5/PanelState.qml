@@ -47,6 +47,68 @@ Singleton {
     // ── Bar height ──
     property int barHeight: 60
 
+    // v7.0.0-beta.1-hf95.31 — taskbar overflow cap. How wide the
+    // horizontal taskbar may grow before chevron < > scroll arrows appear.
+    // Was hardcoded 440 in Taskbar.qml; now a slider (240–900).
+    property int taskbarMaxWidth: 440
+
+    // ── Auto bar height (v7.0.0-beta.1-hf83) ──
+    //
+    // When true, the bar window's height is driven by the tallest
+    // module currently in the bar (Bar.contentImplicitHeight) plus
+    // barAutoHeightPadding on top + bottom — instead of the fixed
+    // `barHeight` pixel value. This makes the bar hug its contents:
+    // add a taller module and the bar grows; remove it and the bar
+    // shrinks back. The manual `barHeight` slider is preserved (and
+    // still used when this is false) so nothing is lost — wala tayong
+    // babawasan. Default false keeps every existing install on its
+    // saved fixed height until the user opts in.
+    property bool barAutoHeight: false
+
+    // Top+bottom breathing room added around the measured content
+    // height when barAutoHeight is on. 8px each side by default.
+    property int barAutoHeightPadding: 8
+
+    // ── Fit contents to bar (v7.0.0-beta.1-hf84) ──
+    //
+    // When true, bar module content (icons, text, pills) scales to the
+    // bar height instead of staying a fixed size — Theme.iconSize /
+    // fontSize / moduleHeight all multiply by Theme.barContentScale,
+    // which tracks this barHeight slider relative to a 60px baseline.
+    // Set a taller bar → bigger icons; shorter bar → smaller icons.
+    // Default false keeps every module at its existing fixed size.
+    property bool barFitContents: false
+
+    // ── Manual module scale (v7.0.0-beta.1-hf86) ──
+    //
+    // Direct multiplier on bar module content size, applied ON TOP of
+    // the dynamic Fit-contents scale (and on its own when Fit-contents
+    // is off). Lets the user size icons/text without changing bar
+    // height. 1.0 = stock. Feeds Theme.barContentScale.
+    property real barModuleScale: 1.0
+
+    // ── Settings sidebar hover style (v7.0.0-beta.1-hf86) ──
+    // "rounded" → pill/rounded hover highlight on left-panel nav items
+    // "square"  → sharp-cornered hover highlight
+    property string settingsHoverStyle: "rounded"
+
+    // ── Quick Settings / Control Center position (v7.0.0-beta.1-hf88) ──
+    // Where the Control Panel (quick settings) popup anchors when it
+    // hasn't been manually dragged: "center" (default, prior behavior),
+    // "top", or "bottom". Lets it sit near a top- or bottom-anchored bar.
+    property string controlPanelPosition: "center"
+    property int    controlPanelEdgeMargin: 12
+
+    // ── Vertical content padding (v7.0.0-beta.1-hf85) ──
+    //
+    // Guaranteed breathing room above + below the bar's module row, so
+    // modules stay vertically centered with an even gap top and bottom
+    // no matter the bar height. Bar.qml insets its content RowLayout by
+    // this amount on top and bottom; the three module zones fillHeight
+    // within the reduced area and each module is AlignVCenter, so they
+    // stay centered with symmetric padding when the height changes.
+    property int barContentPaddingV: 4
+
     // ── Computed margins/width based on mode ──
     property int panelMarginSide: {
         if (panelMode === "floating") return 12
@@ -127,6 +189,13 @@ Singleton {
     property real startButtonCenterX: -1   // -1 = unknown, use default left-anchor
     property real startButtonCenterY: -1
 
+    // v7.0.0-alpha.6-hf4: clipboard module button position (mirror
+    // of startButton — used by shell.qml clipboardWindow to anchor
+    // the panel directly under/over the clipboard icon in the bar,
+    // wherever the user placed it in their bar layout).
+    property real clipboardButtonCenterX: -1
+    property real clipboardButtonRightX: -1   // for right-side anchoring
+
     // Screen dimensions of the monitor the start button was last clicked on.
     // Used by shell.qml to clamp the menu within the viewport.
     property int screenWidth: 1920
@@ -165,6 +234,47 @@ Singleton {
     // v6.8: Workspace visible count limit (default 5).
     property int workspaceLimit: 5
 
+    // v7.0.0-alpha.4 (StartMenu V2): pinned-grid dynamic dimensions
+    // for the dual-pane StartMenuPanel. Cols clamped 3-6, rows 1-8 by
+    // the panel itself. Defaults give a 4x4 grid (16 slots).
+    property int pinnedGridCols: 4
+    property int pinnedGridRows: 4
+
+    // v7.0.0-alpha.4-hf2: StartMenu border mode.
+    //   "off"       — borderless panel
+    //   "match-bar" — same border color/width as the bar (so the two
+    //                 form one continuous line when the panel is
+    //                 sticky-anchored to the bar — see shell.qml gap)
+    //   "thick"     — 2× bar border width, same color (emphasized)
+    // Default "match-bar" reads from existing borderEnabled +
+    // borderWidth + borderColor. When bar border is off, panel falls
+    // back to a subtle ThemeService outline.
+    property string startMenuBorderMode: "match-bar"
+
+    // v7.0.0-alpha.6: ClipboardPanel visibility (Super+V toggle).
+    // shell.qml mounts a PanelWindow gated on this flag.
+    property bool clipboardVisible: false
+
+    // v7.0.0-alpha.6-hf2: SettingsSearchOverlay visibility (Ctrl+F).
+    // Bound to a global PanelWindow at WlrLayer.Overlay so the search
+    // is summonable from anywhere — not just inside Settings.
+    property bool searchOverlayVisible: false
+
+    // v7.0.0-beta.1-hf25: direct-toggle properties so callers don't
+    // need to spawn `qs ipc call` (which can launch a second instance
+    // if current is mid-crash).
+    property bool startMenuVisible: false
+    property bool settingsVisible: false
+
+    // v7.0.0-beta.1-hf41: persisted collapse/expand state for the
+    // FloatingSettingsSearch component in ZenSettings. Defaults to
+    // false (collapsed) — user must explicitly click the search
+    // glyph to expand the bar. State survives Settings panel
+    // close/reopen within the same shell session (not persisted
+    // to disk — intentional, prevents weird "I left this open"
+    // surprises across reboots).
+    property bool settingsSearchExpanded: false
+
     // v6.10: Bar target display — "all", "primary", or specific monitor name
     property string barTargetDisplay: "all"
 
@@ -178,6 +288,66 @@ Singleton {
     function toggleCalendar() { calendarVisible = !calendarVisible }
     function closeCalendar()  { calendarVisible = false }
     function openCalendar()   { calendarVisible = true }
+
+    // v7.0.0-beta.1-hf5: Singleton-backed notification panel visibility.
+    //
+    // The bell icon (NotificationIcon.qml) used to fire external IPC
+    // via `qs -c zen-shell ipc call zen toggleNotifications` — every
+    // click spawned a bash subprocess + ipc roundtrip. On rapid clicks
+    // or under load, the bash latency raced with QML binding updates,
+    // causing the notifPanelWindow to render multiple stacked QML
+    // surfaces and eventually crash.
+    //
+    // Now the bell flips this PanelState property directly (no IPC, no
+    // process spawn, no race). shell.qml's notifPanelWindow keeps its
+    // existing root.notifPanelVisible binding AND a forwarder to this
+    // singleton — both stay in sync.
+    property bool notifPanelVisible: false
+    function toggleNotifPanel() { notifPanelVisible = !notifPanelVisible }
+    function closeNotifPanel()  { notifPanelVisible = false }
+    function openNotifPanel()   { notifPanelVisible = true }
+
+    // v7.0.0-beta.1-hf7: Singleton-backed visibility for Control Panel
+    // + Workspace Overview, mirroring shell.qml root properties.
+    // Used by HotCornerService to invoke actions directly (no external
+    // bash/IPC roundtrip = no race condition).
+    property bool controlPanelVisible: false
+    function toggleControlCenter() { controlPanelVisible = !controlPanelVisible }
+    function closeControlCenter()  { controlPanelVisible = false }
+    function openControlCenter()   { controlPanelVisible = true }
+
+    property bool workspaceOverviewVisible: false
+    function toggleWorkspaceOverview() { workspaceOverviewVisible = !workspaceOverviewVisible }
+    function closeWorkspaceOverview()  { workspaceOverviewVisible = false }
+    function openWorkspaceOverview()   { workspaceOverviewVisible = true }
+
+    // v7.0.0-beta.1-hf39 — visibility properties for the five new
+    // feature modules (Focus Spaces, Quick Notes, Network Pulse).
+    // Smart Dim has no popover (toggle-only). Title Translator uses
+    // hover tooltip only. These three needed flip flags for their
+    // panels.
+    property bool focusSpacesVisible: false
+    function toggleFocusSpaces() { focusSpacesVisible = !focusSpacesVisible }
+
+    property bool quickNotesVisible: false
+    function toggleQuickNotes() { quickNotesVisible = !quickNotesVisible }
+
+    property bool networkPulseVisible: false
+    function toggleNetworkPulse() { networkPulseVisible = !networkPulseVisible }
+
+    // v7.0.0-beta.1-hf39 — settings page deep-link.
+    // Used by bar modules' right-click handlers to jump directly to
+    // their config page. ZenSettings.qml watches pendingSettingsPage,
+    // applies it to its currentPage, then resets pendingSettingsPage
+    // to "" so the watcher fires correctly on subsequent navigations.
+    property string pendingSettingsPage: ""
+
+    function openSettingsPage(pageId) {
+        if (typeof pageId === "string" && pageId) {
+            pendingSettingsPage = pageId
+        }
+        settingsVisible = true
+    }
 
     // v6.16.2.3.1: Calendar month navigation nudge. Clock's scroll wheel
     // increments/decrements this; ZenCalendar watches it and applies the
@@ -305,6 +475,12 @@ Singleton {
     // restart). Emitted from FileView.onLoaded after applyState runs.
     signal panelStateLoaded()
 
+    // v7.0.0-beta.1-hf28: clipboard toggle signal. Bar module emits
+    // with caller's screen; shell.qml listens and calls its internal
+    // toggleClipboardOnScreen(). No `qs ipc call` subprocess → no
+    // risk of second-instance spawn during a crash recovery.
+    signal toggleClipboardOnScreenRequested(var screen)
+
     // v6.16.4.12.9 (Modori) — Debounced save.
     //
     // Sliders in PanelPage call PanelState.saveState() on every
@@ -345,14 +521,44 @@ Singleton {
         _doSaveState()
     }
 
+    // v7.0.0-beta.1-hf97 — load-complete guard. See FileView below.
+    // Until panel-state.json has finished its async load at startup,
+    // ANY saveState() call would write the still-DEFAULT in-memory
+    // values over the user's saved bar config. The concrete trigger:
+    // ThemeService.applyJson() runs on the theme file's onLoaded at
+    // login and queues `Qt.callLater(PanelState.saveState)`; the shell's
+    // theme-apply and nuclear-restart timers can fire too. Both
+    // FileViews (theme + panel-state) load concurrently, so when the
+    // theme path wins the race, panel-state.json gets clobbered with
+    // defaults — the intermittent "bar settings nag-reset, dunno why"
+    // bug. Suppressing writes until _loaded flips closes the whole
+    // race class. No feature touched — wala tayong binawasan.
+    property bool _loaded: false
+
     function _doSaveState() {
+        if (!root._loaded) {
+            console.warn("[PanelState] hf97: save suppressed — panel-state.json not loaded yet (prevents default clobber)")
+            return
+        }
         const state = {
             // v6.16.0: version stamp used by applyState migration checks.
             // Bump this when introducing a non-idempotent data migration.
-            saveVersion: "6.16.0",
+            // v7.0.0-beta.1-hf42: bumped so the quicknotes + titletranslator
+            // injection migration runs at most once per upgrade.
+            saveVersion: "7.0.0-beta.1-hf42",
             panelMode: panelMode,
             panelPosition: panelPosition,
             barHeight: barHeight,
+            taskbarMaxWidth: taskbarMaxWidth,
+            // v7.0.0-beta.1-hf83: auto-height opt-in + its padding
+            barAutoHeight: barAutoHeight,
+            barAutoHeightPadding: barAutoHeightPadding,
+            barFitContents: barFitContents,
+            barContentPaddingV: barContentPaddingV,
+            barModuleScale: barModuleScale,
+            settingsHoverStyle: settingsHoverStyle,
+            controlPanelPosition: controlPanelPosition,
+            controlPanelEdgeMargin: controlPanelEdgeMargin,
             borderEnabled: borderEnabled,
             borderWidth: borderWidth,
             borderColor: "" + borderColor,
@@ -368,6 +574,11 @@ Singleton {
             fontFamilyId: fontFamilyId,
             // v6.8
             workspaceLimit: workspaceLimit,
+            // v7.0.0-alpha.4 (StartMenu V2)
+            pinnedGridCols: pinnedGridCols,
+            pinnedGridRows: pinnedGridRows,
+            // v7.0.0-alpha.4-hf2
+            startMenuBorderMode: startMenuBorderMode,
             // v6.10
             barTargetDisplay: barTargetDisplay,
             // v6.11
@@ -432,13 +643,26 @@ Singleton {
             //
             // Will be reinstated when the proper vertical-bar drop
             // lands with full sidebar / module-rotation support.
-            if (s.panelPosition && (s.panelPosition === "top" || s.panelPosition === "bottom")) {
+            // v7.0.0-beta.1-hf90: vertical bar (Tategaki) Phase 1 — all
+            // four positions are now valid and persisted. Left/Right
+            // render a vertical bar (see shell.qml + Bar.qml). No more
+            // migrate-to-bottom.
+            if (s.panelPosition === "top" || s.panelPosition === "bottom"
+                || s.panelPosition === "left" || s.panelPosition === "right") {
                 panelPosition = s.panelPosition
-            } else if (s.panelPosition === "left" || s.panelPosition === "right") {
-                panelPosition = "bottom"
-                Qt.callLater(saveState)   // persist the migration
             }
             if (s.barHeight) barHeight = s.barHeight
+            if (s.taskbarMaxWidth) taskbarMaxWidth = Math.max(240, Math.min(900, s.taskbarMaxWidth))
+            // v7.0.0-beta.1-hf83: auto-height opt-in + its padding
+            if (typeof s.barAutoHeight === "boolean") barAutoHeight = s.barAutoHeight
+            if (typeof s.barAutoHeightPadding === "number")
+                barAutoHeightPadding = Math.max(0, Math.min(40, s.barAutoHeightPadding))
+            if (typeof s.barFitContents === "boolean") barFitContents = s.barFitContents
+            if (typeof s.barContentPaddingV === "number") barContentPaddingV = Math.max(0, Math.min(64, s.barContentPaddingV))
+            if (typeof s.barModuleScale === "number") barModuleScale = Math.max(0.6, Math.min(2.0, s.barModuleScale))
+            if (s.settingsHoverStyle === "rounded" || s.settingsHoverStyle === "square") settingsHoverStyle = s.settingsHoverStyle
+            if (s.controlPanelPosition === "center" || s.controlPanelPosition === "top" || s.controlPanelPosition === "bottom") controlPanelPosition = s.controlPanelPosition
+            if (typeof s.controlPanelEdgeMargin === "number") controlPanelEdgeMargin = Math.max(0, Math.min(120, s.controlPanelEdgeMargin))
             if (typeof s.borderEnabled === "boolean") borderEnabled = s.borderEnabled
             if (s.borderWidth) borderWidth = s.borderWidth
             if (s.borderColor) borderColor = s.borderColor
@@ -456,6 +680,13 @@ Singleton {
             if (s.fontFamilyId) fontFamilyId = s.fontFamilyId
             // v6.8
             if (typeof s.workspaceLimit === "number") workspaceLimit = s.workspaceLimit
+
+            // v7.0.0-alpha.4 (StartMenu V2)
+            if (typeof s.pinnedGridCols === "number") pinnedGridCols = s.pinnedGridCols
+            if (typeof s.pinnedGridRows === "number") pinnedGridRows = s.pinnedGridRows
+
+            // v7.0.0-alpha.4-hf2
+            if (typeof s.startMenuBorderMode === "string") startMenuBorderMode = s.startMenuBorderMode
             // v6.10
             if (s.barTargetDisplay) barTargetDisplay = s.barTargetDisplay
             // v6.11
@@ -510,6 +741,75 @@ Singleton {
                     // Persist immediately so this runs only once
                     Qt.callLater(root.saveState)
                 }
+
+                // v7.0.0-alpha.13: workflow profile badge migration
+                var _needsWorkflow = !_savedVer || _savedVer < "7.0.0-alpha.13"
+                if (_needsWorkflow && _layout.right && _layout.right.indexOf("workflow") < 0) {
+                    var _right2 = _layout.right.slice()
+                    var _trayIdx = _right2.indexOf("tray")
+                    if (_trayIdx >= 0) {
+                        _right2.splice(_trayIdx + 1, 0, "workflow")
+                    } else {
+                        _right2.push("workflow")
+                    }
+                    _layout.right = _right2
+                    console.log("[PanelState] v7.0.0-alpha.13 migration: injected 'workflow' into barLayout.right")
+                    Qt.callLater(root.saveState)
+                }
+
+                // v7.0.0-beta.1-hf42 migration: inject the daily-use
+                // productivity modules ("quicknotes" + "titletranslator")
+                // into existing barLayouts. User report from hf41:
+                //   "sa panel kala ko ba add mo yun mga toggle like
+                //    translator and kung panu sila gamitn pala and
+                //    sticky notes ?"
+                //
+                // hf39 created the modules + registered them in Bar.qml's
+                // switch, but never added them to default barLayout, so
+                // upgraders had to manually add via Settings → Panel.
+                // We auto-inject the 2 most-useful ones here.
+                //
+                // The other 3 (focusspaces, networkpulse, smartdim) stay
+                // OPT-IN — they're available in the +Add picker but not
+                // forced into the bar, since their use cases are more
+                // niche and Smart Dim should never be enabled without
+                // the user knowing about it.
+                //
+                // Idempotent (checks for existing tokens).
+                var _needsHf42 = !_savedVer || _savedVer < "7.0.0-beta.1-hf42"
+                if (_needsHf42 && _layout.right) {
+                    var _right3 = _layout.right.slice()
+                    var _changed = false
+                    // Insert quicknotes after clipboard, or before notifications, or at end
+                    if (_right3.indexOf("quicknotes") < 0) {
+                        var _clipIdx = _right3.indexOf("clipboard")
+                        var _notifIdx2 = _right3.indexOf("notifications")
+                        if (_clipIdx >= 0) {
+                            _right3.splice(_clipIdx + 1, 0, "quicknotes")
+                        } else if (_notifIdx2 >= 0) {
+                            _right3.splice(_notifIdx2, 0, "quicknotes")
+                        } else {
+                            _right3.push("quicknotes")
+                        }
+                        _changed = true
+                    }
+                    // Insert titletranslator after quicknotes (or after clipboard)
+                    if (_right3.indexOf("titletranslator") < 0) {
+                        var _qnIdx = _right3.indexOf("quicknotes")
+                        if (_qnIdx >= 0) {
+                            _right3.splice(_qnIdx + 1, 0, "titletranslator")
+                        } else {
+                            _right3.push("titletranslator")
+                        }
+                        _changed = true
+                    }
+                    if (_changed) {
+                        _layout.right = _right3
+                        console.log("[PanelState] v7.0.0-beta.1-hf42 migration: "
+                                  + "injected 'quicknotes' + 'titletranslator' into barLayout.right")
+                        Qt.callLater(root.saveState)
+                    }
+                }
                 Theme.barLayout = _layout
             }
             if (typeof s.barOpacity === "number") Theme.barOpacity = s.barOpacity
@@ -522,14 +822,42 @@ Singleton {
 
     Process { id: stateSaver; running: false }
 
+    // v7.0.0-beta.1-hf97 — last-known-good backup. Whenever a non-empty
+    // panel-state.json loads cleanly we stash a .bak copy. If a later
+    // boot ever loses the race (or hits a truncated write) and
+    // onLoadFailed fires, the .bak is the user's fallback. We only back
+    // up real payloads (length > 2) so an empty/"{}" file can never
+    // overwrite a good backup. Strictly additive — wala tayong binawasan.
+    Process { id: stateBackup; running: false }
+    function _backupState() {
+        stateBackup.command = ["bash", "-c",
+            "cp -f '" + statePath + "' '" + statePath + ".bak' 2>/dev/null || true"]
+        stateBackup.running = true
+    }
+
     FileView {
         id: stateLoader
         path: root.statePath
         blockLoading: false
         onLoaded: {
-            root.applyState(this.text())
+            // hf97: capture the text once, apply it, THEN flip _loaded so
+            // _doSaveState is allowed to run. Ordering matters — _loaded
+            // must go true only after applyState has populated the real
+            // values, else the next queued save would still write defaults.
+            const t = this.text()
+            root.applyState(t)
+            if (t && t.trim().length > 2) root._backupState()
+            root._loaded = true
             // v6.16.2.3.1: Signal the shell that we've loaded. Used to
             // gate nuclear-restart logic against startup transitions.
+            root.panelStateLoaded()
+        }
+        onLoadFailed: {
+            // hf97: first run (file not created yet) or a transient read
+            // error. We still flip _loaded so the user can save fresh
+            // settings; the .bak from the previous good boot is the
+            // recovery path if this was transient. Mirrors DockState idiom.
+            root._loaded = true
             root.panelStateLoaded()
         }
     }
@@ -559,6 +887,14 @@ Singleton {
         panelMode = "fullwidth"
         panelPosition = "bottom"
         barHeight = 60
+        barAutoHeight = false
+        barAutoHeightPadding = 8
+        barFitContents = false
+        barContentPaddingV = 4
+        barModuleScale = 1.0
+        settingsHoverStyle = "rounded"
+        controlPanelPosition = "center"
+        controlPanelEdgeMargin = 12
         borderEnabled = false
         borderWidth = 1
         borderColor = "#414868"
@@ -576,6 +912,18 @@ Singleton {
         startButtonCenterY = y
         if (sw > 0) screenWidth = sw
         if (sh > 0) screenHeight = sh
+    }
+
+    // v7.0.0-alpha.6-hf4: Same pattern as reportStartButtonPosition,
+    // for the clipboard module. Called by ClipboardModule.qml on
+    // click, just before triggering the IPC. shell.qml's
+    // clipboardWindow uses centerX/rightX to anchor the panel under
+    // (or over) the icon — so the panel pops up directly from where
+    // the user clicked, regardless of whether they put the clipboard
+    // module on the left, center, or right of their bar.
+    function reportClipboardButtonPosition(centerX: real, rightX: real) {
+        clipboardButtonCenterX = centerX
+        clipboardButtonRightX = rightX
     }
 
     // v6.16.4.12.6.53 (Hiraki hotfix 1): Called by Clock.qml when
@@ -641,5 +989,142 @@ Singleton {
 
     Component.onCompleted: {
         stateLoader.reload()
+    }
+
+    // v7.0.0-beta.1-hf45 — Sync panel-state.json when Theme props
+    // change from ANY source.
+    //
+    // BUG FIX: Until hf45, bar layout edits made by external scripts
+    // (e.g. ~/.local/bin/zen-bar-add-powerbadge.sh writing to
+    // bar-layout.json) updated `Theme.barLayout` via `Theme.reloadBarLayout()`,
+    // but PanelState.saveState() was NEVER called to mirror the change
+    // into panel-state.json.
+    //
+    // On the NEXT shell launch, applyState() reads panel-state.json
+    // and OVERWRITES Theme.barLayout with the stale value from before
+    // the toggle. Result: user toggles a module on, restarts shell,
+    // toggle appears to "revert" because panel-state.json's stale
+    // barLayout wins.
+    //
+    // Same applies to ANY external mutation of Theme.barLayout /
+    // barOpacity / barRadius / styleMode — without this watcher,
+    // panel-state.json silently goes stale.
+    //
+    // Watcher approach: PanelState now monitors Theme's relevant
+    // properties via Connections + onXxxChanged. Each change schedules
+    // a debounced saveState() — same 200ms debounce timer used by
+    // direct saveState() calls, so rapid drags still result in one
+    // disk write.
+    //
+    // Initial-load guard: we don't fire saveState() during the brief
+    // moment between PanelState construction and stateLoader's
+    // onLoaded — that would write the DEFAULT Theme.barLayout to
+    // disk BEFORE applyState had a chance to restore the user's saved
+    // value. The `panelStateLoaded` signal flips a flag once safe.
+    property bool _hf45_loaded: false
+
+    Connections {
+        target: root
+        function onPanelStateLoaded() {
+            // Loaded — from now on Theme changes are user-initiated
+            // and should be persisted.
+            root._hf45_loaded = true
+        }
+    }
+
+    Connections {
+        target: (typeof Theme !== "undefined") ? Theme : null
+        ignoreUnknownSignals: true
+        function onBarLayoutChanged() {
+            if (root._hf45_loaded) {
+                console.log("[PanelState] hf45: Theme.barLayout changed externally, syncing to panel-state.json")
+                root.saveState()
+            }
+        }
+        function onBarOpacityChanged() {
+            if (root._hf45_loaded) root.saveState()
+        }
+        function onBarRadiusChanged() {
+            if (root._hf45_loaded) root.saveState()
+        }
+        function onStyleModeChanged() {
+            if (root._hf45_loaded) root.saveState()
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // v7.0.0-beta.1-hf98 — SESSION LOCK WATCHER (music-string re-align)
+    // ════════════════════════════════════════════════════════════════
+    // Why this lives here: PanelState is the session/panel singleton that
+    // BOTH music-string overlays (horizontal stringsWindow + vertical
+    // stringsWindowV) already watch via `Connections { target: PanelState }`.
+    // Putting one lock detector here = a SINGLE pgrep poll for the whole
+    // shell (no per-monitor duplication across Paul's 3 displays), and the
+    // overlays get a clean re-settle trigger through a signal shaped exactly
+    // like the panelModeChanged one they already handle.
+    //
+    // Bug it fixes — Paul: "kapag nag log off / lock tas nag login ulit yun
+    // music string ko napupunta sa dulo, hindi naka-align sa proper place."
+    //
+    // A lock→unlock cycle tears down NO shell window. The bar window and the
+    // strings overlay stay alive with positionReady=true, so when the desktop
+    // is revealed the bar re-publishes musicSlotLocalX / barWindowLeft
+    // asynchronously and the overlay's `Behavior on margins.left` glides
+    // through the inconsistent intermediates → a visible swing that can land
+    // off-slot. hf97 added a reactive bigJump guard, but it only fires when a
+    // watched coordinate NUMERICALLY changes — if the bar republishes the
+    // same value, or drifts < 200px, the guard misses and the string sticks
+    // in the wrong place.
+    //
+    // hf98 makes it deterministic: detect the unlock edge directly by watching
+    // the hyprlock process. On the locked→unlocked edge we emit
+    // sessionUnlocked(); the overlays then do a full clean re-settle
+    // (positionReady=false → Behavior disabled → SNAP, not glide) just like a
+    // panel-mode change. Covers Zen-initiated locks, hypridle locks, AND
+    // suspend/resume (which relocks), because all of them run hyprlock.
+    //
+    // Adaptive interval: poll slowly (1500ms) while unlocked to stay cheap,
+    // fast (400ms) while locked so the unlock snaps in promptly behind
+    // hyprlock before the user even sees the bar. Strictly additive — no
+    // existing PanelState behaviour is touched.
+
+    // true while a hyprlock instance is running. Runtime-only, never saved.
+    property bool sessionLocked: false
+    // Emitted once on each locked→unlocked edge (hyprlock just exited).
+    signal sessionUnlocked()
+
+    Timer {
+        id: lockWatchTimer
+        interval: 1500
+        repeat: true
+        running: true
+        triggeredOnStart: true
+        onTriggered: lockProbe.running = true
+    }
+
+    Process {
+        id: lockProbe
+        running: false
+        // Always echoes exactly one line so the parser has a clean signal,
+        // regardless of pgrep's exit code.
+        command: ["bash", "-c",
+            "pgrep -x hyprlock >/dev/null 2>&1 && echo locked || echo unlocked"]
+        stdout: SplitParser {
+            onRead: data => {
+                const nowLocked = (data.trim() === "locked")
+                if (nowLocked === root.sessionLocked) return   // no edge
+                const wasLocked = root.sessionLocked
+                root.sessionLocked = nowLocked
+                if (nowLocked) {
+                    // Just locked → speed up so we catch the unlock fast.
+                    lockWatchTimer.interval = 400
+                } else if (wasLocked) {
+                    // Unlock edge → back to the cheap cadence and tell the
+                    // music-string overlays to re-align cleanly.
+                    lockWatchTimer.interval = 1500
+                    root.sessionUnlocked()
+                }
+            }
+        }
     }
 }

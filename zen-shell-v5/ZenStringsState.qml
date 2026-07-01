@@ -74,6 +74,45 @@ Singleton {
     property real musicSlotLocalX: -1
     property real musicSlotLocalWidth: 200
     property real barWindowLeft: 0
+    // v7.0.0-beta.1-hf98f — island bar's hug-content width, published by
+    // barWindow. The strings overlay centres itself with this PLUS its own
+    // screen width, instead of trusting a pre-baked barWindowLeft that could
+    // be computed against a transient-0 screen width during a lock→unlock
+    // (the "island-only far-left after login" bug). -1 = not yet published.
+    property real barIslandWidth: -1
+
+    // v7.0.0-beta.1-hf95.5: vertical-bar counterparts. On a vertical
+    // (left/right) bar there is no horizontal music slot — the slot
+    // stacks in the column instead — so the strings overlay needs the
+    // slot's Y position + height to center the (rotated) string on it.
+    // Written by BarVertical.qml's music host, read by the vertical
+    // strings overlay (stringsWindowV) in shell.qml. The vertical bar
+    // window is anchored full-height at the screen edge, so musicSlotLocalY
+    // doubles as the slot's screen-space Y. Defaults: -1 / 0 keep the
+    // overlay hidden until a real position is reported.
+    property real musicSlotLocalY: -1
+    property real musicSlotLocalHeight: 0
+
+    // v7.0.0-beta.1-hf95.7: global vertical-bar scale-to-fit factor,
+    // written by BarVertical (1.0 = fits, <1 = column was scaled down to
+    // fit). The vertical strings overlay multiplies the string by this so
+    // it shrinks in sync with the bar's modules.
+    property real verticalFitScale: 1.0
+
+    // v7.0.0-beta.1-hf95.8: the vertical string is SHORTER than the
+    // horizontal one. On a vertical bar a full-length string sprawls over
+    // neighbouring modules, so we cap it to a compact run (~4 module
+    // heights) and never longer than the configured stringLength. Both
+    // the BarVertical music slot (which reserves this as its height so the
+    // string gets its own space) and the strings overlay read this single
+    // value, so they always agree. It tracks Theme.moduleHeight, so it
+    // also shrinks when the bar scales — "shortens by itself".
+    readonly property real verticalStringLength: {
+        const base = stringLength > 0 ? stringLength : 200
+        const cap = (typeof Theme !== "undefined" && Theme.moduleHeight > 0)
+                    ? Theme.moduleHeight * 4 : 160
+        return Math.max(40, Math.min(base, cap))
+    }
 
     // v6.15.2: Position readiness signal.
     // Written by stringsWindow (shell.qml) — true when the music slot
@@ -121,6 +160,51 @@ Singleton {
     property int ropeSegments: 10
     property int ropeSegmentLength: 5
 
+    // ── v7.0.0-beta.1-hf82j — SCREENSHOT ROPE COLORS ──
+    //
+    // User request:
+    //   "yung sa string colors pati screenshot ropes dapat pwd din
+    //    palitan ng colors and yung colors dapat accurate yun coloring"
+    //
+    // Before hf82j: ScreenshotRope used `ZenStringsState.color1` —
+    // sharing whatever the music-strings color was. There was no way
+    // to set a different color for the rope, and the "theme" mode
+    // forced ThemeService.blue regardless of user pick.
+    //
+    // hf82j adds independent rope color config that mirrors the
+    // strings color shape:
+    //   - ropeColorMode: "inherit" | "theme" | "synced" | "custom"
+    //     - "inherit" (default): use whatever color1 is (preserves
+    //       pre-hf82j behavior for users who never touch rope color).
+    //     - "theme": fixed accent (ThemeService.blue).
+    //     - "synced": pick from palette key (red/orange/.../grey0).
+    //     - "custom": user hex string.
+    //   - ropeSyncedColorKey: which palette key for "synced".
+    //   - ropeCustomColor: hex string for "custom".
+    //
+    // ScreenshotRope.qml reads `ropeColor` (a new resolved binding
+    // below) instead of `color1` directly.
+    property string ropeColorMode: "inherit"
+    property string ropeSyncedColorKey: "blue"
+    property string ropeCustomColor: "#ff9e64"
+
+    // Resolved rope color. Single color (no gradient) because the
+    // physics rope is a single stroke, unlike the bezier strings.
+    //
+    // "accurate" coloring: when ropeColorMode is "custom" or "synced",
+    // returns the exact resolved color WITHOUT going through any
+    // theme-overridden lookup that might remap the color. ThemeService
+    // resolution only kicks in for "theme" and "synced" modes; "custom"
+    // is direct hex passthrough.
+    readonly property color ropeColor: {
+        if (ropeColorMode === "custom")  return ropeCustomColor
+        if (ropeColorMode === "theme")   return ThemeService.blue
+        if (ropeColorMode === "synced")  return _resolveKey(ropeSyncedColorKey)
+        // "inherit" or any unknown value — fall back to color1
+        // (preserves pre-hf82j behavior).
+        return color1
+    }
+
     property bool dirty: false
 
     Timer {
@@ -136,7 +220,9 @@ Singleton {
             glowEnabled, glowRadius, colorMode,
             syncedColor1Key, syncedColor2Key,
             customColor1, customColor2,
-            screenshotRopeEnabled, ropeSegments, ropeSegmentLength
+            screenshotRopeEnabled, ropeSegments, ropeSegmentLength,
+            // hf82j: persist rope color config
+            ropeColorMode, ropeSyncedColorKey, ropeCustomColor
         }
         const json = JSON.stringify(state, null, 2)
         saver.command = ["bash", "-c",
@@ -168,6 +254,10 @@ Singleton {
             if (typeof s.screenshotRopeEnabled === "boolean") screenshotRopeEnabled = s.screenshotRopeEnabled
             if (s.ropeSegments !== undefined) ropeSegments = s.ropeSegments
             if (s.ropeSegmentLength !== undefined) ropeSegmentLength = s.ropeSegmentLength
+            // hf82j: rope color config
+            if (s.ropeColorMode) ropeColorMode = s.ropeColorMode
+            if (s.ropeSyncedColorKey) ropeSyncedColorKey = s.ropeSyncedColorKey
+            if (s.ropeCustomColor) ropeCustomColor = s.ropeCustomColor
         } catch(e) { console.error("[ZenStringsState] Parse error:", e) }
     }
 
@@ -184,6 +274,10 @@ Singleton {
         syncedColor1Key = "blue"; syncedColor2Key = "purple"
         customColor1 = "#ff9e64"; customColor2 = "#cec991"
         screenshotRopeEnabled = true; ropeSegments = 10; ropeSegmentLength = 5
+        // hf82j: rope color defaults
+        ropeColorMode = "inherit"
+        ropeSyncedColorKey = "blue"
+        ropeCustomColor = "#ff9e64"
         markDirty()
     }
 }
