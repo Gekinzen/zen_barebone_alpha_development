@@ -539,14 +539,37 @@ Item {
     }
 
     function _patchAndRestart() {
+        // Stop previous run if still going (user clicked rapidly)
+        if (swayncPatcher.running) swayncPatcher.running = false
+
+        // v7.0.0-beta.1-hf98f — zen mode must NOT start swaync. The old code
+        // ran patch-swaync-position.sh unconditionally, which START()s swaync;
+        // swaync then grabs the org.freedesktop.Notifications D-Bus name and
+        // blocks Quickshell's native NotificationServer, so notifications
+        // silently stop ("prang d na gumagana"). Changing the position never
+        // flips daemonMode, so NotificationService's own kill logic didn't
+        // re-fire. In zen mode we now reuse that robust kill (systemctl stop
+        // + disable + pkill) to KEEP swaync dead so the zen daemon owns the
+        // bus. The zen-side position is already saved + reloaded by
+        // _saveZenState(). swaync mode is unchanged — wala tayong binawasan.
+        if (daemonMode === "zen") {
+            if (typeof NotificationService !== "undefined"
+                && NotificationService._applyDaemonMode) {
+                NotificationService._applyDaemonMode()
+            } else {
+                swayncPatcher.command = ["bash", "-c",
+                    "pkill -TERM swaync 2>/dev/null; sleep 0.4; " +
+                    "pkill -9 -x swaync 2>/dev/null; true"]
+                swayncPatcher.running = true
+            }
+            return
+        }
+
         const px = positionX
         const py = positionY
         const script = Quickshell.env("HOME") + "/.local/bin/patch-swaync-position.sh"
 
         console.log("[NotificationPage] _patchAndRestart: calling script with px=" + px + " py=" + py)
-
-        // Stop previous run if still going (user clicked rapidly)
-        if (swayncPatcher.running) swayncPatcher.running = false
 
         swayncPatcher.command = ["bash", "-c",
             "'" + script + "' '" + px + "' '" + py + "'"
@@ -561,6 +584,22 @@ Item {
     function _restartSwaync() {
         // Stop previous run if still going
         if (swayncPatcher.running) swayncPatcher.running = false
+
+        // hf98f — in zen mode the "Apply" button must not start swaync. The
+        // zen daemon IS Quickshell's always-running NotificationServer, so
+        // applying just means freeing the bus name from any stray swaync,
+        // then firing a test toast THROUGH the zen daemon to confirm it works.
+        if (daemonMode === "zen") {
+            swayncPatcher.command = ["bash", "-c",
+                "systemctl --user stop swaync.service 2>/dev/null; " +
+                "systemctl --user disable swaync.service 2>/dev/null; " +
+                "pkill -TERM swaync 2>/dev/null; sleep 1; " +
+                "if pgrep -x swaync >/dev/null 2>&1; then pkill -9 -x swaync 2>/dev/null; sleep 0.5; fi; " +
+                "notify-send -t 2500 'Zen notifications active' 'Native daemon is handling notifications' 2>/dev/null"
+            ]
+            swayncPatcher.running = true
+            return
+        }
 
         swayncPatcher.command = ["bash", "-c",
             "pkill -TERM swaync 2>/dev/null; sleep 1; " +

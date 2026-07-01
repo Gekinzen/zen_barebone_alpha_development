@@ -1065,22 +1065,34 @@ ShellRoot {
                 visible: PanelState.isVertical
             }
 
-            // Publish the bar window's left edge in screen coords so
-            // the floating strings overlay can align correctly in
-            // island and floating modes.
-            //   fullwidth → 0
-            //   floating  → panelMarginSide
-            //   island    → (screenW - islandWidth) / 2
+            // v7.0.0-beta.1-hf98f — publish the bar's geometry for the
+            // strings overlay.
+            //   barWindowLeft  : kept for fullwidth/floating (and a
+            //                    last-resort island fallback).
+            //   barIslandWidth : the island hug-content width. The strings
+            //                    overlay centres itself from THIS plus its
+            //                    own screen width, which fixes the
+            //                    island-only "far-left after login" bug:
+            //                    the old barWindowLeft baked screenW into the
+            //                    stored value, and a lock→unlock could bake a
+            //                    transient-0 screenW → 0 → far-left. The
+            //                    island width does NOT depend on screenW, so
+            //                    it survives a lock/unlock unchanged.
             function _publishBarLeft() {
                 if (PanelState.panelMode === "fullwidth") {
                     ZenStringsState.barWindowLeft = 0
                 } else if (PanelState.panelMode === "floating") {
                     ZenStringsState.barWindowLeft = PanelState.panelMarginSide
                 } else {
-                    // island: centered
                     const islandW = barWindow.implicitWidth
                     const screenW = modelData.width
-                    ZenStringsState.barWindowLeft = Math.max(0, (screenW - islandW) / 2)
+                    if (islandW > 0 && screenW > 0) {
+                        ZenStringsState.barWindowLeft = Math.max(0, (screenW - islandW) / 2)
+                    }
+                    // screenW-independent width — guard against transients.
+                    if (islandW > 50) {
+                        ZenStringsState.barIslandWidth = islandW
+                    }
                 }
             }
             onImplicitWidthChanged: _publishBarLeft()
@@ -1088,6 +1100,8 @@ ShellRoot {
             Connections {
                 target: PanelState
                 function onPanelModeChanged() { barWindow._publishBarLeft() }
+                // hf98d/f — re-publish on the unlock edge too.
+                function onSessionUnlocked()  { barWindow._publishBarLeft() }
             }
 
             // ZenStrings moved out of barWindow to a floating PanelWindow
@@ -1263,6 +1277,15 @@ ShellRoot {
             // and start button is ~60px wide).
             property bool positionReady: false
 
+            // v7.0.0-beta.1-hf97 — last X (barLeftOffset + musicSlotLocalX)
+            // we committed as "ready". Used by _onPosChanged to tell a real
+            // layout disturbance (lock/unlock re-publishes both coords async,
+            // which the enabled margins Behavior would otherwise glide
+            // through inconsistent intermediates → "napabalik-balik, hindi
+            // naka-align") apart from harmless clock/taskbar jitter. Sentinel
+            // -99999 = nothing committed yet. Strictly additive.
+            property real _lastCommittedLeft: -99999
+
             Timer {
                 id: stringsStabilityTimer
                 interval: 600
@@ -1293,6 +1316,9 @@ ShellRoot {
                 }
                 stringsWindow.positionReady = true
                 ZenStringsState.positionReady = true
+                // hf97: remember where we settled so a later async re-publish
+                // (lock/unlock swing) can be recognised as a real move.
+                stringsWindow._lastCommittedLeft = stringsWindow.barLeftOffset + ZenStringsState.musicSlotLocalX
                 stringsStabilityTimer.stop()
                 stringsMaxWaitTimer.stop()
             }
@@ -1315,8 +1341,53 @@ ShellRoot {
                      && positionReady
 
             function _onPosChanged() {
-                // Once ready, stay ready — margin bindings follow smoothly
-                if (stringsWindow.positionReady) return
+                // v7.0.0-beta.1-hf97 — lock/unlock drift fix.
+                //
+                // Pre-hf97 this was a bare `if (positionReady) return` — once
+                // ready we let the margins binding glide. Correct for the
+                // steady state (clock width changes, taskbar items come and
+                // go → a few px of jitter the Behavior animates nicely).
+                //
+                // But a lock→unlock cycle has NO window teardown (unlike a
+                // monitor unplug or DPMS off, which Component.onCompleted
+                // already re-settles). The window stays alive, positionReady
+                // stays true, yet on wake Bar.qml re-publishes musicSlotLocalX
+                // AND barLeftOffset re-evaluates — asynchronously, from
+                // different sources. The enabled `Behavior on margins.left`
+                // then animates THROUGH the inconsistent intermediate values,
+                // so the strings visibly swing back and forth and can land
+                // misaligned ("napabalik-balik, hindi naka-align").
+                //
+                // Fix: while ready, watch for a disturbance too large to be
+                // normal jitter, or a value that's clearly pre-layout, and if
+                // seen drop back to the not-ready re-settle path (hide +
+                // invalidate slot + restart the stability/max-wait timers)
+                // exactly like the panel-mode-change handler does. The strings
+                // re-converge cleanly instead of gliding through garbage.
+                // Strictly additive — the steady-state path is unchanged.
+                if (stringsWindow.positionReady) {
+                    const newLeft = stringsWindow.barLeftOffset + ZenStringsState.musicSlotLocalX
+                    // >200px is never clock/taskbar jitter; only a mode change
+                    // or a lock-swing moves the slot that far. Conservative on
+                    // purpose so we never flicker on ordinary updates.
+                    const bigJump = stringsWindow._lastCommittedLeft > -99998
+                                    && Math.abs(newLeft - stringsWindow._lastCommittedLeft) > 200
+                    // musicSlotLocalX in [0,20) means Bar.qml is mid-rebuild
+                    // (see sanity gate above) — a transient we must not commit.
+                    const preLayout = ZenStringsState.musicSlotLocalX >= 0
+                                      && ZenStringsState.musicSlotLocalX < 20
+                    if (bigJump || preLayout) {
+                        // Re-settle. Order matters: clear positionReady FIRST so
+                        // the musicSlotLocalX write below re-enters this function
+                        // on the not-ready branch (no recursion into here).
+                        stringsWindow.positionReady = false
+                        ZenStringsState.positionReady = false
+                        ZenStringsState.musicSlotLocalX = -1
+                        stringsStabilityTimer.restart()
+                        stringsMaxWaitTimer.restart()
+                    }
+                    return
+                }
                 // Pre-ready: restart stability countdown
                 stringsStabilityTimer.restart()
             }
@@ -1398,6 +1469,24 @@ ShellRoot {
                     stringsStabilityTimer.restart()
                     stringsMaxWaitTimer.restart()
                 }
+                // v7.0.0-beta.1-hf98 — lock/login re-align.
+                // PanelState's hyprlock watcher fires this on every unlock
+                // edge. A lock→unlock cycle keeps this window alive with
+                // positionReady=true, so we must force the same clean
+                // re-settle a panel-mode change does — otherwise the bar's
+                // async coord re-publish on wake glides the string off-slot
+                // (the "napupunta sa dulo, hindi naka-align" bug). Clearing
+                // positionReady disables the margins Behavior so the string
+                // SNAPS back to the correct slot instead of swinging there.
+                // Invalidating musicSlotLocalX makes the sanity gate wait for
+                // Bar.qml's safetyPoll to re-publish a fresh, trustworthy X.
+                function onSessionUnlocked() {
+                    stringsWindow.positionReady = false
+                    ZenStringsState.positionReady = false
+                    ZenStringsState.musicSlotLocalX = -1
+                    stringsStabilityTimer.restart()
+                    stringsMaxWaitTimer.restart()
+                }
             }
 
             Component.onCompleted: {
@@ -1418,14 +1507,17 @@ ShellRoot {
                 if (PanelState.panelMode === "fullwidth") return 0
                 if (PanelState.panelMode === "floating")  return PanelState.panelMarginSide
                 // island: bar is centered with hug-content width.
-                // Recompute barWindow.implicitWidth identically:
-                const minW = 400
-                const maxW = modelData.width - (PanelState.panelMarginSide * 2)
-                const innerPad = 16
-                // bar.contentImplicitWidth isn't accessible from here, but
-                // barWindowLeft is written by barWindow itself via a
-                // Connections below. Use it when available; else fall back
-                // to marginSide (visually close for most module layouts).
+                //
+                // v7.0.0-beta.1-hf98f — centre from the published island
+                // width and THIS window's own screen width. modelData.width
+                // is always valid here (consumer side), and barIslandWidth
+                // doesn't depend on screenW, so this stays correct across a
+                // lock→unlock with no poll, no staleness, no far-left. The
+                // old barWindowLeft path is only a last-resort fallback now.
+                const islandW = ZenStringsState.barIslandWidth
+                if (islandW > 50 && modelData.width > 0) {
+                    return Math.max(0, (modelData.width - islandW) / 2)
+                }
                 if (ZenStringsState.barWindowLeft > 0) {
                     return ZenStringsState.barWindowLeft
                 }

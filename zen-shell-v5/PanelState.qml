@@ -521,7 +521,25 @@ Singleton {
         _doSaveState()
     }
 
+    // v7.0.0-beta.1-hf97 — load-complete guard. See FileView below.
+    // Until panel-state.json has finished its async load at startup,
+    // ANY saveState() call would write the still-DEFAULT in-memory
+    // values over the user's saved bar config. The concrete trigger:
+    // ThemeService.applyJson() runs on the theme file's onLoaded at
+    // login and queues `Qt.callLater(PanelState.saveState)`; the shell's
+    // theme-apply and nuclear-restart timers can fire too. Both
+    // FileViews (theme + panel-state) load concurrently, so when the
+    // theme path wins the race, panel-state.json gets clobbered with
+    // defaults — the intermittent "bar settings nag-reset, dunno why"
+    // bug. Suppressing writes until _loaded flips closes the whole
+    // race class. No feature touched — wala tayong binawasan.
+    property bool _loaded: false
+
     function _doSaveState() {
+        if (!root._loaded) {
+            console.warn("[PanelState] hf97: save suppressed — panel-state.json not loaded yet (prevents default clobber)")
+            return
+        }
         const state = {
             // v6.16.0: version stamp used by applyState migration checks.
             // Bump this when introducing a non-idempotent data migration.
@@ -804,14 +822,42 @@ Singleton {
 
     Process { id: stateSaver; running: false }
 
+    // v7.0.0-beta.1-hf97 — last-known-good backup. Whenever a non-empty
+    // panel-state.json loads cleanly we stash a .bak copy. If a later
+    // boot ever loses the race (or hits a truncated write) and
+    // onLoadFailed fires, the .bak is the user's fallback. We only back
+    // up real payloads (length > 2) so an empty/"{}" file can never
+    // overwrite a good backup. Strictly additive — wala tayong binawasan.
+    Process { id: stateBackup; running: false }
+    function _backupState() {
+        stateBackup.command = ["bash", "-c",
+            "cp -f '" + statePath + "' '" + statePath + ".bak' 2>/dev/null || true"]
+        stateBackup.running = true
+    }
+
     FileView {
         id: stateLoader
         path: root.statePath
         blockLoading: false
         onLoaded: {
-            root.applyState(this.text())
+            // hf97: capture the text once, apply it, THEN flip _loaded so
+            // _doSaveState is allowed to run. Ordering matters — _loaded
+            // must go true only after applyState has populated the real
+            // values, else the next queued save would still write defaults.
+            const t = this.text()
+            root.applyState(t)
+            if (t && t.trim().length > 2) root._backupState()
+            root._loaded = true
             // v6.16.2.3.1: Signal the shell that we've loaded. Used to
             // gate nuclear-restart logic against startup transitions.
+            root.panelStateLoaded()
+        }
+        onLoadFailed: {
+            // hf97: first run (file not created yet) or a transient read
+            // error. We still flip _loaded so the user can save fresh
+            // settings; the .bak from the previous good boot is the
+            // recovery path if this was transient. Mirrors DockState idiom.
+            root._loaded = true
             root.panelStateLoaded()
         }
     }
@@ -1003,6 +1049,82 @@ Singleton {
         }
         function onStyleModeChanged() {
             if (root._hf45_loaded) root.saveState()
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // v7.0.0-beta.1-hf98 — SESSION LOCK WATCHER (music-string re-align)
+    // ════════════════════════════════════════════════════════════════
+    // Why this lives here: PanelState is the session/panel singleton that
+    // BOTH music-string overlays (horizontal stringsWindow + vertical
+    // stringsWindowV) already watch via `Connections { target: PanelState }`.
+    // Putting one lock detector here = a SINGLE pgrep poll for the whole
+    // shell (no per-monitor duplication across Paul's 3 displays), and the
+    // overlays get a clean re-settle trigger through a signal shaped exactly
+    // like the panelModeChanged one they already handle.
+    //
+    // Bug it fixes — Paul: "kapag nag log off / lock tas nag login ulit yun
+    // music string ko napupunta sa dulo, hindi naka-align sa proper place."
+    //
+    // A lock→unlock cycle tears down NO shell window. The bar window and the
+    // strings overlay stay alive with positionReady=true, so when the desktop
+    // is revealed the bar re-publishes musicSlotLocalX / barWindowLeft
+    // asynchronously and the overlay's `Behavior on margins.left` glides
+    // through the inconsistent intermediates → a visible swing that can land
+    // off-slot. hf97 added a reactive bigJump guard, but it only fires when a
+    // watched coordinate NUMERICALLY changes — if the bar republishes the
+    // same value, or drifts < 200px, the guard misses and the string sticks
+    // in the wrong place.
+    //
+    // hf98 makes it deterministic: detect the unlock edge directly by watching
+    // the hyprlock process. On the locked→unlocked edge we emit
+    // sessionUnlocked(); the overlays then do a full clean re-settle
+    // (positionReady=false → Behavior disabled → SNAP, not glide) just like a
+    // panel-mode change. Covers Zen-initiated locks, hypridle locks, AND
+    // suspend/resume (which relocks), because all of them run hyprlock.
+    //
+    // Adaptive interval: poll slowly (1500ms) while unlocked to stay cheap,
+    // fast (400ms) while locked so the unlock snaps in promptly behind
+    // hyprlock before the user even sees the bar. Strictly additive — no
+    // existing PanelState behaviour is touched.
+
+    // true while a hyprlock instance is running. Runtime-only, never saved.
+    property bool sessionLocked: false
+    // Emitted once on each locked→unlocked edge (hyprlock just exited).
+    signal sessionUnlocked()
+
+    Timer {
+        id: lockWatchTimer
+        interval: 1500
+        repeat: true
+        running: true
+        triggeredOnStart: true
+        onTriggered: lockProbe.running = true
+    }
+
+    Process {
+        id: lockProbe
+        running: false
+        // Always echoes exactly one line so the parser has a clean signal,
+        // regardless of pgrep's exit code.
+        command: ["bash", "-c",
+            "pgrep -x hyprlock >/dev/null 2>&1 && echo locked || echo unlocked"]
+        stdout: SplitParser {
+            onRead: data => {
+                const nowLocked = (data.trim() === "locked")
+                if (nowLocked === root.sessionLocked) return   // no edge
+                const wasLocked = root.sessionLocked
+                root.sessionLocked = nowLocked
+                if (nowLocked) {
+                    // Just locked → speed up so we catch the unlock fast.
+                    lockWatchTimer.interval = 400
+                } else if (wasLocked) {
+                    // Unlock edge → back to the cheap cadence and tell the
+                    // music-string overlays to re-align cleanly.
+                    lockWatchTimer.interval = 1500
+                    root.sessionUnlocked()
+                }
+            }
         }
     }
 }

@@ -921,15 +921,28 @@ Singleton {
             daemonProc.command = ["bash", "-c",
                 "pgrep -x swaync >/dev/null 2>&1 || swaync &"]
         } else {
-            // v7.0.0-beta.1-hf31: kill swaync HARD + wait so D-Bus name
-            // is released, then nudge Quickshell to re-register. Multiple
-            // attempts because swaync may auto-restart from systemd.
+            // v7.0.0-beta.1-hf31: kill the competing daemon HARD + wait so
+            // the org.freedesktop.Notifications D-Bus name is released and
+            // Quickshell's native NotificationServer can own it.
+            //
+            // v7.0.0-beta.1-hf98g: previously only swaync was killed. But a
+            // user's own dotfiles may autostart mako or dunst instead — and
+            // whichever holds the bus name wins, so zen-shell toasts never
+            // fire and notifications appear wherever THAT daemon puts them
+            // (e.g. mako's default corner). Now we stop swaync AND mako AND
+            // dunst so zen mode reliably owns the bus. swaync mode is
+            // unchanged. Wala tayong binawasan.
             daemonProc.command = ["bash", "-c",
-                "systemctl --user stop swaync.service 2>/dev/null; " +
-                "systemctl --user disable swaync.service 2>/dev/null; " +
-                "pkill -x swaync 2>/dev/null; " +
+                // systemd user services (if any) — stop + disable so they
+                // don't auto-respawn and re-grab the bus on next login.
+                "for u in swaync mako dunst; do " +
+                "  systemctl --user stop \"$u.service\" 2>/dev/null; " +
+                "  systemctl --user disable \"$u.service\" 2>/dev/null; " +
+                "done; " +
+                // plain processes (Hyprland exec-once etc.)
+                "pkill -x swaync 2>/dev/null; pkill -x mako 2>/dev/null; pkill -x dunst 2>/dev/null; " +
                 "sleep 0.3; " +
-                "pkill -9 -x swaync 2>/dev/null; " +
+                "pkill -9 -x swaync 2>/dev/null; pkill -9 -x mako 2>/dev/null; pkill -9 -x dunst 2>/dev/null; " +
                 "true"]
         }
         daemonProc.running = true

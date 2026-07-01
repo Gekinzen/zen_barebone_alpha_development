@@ -74,6 +74,12 @@ Singleton {
     property real musicSlotLocalX: -1
     property real musicSlotLocalWidth: 200
     property real barWindowLeft: 0
+    // v7.0.0-beta.1-hf98f — island bar's hug-content width, published by
+    // barWindow. The strings overlay centres itself with this PLUS its own
+    // screen width, instead of trusting a pre-baked barWindowLeft that could
+    // be computed against a transient-0 screen width during a lock→unlock
+    // (the "island-only far-left after login" bug). -1 = not yet published.
+    property real barIslandWidth: -1
 
     // v7.0.0-beta.1-hf95.5: vertical-bar counterparts. On a vertical
     // (left/right) bar there is no horizontal music slot — the slot

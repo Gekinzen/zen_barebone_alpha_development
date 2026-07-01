@@ -181,6 +181,66 @@ echo ""
 echo "    Quickshell-native desktop environment for Hyprland."
 echo ""
 cat << 'ZSCHANGELOG'
+    v7.0.0-beta.1-hf98 — Music strings lock/login re-align (deterministic) + hyprlock power buttons
+
+      [Music strings align v2]       hf97's reactive >200px guard still
+                                     missed the lock/login drift: an unlock
+                                     often re-publishes the SAME slot X (no
+                                     change signal) or drifts <200px (under
+                                     the guard), so the string still stuck
+                                     off-place. Now deterministic: PanelState
+                                     watches the hyprlock process and emits
+                                     sessionUnlocked() on the unlock edge;
+                                     stringsWindow does a clean re-settle
+                                     (positionReady=false → Behavior disabled
+                                     → SNAP, not glide). Covers Zen lock,
+                                     hypridle lock, and suspend/resume. hf97
+                                     guard kept as a second line of defence.
+
+      [hyprlock power buttons]       Lock screen now has clickable Shutdown
+                                     (systemctl poweroff) and Restart
+                                     (systemctl reboot) Nerd Font icons pinned
+                                     bottom-center, via hyprlock's onclick.
+                                     Same verbs as the desktop power menu.
+                                     Icon font pinned, NOT tagged
+                                     ZEN_FONT_OVERRIDE, so glyphs never tofu.
+
+    v7.0.0-beta.1-hf97 — Bar settings reset fix + music strings lock/unlock align
+
+      [Bar settings reset]           Bar settings sometimes reset on their
+                                     own. Root cause: ThemeService runs
+                                     applyJson() on its file-load at login
+                                     and queues PanelState.saveState(); the
+                                     theme + panel-state FileViews load
+                                     concurrently, so when theme won the race
+                                     it wrote DEFAULT in-memory values over
+                                     your saved panel-state.json. Added a
+                                     _loaded guard — saves are suppressed
+                                     until panel-state.json has actually
+                                     loaded — plus a last-known-good .bak
+                                     written on every clean load.
+
+      [Music strings align]          After lock screen → login the music
+                                     strings swung back and forth and landed
+                                     misaligned. A lock/unlock cycle has no
+                                     window teardown, so positionReady stayed
+                                     true while Bar.qml re-published slot X
+                                     and barLeftOffset re-evaluated async —
+                                     the margins Behavior then animated
+                                     THROUGH the inconsistent intermediates.
+                                     Now a big (>200px) or pre-layout jump
+                                     while ready triggers a clean re-settle
+                                     instead of gliding through garbage.
+
+      [Login error]                  DIAGNOSED, not yet patched — needs your
+                                     logs to confirm. Two suspects: (1) dual
+                                     plugin load (systemd zen-plugin-loader +
+                                     autostart zen-plugin-bootstrap both run
+                                     at login), or (2) the benign Hyprland
+                                     version-bump notify-send from the
+                                     bootstrap script being read as an error.
+                                     See CHANGELOG-v7.0.0-beta.1-hf97.md.
+
     v7.0.0-beta.1-hf96 — Mouse/touchpad invert fix + Online wallpaper fix
 
       [Mouse invert]                 Settings → Input → "Natural scroll"
