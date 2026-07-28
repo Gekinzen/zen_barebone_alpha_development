@@ -107,6 +107,12 @@ turns are documented because they are the useful part.
 
 ### Download
 
+| Build | Channel | State |
+|---|---|---|
+| **ZenithArch-shell-qml** | tag `v8.0.0` | **Coming soon** — not tagged yet |
+| **Version 8 alpha** | `main` · hf195 | Rolling, untagged |
+| **Karui** | tag `v7.0.0-beta.1` | Available — recommended |
+
 > **ZenithArch-shell-qml has not been tagged yet.** Watch the repository for the first `v8` tag.
 
 ```bash
