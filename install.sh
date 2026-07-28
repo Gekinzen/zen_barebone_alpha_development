@@ -1,4 +1,26 @@
 #!/usr/bin/env bash
+# ═══════════════════════════════════════════════════════════════
+#  Zen Shell v8 — Complete Installer  ·  v7.0.0-beta.1-hf99 (Karui 軽い)
+# ═══════════════════════════════════════════════════════════════
+#  The full smart installer: auto-detects whether bootstrap is
+#  needed, backs up your existing install, installs all QML, clears
+#  the compiled-QML cache, provisions configs, and restarts cleanly.
+#  Additive — preserves your hypr / theme / GTK / *.json settings.
+#
+#  Flags:  --bootstrap / -b   force system-dep bootstrap first
+#          --no-bootstrap      skip auto-bootstrap (advanced)
+#          --help / -h         usage
+#
+#  hf99 additions (nothing removed — wala tayong babawasan):
+#    • Bundled bootstrap.sh in the tarball so --bootstrap / auto
+#      bootstrap actually has something to run.
+#    • LAYOUT-COMPAT SHIM (below): this installer body was authored
+#      against the legacy drop layout (zen-shell-v5/, top-level
+#      scripts/ + themes-builtin/). The v8 tarball ships the QML
+#      under zen-shell/ and nests scripts/ + config beneath it.
+#      Instead of rewriting 4000+ lines, we bridge the legacy names
+#      to their v8 locations with idempotent, self-cleaning symlinks.
+# ═══════════════════════════════════════════════════════════════
 set -o pipefail 2>/dev/null || true
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -9,6 +31,50 @@ THEMES_BUILTIN="$GTK_DIR/themes/builtin"
 THEMES_CUSTOM="$GTK_DIR/themes/custom"
 BIN_DIR="$HOME/.local/bin"
 TS=$(date +%Y%m%d-%H%M%S)
+
+# ═══════════════════════════════════════════════════════════════
+#  LAYOUT-COMPAT SHIM (v7.0.0-beta.1-hf99) — additive, non-destructive
+# ═══════════════════════════════════════════════════════════════
+#  The install body below still references the legacy drop layout:
+#    zen-shell-v5/   (QML source)   → v8 ships it as  zen-shell/
+#    scripts/        (CLI scripts)  → v8 nests it as   zen-shell/scripts/
+#    themes-builtin/ (builtin json) → v8 ships it as   themes/builtin/
+#
+#  SAFETY: the QML install step prunes any target file NOT present in
+#  the source dir. If the source dir name fails to resolve, that prune
+#  would wipe the whole shell. This shim guarantees the source resolves
+#  BEFORE we reach that step — so a right-layout tarball can never
+#  self-destruct on a name mismatch.
+#
+#  We only create a symlink when the legacy name is absent AND a v8
+#  source exists. Links live inside SCRIPT_DIR (the writable extracted
+#  tarball) and are cleaned up on exit — we never touch the real dirs.
+# ───────────────────────────────────────────────────────────────
+_ZS_SHIM_LINKS=()
+_zs_shim() {                       # $1 legacy name ; $2.. candidate v8 sources
+    local legacy="$1"; shift
+    [ -e "$SCRIPT_DIR/$legacy" ] && return 0     # a real dir is already there
+    local cand
+    for cand in "$@"; do
+        if [ -e "$SCRIPT_DIR/$cand" ]; then
+            if ln -sfn "$cand" "$SCRIPT_DIR/$legacy" 2>/dev/null; then
+                _ZS_SHIM_LINKS+=("$SCRIPT_DIR/$legacy")
+                return 0
+            fi
+        fi
+    done
+    return 1
+}
+_zs_shim "zen-shell-v5"   "zen-shell"
+_zs_shim "scripts"        "zen-shell/scripts"
+_zs_shim "themes-builtin" "themes/builtin"
+
+_zs_shim_cleanup() {               # remove ONLY the symlinks we created
+    local l
+    for l in "${_ZS_SHIM_LINKS[@]}"; do [ -L "$l" ] && rm -f "$l"; done
+}
+trap _zs_shim_cleanup EXIT
+# ═══════════════════════════════════════════════════════════════
 
 # ═══════════════════════════════════════════════════════════════
 # Flag parsing — --bootstrap / --no-bootstrap / --help
@@ -2219,12 +2285,26 @@ if [ -n "$MISSING_OPTIONAL" ]; then
                 SKIPPED_OPTIONAL_PACKAGES="$MISSING_OPTIONAL"
                 ;;
             *)
+                # v7.0.0-beta.1-hf99e: optional packages are cosmetic
+                # (fonts). The AUR ones (e.g. the Material Symbols variable
+                # font) build via makepkg and can be slow. Make this step
+                # INTERRUPTIBLE + NON-FATAL: Ctrl+C skips ONLY the fonts and
+                # drops through to the real shell install instead of aborting
+                # the whole installer, and any build failure is tolerated.
+                echo "    Installing optional packages — AUR fonts (e.g. Material"
+                echo "    Symbols) build via makepkg and can take a few minutes."
+                echo "    Press Ctrl+C to skip fonts and continue the shell install."
+                _opt_ok=1
+                trap 'echo ""; echo "  ○ Ctrl+C — skipping optional fonts, continuing."; _opt_ok=0' INT
                 # shellcheck disable=SC2086
-                if $INSTALLER -S --needed $MISSING_OPTIONAL; then
+                $INSTALLER -S --needed $MISSING_OPTIONAL || _opt_ok=0
+                trap - INT
+                if [ "$_opt_ok" = "1" ]; then
                     echo "    Installed."
                     INSTALLED_OPTIONAL_PACKAGES="$MISSING_OPTIONAL"
                 else
-                    echo "  ⚠ Some failed. Continuing..."
+                    echo "  ⚠ Optional fonts not installed — the shell runs fine without them."
+                    echo "    Install later:  $INSTALLER -S $MISSING_OPTIONAL"
                     SKIPPED_OPTIONAL_PACKAGES="$MISSING_OPTIONAL"
                 fi
                 ;;
@@ -2267,19 +2347,34 @@ fi
     cp "$HYPR_DIR/modules/binds.conf" "$HYPR_DIR/modules/binds.conf.bak-$TS" && \
     echo "    $HYPR_DIR/modules/binds.conf → .bak-$TS"
 
-# Migrate strings-state.json from old wing-based format
+# Migrate strings-state.json from the old wing-based format.
+#
+# v8.0.0-alpha-hf121 — this was UNCONDITIONAL. Every single install re-ran it,
+# and it did three destructive things to an already-migrated file:
+#   • forced colorMode back to "theme" unless it was exactly "synced"
+#     (so a user's "custom" start/end colours silently reverted every install)
+#   • reset ropeSegments / ropeSegmentLength to the v6.15.1 defaults
+#   • re-defaulted stringLength
+# It is a ONE-TIME v6.15.1 migration. Gate it on the legacy keys actually being
+# present, and never overwrite a colorMode this build understands.
 STRINGS_STATE="$SHELL_DIR/strings-state.json"
-if [ -f "$STRINGS_STATE" ] && command -v jq >/dev/null 2>&1; then
+if [ "${ZEN_NO_MIGRATE:-0}" != "1" ] && [ -f "$STRINGS_STATE" ] && command -v jq >/dev/null 2>&1 \
+   && jq -e 'has("mode") or has("leftEnabled") or has("rightEnabled")
+             or has("leftAudioVisual") or has("rightAudioVisual") or has("barPosition")' \
+        "$STRINGS_STATE" >/dev/null 2>&1; then
     cp "$STRINGS_STATE" "$STRINGS_STATE.bak-$TS"
     jq 'del(.mode, .leftEnabled, .rightEnabled, .leftAudioVisual,
              .rightAudioVisual, .position, .barPosition)
-        | if .colorMode == "synced" then . else .colorMode = "theme" end
+        | if (.colorMode == "theme" or .colorMode == "synced" or .colorMode == "custom")
+          then . else .colorMode = "theme" end
         | .stringLength //= 0
         | .ropeSegments      = 10
         | .ropeSegmentLength = 5' \
         "$STRINGS_STATE.bak-$TS" > "$STRINGS_STATE" 2>/dev/null \
         && echo "    strings-state.json migrated to v6.15.1 schema (rope physics reset)" \
-        || echo "    (migration skipped — defaults will apply)"
+        || { cp -f "$STRINGS_STATE.bak-$TS" "$STRINGS_STATE"; echo "    (migration failed — original restored)"; }
+else
+    [ -f "$STRINGS_STATE" ] && echo "    strings-state.json already on the current schema — left alone"
 fi
 
 # ═══════════════════════════════════════════════════════════════
@@ -2326,6 +2421,128 @@ find "$SHELL_DIR" -type f \( -name "*.qmlc" -o -name "*.jsc" \) -delete 2>/dev/n
 #      (handles renamed/removed modules, the original reason for cleaning).
 echo "    Installing fresh QML (copy-first, atomic)…"
 cp "$SCRIPT_DIR/zen-shell-v5/"*.qml "$SHELL_DIR/"
+# v8.0.0-alpha-hf110: CLIENT SAFETY — snapshot the user's state files before
+# we touch anything.
+#
+# v8.0.0-alpha-hf121: the snapshot list was four hand-picked files, and nothing
+# ever checked whether a migration had left a file unparseable. It had: the
+# calendar sed turned panel-state.json into invalid JSON, the shell fell back to
+# defaults on every boot, and no one noticed because nothing verified.
+#
+# Now: snapshot EVERY *.json, repair anything already broken from a good backup,
+# and verify all of them again at the end of the install. Set ZEN_NO_MIGRATE=1
+# to skip every migration entirely.
+_zs_json_ok() {
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$1" >/dev/null 2>&1
+    elif command -v jq >/dev/null 2>&1; then
+        jq empty "$1" >/dev/null 2>&1
+    else
+        return 0   # no validator available — assume fine rather than destroy
+    fi
+}
+
+_zs_backup_state() {
+    local f
+    for f in "$SHELL_DIR"/*.json; do
+        [ -f "$f" ] || continue
+        cp -f "$f" "$f.bak-$TS" 2>/dev/null && echo "    backed up $(basename "$f")"
+    done
+}
+
+# Heal a file that a previous install already corrupted. Prefers the shell's own
+# last-known-good `.bak` (PanelState writes it after every clean load), then the
+# newest timestamped snapshot.
+_zs_repair_state() {
+    local f cand
+    for f in "$SHELL_DIR"/*.json; do
+        [ -f "$f" ] || continue
+        _zs_json_ok "$f" && continue
+        echo "    ⚠️   $(basename "$f") is not valid JSON — searching for a good backup"
+        for cand in $(ls -1t "$f.bak" "$f".bak-* 2>/dev/null); do
+            _zs_json_ok "$cand" || continue
+            cp -f "$f" "$f.corrupt-$TS" 2>/dev/null
+            cp -f "$cand" "$f"
+            echo "    ♻️   restored from $(basename "$cand")"
+            echo "         broken copy kept as $(basename "$f").corrupt-$TS"
+            break
+        done
+        _zs_json_ok "$f" || echo "    ❌  no usable backup for $(basename "$f") — it will fall back to defaults"
+    done
+}
+
+# Run after every migration. If anything stopped parsing, roll it back.
+_zs_verify_state() {
+    local f bad=0
+    for f in "$SHELL_DIR"/*.json; do
+        [ -f "$f" ] || continue
+        _zs_json_ok "$f" && continue
+        bad=1
+        echo "    ❌  $(basename "$f") is not valid JSON AFTER install"
+        if [ -f "$f.bak-$TS" ] && _zs_json_ok "$f.bak-$TS"; then
+            cp -f "$f" "$f.corrupt-$TS" 2>/dev/null
+            cp -f "$f.bak-$TS" "$f"
+            echo "    ♻️   rolled back to the pre-install copy"
+        fi
+    done
+    [ "$bad" -eq 0 ] && echo "    ✅  every state file still parses"
+    return 0
+}
+
+_zs_repair_state
+_zs_backup_state
+
+# ─────────────────────────────────────────────────────────────────
+# v8.0.0-alpha-hf153 — PROFILE GUARD (bar + panel state)
+#
+# "kapag mag install.sh, if current settings na ko, wag mo papatungan yun
+#  profile kasi nawawala yun settings ko sa qml bar ko panels." — Paul.
+#
+# The *.qml copy already skips *.json, but the one-shot migrations later in
+# this script (powerbadge → bar-layout.json) can rewrite the bar/panel layout.
+# This snapshots his CURRENT, already-validated bar + panel state RIGHT NOW —
+# before any migration runs — into $SHELL_DIR/.profile-guard/. A matching
+# restore at the very end (after all migrations, after verify) puts these two
+# files back byte-for-byte, so whatever happens in between, his QML bar panels
+# are exactly as he left them.
+#
+# Scope is deliberately narrow: ONLY the two files Paul named — the bar module
+# layout and the panel position/mode/state. widgets-state.json is intentionally
+# NOT guarded, so the additive `glance` seed below still lands for first-timers.
+#
+# Opt back INTO the migrations (fresh box, or you WANT the new default layout):
+#     ZEN_ALLOW_PROFILE_MIGRATE=1 ./install.sh
+#
+# Additive — this removes no feature; it only protects your settings.
+PROFILE_GUARD_DIR="$SHELL_DIR/.profile-guard"
+PROFILE_GUARD_FILES="panel-state.json bar-layout.json"
+ZS_PROFILE_GUARDED=0
+if [ "${ZEN_ALLOW_PROFILE_MIGRATE:-0}" != "1" ]; then
+    for _pf in $PROFILE_GUARD_FILES; do
+        _src="$SHELL_DIR/$_pf"
+        [ -f "$_src" ] || continue          # first install → nothing to guard
+        _zs_json_ok "$_src" || continue     # only ever guard a VALID profile
+        mkdir -p "$PROFILE_GUARD_DIR"
+        if cp -f "$_src" "$PROFILE_GUARD_DIR/$_pf" 2>/dev/null; then
+            ZS_PROFILE_GUARDED=1
+            echo "    🔒 profile guard: snapshotted $_pf"
+        fi
+    done
+    [ "$ZS_PROFILE_GUARDED" = "1" ] && \
+        echo "       your bar/panel state will be restored verbatim after migrations" && \
+        echo "       (set ZEN_ALLOW_PROFILE_MIGRATE=1 to opt out and take the new defaults)"
+else
+    echo "    🔓 ZEN_ALLOW_PROFILE_MIGRATE=1 — profile guard OFF; migrations may adjust your layout"
+fi
+
+# v8.0.0-alpha-hf103: ship the whole assets/ tree (logos, zen-logo.svg, …).
+# Only *.qml was copied before, so any new non-QML asset silently went missing.
+if [ -d "$SCRIPT_DIR/zen-shell-v5/assets" ]; then
+    mkdir -p "$SHELL_DIR/assets"
+    cp -r "$SCRIPT_DIR/zen-shell-v5/assets/." "$SHELL_DIR/assets/" 2>/dev/null || true
+    echo "    assets/ synced ($(find "$SHELL_DIR/assets" -type f 2>/dev/null | wc -l) files)"
+fi
+
 echo "    Pruning stale top-level QML no longer in this build…"
 for f in "$SHELL_DIR"/*.qml; do
     [ -e "$f" ] || continue
@@ -2363,7 +2580,12 @@ done
 # versions stay matched to QML versions across rollback boundaries.
 # ZenUpdateService.qml calls them by full path via `scriptsDir`.
 mkdir -p "$SHELL_DIR/scripts"
-V7_SCRIPTS=(zen-update-check.sh zen-snapshot-create.sh zen-rollback.sh zen-update-install.sh)
+# v8.0.0-alpha-hf179: zen-wheelpad.py + zen-panasonic-setup.sh join the list.
+# They are inert on non-Panasonic hardware — the daemon refuses to start
+# unless DMI says Let's Note, and the setup script exits early.
+V7_SCRIPTS=(zen-update-check.sh zen-snapshot-create.sh zen-rollback.sh zen-update-install.sh \
+            zen-wheelpad.py zen-panasonic-setup.sh zen-wifi-doctor.sh zen-wifi-watch.sh \
+            zen-wifi-selector.py)
 V7_INSTALLED=0
 for s in "${V7_SCRIPTS[@]}"; do
     src="$SCRIPT_DIR/scripts/$s"
@@ -2528,7 +2750,7 @@ echo "[5/9] Install scripts..."
 INSTALLED_SCRIPTS_COUNT=0
 for script in \
     fix-monitor-scale.sh blueman-toggle.sh btm-toggle.sh \
-    wifi-toggle.sh termrun.sh regen-terminal-themes.sh \
+    wifi-toggle.sh termrun.sh regen-terminal-themes.sh zen-fuzzel-glass.sh \
     regen-swaync-theme.sh zen-screenshot.sh \
     patch-swaync-position.sh zen-cava.sh \
     zs-restart.sh \
@@ -3295,6 +3517,16 @@ if [ -f "$TEMPLATE" ]; then
         grep -q "modules/animations.conf" "$HCONF" || {
             echo "source = ~/.config/hypr/modules/animations.conf" >> "$HCONF"
             added=$((added+1)); }
+        # v8.0.0-alpha-hf172: cursor env (XCURSOR/HYPRCURSOR theme+size) written by
+        # CursorService, so the picked cursor is set by Hyprland at LAUNCH — correct from
+        # the very start of a session on relogin, not a beat later when the shell
+        # re-applies. Seed empty first so Hyprland never sources a missing file.
+        [ -f "$HYPR_DIR/modules/zen-cursor-env.conf" ] || {
+            mkdir -p "$HYPR_DIR/modules"
+            printf '# Zen Shell — managed cursor env (set via Control Center → Cursor & Icons)\n' > "$HYPR_DIR/modules/zen-cursor-env.conf"; }
+        grep -q "modules/zen-cursor-env.conf" "$HCONF" || {
+            echo "source = ~/.config/hypr/modules/zen-cursor-env.conf" >> "$HCONF"
+            added=$((added+1)); }
         # v6.16.4.12.6.19: Hyprland plugins config (managed by Settings)
         grep -q "modules/plugins.conf" "$HCONF" || {
             echo "source = ~/.config/hypr/modules/plugins.conf" >> "$HCONF"
@@ -3461,7 +3693,48 @@ fi
 echo ""
 echo "[7/9] Themes..."
 mkdir -p "$THEMES_BUILTIN" "$THEMES_CUSTOM"
-cp "$SCRIPT_DIR/themes-builtin/"*.json "$THEMES_BUILTIN/"
+# v7.0.0-beta.1-hf99zy: NEVER clobber a theme you edited.
+# A builtin theme is only refreshed when it's byte-identical to what you
+# already have, or missing entirely. If yours differs, we keep YOURS and drop
+# the shipped copy next to it as <name>.json.new so you can diff/merge.
+# Force the old behaviour with:  ZEN_FORCE_THEMES=1 ./install.sh
+for _seed in "$SCRIPT_DIR/themes-builtin/"*.json; do
+    [ -e "$_seed" ] || continue
+    _name="$(basename "$_seed")"
+    _dst="$THEMES_BUILTIN/$_name"
+    if [ ! -e "$_dst" ]; then
+        cp "$_seed" "$_dst"
+    elif cmp -s "$_seed" "$_dst"; then
+        :                                  # identical — nothing to do
+    elif [ "${ZEN_FORCE_THEMES:-0}" = "1" ]; then
+        cp "$_seed" "$_dst.bak-$TS" 2>/dev/null || true
+        cp "$_seed" "$_dst"
+        echo "    theme overwritten (forced): $_name  (backup: $_name.bak-$TS)"
+    else
+        cp "$_seed" "$_dst.new"
+        echo "    kept your edited theme: $_name  (shipped copy → $_name.new)"
+    fi
+done
+# v8.0.0-alpha-hf135 — seed CUSTOM themes shipped with the drop.
+#
+# Same rule as the builtins, one step gentler: a custom theme is YOURS the
+# moment it lands, so an existing file is never touched, not even with
+# ZEN_FORCE_THEMES. The shipped copy is written beside it as .new.
+for _seed in "$SCRIPT_DIR/themes/custom/"*.json; do
+    [ -e "$_seed" ] || continue
+    _name="$(basename "$_seed")"
+    _dst="$THEMES_CUSTOM/$_name"
+    if [ ! -e "$_dst" ]; then
+        cp "$_seed" "$_dst"
+        echo "    custom theme installed: $_name"
+    elif cmp -s "$_seed" "$_dst"; then
+        :
+    else
+        cp "$_seed" "$_dst.new"
+        echo "    kept your edited custom theme: $_name  (shipped copy → $_name.new)"
+    fi
+done
+
 INSTALLED_THEMES_COUNT=$(ls "$THEMES_BUILTIN/"*.json 2>/dev/null | wc -l)
 echo "    $INSTALLED_THEMES_COUNT builtin themes"
 
@@ -4656,6 +4929,71 @@ else
     echo "    ✓ hyprlock + hypridle present"
 fi
 
+# ═══════════════════════════════════════════════════════════════
+# v7.0.0-beta.1-hf99zq — Hyprland drop-in configs (ALWAYS runs)
+#
+# BUGFIX: these used to live inside the monitor-watcher block, which is
+# gated on `scripts/zen-monitor-watcher.service`. That file isn't shipped
+# in this tarball, so the gate was false and the confs were never copied —
+# yet hyprland.conf still got a `source =` line from a manual step,
+# producing: "source= globbing error: found no match".
+#
+# Now they're standalone and self-healing: the file is copied FIRST, then
+# the source line is added (idempotently). Re-running install.sh repairs a
+# broken source line by simply putting the missing file in place.
+# ═══════════════════════════════════════════════════════════════
+install_zen_hypr_dropins() {
+    local dir="${XDG_CONFIG_HOME:-$HOME/.config}/hypr"
+    local conf="$dir/hyprland.conf"
+    mkdir -p "$dir"
+    echo "  Hyprland drop-in configs:"
+
+    _zen_dropin() {   # $1 = filename, $2 = human label
+        local seed="$SCRIPT_DIR/hypr-config/$1"
+        [ -f "$seed" ] || { echo "    (skip $1 — not in this tarball)"; return 0; }
+        cp -f "$seed" "$dir/$1" 2>/dev/null && echo "    $dir/$1"
+        if [ -f "$conf" ] && ! grep -qE "^[[:space:]]*source[[:space:]]*=.*$(printf '%s' "$1" | sed 's/\./\\./g')" "$conf"; then
+            {
+                echo ""
+                echo "# Sourced by zen-shell installer — $2 ($(date '+%Y-%m-%d'))"
+                echo "source = ~/.config/hypr/$1"
+            } >> "$conf"
+            echo "      + sourced in hyprland.conf"
+        else
+            echo "      already sourced"
+        fi
+    }
+
+    _zen_dropin "zen-shell-look.conf"      "Glass frost / Shell Look"
+    _zen_dropin "zen-shell-dashboard.conf" "Zen Control Center keybinds"
+    # v8.0.0-alpha-hf194 — media keys + EasyEffects autostart. Registered LAST
+    # of the three on purpose: _zen_dropin appends its source line, so the file
+    # sourced last wins any bind collision, and the keysym media binds are the
+    # ones that must not be overridden by anything above them.
+    _zen_dropin "zen-input.conf"           "Media keys + login autostart"
+
+    # v7.0.0-beta.1-hf99zr: Hyprland 0.55 changed the layerrule syntax
+    # ("key value" elements, match: prefix, ignorealpha → ignore_alpha).
+    # The shipped conf carries the 0.55 form active and the 0.54 form
+    # commented; on an older Hyprland, swap them so the file parses.
+    local look="$dir/zen-shell-look.conf"
+    if [ -f "$look" ] && command -v hyprctl >/dev/null 2>&1; then
+        local ver major minor
+        ver=$(hyprctl version 2>/dev/null | grep -oE 'v?[0-9]+\.[0-9]+\.[0-9]+' | head -1 | sed 's/^v//')
+        major=$(printf '%s' "$ver" | cut -d. -f1)
+        minor=$(printf '%s' "$ver" | cut -d. -f2)
+        if [ -n "$major" ] && [ -n "$minor" ] && [ "$major" -eq 0 ] 2>/dev/null && [ "$minor" -lt 55 ] 2>/dev/null; then
+            sed -i 's|^layerrule = blur 1.*|# &|' "$look"
+            sed -i 's|^# layerrule = blur, zen-shell-|layerrule = blur, zen-shell-|' "$look"
+            sed -i 's|^# layerrule = ignorealpha 0.35, zen-shell-|layerrule = ignorealpha 0.35, zen-shell-|' "$look"
+            echo "      Hyprland $ver detected → legacy layerrule syntax enabled"
+        else
+            echo "      Hyprland ${ver:-unknown} → 0.55+ layerrule syntax kept"
+        fi
+    fi
+}
+install_zen_hypr_dropins
+
 # Phase B — hypridle.conf + hyprlock.conf (user-scope, ~/.config/hypr/)
 # These files live directly under $HYPR_DIR (NOT modules/) because
 # hypridle and hyprlock look there by default. Existing files get
@@ -4675,6 +5013,252 @@ for v6163f in hypridle.conf hyprlock.conf; do
         echo "    $v6163f up to date"
     fi
 done
+
+# ═══════════════════════════════════════════════════════════════════════════
+# v8.0.0-alpha-hf135 — hyprlock power buttons (Shutdown / Restart)
+#
+# WE DO NOT OWN ~/.config/hypr/hyprlock.conf. The changelog has said so since
+# v7.0.0-beta.1-hf99f: "hyprlock.conf is left to the user (visual config,
+# untouched)." Overwriting it would take your wallpaper path, blur passes,
+# monitor rules, PAM/fingerprint config and the $font line zen-lock.sh rewrites.
+#
+# So: ship the buttons as a SEPARATE file and pull them in with one line.
+# hyprlock's hyprlang supports `source =` (registerHandler(&handleSource,
+# "source", …) in src/config/ConfigManager.cpp), with ~ expansion and globbing.
+# A missing source file is a HARD ERROR, so the file is installed first and the
+# line appended second — never the other way round.
+#
+# Three refusals, on purpose:
+#   1. No hyprlock.conf → do nothing. Creating one would give you a lock screen
+#      with only two buttons and no clock, no input field, no background.
+#   2. Existing power buttons (`systemctl poweroff` already in the file) → do
+#      nothing. Sourcing ours would draw a SECOND pair on top of yours.
+#   3. Already sourced → refresh the file, leave the line alone. Idempotent.
+#
+# The block is fenced with markers so a future build can find and replace it.
+# ═══════════════════════════════════════════════════════════════════════════
+install_zen_hyprlock_power() {
+    local src="$SCRIPT_DIR/hypr-config/zen-hyprlock-power.conf"
+    local dst="$HYPR_DIR/zen-hyprlock-power.conf"
+    local lockconf="$HYPR_DIR/hyprlock.conf"
+    local begin="# >>> zen-shell hyprlock power buttons >>>"
+    local end="# <<< zen-shell hyprlock power buttons <<<"
+    # No `trap ... RETURN` — that is a bashism and this file is sourced by
+    # people's shells in odd ways. Explicit cleanup on every exit path instead.
+    local _zen_awk
+    _zen_awk="$(mktemp)"
+    cat > "$_zen_awk" <<'ZENAWKEOF'
+# Comments out hyprlock widget blocks so a zen-shell include can own them.
+#
+#   mode=power (default) : only blocks that drive a power action, plus the pill
+#                          `shape` that shares their `position`
+#   mode=ui              : every label/shape/image/input-field block
+#
+# Lines are PREFIXED with "##zen## ", never deleted.  Undo:
+#   sed -i 's/^##zen## //' file
+#
+# Structure is read through hyprlang's own comment rule (config.cpp:688-716):
+# a bare `#` truncates the rest of the line, `##` is the escape for a literal
+# `#`.  Without this, `label {   # the clock` never opens a block, its closing
+# `}` drives the depth counter negative, and every widget after it is invisible
+# to us.  hyprlock's own example config has exactly that shape.
+BEGIN { depth = 0; nb = 0; killed = 0 }
+
+function codeof(l,   p, n) {
+    sub(/^[ \t]+/, "", l); sub(/[ \t]+$/, "", l)
+    p = index(l, "#")
+    if (p == 1) return ""
+    while (p > 0) {
+        if (substr(l, p + 1, 1) == "#") {
+            l = substr(l, 1, p) substr(l, p + 2)     # "##" -> "#"
+            n = index(substr(l, p + 1), "#")
+            p = (n > 0) ? p + n : 0
+        } else {
+            l = substr(l, 1, p - 1)
+            break
+        }
+    }
+    sub(/[ \t]+$/, "", l)
+    return l
+}
+function is_open(c)  { return c ~ /^[A-Za-z_-]+[ \t]*\{$/ }
+function is_close(c) { return c == "}" }
+function opens(c)    { return is_open(c) && c ~ /^(label|shape|image|input-field)[ \t]*\{/ }
+function delta(c)    { return is_open(c) ? 1 : (is_close(c) ? -1 : 0) }
+
+{
+    line[NR] = $0
+    C = codeof($0)
+
+    if (depth == 0 && opens(C)) {
+        nb++
+        bstart[nb] = NR
+        t = C; sub(/[ \t]*\{.*/, "", t)
+        btype[nb] = t
+        bpos[nb] = ""
+        bkill[nb] = (mode == "ui") ? 1 : 0
+        inb = nb
+    }
+    if (inb) {
+        if (C ~ /^onclick[ \t]*=.*(poweroff|reboot|shutdown|halt)/) bkill[inb] = 1
+        if (C ~ /^position[ \t]*=/) { p = C; sub(/^position[ \t]*=[ \t]*/, "", p); gsub(/[ \t]/, "", p); bpos[inb] = p }
+    }
+    depth += delta(C)
+    if (inb && depth == 0) { bend[inb] = NR; inb = 0 }
+}
+
+END {
+    if (mode != "ui") {
+        for (i = 1; i <= nb; i++) if (bkill[i] && bpos[i] != "") killpos[bpos[i]] = 1
+        for (i = 1; i <= nb; i++)
+            if (!bkill[i] && btype[i] == "shape" && bpos[i] != "" && (bpos[i] in killpos)) bkill[i] = 1
+    }
+    for (i = 1; i <= nb; i++) if (bkill[i]) {
+        for (n = bstart[i]; n <= bend[i]; n++) mark[n] = 1
+        printf("    commented %s block, lines %d-%d (position %s)\n", btype[i], bstart[i], bend[i], (bpos[i]==""?"-":bpos[i])) > "/dev/stderr"
+        killed++
+    }
+    if (mode != "ui")
+        for (i = 1; i <= nb; i++)
+            if (!bkill[i] && btype[i] == "shape" && killed > 0)
+                printf("    NOTE: shape at lines %d-%d (position %s) left alone.\n         If an empty pill remains, comment it too.\n", bstart[i], bend[i], bpos[i]) > "/dev/stderr"
+    if (killed == 0) printf("    nothing to comment\n") > "/dev/stderr"
+    for (n = 1; n <= NR; n++) print (mark[n] ? "##zen## " line[n] : line[n])
+}
+ZENAWKEOF
+
+    echo "  hyprlock power buttons:"
+
+    if [ ! -f "$src" ]; then
+        echo "    ○ zen-hyprlock-power.conf missing from the drop — skipped"
+        rm -f "$_zen_awk"
+        return 0
+    fi
+
+    # v8.0.0-alpha-hf138 — also ship the full centre stack. It is not sourced
+    # automatically: `zen-hyprlock-doctor --ui` opts in, because applying it
+    # comments out your clock, greeting and input-field blocks.
+    local uisrc="$SCRIPT_DIR/hypr-config/zen-hyprlock-ui.conf"
+    local uidst="$HYPR_DIR/zen-hyprlock-ui.conf"
+    if [ -f "$uisrc" ]; then
+        if [ ! -f "$uidst" ] || ! diff -q "$uisrc" "$uidst" >/dev/null 2>&1; then
+            [ -f "$uidst" ] && cp "$uidst" "$uidst.bak.$TS" 2>/dev/null
+            cp "$uisrc" "$uidst"
+            echo "    ✓ zen-hyprlock-ui.conf → $uidst"
+        fi
+    fi
+
+    # 1. the include file itself (safe: we own this path)
+    if [ -f "$dst" ] && ! diff -q "$src" "$dst" >/dev/null 2>&1; then
+        cp "$dst" "$dst.bak.$TS" 2>/dev/null
+        cp "$src" "$dst"
+        echo "    ✓ zen-hyprlock-power.conf → $dst (backed up old)"
+    elif [ ! -f "$dst" ]; then
+        cp "$src" "$dst"
+        echo "    ✓ zen-hyprlock-power.conf → $dst (new)"
+    else
+        echo "    ✓ zen-hyprlock-power.conf up to date"
+    fi
+
+    # 2. the one line, into a file we do not own
+    if [ ! -f "$lockconf" ]; then
+        echo "    ○ no $lockconf — not creating one."
+        echo "      Add this line yourself once you have a lock config:"
+        echo "        source = ~/.config/hypr/zen-hyprlock-power.conf"
+        rm -f "$_zen_awk"
+        return 0
+    fi
+
+    # v8.0.0-alpha-hf137 — an ACTIVE `source =` line counts, marker or not.
+    #
+    # hf135's message told you to append the line by hand. If you did, hf136
+    # only looked for its own `# >>>` marker, found none, and appended a SECOND
+    # source line. hyprlock would then parse the include TWICE and draw every
+    # button on top of itself. Reproduced; that is this guard.
+    # v8.0.0-alpha-hf140 — EITHER include counts.
+    #
+    # hf139 only looked for `zen-hyprlock-power.conf`. After `--ui` your file
+    # sources `zen-hyprlock-ui.conf` instead — the guard missed, install.sh
+    # appended the power source, and BOTH files drew a Shutdown and a Restart
+    # pill. Two of each. Reproduced; that is why this alternation is here.
+    #
+    # zen-hyprlock-ui.conf already contains the buttons. It supersedes the
+    # power-only include; never source both.
+    # v8.0.0-alpha-hf141 — SELF-HEAL an already-doubled config.
+    #
+    # hf140 stopped install.sh from ADDING a second source line. It did nothing
+    # about the one hf139 had already written. If your file sources the UI
+    # include and the power include, you still see two of every button — and a
+    # reinstall would keep politely leaving it alone. Remove the power line: the
+    # UI include already contains the buttons, and this is a line we wrote.
+    if grep -qE '^[[:space:]]*source[[:space:]]*=.*zen-hyprlock-ui\.conf' "$lockconf" 2>/dev/null \
+       && grep -qE '^[[:space:]]*source[[:space:]]*=.*zen-hyprlock-power\.conf' "$lockconf" 2>/dev/null; then
+        cp "$lockconf" "$lockconf.bak.$TS" 2>/dev/null
+        sed -i -E '/^[[:space:]]*source[[:space:]]*=.*zen-hyprlock-power\.conf/d' "$lockconf"
+        echo "    ✓ removed a duplicate zen-hyprlock-power.conf source (the UI include has the buttons)"
+        echo "      backup: $lockconf.bak.$TS"
+        rm -f "$_zen_awk"
+        return 0
+    fi
+
+    if grep -qE '^[[:space:]]*source[[:space:]]*=.*zen-hyprlock-(power|ui)\.conf' "$lockconf" 2>/dev/null; then
+        echo "    ✓ hyprlock.conf already sources a zen include — left alone"
+        rm -f "$_zen_awk"
+        return 0
+    fi
+
+    # v8.0.0-alpha-hf136 — MIGRATE, don't refuse.
+    #
+    # hf135 detected existing power buttons and backed away, so nothing changed.
+    # That was the safe answer to the wrong question. Comment them out instead:
+    # prefixed, never deleted, one `sed` undoes it, and the original is backed up.
+    #
+    # ZEN_HYPRLOCK_KEEP=1 restores hf135's refusal.
+    if grep -qE '^[[:space:]]*onclick[[:space:]]*=.*(poweroff|reboot|shutdown|halt)' "$lockconf" 2>/dev/null; then
+        if [ "${ZEN_HYPRLOCK_KEEP:-0}" = "1" ]; then
+            echo "    ○ ZEN_HYPRLOCK_KEEP=1 — leaving your power buttons alone, not sourcing ours."
+            rm -f "$_zen_awk"
+        return 0
+        fi
+        echo "    hyprlock.conf has its own power buttons — commenting them out:"
+        cp "$lockconf" "$lockconf.bak.$TS" 2>/dev/null
+        awk -f "$_zen_awk" "$lockconf" > "$lockconf.zen-tmp" 2>"$lockconf.zen-log"
+        if [ -s "$lockconf.zen-tmp" ]; then
+            sed 's/^/  /' "$lockconf.zen-log" 2>/dev/null
+            mv "$lockconf.zen-tmp" "$lockconf"
+            echo "      backup: $lockconf.bak.$TS"
+            echo "      undo:   sed -i 's/^##zen## //' $lockconf"
+        else
+            rm -f "$lockconf.zen-tmp"
+            echo "    ⚠ migration produced nothing — your file is untouched. Not sourcing."
+            rm -f "$lockconf.zen-log"
+            rm -f "$_zen_awk"
+        return 0
+        fi
+        rm -f "$lockconf.zen-log"
+    else
+        cp "$lockconf" "$lockconf.bak.$TS" 2>/dev/null
+    fi
+    {
+        printf '\n%s\n' "$begin"
+        printf '%s\n' "source = ~/.config/hypr/zen-hyprlock-power.conf"
+        printf '%s\n' "$end"
+    } >> "$lockconf"
+    echo "    ✓ appended source= to hyprlock.conf (backed up to .bak.$TS)"
+    rm -f "$_zen_awk"
+}
+install_zen_hyprlock_power
+echo "    ► full centre stack (clock, ONE greeting, password pill with lock + eye,"
+echo "      power pills):  zen-hyprlock-doctor --ui       undo:  zen-hyprlock-doctor --undo"
+
+# v8.0.0-alpha-hf137 — the doctor. Reports (and can repair) a hyprlock.conf we
+# do not own, so nobody has to paste a config to find out what is in it.
+if [ -f "$SCRIPT_DIR/hypr-config/zen-hyprlock-doctor.sh" ]; then
+    mkdir -p "$BIN_DIR" 2>/dev/null
+    install -m 755 "$SCRIPT_DIR/hypr-config/zen-hyprlock-doctor.sh" \
+        "$BIN_DIR/zen-hyprlock-doctor" 2>/dev/null \
+        && echo "    ✓ zen-hyprlock-doctor → $BIN_DIR (run it to inventory your lock screen)"
+fi
 
 # v6.16.3.8: Sync hypridle timeouts with PanelState on fresh install.
 # Picks up idleLockSeconds / idleSleepSeconds if the user has an
@@ -4827,15 +5411,172 @@ echo ""
 # The Clock module now has built-in calendar popup (click clock → calendar
 # opens) — the separate CalendarButton widget became redundant and confused
 # users who saw two clock-like things in the bar.
+# v8.0.0-alpha-hf121 — THIS USED TO CORRUPT panel-state.json.
+#
+# The old line was:
+#     sed -i 's/"calendar",\?\s*//g; s/,\s*"calendar"//g' "$PANEL_STATE_FILE"
+#
+# It was written in v6.16.4.12.6.49 to drop a bar module, back when the only
+# "calendar" in that file lived inside barLayout's arrays. Then hf99zs added
+# `dashCards`, an OBJECT keyed by card id — including "calendar". The sed is
+# blind to structure, so it turned
+#
+#     "dashCards": { "calendar": { "span": 2, "h": 150 }, ... }
+# into
+#     "dashCards": { : { "span": 2, "h": 150 }, ... }
+#
+# which is not JSON. PanelState.applyState() then threw on JSON.parse, kept
+# every default in memory (panelPosition defaults to "bottom" — that's the bar
+# jumping from top to bottom), and _loadDegraded suppressed all writes, so the
+# broken file survived and reset everything on every single boot.
+#
+# Structure-aware now, confined to barLayout, validated, and reversible.
 PANEL_STATE_FILE="$SHELL_DIR/panel-state.json"
-if [ -f "$PANEL_STATE_FILE" ] && grep -q '"calendar"' "$PANEL_STATE_FILE"; then
-    cp "$PANEL_STATE_FILE" "$PANEL_STATE_FILE.bak-$TS"
-    # Remove "calendar" entries from any of the layout arrays
-    # (use sed to handle JSON cleanly — supports both with and without trailing comma)
-    sed -i 's/"calendar",\?\s*//g; s/,\s*"calendar"//g' "$PANEL_STATE_FILE"
-    echo "    🧹  Removed standalone calendar widget from panel layout"
-    echo "        Calendar popup now built into Clock module (click clock to open)"
+if [ "${ZEN_NO_MIGRATE:-0}" != "1" ] && [ -f "$PANEL_STATE_FILE" ] && command -v python3 >/dev/null 2>&1; then
+    python3 - "$PANEL_STATE_FILE" "$TS" <<'PYEOF'
+import json, shutil, sys
+path, ts = sys.argv[1], sys.argv[2]
+try:
+    with open(path) as fh:
+        state = json.load(fh)
+except Exception as exc:
+    print(f"    ⚠️   panel-state.json unparseable — skipping calendar migration ({exc})")
+    sys.exit(0)
+
+layout = state.get("barLayout")
+if not isinstance(layout, dict):
+    sys.exit(0)
+
+changed = False
+for zone in ("left", "center", "right"):
+    items = layout.get(zone)
+    if isinstance(items, list) and "calendar" in items:
+        layout[zone] = [i for i in items if i != "calendar"]
+        changed = True
+
+if not changed:
+    sys.exit(0)
+
+shutil.copy2(path, f"{path}.pre-calendar-{ts}")
+with open(path, "w") as fh:
+    json.dump(state, fh, indent=2)
+print("    🧹  Removed the standalone calendar widget from barLayout")
+print("        (the calendar lives in the Clock module now — click the clock)")
+print("        dashCards and every other key left untouched")
+PYEOF
 fi
+
+# ═══════════════════════════════════════════════════════════════
+#  v8.0.0-alpha-hf113 — Glance widget + window placement
+# ═══════════════════════════════════════════════════════════════
+#  Both new files ship as plain QML under zen-shell/ and are picked
+#  up by the `cp "$SCRIPT_DIR/zen-shell-v5/"*.qml` above, so there is
+#  nothing to install here. What we DO need to do:
+#
+#    1. Verify both landed (a partial extract is easy to miss).
+#    2. Warn if Material Symbols Rounded is absent — the Glance blob
+#       names that family directly for its ligature icons (cloud,
+#       device_thermostat, expand_circle_down, collapse_content).
+#       MaterialIcons.materialAvailable is hardcoded false since
+#       alpha.10-hf6 and its Nerd Font fallback has no matching
+#       codepoints for these, so there is no graceful degradation:
+#       missing font = boxes.
+#    3. Migrate widgets-state.json: add the `glance` block if absent.
+#       Additive only — we never touch existing keys.
+# ═══════════════════════════════════════════════════════════════
+HF113_MISSING=""
+for _f in ZenGlanceWidget.qml ZenWindowPlacement.qml; do
+    [ -f "$SHELL_DIR/$_f" ] || HF113_MISSING="$HF113_MISSING $_f"
+done
+if [ -n "$HF113_MISSING" ]; then
+    echo "    ❌  hf113 files missing from install:$HF113_MISSING"
+    echo "        Re-extract the tarball and re-run ./install.sh"
+else
+    echo "    ✅  hf113 — ZenGlanceWidget + ZenWindowPlacement installed"
+fi
+
+if command -v fc-list >/dev/null 2>&1; then
+    if fc-list 2>/dev/null | grep -iq "Material Symbols Rounded"; then
+        echo "    ✅  Material Symbols Rounded present (Glance blob icons)"
+    else
+        echo "    ⚠️   Material Symbols Rounded NOT found."
+        echo "        The Glance blob's icons will render as empty boxes."
+        echo "        Install with:  yay -S ttf-material-symbols-variable-git"
+        echo "        (The rest of the shell is unaffected — it uses Nerd Font.)"
+    fi
+fi
+
+# Additive migration: seed the glance block so the Settings page has
+# something to read on first launch. Uses python3 (already a hard dep
+# of the theme tooling) and is a no-op if the block already exists.
+WIDGETS_STATE="$SHELL_DIR/widgets-state.json"
+if [ -f "$WIDGETS_STATE" ] && command -v python3 >/dev/null 2>&1; then
+    if ! grep -q '"glance"' "$WIDGETS_STATE"; then
+        cp "$WIDGETS_STATE" "$WIDGETS_STATE.pre-hf113-$TS"
+        python3 - "$WIDGETS_STATE" <<'PYEOF'
+import json, sys
+path = sys.argv[1]
+try:
+    with open(path) as fh:
+        state = json.load(fh)
+except Exception as exc:
+    print("    ⚠️   widgets-state.json unparseable, skipping migration:", exc)
+    sys.exit(0)
+state.setdefault("glance", {
+    "merged": False,
+    "surfaceMode": "default",
+    "surfaceColor": "#fbede8",
+    "surfaceOpacity": 0.96,
+    "inkMode": "auto",
+    "inkColor": "#6e2a14",
+    "accentMode": "default",
+    "accentColor": "#5dc4e8",
+    "font": "Adwaita Sans",
+})
+pos = state.setdefault("positions", {})
+pos.setdefault("glanceX", -1)
+pos.setdefault("glanceY", 40)
+with open(path, "w") as fh:
+    json.dump(state, fh, indent=2)
+print("    🧩  widgets-state.json — added `glance` block (merged=false)")
+PYEOF
+    fi
+fi
+
+# v8.0.0-alpha-hf121 — last line of defence. Any migration above that produced
+# invalid JSON gets rolled back to this run's snapshot.
+_zs_verify_state
+echo ""
+
+# ─────────────────────────────────────────────────────────────────
+# v8.0.0-alpha-hf153 — PROFILE GUARD restore (bar + panel state)
+#
+# Put Paul's bar/panel state back exactly as it was before this install. If a
+# migration above rewrote bar-layout.json / panel-state.json, the migrated copy
+# is preserved as *.migrated-$TS (nothing destroyed — wala tayong babawasan),
+# then the pristine snapshot is restored so his QML bar panels are untouched.
+# No-op on a first install (nothing was snapshotted) or under
+# ZEN_ALLOW_PROFILE_MIGRATE=1.
+if [ "${ZS_PROFILE_GUARDED:-0}" = "1" ] && [ -d "$PROFILE_GUARD_DIR" ]; then
+    _restored=0
+    for _pf in $PROFILE_GUARD_FILES; do
+        _snap="$PROFILE_GUARD_DIR/$_pf"
+        _dst="$SHELL_DIR/$_pf"
+        [ -f "$_snap" ] || continue
+        _zs_json_ok "$_snap" || continue          # never restore a bad snapshot
+        # Only act if it actually changed — keeps reinstalls quiet + fast.
+        if [ -f "$_dst" ] && cmp -s "$_snap" "$_dst"; then
+            continue
+        fi
+        [ -f "$_dst" ] && cp -f "$_dst" "$_dst.migrated-$TS" 2>/dev/null
+        if cp -f "$_snap" "$_dst" 2>/dev/null; then
+            _restored=1
+            echo "    🔒 profile guard: restored your $_pf (migrated copy kept as $_pf.migrated-$TS)"
+        fi
+    done
+    [ "$_restored" = "0" ] && echo "    🔒 profile guard: your bar/panel state was already intact — nothing to restore"
+fi
+echo ""
 
 echo "  ✅  Done. Enjoy Zen Shell $(grep 'property string version:' "$SHELL_DIR/ZenVersion.qml" 2>/dev/null | sed -E 's/.*"([^"]+)".*/\1/' | head -1) Karui (軽い)."
 echo ""

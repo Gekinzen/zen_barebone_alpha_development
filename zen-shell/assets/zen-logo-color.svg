@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Zen Control Center mark — colour variant.
+       Same geometry as zen-logo.svg; the dark gaps come from the background
+       showing between the facets, so it reads on light or dark surfaces. -->
+  <!-- top-left -->
+  <path d="M256 80 L120 158 L120 176 L196 220 L256 186 Z" fill="#8b2fe0"/>
+  <!-- top-right -->
+  <path d="M256 80 L392 158 L392 176 L316 220 L256 186 Z" fill="#f02d7a"/>
+  <!-- left -->
+  <path d="M112 172 L112 340 L180 300 L180 212 Z" fill="#0b84f3"/>
+  <!-- right -->
+  <path d="M400 172 L400 340 L332 300 L332 212 Z" fill="#f2f2f2"/>
+  <!-- bottom-left -->
+  <path d="M120 348 L256 432 L256 340 L196 306 L120 336 Z" fill="#12d3c8"/>
+  <!-- bottom-right -->
+  <path d="M392 348 L256 432 L256 340 L316 306 L392 336 Z" fill="#93c90a"/>
+  <!-- core -->
+  <path d="M256 202 L316 236 L316 292 L256 326 L196 292 L196 236 Z" fill="#ffd400"/>
+</svg>

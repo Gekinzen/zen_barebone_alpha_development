@@ -1,0 +1,147 @@
+import QtQuick
+import QtQuick.Controls
+
+/*
+ * HMSwitch v7.0.0-beta.1-hf96 — Modern pill toggle for Zen Shell Settings
+ *
+ * hf96: fixed a double-emit in the click handler that fired toggled()
+ *       twice per click. Flip-style consumers (`state = !state`) — the
+ *       mouse + touchpad "Natural scroll" inverts on InputPage among them
+ *       — flipped twice and landed back on the original value, so the
+ *       toggle did nothing. Now emits exactly once. See onClicked below.
+ *
+ * (orig v6.16.1.4) — Modern pill toggle for Zen Shell Settings
+ *
+ * Drop-in replacement for stock `Switch { checked: ... onToggled: ... }`.
+ * Matches the inline Rectangle-based toggle design used in WidgetsPage,
+ * BatterySettingsPage, ControlPanel Gaming Boost, etc.
+ *
+ * v6.16.1.4: Centralized toggle component. Previously each settings
+ * page had either a stock QQC2 Switch (ugly platform-native look) or
+ * an inline pill Rectangle (modern look but copy-pasted). This unifies
+ * all toggles to the modern pill design — edit once, update everywhere.
+ *
+ * Usage:
+ *   HMSwitch {
+ *       checked: someState
+ *       onToggled: { someState = !someState; save() }
+ *   }
+ *
+ * The signal is named `toggled` (not `clicked` / `onCheckedChanged`)
+ * to match QQC2 Switch's API — easy to swap at call sites.
+ *
+ * Design:
+ *   - Pill 50×26, radius 13
+ *   - Dot 22×22, radius 11, white
+ *   - ON: ThemeService.blue fill, dot slides right
+ *   - OFF: translucent fg fill (0.15), dot at left
+ *   - 150ms cubic animations on both color + dot x
+ *   - Hover: subtle scale 1.05, cursor PointingHandCursor
+ */
+Rectangle {
+    id: root
+
+    property bool checked: false
+    // v6.16.1.4: compact variant for tighter UI (Control Panel, SysRow).
+    // Default size 50×26, compact 42×22. Same visual style, just smaller.
+    property bool compact: false
+    // v6.16.1.4: custom active color. Defaults to ThemeService.blue but
+    // lazily resolved (empty string → computed via binding below). This
+    // avoids touching ThemeService at type-registration time which caused
+    // "HMSwitch is not a type" cascading load failures in v6.16.1.6.
+    // Pages with semantic meaning can override this — green for "enabled/
+    // visible", red for "urgent/gaming", etc.
+    property color activeColor: "transparent"
+    readonly property color _resolvedActive: {
+        if (activeColor === "transparent" || activeColor.a === 0) {
+            return ThemeService.blue
+        }
+        return activeColor
+    }
+    signal toggled()
+
+    // Stock-Switch API compatibility layer — lets consumers write
+    // `HMSwitch { checked: foo; onCheckedChanged: bar }` too.
+    onCheckedChanged: if (_userToggled) { _userToggled = false; root.toggled() }
+    property bool _userToggled: false
+
+    width: compact ? 42 : 50
+    height: compact ? 22 : 26
+    radius: compact ? 11 : 13
+    color: checked
+        ? _resolvedActive
+        : ThemeService.alpha(ThemeService.fg, 0.15)
+    border.width: checked ? 0 : 1
+    border.color: ThemeService.alpha(ThemeService.fg, 0.1)
+
+    Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
+
+    scale: mouseArea.containsMouse ? 1.05 : 1.0
+    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+
+    Rectangle {
+        id: knob
+        width: root.compact ? 18 : 22
+        height: root.compact ? 18 : 22
+        radius: root.compact ? 9 : 11
+        y: 2
+        x: root.checked ? parent.width - width - 2 : 2
+        color: "#ffffff"
+        // Subtle drop-shadow illusion via a lower-z layer rectangle.
+        // Avoids requiring QtGraphicalEffects (not always available
+        // in Quickshell).
+        Rectangle {
+            anchors.centerIn: parent
+            width: parent.width + 2
+            height: parent.height + 2
+            radius: parent.radius + 1
+            color: "#000000"
+            opacity: 0.15
+            z: -1
+        }
+        Behavior on x {
+            NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+        }
+    }
+
+    MouseArea {
+        id: mouseArea
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: {
+            // ─────────────────────────────────────────────────────────
+            // v7.0.0-beta.1-hf96 — DOUBLE-EMIT FIX (mouse/touchpad invert)
+            //
+            // Previously this block did:
+            //     root._userToggled = true
+            //     root.checked = !root.checked   // → onCheckedChanged → toggled()  (emit #1)
+            //     root.toggled()                 // explicit               (emit #2)
+            //
+            // `checked = !checked` synchronously fires onCheckedChanged,
+            // and because _userToggled was set, that handler emitted
+            // toggled() ONCE — then the explicit root.toggled() emitted it
+            // AGAIN. Net: toggled() fired TWICE per click.
+            //
+            // Any consumer written as `state = !state` (InputPage's
+            // "Natural scroll (mouse wheel)" + "Natural scroll (touchpad)",
+            // and 5 other flip-style toggles) flipped twice → landed back
+            // on the original value → the toggle looked completely dead.
+            // The ControlPanel mouse toggle used an inline single-emit
+            // MouseArea, so it worked — confirming the double-fire here.
+            //
+            // The 51 `state = checked` consumers were immune (assigning the
+            // already-flipped `checked` twice is idempotent), which is why
+            // only the invert toggles visibly broke.
+            //
+            // Fix: emit toggled() EXACTLY once. We keep the _userToggled →
+            // onCheckedChanged emit (the documented compatibility layer)
+            // as the single source of truth and drop the redundant explicit
+            // call. Visual flip + emit semantics are otherwise identical.
+            // Wala tayong babawasan — same API, same look, just one emit.
+            // ─────────────────────────────────────────────────────────
+            root._userToggled = true
+            root.checked = !root.checked
+        }
+    }
+}

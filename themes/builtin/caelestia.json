@@ -1,0 +1,12 @@
+{
+  "id": "caelestia",
+  "name": "Caelestia",
+  "description": "Light washi — cream paper, sumi ink, rose/persimmon accents.",
+  "is_builtin": true,
+  "colors": {
+    "bg0": "#f5f1e8", "bg1": "#ece5d6", "bg2": "#e0d7c4", "bg3": "#cfc4ad", "bg4": "#bcb096",
+    "fg": "#3d3833", "grey0": "#6b6459", "grey1": "#8a8175", "grey2": "#a89e8f",
+    "red": "#c8553d", "orange": "#cd7b46", "yellow": "#b5892a", "green": "#6f8f4e",
+    "aqua": "#4f8a7b", "blue": "#4a6d8c", "purple": "#8b6b8e"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "id": "darkmatter",
+  "name": "DarkMatter",
+  "description": "Dark Material 3 — layered dark surfaces + amber accent (DankMaterialShell palette).",
+  "is_builtin": true,
+  "colors": {
+    "bg0": "#1a1c1e", "bg1": "#1e2023", "bg2": "#292b2f", "bg3": "#44464f", "bg4": "#545860",
+    "fg": "#e3e8ef", "grey0": "#c4c7c5", "grey1": "#9498a0", "grey2": "#6a6e76",
+    "red": "#f38ba8", "orange": "#fab387", "yellow": "#f9e2af", "green": "#a6e3a1",
+    "aqua": "#94e2d5", "blue": "#89b4fa", "purple": "#cba6f7"
+  }
+}

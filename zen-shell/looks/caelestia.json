@@ -1,0 +1,15 @@
+{
+  "id": "caelestia",
+  "name": "Caelestia",
+  "description": "Light washi, Material 3, soft rose.",
+  "is_builtin": false,
+  "schemaVersion": 2,
+  "colors": {
+    "bg0": "#f6f1e8", "bg1": "#efe7d8", "bg2": "#e8dccb", "bg3": "#ddd0bd", "bg4": "#c9b7a3",
+    "fg": "#4a3a3a", "grey0": "#6a5a56", "grey1": "#8f7a76", "grey2": "#b8a9a4",
+    "red": "#b0555c", "orange": "#9a4f57", "yellow": "#b58a4a", "green": "#7a8a55",
+    "aqua": "#6f8f8a", "blue": "#7f7f9f", "purple": "#a06a80"
+  },
+  "theme": { "styleMode": "round", "barOpacity": 0.85, "barRadius": 18 },
+  "material": { "glass": false, "workspaceStyle": "dots", "glow": false, "blurSize": 4 }
+}

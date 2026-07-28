@@ -1,0 +1,15 @@
+{
+  "id": "glass",
+  "name": "Glass",
+  "description": "Dark translucent lavender; pairs with Hyprland layer blur for frost.",
+  "is_builtin": false,
+  "schemaVersion": 2,
+  "colors": {
+    "bg0": "#0e0e15", "bg1": "#16161f", "bg2": "#1c1c28", "bg3": "#262636", "bg4": "#34344a",
+    "fg": "#eef1ff", "grey0": "#b8bcd8", "grey1": "#9095b5", "grey2": "#6a6f92",
+    "red": "#f77e9e", "orange": "#f0a878", "yellow": "#e0c878", "green": "#7ee0a0",
+    "aqua": "#44def5", "blue": "#8b8bff", "purple": "#c2c1ff"
+  },
+  "theme": { "styleMode": "round", "barOpacity": 0.35, "barRadius": 22 },
+  "material": { "glass": true, "workspaceStyle": "dots", "glow": true, "blurSize": 8 }
+}

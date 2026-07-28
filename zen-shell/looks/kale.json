@@ -1,0 +1,15 @@
+{
+  "id": "kale",
+  "name": "Kale",
+  "description": "Dark, emerald, minimal (square).",
+  "is_builtin": false,
+  "schemaVersion": 2,
+  "colors": {
+    "bg0": "#0e1512", "bg1": "#16211b", "bg2": "#1c2b22", "bg3": "#26382c", "bg4": "#34503c",
+    "fg": "#e9ffe9", "grey0": "#a7c4a7", "grey1": "#7fa07f", "grey2": "#5a745a",
+    "red": "#f77e8e", "orange": "#f0a35a", "yellow": "#d8c05a", "green": "#56d364",
+    "aqua": "#56d3b0", "blue": "#6ab0d3", "purple": "#a06ad3"
+  },
+  "theme": { "styleMode": "square", "barOpacity": 0.55, "barRadius": 8 },
+  "material": { "glass": false, "workspaceStyle": "squares", "glow": false, "blurSize": 4 }
+}

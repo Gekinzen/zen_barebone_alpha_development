@@ -1,0 +1,15 @@
+{
+  "id": "zen",
+  "name": "Zen",
+  "description": "Persimmon / sumi — the core Zen Shell identity (baseline).",
+  "is_builtin": false,
+  "schemaVersion": 2,
+  "colors": {
+    "bg0": "#1a1b26", "bg1": "#24283b", "bg2": "#292e42", "bg3": "#414868", "bg4": "#545c7e",
+    "fg": "#c0caf5", "grey0": "#9aa5ce", "grey1": "#737aa2", "grey2": "#565f89",
+    "red": "#f7768e", "orange": "#ff9e64", "yellow": "#e0af68", "green": "#9ece6a",
+    "aqua": "#7dcfff", "blue": "#7aa2f7", "purple": "#bb9af7"
+  },
+  "theme": { "styleMode": "round", "barOpacity": 0.50, "barRadius": 16 },
+  "material": { "glass": false, "workspaceStyle": "pill", "glow": false, "blurSize": 4 }
+}

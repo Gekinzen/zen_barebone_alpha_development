@@ -1,0 +1,24 @@
+{
+  "id": "sakura",
+  "name": "Sakura",
+  "description": "Cherry blossom \u00b7 soft pink paper with plum ink \u00b7 #d96b8f / #e5afc4 / #f8e2ea / #fdf0f4",
+  "is_builtin": true,
+  "colors": {
+    "bg0": "#fdf0f4",
+    "bg1": "#f8e2ea",
+    "bg2": "#f0cedc",
+    "bg3": "#e5afc4",
+    "bg4": "#d68ca8",
+    "fg": "#4a2b36",
+    "grey0": "#6b4552",
+    "grey1": "#8a6070",
+    "grey2": "#a8808e",
+    "red": "#c14d63",
+    "orange": "#c9705a",
+    "yellow": "#a8823f",
+    "green": "#6b8f5e",
+    "aqua": "#4f8a85",
+    "blue": "#5a6f96",
+    "purple": "#9a5c8f"
+  }
+}

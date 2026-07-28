@@ -1,0 +1,15 @@
+{
+  "id": "darkmatter",
+  "name": "DarkMatter",
+  "description": "Dark, warm amber.",
+  "is_builtin": false,
+  "schemaVersion": 2,
+  "colors": {
+    "bg0": "#18120c", "bg1": "#221913", "bg2": "#2a2018", "bg3": "#3a2c1e", "bg4": "#4a3a28",
+    "fg": "#eee0d4", "grey0": "#c4b5a6", "grey1": "#a89a8e", "grey2": "#7a6f63",
+    "red": "#e88c6a", "orange": "#f7bb71", "yellow": "#e8a33d", "green": "#b5c46a",
+    "aqua": "#7ac0b0", "blue": "#9ab0d0", "purple": "#c9a0d0"
+  },
+  "theme": { "styleMode": "round", "barOpacity": 0.50, "barRadius": 16 },
+  "material": { "glass": false, "workspaceStyle": "capsule", "glow": false, "blurSize": 4 }
+}

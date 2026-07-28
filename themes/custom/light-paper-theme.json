@@ -1,0 +1,24 @@
+{
+  "id": "light-paper-theme",
+  "name": "Light Paper theme",
+  "description": "Vintage sage \u00b7 #778873 / #A1BC98 / #DCCFC0 / #FDF6ED",
+  "is_builtin": false,
+  "colors": {
+    "bg0": "#fdf6ed",
+    "bg1": "#f7efe4",
+    "bg2": "#dccfc0",
+    "bg3": "#a1bc98",
+    "bg4": "#778873",
+    "fg": "#2e352c",
+    "grey0": "#4d5849",
+    "grey1": "#5f6e59",
+    "grey2": "#7f8d7a",
+    "red": "#8c625a",
+    "orange": "#675442",
+    "yellow": "#443f2c",
+    "green": "#4c7737",
+    "aqua": "#4a7372",
+    "blue": "#3a4b5a",
+    "purple": "#8f5b8f"
+  }
+}

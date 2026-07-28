@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Zen Control Center mark — six facets around a core.
+       Mono version: fill is white so QML can tint it with ColorOverlay
+       or just render it on the accent-coloured badge. -->
+  <g fill="#ffffff">
+    <!-- top-left facet -->
+    <path d="M256 80 L120 158 L120 176 L196 220 L256 186 Z"/>
+    <!-- top-right facet -->
+    <path d="M256 80 L392 158 L392 176 L316 220 L256 186 Z"/>
+    <!-- left facet -->
+    <path d="M112 172 L112 340 L180 300 L180 212 Z"/>
+    <!-- right facet -->
+    <path d="M400 172 L400 340 L332 300 L332 212 Z"/>
+    <!-- bottom-left facet -->
+    <path d="M120 348 L256 432 L256 340 L196 306 L120 336 Z"/>
+    <!-- bottom-right facet -->
+    <path d="M392 348 L256 432 L256 340 L316 306 L392 336 Z"/>
+    <!-- core hexagon -->
+    <path d="M256 202 L316 236 L316 292 L256 326 L196 292 L196 236 Z"/>
+  </g>
+</svg>

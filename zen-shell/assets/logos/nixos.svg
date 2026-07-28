@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  NixOS snowflake — simplified.
+  Brand colors: #5277C3 (dark blue) and #7EBAE4 (light blue).
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <g stroke="none" fill="#5277C3">
+    <!-- Six radial arms forming the snowflake -->
+    <g transform="translate(64,64)">
+      <g>
+        <rect x="-4" y="-52" width="8" height="44" rx="2"/>
+        <polygon points="-10,-20 0,-8 10,-20"/>
+      </g>
+      <g transform="rotate(60)">
+        <rect x="-4" y="-52" width="8" height="44" rx="2" fill="#7EBAE4"/>
+        <polygon points="-10,-20 0,-8 10,-20" fill="#7EBAE4"/>
+      </g>
+      <g transform="rotate(120)">
+        <rect x="-4" y="-52" width="8" height="44" rx="2"/>
+        <polygon points="-10,-20 0,-8 10,-20"/>
+      </g>
+      <g transform="rotate(180)">
+        <rect x="-4" y="-52" width="8" height="44" rx="2" fill="#7EBAE4"/>
+        <polygon points="-10,-20 0,-8 10,-20" fill="#7EBAE4"/>
+      </g>
+      <g transform="rotate(240)">
+        <rect x="-4" y="-52" width="8" height="44" rx="2"/>
+        <polygon points="-10,-20 0,-8 10,-20"/>
+      </g>
+      <g transform="rotate(300)">
+        <rect x="-4" y="-52" width="8" height="44" rx="2" fill="#7EBAE4"/>
+        <polygon points="-10,-20 0,-8 10,-20" fill="#7EBAE4"/>
+      </g>
+    </g>
+  </g>
+</svg>
