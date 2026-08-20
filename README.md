@@ -9,11 +9,15 @@
 
 <p align="center">
   <img alt="v8" src="https://img.shields.io/badge/v8-Kaizen%20Akatsuki-e87554?style=flat-square&labelColor=14140f" />
-  <img alt="status" src="https://img.shields.io/badge/status-alpha%20·%20hf195-c68a4a?style=flat-square&labelColor=14140f" />
+  <img alt="status" src="https://img.shields.io/badge/status-alpha%20·%20hf202-c68a4a?style=flat-square&labelColor=14140f" />
   <a href="https://github.com/Gekinzen/zen_barebone_alpha_development/tree/v7.0.0-beta.1"><img alt="stable" src="https://img.shields.io/badge/stable-v7.0.0--beta.1%20Karui-7A9068?style=flat-square&labelColor=14140f" /></a>
   <img alt="hyprland" src="https://img.shields.io/badge/hyprland-≥%200.54-7A9068?style=flat-square&labelColor=14140f" />
   <img alt="quickshell" src="https://img.shields.io/badge/quickshell-≥%200.2.1-7A9068?style=flat-square&labelColor=14140f" />
   <img alt="license" src="https://img.shields.io/badge/license-MIT-b8924e?style=flat-square&labelColor=14140f" />
+</p>
+
+<p align="center">
+  <a href="https://zenithshell.dev/"><b>zenithshell.dev</b></a>
 </p>
 
 ---
@@ -26,13 +30,13 @@ Arch-native QML shell that started as a Waybar-and-Python proof of concept five 
 Its codename is a pair, because the release is a pair.
 
 **Kaizen (改善)** — *"change for the better"*, the practice of small relentless improvements
-rather than one grand rewrite. That is honestly what version 8 is: **96 hotfixes** from `hf100`
-to `hf195`, each one a real bug found and closed or a real feature finished, shipped in sequence
+rather than one grand rewrite. That is honestly what version 8 is: **103 hotfixes** from `hf100`
+to `hf202`, each one a real bug found and closed or a real feature finished, shipped in sequence
 with the reasoning written down. Nothing here was planned as a release. It became one.
 
 **Akatsuki (暁)** — *"dawn / daybreak"*. What relentless improvement arrives at.
 
-> **Current build: `v8.0.0-alpha-hf195`.** The stable line remains **v7.0.0-beta.1 (Karui)**.
+> **Current build: `v8.1.0-alpha-hf202`.** The stable line remains **v7.0.0-beta.1 (Karui)**.
 > Nothing from v6 or v7 is removed — version 8 only adds on top.
 
 ### The Look system — Glass, Glass+, and readable text
@@ -93,6 +97,39 @@ turns are documented because they are the useful part.
 - **EasyEffects autostart**, Bluetooth and audio manager launchers with proper toggle semantics.
 - **Panic recovery**, game-mode warnings, "Reset all to defaults" covering focus settings, and a Lark/Zoom call-popup fix.
 
+### Installer — everything lands, and your settings survive
+
+The least glamorous thread in version 8, and the one that was quietly costing the most.
+
+The installer was copying the **wrong source tree**. This drop ships both `zen-shell/`
+(201 modules, v8.1.0) and the legacy `zen-shell-v5/` (179 modules, v7.0.0), and the install
+body hardcoded the legacy path. Every install laid down the v7 tree and printed a v8 banner,
+so twenty-one v8-only modules never landed — `LookService` (the whole Look and Glass system),
+`ZenDashboard` and `UnifiedDashboard` (the Control Center), `ZenGlanceWidget`, the cursor
+picker, the Panasonic pages, the Taskbar page. The self-check at the end of the install had
+been reporting two of them missing for releases.
+
+Separately, every copy step worked off a hardcoded list of filenames. That is correct
+right up until a file is added to the tarball and nobody remembers to also edit the
+installer — after which the file ships and silently never installs. Eleven of them had
+piled up, including `zen-boost-guard.sh` and `zen-callwatch.sh`, so the 300% Boost Guard
+and the `SUPER+SHIFT+C` call reaper did not exist on disk after a clean install, while the
+QML called them by absolute path. `sakura` was a headline v8 theme that no installed shell
+had ever had.
+
+- **Payload sweep** walks directories instead of lists, so new files land on their own.
+- **Coverage audit** runs at the end and names anything shipped that did not land, which
+  turns the next gap of this kind into a line of output instead of a silent absence.
+- **Settings deep-merge** — your `*.json` are snapshotted before migrations and merged back
+  key by key afterwards. Your values win, new keys from the build get added. A straight
+  restore would have protected your settings by discarding new features; a straight
+  migration does the reverse. This does neither.
+- **Byte-compare before write** — two installs back to back now write nothing.
+- **Line endings normalised on the way in**, so an archive round trip can no longer ship a
+  script the kernel refuses to run.
+- **Brand, site and version are read from one place** — the version comes out of
+  `ZenVersion.qml`, so the banner cannot drift from the shell again.
+
 ### Still to land before version 8 is tagged
 
 - **A real NetworkManager secret agent.** Zen Shell registers none, which is why an agent-owned PSK can never authenticate under Hyprland. A proper agent covers WPA-Enterprise, VPN secrets and requests from other applications — not just the one case patched around so far.
@@ -110,7 +147,7 @@ turns are documented because they are the useful part.
 | Build | Channel | State |
 |---|---|---|
 | **ZenithArch-shell-qml** | tag `v8.0.0` | **Coming soon** — not tagged yet |
-| **Version 8 alpha** | `main` · hf195 | Rolling, untagged |
+| **Version 8 alpha** | `main` · hf202 | Rolling, untagged |
 | **Karui** | tag `v7.0.0-beta.1` | Available — recommended |
 
 > **ZenithArch-shell-qml has not been tagged yet.** Watch the repository for the first `v8` tag.
@@ -120,7 +157,7 @@ turns are documented because they are the useful part.
 git clone https://github.com/Gekinzen/zen_barebone_alpha_development.git
 cd zen_barebone_alpha_development
 git checkout v8.0.0          # not published yet
-./install.sh --bootstrap
+./install.sh
 ```
 
 Until then:
@@ -245,21 +282,143 @@ matter of filling that shape in rather than inventing it.
 
 *If you run a ThinkPad and want a say in what lands first, open an issue.*
 
-## Quick install
+## Install
+
+Two ways in. Both end at the same `install.sh`.
+
+**From a release tarball**
+
+```bash
+tar -xzf ZenithArch-shell-qml-v8.1.0-alpha-hf202.tar.gz
+cd ZenithArch-shell-qml-v8.1.0-alpha-hf202
+./install.sh --version          # confirm what you are about to install
+./install.sh
+```
+
+**From the repository**
 
 ```bash
 git clone https://github.com/Gekinzen/zen_barebone_alpha_development.git
 cd zen_barebone_alpha_development
 
-git checkout v7.0.0-beta.1     # stable (Karui)
-# git checkout main            # version 8 alpha (Kaizen Akatsuki)
+git checkout main               # version 8 alpha (Kaizen Akatsuki)
+# git checkout v7.0.0-beta.1    # stable (Karui)
 
-./install.sh --bootstrap
+./install.sh
 ```
 
-`install.sh` auto-detects whether bootstrap is needed (Hyprland, Quickshell, grim, slurp,
-wl-copy, swww, cava, playerctl, jq, notify-send), runs it if anything is missing, then installs.
-It kills any existing zen-shell process and spawns exactly one new instance.
+`./install.sh` on its own is the right command in almost every case. It looks at what
+is already on the machine and decides for itself whether a bootstrap is needed, so
+there is no separate "first time" command to remember.
+
+### What it actually does
+
+| Step | What happens |
+|---|---|
+| `[0/9]` | Version pin check against `versions.lock` — patch bumps pass silently, a major/minor mismatch warns or blocks |
+| `[0.5/9]` | Hardware detection — GPU topology, DRM render nodes, session type, display manager, monitors, chassis |
+| `[1/9]` | Dependency check, and offers to install anything optional that is missing |
+| `[2/9]` | Backup of your existing install |
+| `[3/9]` | Directory setup |
+| `[4/9]` | QML install, compiled-QML cache clear, stale-module prune, vertical-bar self-heal |
+| `[5/9]` | Helper scripts and the monitor watcher unit |
+| `[5.5/9]` | **Payload sweep** — walks the tarball directories and installs everything in them |
+| `[5.9/9]` | Reads your existing settings and reports what will be preserved |
+| `[6/9]` | Hyprland configs and drop-ins, sourced into `hyprland.conf` idempotently |
+| `[7/9]` | Themes |
+| `[8/9]` | First-run tasks, QML smoke test, Hyprland plugin install |
+| `[9/9]` | Kills every running zen-shell instance and spawns exactly one |
+| `[9.9/9]` | **Coverage audit** — names anything shipped that has no counterpart on disk |
+
+### Flags
+
+| Flag | Effect |
+|---|---|
+| *(none)* | The smart default. Auto-detects whether bootstrap is needed. |
+| `--bootstrap` / `-b` | Force `bootstrap.sh` to run first, reinstalling system dependencies even if present. |
+| `--no-bootstrap` | Skip the check entirely. For people who manage their own Hyprland / Quickshell. |
+| `--version` / `-V` | Print the version this drop installs, then exit. Writes nothing. |
+| `--help` / `-h` | Usage. |
+
+### Environment overrides
+
+| Variable | Effect |
+|---|---|
+| `ZEN_NO_MERGE=1` | Skip the settings deep-merge. Your `*.json` are then left exactly as the migrations produced them. |
+| `ZEN_ALLOW_PROFILE_MIGRATE=1` | Drop the verbatim guard on `panel-state.json` and `bar-layout.json` and take the new default layout. |
+| `ZEN_FORCE_THEMES=1` | Overwrite built-in themes you have edited (a `.bak` is still kept). |
+| `ZEN_FORCE_VERSIONS=1` | Ignore the `versions.lock` pins. |
+| `ZEN_BOOST_INTENSITY` / `ZEN_BOOST_LIMIT_DB` | Tune the Boost Guard compressor and limiter. |
+
+### Reinstalling and upgrading
+
+Re-running `./install.sh` is safe and is the supported upgrade path. Since `hf202`:
+
+- **Your `*.json` settings are never overwritten.** Every state file is snapshotted before
+  the migrations run and merged back after, key by key. Your values win; only genuinely
+  new keys from the new build are added. So an upgrade gains features without resetting
+  anything you configured.
+- **`panel-state.json` and `bar-layout.json`** get a stricter guard on top: they come back
+  byte for byte, and any copy a migration produced is kept beside them as `.migrated-<ts>`.
+- **Only files whose bytes actually changed are written.** Two runs back to back write
+  nothing at all — no churn, no `.bak` spam.
+- **Themes and Look presets you have edited are yours.** The shipped copy is parked next to
+  yours as `<name>.json.new` instead of replacing it.
+
+Nothing is ever deleted to make room. Every replaced file leaves a `.bak-<timestamp>`
+next to it, and a per-run manifest of everything touched is written to
+`~/.cache/zen-shell/installed-manifest-<timestamp>.txt`.
+
+### Where things land
+
+| Path | Contents |
+|---|---|
+| `~/.config/quickshell/zen-shell/` | QML, your `*.json` state, `scripts/`, `looks/`, `config/`, `assets/` |
+| `~/.local/bin/` | Helper scripts and toggles |
+| `~/.config/hypr/` | Hyprland configs and Zen drop-ins |
+| `~/.config/hypr-control-center/themes/` | `builtin/` and `custom/` themes |
+| `~/.config/zen-shell/wallpapers/` | Built-in wallpapers |
+| `~/.local/share/zen-shell/snapshots/` | Rollback snapshots |
+| `~/.cache/zen-shell/` | Install manifests and logs |
+
+### After installing
+
+```bash
+./install.sh --version                 # what is installed
+systemctl --user status zen-monitor-watcher
+zen-hyprlock-doctor                    # inventory your lock screen setup
+```
+
+If the coverage audit at the end names any file, that file ships in the tarball but did
+not land anywhere. Report it — it is a packaging bug, not something you need to work
+around. The audit is a report only and never aborts the install.
+
+### Optional, opt-in extras
+
+```bash
+sudo ./sddm/zen-sddm-install.sh        # SDDM theme (needs root)
+```
+
+`hypr-config/zen-multimonitor.conf` is seeded to `~/.config/hypr/` but deliberately not
+sourced, because monitor rules are hardware specific. Read it, then add:
+
+```
+source = ~/.config/hypr/zen-multimonitor.conf
+```
+
+### Rolling back
+
+Every install snapshots the previous one.
+
+```bash
+ls ~/.local/share/zen-shell/snapshots/
+~/.config/quickshell/zen-shell/scripts/zen-rollback.sh <snapshot-path>
+```
+
+`zen-rollback.sh` takes a safety snapshot of the current install first, stages the restore
+in a temp directory, and swaps atomically — a failure at any step reverts. Scripts are
+snapshotted alongside the QML so script versions stay matched to QML versions across a
+rollback boundary.
 
 ### Requirements
 
@@ -267,6 +426,9 @@ It kills any existing zen-shell process and spawns exactly one new instance.
 - **Hyprland ≥ 0.54** (0.55 supported) — `0.54+` syntax only
 - **Quickshell ≥ 0.2.1**
 - AMD Ryzen and Radeon recommended — developed on `Ryzen 9 5950X` and `RX 6800`
+
+`install.sh` auto-detects and offers to install the rest: grim, slurp, wl-copy, swww, cava,
+playerctl, jq, notify-send, and `swh-plugins` for the Boost Guard.
 
 ### Optional
 
@@ -281,6 +443,21 @@ interfaces QML has no access to:
 
 Both are **opt-in and inert when absent** — nothing in the shell depends on them, and the Wi-Fi
 selector falls back to `nm-connection-editor` and then `nmtui`.
+
+### If a script will not run
+
+If you unpacked from an archive that rewrote line endings and a helper fails with
+
+```
+bad interpreter: /usr/bin/env bash^M: no such file or directory
+```
+
+the installer already normalises line endings on the way in, so a reinstall fixes the
+installed copies. To fix the source tree as well:
+
+```bash
+find scripts hypr-config themes-builtin -type f -exec sed -i 's/\r$//' {} +
+```
 
 ---
 
@@ -330,7 +507,7 @@ Tachiagari (立ち上がり)   v6.16.4.12.7 → .7.1  · Interlude · the proven
 Tategaki (縦書き)        v6.16.4.12.8.x       · ROLLED BACK · vertical-bar attempt
 Modori (戻り)            v6.16.4.12.9.10      · OFFICIAL v6
 Karui  (軽い)            v7.0.0-beta.1        · OFFICIAL v7
-Kaizen Akatsuki (改善暁)  ZenithArch-shell-qml · VERSION 8 · alpha hf100 → hf195
+Kaizen Akatsuki (改善暁)  ZenithArch-shell-qml · VERSION 8 · alpha hf100 → hf202
 ```
 
 **Hoshi (星)** — *"star"* — stays reserved as a future milestone name.
@@ -363,7 +540,7 @@ Kaizen Akatsuki (改善暁)  ZenithArch-shell-qml · VERSION 8 · alpha hf100 �
 
 - **v6 official:** tag `v6.16.4.12.9.10` (Modori)
 - **v7 official:** tag `v7.0.0-beta.1` (Karui)
-- **Version 8 alpha:** `main` — `v8.0.0-alpha-hfNNN` (Kaizen Akatsuki)
+- **Version 8 alpha:** `main` — `v8.1.0-alpha-hfNNN` (Kaizen Akatsuki)
 - **Version 8 release:** tag `v8.0.0` — ZenithArch-shell-qml · not yet published
 
 ---

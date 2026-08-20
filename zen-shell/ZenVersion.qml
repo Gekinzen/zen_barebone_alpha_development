@@ -50,14 +50,14 @@ Singleton {
     // v8.0.0 — the beta line is retired; the shell ships on the alpha channel.
     // Bump `patch` for a release, `hotfix` for a build. `version` is derived,
     // so nothing else in the shell hardcodes a version string.
-    readonly property string semver:         "8.0." + patchNum
+    readonly property string semver:         "8.1." + patchNum   // hf197: v8.1 line opens
     readonly property int    patchNum:       0
-    readonly property string hotfix:         "hf195"          // build tag, "" for none
+    readonly property string hotfix:         "hf202"          // build tag, "" for none
     readonly property string channel:        "alpha"
     readonly property string prerelease:     channel + (hotfix.length > 0 ? ("-" + hotfix) : "")
     readonly property string version:        "v" + semver + "-" + prerelease
     readonly property string versionRaw:     semver + "-" + prerelease
-    readonly property string releaseDate:    "2026-07-26"
+    readonly property string releaseDate:    "2026-08-21"
     readonly property string codename:       "Karui"
     readonly property string codenameKanji:  "軽い"
     readonly property string fullLabel:      version + " · " + channel + " · " + codename

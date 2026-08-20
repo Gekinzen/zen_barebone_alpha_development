@@ -64,9 +64,16 @@ Rectangle {
     readonly property bool narrow: width < 720
 
     // hf127: the sidebar is outside the scaled area, so it is not part of the
-    // content that has to fit. What must fit: [main 420][gap][rail 288].
+    // content that has to fit. What must fit: [main][gap][rail 288].
+    //
+    // hf198 — the main term was 420. Real settings pages (label + description
+    // + value control on one SettingRow) need ~620 before the controls start
+    // painting PAST the column — QML Layouts don't clip, so on a portrait
+    // monitor the spinners slid UNDER the right rail and looked amputated
+    // ("d ko padin makita yun mga settings sa gitna"). 620 makes fitScale
+    // engage on widths where 420 wrongly said "everything fits".
     readonly property int minContentWidth:
-        (compact ? 0 : railWidth + 12) + 420
+        (compact ? 0 : railWidth + 12) + 620
 
     // The width dashFlick actually gets. Derived from `width`, not from
     // dashFlick.width, so fitScale -> uiScale -> contentRoot can't feed back.
@@ -79,7 +86,20 @@ Rectangle {
     // largest scale where the three columns still fit the window; the user's
     // scale acts as a ceiling, so zooming out always works and zooming in stops
     // at the fit. (Before, anything over the fit simply overflowed to the right.)
-    readonly property real fitScale: (width > 0) ? Math.min(1.0, contentAvailWidth / minContentWidth) : 1.0
+    //
+    // hf198 — READABILITY FLOOR + AUTOMATIC HORIZONTAL SCROLL. Auto-shrink now
+    // stops at `hscrollFloor` (0.85): squeezing a portrait monitor further just
+    // made 10px text nobody can read. Below the floor, fitScale holds at 0.85,
+    // contentRoot keeps its minContentWidth — which is now WIDER than the
+    // viewport — and dashFlick's AlwaysOn-when-overflow horizontal scrollbar
+    // (there since hf127) switches on by itself. So: mildly tight → gentle
+    // shrink; genuinely tight → pan sideways, nothing hidden. Manual zoom via
+    // PanelState.dashScale below 0.85 still works — the floor only binds the
+    // AUTOMATIC fit, not your own zoom (that keeps the old 0.5 hard floor).
+    readonly property real hscrollFloor: 0.85
+    readonly property real fitScale: (width > 0)
+        ? Math.min(1.0, Math.max(hscrollFloor, contentAvailWidth / minContentWidth))
+        : 1.0
     readonly property real uiScale: Math.max(0.5, Math.min(PanelState.dashScale, fitScale))
     readonly property bool scaleClampedToFit: PanelState.dashScale > fitScale + 0.001
     onEditModeChanged: if (!editMode) selectedIndex = -1
@@ -1302,12 +1322,18 @@ Rectangle {
                      text: "\uf028"; font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 12
                        color: ConnectivityService.audioMuted ? ThemeService.grey2 : ThemeService.blue
                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: ConnectivityService.toggleMute() } }
-                ZenSlider { Layout.fillWidth: true; from: 0; to: 100; stepSize: 1; value: ConnectivityService.audioVolume; onMoved: ConnectivityService.setVolume(value) }
+                // hf197 — boost range (0..300), zone-colored fill, tick at 100%
+                ZenSlider { Layout.fillWidth: true; from: 0; to: ConnectivityService.maxVolume; stepSize: 1; tickAt: 100
+                            accent: ConnectivityService.volumeColor(ConnectivityService.audioVolume)
+                            value: ConnectivityService.audioVolume; onMoved: ConnectivityService.setVolume(value) }
                 Text {
                     style: LookService.isClear ? Text.Outline : Text.Normal
                     styleColor: LookService.clearTextOutline
                      Layout.preferredWidth: 34; horizontalAlignment: Text.AlignRight; text: ConnectivityService.audioVolume + "%"
-                       color: ThemeService.fg; font.pixelSize: 10; font.family: Theme.fontFamily }
+                       color: ConnectivityService.audioVolume > 100
+                              ? ConnectivityService.volumeColor(ConnectivityService.audioVolume)
+                              : ThemeService.fg
+                       font.pixelSize: 10; font.family: Theme.fontFamily }
             }
             RowLayout {
                 Layout.fillWidth: true; spacing: 8
@@ -1653,6 +1679,17 @@ Rectangle {
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
 
+                // hf197 — "kapag tight yun screen ... hindi makikita pre".
+                // The nav has scrolled since hf126, but with no scrollbar a
+                // short window looked like the modules below the fold simply
+                // don't exist. Same AlwaysOn-when-overflow policy dashFlick
+                // has used since hf127 — thin 4px pill, hugging the right edge.
+                ScrollBar.vertical: ScrollBar {
+                    policy: navFlick.contentHeight > navFlick.height + 1
+                            ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
+                    width: 4
+                }
+
                 ColumnLayout {
                     id: navCol
                     width: navFlick.width
@@ -1953,21 +1990,39 @@ Rectangle {
                     delegate: Rectangle {
                         id: qaBtn
                         required property var modelData
+                        // hf197 — the dark-mode button is now STATEFUL, like the
+                        // Quick Settings tile: glyph flips moon/sun with
+                        // DarkModeService.isDark and the tile gets an accent
+                        // highlight while dark mode is on. The old delegate drew
+                        // the static model glyph and only *called* toggle() — the
+                        // state changed underneath but nothing on the button did.
+                        readonly property bool isDarkBtn: modelData.act === "dark"
+                        readonly property bool darkOn: isDarkBtn && DarkModeService.isDark
                         Layout.fillWidth: true
                         Layout.preferredHeight: 34
                         radius: 10
                         antialiasing: true
                         color: qaMa.containsMouse
                                ? (qaBtn.modelData.act === "lock" ? ThemeService.alpha(ThemeService.red, 0.2) : ThemeService.alpha(ThemeService.fg, 0.1))
-                               : LookService.surfaceColor(ThemeService.bg2, dash.glassLook ? 0.3 : 0.5)
-                        border.width: 1; border.color: dash.cardBorder
+                               : (qaBtn.darkOn
+                                  ? ThemeService.alpha(ThemeService.blue, 0.22)
+                                  : LookService.surfaceColor(ThemeService.bg2, dash.glassLook ? 0.3 : 0.5))
+                        border.width: 1
+                        border.color: qaBtn.darkOn
+                                      ? ThemeService.alpha(ThemeService.blue, 0.5)
+                                      : dash.cardBorder
+                        Behavior on color { ColorAnimation { duration: 140 } }
                         Text {
                             style: LookService.isClear ? Text.Outline : Text.Normal
                             styleColor: LookService.clearTextOutline
                             anchors.centerIn: parent
-                            text: qaBtn.modelData.g
+                            text: qaBtn.isDarkBtn
+                                  ? (DarkModeService.isDark ? "dark_mode" : "light_mode")
+                                  : qaBtn.modelData.g
                             font.family: "Material Symbols Rounded"; font.pixelSize: 15
-                            color: (qaMa.containsMouse && qaBtn.modelData.act === "lock") ? ThemeService.red : ThemeService.grey1
+                            color: (qaMa.containsMouse && qaBtn.modelData.act === "lock")
+                                   ? ThemeService.red
+                                   : (qaBtn.darkOn ? ThemeService.blue : ThemeService.grey1)
                         }
                         MouseArea {
                             id: qaMa
@@ -1976,7 +2031,9 @@ Rectangle {
                             cursorShape: Qt.PointingHandCursor
                             ToolTip.visible: containsMouse
                             ToolTip.delay: 400
-                            ToolTip.text: qaBtn.modelData.tip
+                            ToolTip.text: qaBtn.isDarkBtn
+                                          ? (DarkModeService.isDark ? "Switch to light mode" : "Switch to dark mode")
+                                          : qaBtn.modelData.tip
                             onClicked: {
                                 const a = qaBtn.modelData.act
                                 if (a === "dark") DarkModeService.toggle()
@@ -2032,7 +2089,11 @@ Rectangle {
         ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.minimumWidth: 420
+            // hf198 — must match minContentWidth's main term (620). At 420
+            // the RowLayout could squeeze this column below what a
+            // SettingRow needs, and un-clipped children painted under the
+            // right rail.
+            Layout.minimumWidth: 620
             spacing: 10
 
             // v7.0.0-beta.1-hf99zu: search + window controls
@@ -3387,11 +3448,59 @@ Rectangle {
                         visible: dash.railTab === "audio"
                         Layout.fillWidth: true; Layout.fillHeight: true
                         spacing: 8
+                        // hf197 — sink name doubles as the device dropdown trigger
                         Text {
                             style: LookService.isClear ? Text.Outline : Text.Normal
                             styleColor: LookService.clearTextOutline
-                             text: ConnectivityService.audioSinkName; color: ThemeService.grey1; font.pixelSize: 10; font.family: Theme.fontFamily; elide: Text.ElideRight; Layout.fillWidth: true }
-                        ZenSlider { Layout.fillWidth: true; from: 0; to: 100; stepSize: 1; value: ConnectivityService.audioVolume; onMoved: ConnectivityService.setVolume(value) }
+                             text: ConnectivityService.audioSinkName
+                                   + (ConnectivityService.audioSinks.length > 1
+                                      ? (railSinkList.expanded ? "  \uf077" : "  \uf078") : "")
+                             color: railSinkMa.containsMouse ? ThemeService.blue : ThemeService.grey1
+                             font.pixelSize: 10; font.family: Theme.fontFamily; elide: Text.ElideRight; Layout.fillWidth: true
+                             MouseArea { id: railSinkMa; anchors.fill: parent; hoverEnabled: true
+                                         cursorShape: Qt.PointingHandCursor
+                                         onClicked: railSinkList.expanded = !railSinkList.expanded } }
+                        ColumnLayout {
+                            id: railSinkList
+                            property bool expanded: false
+                            visible: expanded && ConnectivityService.audioSinks.length > 0
+                            Layout.fillWidth: true; spacing: 2
+                            Repeater {
+                                model: railSinkList.expanded ? ConnectivityService.audioSinks : []
+                                delegate: Rectangle {
+                                    id: railSinkRow
+                                    required property var modelData
+                                    Layout.fillWidth: true; Layout.preferredHeight: 24; radius: 6
+                                    color: railSinkRowMa.containsMouse
+                                           ? ThemeService.alpha(ThemeService.blue, 0.15)
+                                           : (railSinkRow.modelData.isDefault
+                                              ? ThemeService.alpha(ThemeService.blue, 0.08) : "transparent")
+                                    RowLayout {
+                                        anchors.fill: parent; anchors.leftMargin: 6; anchors.rightMargin: 6; spacing: 6
+                                        Text {
+                                            style: LookService.isClear ? Text.Outline : Text.Normal
+                                            styleColor: LookService.clearTextOutline
+                                            text: railSinkRow.modelData.isDefault ? "\uf192" : "\uf10c"
+                                            font.family: "JetBrainsMono Nerd Font"; font.pixelSize: 9
+                                            color: railSinkRow.modelData.isDefault ? ThemeService.blue : ThemeService.grey2 }
+                                        Text {
+                                            style: LookService.isClear ? Text.Outline : Text.Normal
+                                            styleColor: LookService.clearTextOutline
+                                            text: railSinkRow.modelData.name
+                                            font.family: Theme.fontFamily; font.pixelSize: 9
+                                            color: railSinkRow.modelData.isDefault ? ThemeService.fg : ThemeService.grey0
+                                            elide: Text.ElideRight; Layout.fillWidth: true }
+                                    }
+                                    MouseArea { id: railSinkRowMa; anchors.fill: parent; hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: { ConnectivityService.setDefaultSink(railSinkRow.modelData.id)
+                                                             railSinkList.expanded = false } }
+                                }
+                            }
+                        }
+                        ZenSlider { Layout.fillWidth: true; from: 0; to: ConnectivityService.maxVolume; stepSize: 1; tickAt: 100
+                                    accent: ConnectivityService.volumeColor(ConnectivityService.audioVolume)
+                                    value: ConnectivityService.audioVolume; onMoved: ConnectivityService.setVolume(value) }
                         Text {
                             style: LookService.isClear ? Text.Outline : Text.Normal
                             styleColor: LookService.clearTextOutline

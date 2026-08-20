@@ -148,6 +148,22 @@ ScrollView {
                     }
                 }
             }
+
+            // hf199 — display fit mode ("wallpaper may settings na fit,
+            // stretch ganun"). Changing it re-applies the current
+            // wallpaper immediately so you see the effect right away.
+            SettingRow {
+                label: "Display Mode"
+                description: "Fill = cover + crop · Fit = letterbox · Center = 1:1 · Stretch = ignore aspect"
+
+                ZenDropdown {
+                    width: 160
+                    model: ["Fill", "Fit", "Center", "Stretch"]
+                    property var values: ["fill", "fit", "center", "stretch"]
+                    currentIndex: Math.max(0, values.indexOf(WallpaperServiceV5.fitMode))
+                    onActivated: WallpaperServiceV5.setFitMode(values[currentIndex])
+                }
+            }
         }
 
         // ── Slideshow section ──
@@ -239,6 +255,22 @@ ScrollView {
                 }
             }
 
+            // hf199 — "automatically mag load na lahat": one scrolling grid
+            // with EVERY wallpaper (default), or the classic 16-per-page
+            // view. Note: the slideshow has always picked from the whole
+            // folder either way — this only changes what the picker shows.
+            SettingRow {
+                label: "Show all wallpapers"
+                description: WallpaperServiceV5.showAll
+                             ? ("Whole folder in one grid — " + WallpaperServiceV5.filteredList.length + " loading below, scroll to browse")
+                             : "Off — 16 per page with Prev/Next"
+
+                HMSwitch {
+                    checked: WallpaperServiceV5.showAll
+                    onToggled: WallpaperServiceV5.setShowAll(checked)
+                }
+            }
+
             // Thumbnail grid
             GridLayout {
                 Layout.fillWidth: true
@@ -253,7 +285,12 @@ ScrollView {
                 Component.onCompleted: WallpaperServiceV5.wallpapersPerPage = 4 * 4
 
                 Repeater {
-                    model: WallpaperServiceV5.pagedList
+                    // hf199 — show-all renders the entire (filtered) folder;
+                    // thumbnails stay asynchronous + sourceSize-capped, so a
+                    // big folder streams in instead of blocking the UI.
+                    model: WallpaperServiceV5.showAll
+                           ? WallpaperServiceV5.filteredList
+                           : WallpaperServiceV5.pagedList
 
                     delegate: Rectangle {
                         required property var modelData
@@ -366,8 +403,9 @@ ScrollView {
                 }
             }
 
-            // Pagination controls
+            // Pagination controls (hidden while Show all is on — hf199)
             RowLayout {
+                visible: !WallpaperServiceV5.showAll
                 Layout.fillWidth: true
                 Layout.topMargin: 8
                 spacing: 12

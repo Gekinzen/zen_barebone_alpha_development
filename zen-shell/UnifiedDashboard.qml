@@ -305,6 +305,8 @@ PanelWindow {
                 }
 
                 // Volume (set-only; local position → setVolume)
+                // hf197 — track now spans 0..maxVolume (300); fill goes
+                // orange past 100 and red past 200; tick marks 100%.
                 ColumnLayout {
                     Layout.fillWidth: true; spacing: 6
                     Text {
@@ -316,13 +318,19 @@ PanelWindow {
                         Layout.fillWidth: true; Layout.preferredHeight: 10; radius: 5
                         color: ThemeService.alpha(ThemeService.fg, 0.14)
                         property real pct: 0.5
-                        Rectangle { width: volTrack.width * volTrack.pct; height: volTrack.height; radius: volTrack.radius; color: win.accent }
+                        Rectangle { width: volTrack.width * volTrack.pct; height: volTrack.height; radius: volTrack.radius
+                                    color: ConnectivityService.audioVolume > 100
+                                           ? ConnectivityService.volumeColor(ConnectivityService.audioVolume)
+                                           : win.accent }
+                        Rectangle { x: volTrack.width * (100 / ConnectivityService.maxVolume) - 1; y: -2
+                                    width: 2; height: volTrack.height + 4; radius: 1; antialiasing: true
+                                    color: ThemeService.alpha(ThemeService.fg, 0.45) }
                         Rectangle { x: Math.max(0, volTrack.width * volTrack.pct - 9); y: -4; width: 18; height: 18; radius: 9
                                     color: "#ffffff"; border.color: Qt.rgba(0,0,0,0.18); border.width: 1 }
                         MouseArea {
                             anchors.fill: parent; anchors.topMargin: -8; anchors.bottomMargin: -8
-                            onPressed: (mouse) => { volTrack.pct = Math.max(0, Math.min(1, mouse.x / volTrack.width)); ConnectivityService.setVolume(Math.round(volTrack.pct * 100)) }
-                            onPositionChanged: (mouse) => { volTrack.pct = Math.max(0, Math.min(1, mouse.x / volTrack.width)); ConnectivityService.setVolume(Math.round(volTrack.pct * 100)) }
+                            onPressed: (mouse) => { volTrack.pct = Math.max(0, Math.min(1, mouse.x / volTrack.width)); ConnectivityService.setVolume(Math.round(volTrack.pct * ConnectivityService.maxVolume)) }
+                            onPositionChanged: (mouse) => { volTrack.pct = Math.max(0, Math.min(1, mouse.x / volTrack.width)); ConnectivityService.setVolume(Math.round(volTrack.pct * ConnectivityService.maxVolume)) }
                         }
                     }
                 }

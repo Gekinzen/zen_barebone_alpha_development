@@ -57,6 +57,14 @@ Item {
 
     implicitHeight: compact ? 26 : 34
     implicitWidth: rowLayout.implicitWidth + (compact ? 18 : 28)
+    // hf199 — a plain Item's width/height do NOT default to implicit; only
+    // Layouts read implicitWidth. Inside HMRow's slot (a positioner, not a
+    // layout) ZenButton therefore had ZERO size — its centered label still
+    // painted (no clip) but the pill/hit-area didn't, and stacked slots
+    // drew every label at the same point. Bind to implicit; an explicit
+    // width from a consumer or a Layout still overrides this binding.
+    width: implicitWidth
+    height: implicitHeight
     opacity: enabled ? 1.0 : 0.45
 
     Rectangle {

@@ -276,7 +276,13 @@ Item {
                 font.pixelSize: Math.round(14 * sysRoot._fit)
                 color: SysRowState.resolveColor(
                     SysRowState.soundColor,
-                    ConnectivityService.audioMuted ? ThemeService.grey2 : ThemeService.aqua
+                    ConnectivityService.audioMuted
+                        ? ThemeService.grey2
+                        // hf198 — boost warning uses the shared gradient
+                        // (yellow → orange → red past 100); ≤100 keeps aqua.
+                        : (ConnectivityService.audioVolume > 100
+                           ? ConnectivityService.volumeColor(ConnectivityService.audioVolume)
+                           : ThemeService.aqua)
                 )
             }
 
@@ -300,7 +306,7 @@ Item {
                     const step = 5
                     const cur = ConnectivityService.audioVolume
                     const next = wheel.angleDelta.y > 0
-                                 ? Math.min(100, cur + step)
+                                 ? Math.min(ConnectivityService.maxVolume, cur + step)   // hf197 boost
                                  : Math.max(0, cur - step)
                     ConnectivityService.setVolume(next)
                     wheel.accepted = true
@@ -346,7 +352,10 @@ Item {
                             text: (ConnectivityService.audioMuted
                                    ? "Muted"
                                    : ("Volume: " + ConnectivityService.audioVolume + "%"))
-                                  + "\nDevice: " + ConnectivityService.audioSinkName
+                                  + "\nDevice: " + (ConnectivityService.boostGuardActive
+                                                    ? ((ConnectivityService.boostGuardTarget || "output")
+                                                       + "  ·  boost-guarded")
+                                                    : ConnectivityService.audioSinkName)
                                   + "\n• Click for slider\n• Scroll to adjust\n• Right-click to mute"
                             font.family: Theme.fontFamily
                             font.pixelSize: 10
@@ -368,7 +377,12 @@ Item {
                 anchor.gravity: PanelState.popupAnchorGravity
                 visible: false
                 implicitWidth: 320
-                implicitHeight: 160
+                // hf197 — grows when the output-device list is unfolded.
+                property bool sinkExpand: false
+                onVisibleChanged: if (!visible) sinkExpand = false
+                implicitHeight: 160 + (sinkExpand
+                                       ? ConnectivityService.audioSinks.length * 26 + 14
+                                       : 0)
                 color: "transparent"
 
                 Rectangle {
@@ -430,16 +444,29 @@ Item {
 
                                 Row {
                                     width: parent.width
+                                    // hf197 — the label is now the device dropdown
+                                    // trigger: shows current sink + a chevron;
+                                    // click unfolds the output-device list below.
                                     Text {
                                         style: LookService.isClear ? Text.Outline : Text.Normal
                                         styleColor: LookService.clearTextOutline
-                                        text: "Speaker"
+                                        text: ConnectivityService.audioSinkName
+                                              + (ConnectivityService.audioSinks.length > 1
+                                                 ? (volPopup.sinkExpand ? "  \uf077" : "  \uf078")
+                                                 : "")
                                         font.family: Theme.fontFamily
                                         font.pixelSize: 11
                                         font.weight: Font.DemiBold
-                                        color: ThemeService.fg
+                                        color: spkDevMa.containsMouse ? ThemeService.blue : ThemeService.fg
                                         width: parent.width - spkPctText.width
                                         elide: Text.ElideRight
+                                        MouseArea {
+                                            id: spkDevMa
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: volPopup.sinkExpand = !volPopup.sinkExpand
+                                        }
                                     }
                                     Text {
                                         style: LookService.isClear ? Text.Outline : Text.Normal
@@ -449,9 +476,12 @@ Item {
                                         font.family: Theme.fontFamily
                                         font.pixelSize: 11
                                         font.weight: Font.DemiBold
+                                        // hf197 — boost zone color on the readout
                                         color: ConnectivityService.audioMuted
                                                ? ThemeService.grey2
-                                               : ThemeService.fg
+                                               : (ConnectivityService.audioVolume > 100
+                                                  ? ConnectivityService.volumeColor(ConnectivityService.audioVolume)
+                                                  : ThemeService.fg)
                                     }
                                 }
 
@@ -460,9 +490,10 @@ Item {
                                     id: spkSliderTrack
                                     width: parent.width
                                     height: 16
+                                    // hf197 — 0..maxVolume (300) mapping + 100% tick.
                                     readonly property real ratio:
                                         Math.max(0, Math.min(1,
-                                            ConnectivityService.audioVolume / 100))
+                                            ConnectivityService.audioVolume / ConnectivityService.maxVolume))
 
                                     Rectangle {
                                         anchors.verticalCenter: parent.verticalCenter
@@ -473,10 +504,16 @@ Item {
                                         anchors.verticalCenter: parent.verticalCenter
                                         width: parent.width * spkSliderTrack.ratio
                                         height: 4; radius: 2
-                                        color: ConnectivityService.audioMuted
-                                               ? ThemeService.grey2
-                                               : ThemeService.blue
+                                        color: ConnectivityService.volumeColor(ConnectivityService.audioVolume)
                                         Behavior on width { NumberAnimation { duration: 80 } }
+                                        Behavior on color { ColorAnimation { duration: 140 } }
+                                    }
+                                    // 100% (hardware max) tick
+                                    Rectangle {
+                                        x: parent.width * (100 / ConnectivityService.maxVolume) - width / 2
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: 2; height: 10; radius: 1; antialiasing: true
+                                        color: ThemeService.alpha(ThemeService.fg, 0.45)
                                     }
                                     Rectangle {
                                         width: 12; height: 12; radius: 6
@@ -495,7 +532,7 @@ Item {
                                         preventStealing: true
                                         function _set(x) {
                                             const r = Math.max(0, Math.min(1, x / width))
-                                            ConnectivityService.setVolume(Math.round(r * 100))
+                                            ConnectivityService.setVolume(Math.round(r * ConnectivityService.maxVolume))
                                         }
                                         onPressed: function(m) { _set(m.x) }
                                         onPositionChanged: function(m) {
@@ -504,10 +541,71 @@ Item {
                                         onWheel: function(w) {
                                             const cur = ConnectivityService.audioVolume
                                             const next = w.angleDelta.y > 0
-                                                         ? Math.min(100, cur + 5)
+                                                         ? Math.min(ConnectivityService.maxVolume, cur + 5)
                                                          : Math.max(0, cur - 5)
                                             ConnectivityService.setVolume(next)
                                             w.accepted = true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // ── hf197: OUTPUT DEVICE PICKER ──
+                        // Unfolds under the speaker row when the sink label
+                        // is clicked. Radio-dot = current default; click a
+                        // row → active audio jumps to that device.
+                        Column {
+                            width: parent.width
+                            spacing: 2
+                            visible: volPopup.sinkExpand
+                            Repeater {
+                                model: volPopup.sinkExpand ? ConnectivityService.audioSinks : []
+                                delegate: Rectangle {
+                                    id: sysSinkRow
+                                    required property var modelData
+                                    width: parent.width
+                                    height: 26
+                                    radius: 7
+                                    color: sysSinkRowMa.containsMouse
+                                           ? ThemeService.alpha(ThemeService.blue, 0.15)
+                                           : (sysSinkRow.modelData.isDefault
+                                              ? ThemeService.alpha(ThemeService.blue, 0.08)
+                                              : "transparent")
+                                    Row {
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 8
+                                        anchors.rightMargin: 8
+                                        spacing: 8
+                                        Text {
+                                            style: LookService.isClear ? Text.Outline : Text.Normal
+                                            styleColor: LookService.clearTextOutline
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: sysSinkRow.modelData.isDefault ? "\uf192" : "\uf10c"
+                                            font.family: "JetBrainsMono Nerd Font"
+                                            font.pixelSize: 10
+                                            color: sysSinkRow.modelData.isDefault ? ThemeService.blue : ThemeService.grey2
+                                        }
+                                        Text {
+                                            style: LookService.isClear ? Text.Outline : Text.Normal
+                                            styleColor: LookService.clearTextOutline
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: sysSinkRow.modelData.name
+                                            font.family: Theme.fontFamily
+                                            font.pixelSize: 10
+                                            color: sysSinkRow.modelData.isDefault ? ThemeService.fg : ThemeService.grey0
+                                            elide: Text.ElideRight
+                                            width: sysSinkRow.width - 40
+                                        }
+                                    }
+                                    MouseArea {
+                                        id: sysSinkRowMa
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            ConnectivityService.setDefaultSink(sysSinkRow.modelData.id)
+                                            volPopup.sinkExpand = false
                                         }
                                     }
                                 }

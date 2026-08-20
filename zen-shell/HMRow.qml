@@ -113,13 +113,18 @@ Rectangle {
         }
 
         // Right-aligned control slot
-        Item {
+        //
+        // hf199 — this was a plain Item, and an Item STACKS its children
+        // at (0,0). Every page that dropped ONE control in the slot never
+        // noticed; DesktopPage drops THREE (icon preview + Choose + Reset)
+        // and they rendered superimposed — one unreadable pill on the
+        // right ("hindi mabasa yun mga nasa right side"). A RowLayout lays
+        // them out left→right AND honors the Layout.preferredWidth /
+        // fillWidth attached props existing pages already put on their
+        // single slot child — so one-child rows are visually unchanged.
+        RowLayout {
             id: controlSlot
-            Layout.preferredWidth: childrenRect.width
-            Layout.preferredHeight: childrenRect.height
-            // Keep control aligned with the label row (top), not the
-            // center of a tall wrapped description — so dropdowns/
-            // toggles stay vertically inline with the label text.
+            spacing: 8
             Layout.alignment: Qt.AlignTop | Qt.AlignRight
             Layout.topMargin: 0
         }

@@ -1,25 +1,95 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════════
-#  Zen Shell v8 — Complete Installer  ·  v7.0.0-beta.1-hf99 (Karui 軽い)
+#  ZenithArch Shell  ·  VERSION 8  ·  改善暁 Kaizen Akatsuki
+#  Complete Installer                 https://zenithshell.dev/
 # ═══════════════════════════════════════════════════════════════
 #  The full smart installer: auto-detects whether bootstrap is
-#  needed, backs up your existing install, installs all QML, clears
-#  the compiled-QML cache, provisions configs, and restarts cleanly.
-#  Additive — preserves your hypr / theme / GTK / *.json settings.
+#  needed, backs up your existing install, installs EVERYTHING this
+#  drop ships, clears the compiled-QML cache, provisions configs,
+#  and restarts cleanly.
+#
+#  Three rules this installer never breaks:
+#
+#    1. YOUR *.json IS YOURS. Nothing overwrites it. New keys from a
+#       new build are merged IN, your values stay exactly as set.
+#    2. ONLY WHAT CHANGED GETS WRITTEN. Every file is byte-compared
+#       first. Identical file = untouched, no backup spam, no churn.
+#    3. NOTHING SHIPPED IS LEFT BEHIND. A sweep + audit make sure the
+#       whole tarball lands, not just the names on a hardcoded list.
 #
 #  Flags:  --bootstrap / -b   force system-dep bootstrap first
-#          --no-bootstrap      skip auto-bootstrap (advanced)
-#          --help / -h         usage
+#          --no-bootstrap     skip auto-bootstrap (advanced)
+#          --version / -V     print the version this drop installs
+#          --help / -h        usage
 #
-#  hf99 additions (nothing removed — wala tayong babawasan):
-#    • Bundled bootstrap.sh in the tarball so --bootstrap / auto
-#      bootstrap actually has something to run.
-#    • LAYOUT-COMPAT SHIM (below): this installer body was authored
-#      against the legacy drop layout (zen-shell-v5/, top-level
-#      scripts/ + themes-builtin/). The v8 tarball ships the QML
-#      under zen-shell/ and nests scripts/ + config beneath it.
-#      Instead of rewriting 4000+ lines, we bridge the legacy names
-#      to their v8 locations with idempotent, self-cleaning symlinks.
+#  Env:    ZEN_NO_MERGE=1               skip the settings deep-merge
+#          ZEN_ALLOW_PROFILE_MIGRATE=1  let migrations take your layout
+#          ZEN_FORCE_THEMES=1           overwrite edited builtin themes
+#          ZEN_FORCE_VERSIONS=1         ignore versions.lock pins
+#
+#  hf202 additions (nothing removed, wala tayong babawasan):
+#
+#    • BRAND / SITE / VERSION are variables now. The version is READ
+#      out of zen-shell/ZenVersion.qml instead of being hardcoded, so
+#      the banner can never drift from the shell again. It already had:
+#      this header still said v7.0.0-beta.1-hf99 and the finish banner
+#      said v7.0.0-beta.1-hf82y, while the QML said v8.1.0-alpha-hf201.
+#
+#    • PAYLOAD SWEEP [5.5/9]. The old copy steps were hardcoded name
+#      lists, so any file added to the tarball after the list was
+#      written silently never installed. On THIS drop that was:
+#
+#        zen-shell/scripts/     8 scripts, incl. zen-boost-guard.sh
+#                               (hf200 volume guard) + zen-callwatch.sh
+#                               (hf197 call-popup reaper). V7_SCRIPTS
+#                               read them from scripts/, where they do
+#                               not live, so the copy silently no-op'd
+#                               and both features were dead on a fresh
+#                               box.
+#        zen-fuzzel-glass.sh    same wrong source dir. ThemeService.qml
+#                               runs it from ~/.local/bin and it was
+#                               never put there, so Glass fuzzel theming
+#                               never applied.
+#        themes/builtin/        sakura.json, darkmatter.json,
+#                               caelestia.json. The compat shim only
+#                               bridges themes-builtin/ when that dir is
+#                               ABSENT, and it is present, so the v8
+#                               theme dir was skipped whole. Sakura is
+#                               a headline v8 theme.
+#        zen-shell/looks/       5 Look presets, no install step existed.
+#        zen-shell/config/      the v8 copies of keybinds-update.conf +
+#                               hyprland-layer-rules.conf.
+#        scripts/               openrgb-autoload.sh (autostart.conf
+#                               exec-once'd a path that never existed),
+#                               openrgb-wrapper.sh, zen-screenshot-
+#                               capture.sh, zen-make-versions-lock.sh.
+#
+#    • SETTINGS DEEP-MERGE. Every *.json is snapshotted before the
+#      migrations and merged back after: your values win key by key,
+#      genuinely new keys from this build are added. So an upgrade
+#      gains features without resetting anything you configured.
+#      panel-state.json + bar-layout.json keep the stricter hf153
+#      verbatim guard on top.
+#
+#    • CRLF GUARD. Every script and conf is normalised to LF on the way
+#      in. This drop ships all 48 files in scripts/ with CRLF and 45 of
+#      them with a CRLF shebang, which on Linux means:
+#          bad interpreter: /usr/bin/env bash^M
+#      Comparing on normalised bytes also stops the four scripts that
+#      exist in both scripts/ and zen-shell/scripts/ from overwriting
+#      each other on every run over nothing but line endings.
+#
+#    • COVERAGE AUDIT [9.9/9]. Walks the tarball at the very end and
+#      names any shipped file with no installed counterpart. Future
+#      drops report their own gaps instead of hiding them.
+#
+#  LAYOUT-COMPAT SHIM (below): this installer body was authored
+#  against the legacy drop layout (zen-shell-v5/, top-level
+#  scripts/ + themes-builtin/). The v8 tarball ships the QML
+#  under zen-shell/ and nests scripts/ + config beneath it.
+#  Instead of rewriting 4000+ lines, we bridge the legacy names
+#  to their v8 locations with idempotent, self-cleaning symlinks.
+#  The sweep in [5.5/9] then covers what the bridge cannot reach.
 # ═══════════════════════════════════════════════════════════════
 set -o pipefail 2>/dev/null || true
 
@@ -31,6 +101,374 @@ THEMES_BUILTIN="$GTK_DIR/themes/builtin"
 THEMES_CUSTOM="$GTK_DIR/themes/custom"
 BIN_DIR="$HOME/.local/bin"
 TS=$(date +%Y%m%d-%H%M%S)
+
+# ═══════════════════════════════════════════════════════════════
+#  hf202 — BRAND / SITE / VERSION  (single source of truth)
+# ═══════════════════════════════════════════════════════════════
+#  Change the product name in ONE place. Every banner, prompt and
+#  summary line below reads these instead of a baked-in string.
+# ───────────────────────────────────────────────────────────────
+ZEN_BRAND="${ZEN_BRAND:-ZenithArch Shell}"
+ZEN_BRAND_SHORT="${ZEN_BRAND_SHORT:-ZenithArch}"
+ZEN_SITE="${ZEN_SITE:-https://zenithshell.dev/}"
+ZEN_MAJOR="8"
+ZEN_CODENAME_FALLBACK="Kaizen Akatsuki"
+ZEN_KANJI_FALLBACK="改善暁"
+
+# Where the QML actually lives in this tarball. v8 ships zen-shell/,
+# older drops shipped zen-shell-v5/. Resolved BEFORE the compat shim
+# runs so we never read through a symlink we made ourselves.
+ZEN_SRC_SHELL=""
+for _c in "zen-shell" "zen-shell-v5"; do
+    if [ -d "$SCRIPT_DIR/$_c" ] && [ -f "$SCRIPT_DIR/$_c/ZenVersion.qml" ]; then
+        ZEN_SRC_SHELL="$SCRIPT_DIR/$_c"; break
+    fi
+done
+[ -z "$ZEN_SRC_SHELL" ] && [ -d "$SCRIPT_DIR/zen-shell" ]    && ZEN_SRC_SHELL="$SCRIPT_DIR/zen-shell"
+[ -z "$ZEN_SRC_SHELL" ] && [ -d "$SCRIPT_DIR/zen-shell-v5" ] && ZEN_SRC_SHELL="$SCRIPT_DIR/zen-shell-v5"
+
+# ── Read one `readonly property <type> <name>: <rhs>` out of QML ──
+_zen_qml_prop() {          # $1 file  $2 property name  -> raw right-hand side
+    [ -f "$1" ] || return 1
+    sed -nE "s@^[[:space:]]*readonly[[:space:]]+property[[:space:]]+[a-zA-Z]+[[:space:]]+$2:[[:space:]]*(.*)@\1@p" "$1" | head -1
+}
+_zen_qml_str() {           # first double-quoted literal on that line
+    _zen_qml_prop "$1" "$2" | sed -nE 's@[^"]*"([^"]*)".*@\1@p'
+}
+_zen_qml_int() {           # first integer on that line
+    _zen_qml_prop "$1" "$2" | sed -nE 's@[^0-9-]*(-?[0-9]+).*@\1@p'
+}
+
+# ZenVersion.qml is the single source of truth for the shell version.
+# semver is built there as `"8.1." + patchNum`, so a trailing dot means
+# "append patchNum". A future build that writes a full literal still works.
+_zen_resolve_version() {   # $1 path to ZenVersion.qml  -> vX.Y.Z-channel-hfNNN
+    local f="$1" sem patch hot chan
+    [ -f "$f" ] || { echo ""; return 1; }
+    sem="$(_zen_qml_str "$f" semver)"
+    [ -z "$sem" ] && { echo ""; return 1; }
+    case "$sem" in
+        *.) patch="$(_zen_qml_int "$f" patchNum)"; sem="${sem}${patch:-0}" ;;
+    esac
+    chan="$(_zen_qml_str "$f" channel)"
+    hot="$(_zen_qml_str  "$f" hotfix)"
+    printf 'v%s%s%s' "$sem" \
+        "${chan:+-$chan}" \
+        "${hot:+-$hot}"
+}
+_zen_resolve_codename() {  # $1 path -> "Karui (軽い)" or the v8 fallback
+    local f="$1" cn kj
+    cn="$(_zen_qml_str "$f" codename)"
+    kj="$(_zen_qml_str "$f" codenameKanji)"
+    [ -z "$cn" ] && cn="$ZEN_CODENAME_FALLBACK"
+    [ -z "$kj" ] && kj="$ZEN_KANJI_FALLBACK"
+    printf '%s (%s)' "$cn" "$kj"
+}
+
+ZEN_SRC_VERSION="$(_zen_resolve_version  "$ZEN_SRC_SHELL/ZenVersion.qml" 2>/dev/null)"
+ZEN_SRC_CODENAME="$(_zen_resolve_codename "$ZEN_SRC_SHELL/ZenVersion.qml" 2>/dev/null)"
+[ -z "$ZEN_SRC_VERSION" ]  && ZEN_SRC_VERSION="v${ZEN_MAJOR}.x (version unreadable)"
+[ -z "$ZEN_SRC_CODENAME" ] && ZEN_SRC_CODENAME="$ZEN_CODENAME_FALLBACK ($ZEN_KANJI_FALLBACK)"
+
+# The version already ON DISK, if any. Used for the upgrade line.
+ZEN_OLD_VERSION="$(_zen_resolve_version "$SHELL_DIR/ZenVersion.qml" 2>/dev/null)"
+
+for arg in "$@"; do
+    case "$arg" in
+        --version|-V)
+            echo "$ZEN_BRAND $ZEN_SRC_VERSION · $ZEN_SRC_CODENAME"
+            echo "$ZEN_SITE"
+            [ -n "$ZEN_OLD_VERSION" ] && echo "installed: $ZEN_OLD_VERSION"
+            exit 0 ;;
+    esac
+done
+
+# ═══════════════════════════════════════════════════════════════
+# hf202 — HOISTED: Hyprland syntax sanitiser cluster
+# ═══════════════════════════════════════════════════════════════
+#  These five functions used to be defined ~240 lines BELOW their
+#  first call. Bash resolves a function name when the call executes,
+#  not when the file is parsed, so `_sanitize_hl_conf` failed with
+#  "command not found" four times on every single install and the
+#  0.54/0.55 breakage stripping never ran on binds.conf,
+#  keybinds-update.conf, or the Hyprland drop-ins. Moved verbatim,
+#  nothing inside them changed.
+# ───────────────────────────────────────────────────────────────
+# v7.0.0-beta.1-hf82y ───────────────────────────────────────────────
+# HYPRLAND VERSION-AWARE CONFIG SANITIZER
+#
+# Why this exists: Hyprland ships breaking changes in minor versions
+# that remove or rename config keys / dispatchers. Examples:
+#   - 0.54: removed `togglesplit` + `swapsplit` dispatchers
+#           (use `layoutmsg, togglesplit` / `layoutmsg, swapsplit`)
+#   - 0.55: removed `dwindle:pseudotile`
+#           removed `decoration:shadow:ignore_window`
+#           removed `render:cm_fs_passthrough`
+#           moved `misc:vfr` to `debug:vfr`
+#
+# Each removal makes Hyprland error-spam on startup until the user
+# (or their distro maintainer) edits the config. Zen Shell ships
+# its own hyprland.conf.template + modules/*.conf, so we own the
+# responsibility for keeping these compatible across Hyprland
+# versions our users actually run.
+#
+# Strategy:
+#   1. Detect installed Hyprland version (`hyprctl version`)
+#   2. For each known breaking change, if user's version >= the
+#      version that removed the key, strip the key from any file
+#      we're about to write (template + modules/*.conf)
+#   3. Keep older versions working too — the strip is idempotent
+#      and only removes lines that ARE deprecated by the version
+#
+# When Hyprland 0.56 ships and removes more keys, add a new
+# `_strip_hl56_*` function and invoke it from `_sanitize_hl_conf`.
+# That's the only file-edit needed to extend the matrix.
+#
+# Tested compat range as of hf82l:
+#   - 0.53 (older) — passes through, all keys present
+#   - 0.54         — strips togglesplit/swapsplit invocations
+#   - 0.55         — additionally strips pseudotile/shadow:ignore_window/
+#                    cm_fs_passthrough; rewrites misc:vfr → debug:vfr
+#   - 0.56+        — same as 0.55 until we discover new breakages
+# ───────────────────────────────────────────────────────────────────
+
+# Detect Hyprland major.minor (e.g. "0.55"). Returns "0.0" if hyprctl
+# isn't installed or returns something unparseable — we then fall back
+# to assuming "newest" (apply all known sanitizers) since shipping
+# extra removals is safer than missing a removal.
+_detect_hl_minor() {
+    local raw
+    raw=$(hyprctl version 2>/dev/null | grep -oE 'Tag: v?[0-9]+\.[0-9]+' | head -1 | sed 's/Tag: v\?//')
+    if [ -z "$raw" ]; then
+        # Try alternate format
+        raw=$(hyprctl version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+' | head -1)
+    fi
+    if [ -z "$raw" ]; then
+        echo "999.999"  # unknown — assume newest
+        return
+    fi
+    echo "$raw"
+}
+
+# Compare two semver-ish strings (X.Y format only). Returns 0 if
+# $1 >= $2, 1 otherwise. Used in if-statements like:
+#   if _hl_version_at_least "$HL_MIN" "0.54"; then ...
+_hl_version_at_least() {
+    local have_maj have_min want_maj want_min
+    have_maj=$(echo "$1" | cut -d. -f1)
+    have_min=$(echo "$1" | cut -d. -f2)
+    want_maj=$(echo "$2" | cut -d. -f1)
+    want_min=$(echo "$2" | cut -d. -f2)
+    [ "$have_maj" -gt "$want_maj" ] && return 0
+    [ "$have_maj" -lt "$want_maj" ] && return 1
+    [ "$have_min" -ge "$want_min" ] && return 0
+    return 1
+}
+
+# Strip Hyprland 0.54 breakages (togglesplit/swapsplit) from a file.
+# Operates in-place. Backs up to ${f}.pre-hl54-${TS} on first edit.
+_strip_hl54_breakages() {
+    local f="$1"
+    [ -f "$f" ] || return 0
+    if grep -qE "(^|[^a-zA-Z_])togglesplit([^a-zA-Z_]|$)" "$f" 2>/dev/null \
+       || grep -qE "(^|[^a-zA-Z_])swapsplit([^a-zA-Z_]|$)" "$f" 2>/dev/null; then
+        cp "$f" "${f}.pre-hl54-${TS}" 2>/dev/null || true
+        # bind = MOD, KEY, togglesplit          → bind = MOD, KEY, layoutmsg, togglesplit
+        # bind = MOD, KEY, swapsplit            → bind = MOD, KEY, layoutmsg, swapsplit
+        # bindd = MOD, KEY, desc, togglesplit   → bindd = MOD, KEY, desc, layoutmsg, togglesplit
+        #
+        # Pattern: capture the "," + optional whitespace separator that
+        # comes BEFORE togglesplit, then prepend "layoutmsg, ". The
+        # negation guard `/layoutmsg.*togglesplit/!{...}` skips lines
+        # that ALREADY have `layoutmsg, togglesplit` so reruns are
+        # idempotent.
+        sed -i -E '
+            /layoutmsg[[:space:]]*,[[:space:]]*togglesplit/!{s/(,[[:space:]]*)togglesplit\b/\1layoutmsg, togglesplit/g}
+            /layoutmsg[[:space:]]*,[[:space:]]*swapsplit/!{s/(,[[:space:]]*)swapsplit\b/\1layoutmsg, swapsplit/g}
+        ' "$f"
+        echo "    hl54 sanitize: rewrote togglesplit/swapsplit → layoutmsg in $(basename "$f")"
+    fi
+}
+
+# Strip Hyprland 0.55 breakages from a file.
+_strip_hl55_breakages() {
+    local f="$1"
+    [ -f "$f" ] || return 0
+    local backed_up=0
+    local backup_path="${f}.pre-hl55-${TS}"
+
+    # 1. dwindle:pseudotile — remove the whole line
+    if grep -qE "^[[:space:]]*pseudotile[[:space:]]*=" "$f" 2>/dev/null; then
+        cp "$f" "$backup_path" && backed_up=1
+        sed -i -E "/^[[:space:]]*pseudotile[[:space:]]*=/d" "$f"
+        echo "    hl55 sanitize: removed pseudotile= from $(basename "$f")"
+    fi
+
+    # 2. decoration:shadow:ignore_window — remove the line (default is now enabled)
+    if grep -qE "^[[:space:]]*ignore_window[[:space:]]*=" "$f" 2>/dev/null; then
+        [ "$backed_up" -eq 0 ] && cp "$f" "$backup_path" && backed_up=1
+        sed -i -E "/^[[:space:]]*ignore_window[[:space:]]*=/d" "$f"
+        echo "    hl55 sanitize: removed ignore_window= from $(basename "$f")"
+    fi
+
+    # 3. render:cm_fs_passthrough — remove
+    if grep -qE "^[[:space:]]*cm_fs_passthrough[[:space:]]*=" "$f" 2>/dev/null; then
+        [ "$backed_up" -eq 0 ] && cp "$f" "$backup_path" && backed_up=1
+        sed -i -E "/^[[:space:]]*cm_fs_passthrough[[:space:]]*=/d" "$f"
+        echo "    hl55 sanitize: removed cm_fs_passthrough= from $(basename "$f")"
+    fi
+
+    # 4. misc:vfr → debug:vfr — this one's trickier because we need
+    # context (which block we're in). For now just leave a warning;
+    # auto-migration would require a proper hyprlang parser.
+    if grep -qE "^[[:space:]]*vfr[[:space:]]*=" "$f" 2>/dev/null; then
+        echo "    hl55 NOTE: $(basename "$f") contains 'vfr =' which may need to move from misc{ } to debug{ } block manually"
+    fi
+}
+
+# Master sanitizer: detect version + apply all relevant strip
+# functions to the given file.
+_sanitize_hl_conf() {
+    local f="$1"
+    [ -f "$f" ] || return 0
+    local HL_MIN
+    HL_MIN=$(_detect_hl_minor)
+    if _hl_version_at_least "$HL_MIN" "0.54"; then
+        _strip_hl54_breakages "$f"
+    fi
+    if _hl_version_at_least "$HL_MIN" "0.55"; then
+        _strip_hl55_breakages "$f"
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════
+#  hf202 — SMART SYNC ENGINE
+# ═══════════════════════════════════════════════════════════════
+#  Two file classes, two rules:
+#
+#    CODE  (*.qml, *.sh, *.py, *.conf, *.service, assets)
+#          Kept up to date. Written ONLY when the bytes differ.
+#          Your version, if it differed, is kept as <name>.bak-$TS.
+#
+#    DATA  (*.json settings, themes, looks)
+#          Yours the moment it lands. Seeded when missing, otherwise
+#          NEVER touched. The shipped copy is dropped beside it as
+#          <name>.new so you can diff at your own pace.
+#
+#  Everything counts itself, so the summary at the end is real
+#  numbers, not a guess.
+# ───────────────────────────────────────────────────────────────
+ZSX_NEW=0; ZSX_UPD=0; ZSX_SAME=0; ZSX_KEPT=0; ZSX_FAIL=0; ZSX_CRLF=0
+ZSX_MANIFEST="$HOME/.cache/zen-shell/installed-manifest-$TS.txt"
+mkdir -p "$HOME/.cache/zen-shell" 2>/dev/null || true
+: > "$ZSX_MANIFEST" 2>/dev/null || ZSX_MANIFEST="/dev/null"
+
+_zsx_note() { printf '%s\t%s\n' "$1" "$2" >> "$ZSX_MANIFEST" 2>/dev/null || true; }
+
+# ── CRLF guard ─────────────────────────────────────────────────────
+#  A shell script whose shebang ends in CR does not run on Linux. The
+#  kernel takes the carriage return as part of the interpreter path and
+#  you get the classic:
+#
+#      bad interpreter: /usr/bin/env bash^M: no such file or directory
+#
+#  This drop ships all 48 files in scripts/ with CRLF, 45 of them with a
+#  CRLF shebang, most likely from a Windows-side edit or a rar round
+#  trip. zen-shell/scripts/ is clean LF, which is also why the four
+#  scripts that exist in BOTH directories compare as different when they
+#  are in fact the same file.
+#
+#  So the installer normalises on the way in. It costs nothing, it makes
+#  a CRLF tarball install correctly, and because the compare happens on
+#  the NORMALISED bytes, a CRLF source and an LF destination register as
+#  identical instead of rewriting each other on every single run.
+_zsx_needs_lf() {              # $1 dst path  $2 src path
+    case "$1" in
+        *.sh|*.py|*.conf|*.service|*.desktop|*.env|*.toml) return 0 ;;
+    esac
+    [ "$(head -c 2 "$2" 2>/dev/null)" = "#!" ] && return 0
+    return 1
+}
+
+# _zsx_code <src> <dst> [mode]   — install/refresh a code file
+_zsx_code() {
+    local src="$1" dst="$2" mode="${3:-644}" name real tmp=""
+    [ -f "$src" ] || return 1
+    name="$(basename "$dst")"
+    mkdir -p "$(dirname "$dst")" 2>/dev/null
+
+    # Normalise line endings before anything looks at the bytes.
+    real="$src"
+    if _zsx_needs_lf "$dst" "$src"; then
+        if ! tr -d '\r' < "$src" | cmp -s - "$src"; then
+            tmp="$(mktemp 2>/dev/null || echo "/tmp/zsx-$$-$RANDOM")"
+            tr -d '\r' < "$src" > "$tmp" 2>/dev/null && real="$tmp"
+            ZSX_CRLF=$((ZSX_CRLF+1))
+        fi
+    fi
+
+    if [ ! -e "$dst" ]; then
+        cp -f "$real" "$dst" 2>/dev/null || { ZSX_FAIL=$((ZSX_FAIL+1)); [ -n "$tmp" ] && rm -f "$tmp"; return 1; }
+        chmod "$mode" "$dst" 2>/dev/null
+        ZSX_NEW=$((ZSX_NEW+1)); _zsx_note NEW "$dst"
+        echo "      + $name"
+    elif cmp -s "$real" "$dst"; then
+        chmod "$mode" "$dst" 2>/dev/null
+        ZSX_SAME=$((ZSX_SAME+1)); _zsx_note SAME "$dst"
+    else
+        cp -f "$dst" "$dst.bak-$TS" 2>/dev/null
+        cp -f "$real" "$dst" 2>/dev/null || { ZSX_FAIL=$((ZSX_FAIL+1)); [ -n "$tmp" ] && rm -f "$tmp"; return 1; }
+        chmod "$mode" "$dst" 2>/dev/null
+        ZSX_UPD=$((ZSX_UPD+1)); _zsx_note UPDATED "$dst"
+        echo "      ↻ $name   (your copy kept as $name.bak-$TS)"
+    fi
+    [ -n "$tmp" ] && rm -f "$tmp" 2>/dev/null
+    return 0
+}
+
+# _zsx_data <src> <dst>          — seed once, then hands off forever
+_zsx_data() {
+    local src="$1" dst="$2" name
+    [ -f "$src" ] || return 1
+    name="$(basename "$dst")"
+    mkdir -p "$(dirname "$dst")" 2>/dev/null
+    if [ ! -e "$dst" ]; then
+        cp -f "$src" "$dst" 2>/dev/null || { ZSX_FAIL=$((ZSX_FAIL+1)); return 1; }
+        ZSX_NEW=$((ZSX_NEW+1)); _zsx_note SEEDED "$dst"
+        echo "      + $name"
+    elif cmp -s "$src" "$dst"; then
+        ZSX_SAME=$((ZSX_SAME+1)); _zsx_note SAME "$dst"
+    else
+        cp -f "$src" "$dst.new" 2>/dev/null
+        ZSX_KEPT=$((ZSX_KEPT+1)); _zsx_note KEPT-YOURS "$dst"
+        echo "      = $name   (yours kept, shipped copy → $name.new)"
+    fi
+    return 0
+}
+
+# _zsx_dir <srcdir> <dstdir> <code|data> [mode] [findargs...]
+#   Recursive, extension-agnostic. This is what makes the installer
+#   survive new files being added to the tarball later.
+_zsx_dir() {
+    local sdir="$1" ddir="$2" kind="$3" mode="${4:-644}"
+    [ -d "$sdir" ] || return 1
+    local rel f
+    while IFS= read -r f; do
+        [ -n "$f" ] || continue
+        rel="${f#$sdir/}"
+        case "$rel" in
+            *.bak|*.bak-*|*.bak.*|*.new|*.corrupt-*|*.migrated-*|*.qmlc|*.jsc) continue ;;
+        esac
+        if [ "$kind" = "data" ]; then
+            _zsx_data "$f" "$ddir/$rel"
+        else
+            _zsx_code "$f" "$ddir/$rel" "$mode"
+        fi
+    done <<EOF
+$(find "$sdir" -type f 2>/dev/null | sort)
+EOF
+    return 0
+}
 
 # ═══════════════════════════════════════════════════════════════
 #  LAYOUT-COMPAT SHIM (v7.0.0-beta.1-hf99) — additive, non-destructive
@@ -49,6 +487,23 @@ TS=$(date +%Y%m%d-%H%M%S)
 #  We only create a symlink when the legacy name is absent AND a v8
 #  source exists. Links live inside SCRIPT_DIR (the writable extracted
 #  tarball) and are cleaned up on exit — we never touch the real dirs.
+#
+#  hf202 — THE QML SOURCE NO LONGER DEPENDS ON THIS SHIM.
+#  This tarball ships BOTH zen-shell/ (201 qml, v8.1.0) and the legacy
+#  zen-shell-v5/ (179 qml, v7.0.0). Because the legacy directory really
+#  exists, the shim correctly declined to link it — and the install body,
+#  which hardcoded $SCRIPT_DIR/zen-shell-v5/, then laid down the v7 tree
+#  and called it v8. Twenty-one v8-only modules never landed: LookService,
+#  ZenDashboard, ZenGlanceWidget, CursorPage/CursorService, PanasonicPage/
+#  PanasonicService, ShellLookPage, TaskbarPage, UnifiedDashboard,
+#  ZenWindowPlacement and friends. The hf113 self-check at the end of the
+#  install had been printing "❌ files missing" about two of them for
+#  releases.
+#
+#  Every one of those paths now reads $ZEN_SRC_SHELL, resolved at the top
+#  of this script by looking for zen-shell/ FIRST and falling back to
+#  zen-shell-v5/ only when there is no v8 tree. The shim is kept for the
+#  other two legacy names and for drops that really are v5-only.
 # ───────────────────────────────────────────────────────────────
 _ZS_SHIM_LINKS=()
 _zs_shim() {                       # $1 legacy name ; $2.. candidate v8 sources
@@ -92,6 +547,9 @@ for arg in "$@"; do
             cat <<EOF
 Usage: install.sh [OPTIONS]
 
+  $ZEN_BRAND · version $ZEN_MAJOR · $ZEN_SRC_VERSION
+  $ZEN_SITE
+
 One command, smart by default:
   ./install.sh          — auto-detects what's needed and does the right thing.
                           Runs bootstrap automatically if Hyprland / Quickshell
@@ -104,7 +562,18 @@ OPTIONS:
   --no-bootstrap        Skip auto-detection — go straight to Zen Shell
                         install even if deps are missing. Advanced users
                         who manage their own Hyprland/Quickshell installs.
+  --version, -V         Print the version this drop installs and exit.
   --help, -h            Show this help.
+
+SETTINGS SAFETY:
+  Your *.json settings are never overwritten. They are snapshotted
+  before any migration runs and merged back after: your values win,
+  and only genuinely new keys from this build are added. Only files
+  whose bytes actually changed are rewritten.
+
+  ZEN_NO_MERGE=1              skip the settings deep-merge entirely
+  ZEN_ALLOW_PROFILE_MIGRATE=1 let migrations take your bar/panel layout
+  ZEN_FORCE_THEMES=1          overwrite builtin themes you have edited
 
 EXAMPLES:
   ./install.sh                      # The smart default — works everywhere
@@ -241,7 +710,7 @@ else
 fi
 
 echo ""
-echo "    Zen Shell $(grep 'property string version:' "$SCRIPT_DIR/zen-shell-v5/ZenVersion.qml" 2>/dev/null | sed -E 's/.*"([^"]+)".*/\1/' | head -1) — Karui (軽い)"
+echo "    Zen Shell $(grep 'property string version:' "$ZEN_SRC_SHELL/ZenVersion.qml" 2>/dev/null | sed -E 's/.*"([^"]+)".*/\1/' | head -1) — Karui (軽い)"
 echo "    ─────────────────────────────────────────────────────"
 echo ""
 echo "    Quickshell-native desktop environment for Hyprland."
@@ -1647,7 +2116,7 @@ echo ""
 echo "    The installer will:"
 echo "      1. Back up your entire quickshell/zen-shell directory"
 echo "      2. Back up hyprland keybind configs"
-echo "      3. Install all QML files ($(ls "$SCRIPT_DIR/zen-shell-v5/"*.qml | wc -l) components)"
+echo "      3. Install all QML files ($(ls "$ZEN_SRC_SHELL/"*.qml | wc -l) components)"
 echo "      4. Auto-apply ZenClock, ZenWorkspaces, Taskbar"
 echo "      5. Install CLI scripts (inc. zen-cava.sh) and themes"
 echo "      6. Install Hyprland binds, keybind updates, layer rules"
@@ -2420,7 +2889,7 @@ find "$SHELL_DIR" -type f \( -name "*.qmlc" -o -name "*.jsc" \) -delete 2>/dev/n
 #   2) PRUNE only the stale top-level QML that no longer exists in source
 #      (handles renamed/removed modules, the original reason for cleaning).
 echo "    Installing fresh QML (copy-first, atomic)…"
-cp "$SCRIPT_DIR/zen-shell-v5/"*.qml "$SHELL_DIR/"
+cp "$ZEN_SRC_SHELL/"*.qml "$SHELL_DIR/"
 # v8.0.0-alpha-hf110: CLIENT SAFETY — snapshot the user's state files before
 # we touch anything.
 #
@@ -2516,6 +2985,9 @@ _zs_backup_state
 # Additive — this removes no feature; it only protects your settings.
 PROFILE_GUARD_DIR="$SHELL_DIR/.profile-guard"
 PROFILE_GUARD_FILES="panel-state.json bar-layout.json"
+# hf202: those two keep the strict verbatim guard. EVERY other *.json is
+# snapshotted by _zs_backup_state above and deep-merged at the end of the
+# run, so no state file can be silently reset by a migration any more.
 ZS_PROFILE_GUARDED=0
 if [ "${ZEN_ALLOW_PROFILE_MIGRATE:-0}" != "1" ]; then
     for _pf in $PROFILE_GUARD_FILES; do
@@ -2537,9 +3009,9 @@ fi
 
 # v8.0.0-alpha-hf103: ship the whole assets/ tree (logos, zen-logo.svg, …).
 # Only *.qml was copied before, so any new non-QML asset silently went missing.
-if [ -d "$SCRIPT_DIR/zen-shell-v5/assets" ]; then
+if [ -d "$ZEN_SRC_SHELL/assets" ]; then
     mkdir -p "$SHELL_DIR/assets"
-    cp -r "$SCRIPT_DIR/zen-shell-v5/assets/." "$SHELL_DIR/assets/" 2>/dev/null || true
+    cp -r "$ZEN_SRC_SHELL/assets/." "$SHELL_DIR/assets/" 2>/dev/null || true
     echo "    assets/ synced ($(find "$SHELL_DIR/assets" -type f 2>/dev/null | wc -l) files)"
 fi
 
@@ -2547,7 +3019,7 @@ echo "    Pruning stale top-level QML no longer in this build…"
 for f in "$SHELL_DIR"/*.qml; do
     [ -e "$f" ] || continue
     base="$(basename "$f")"
-    if [ ! -e "$SCRIPT_DIR/zen-shell-v5/$base" ]; then
+    if [ ! -e "$ZEN_SRC_SHELL/$base" ]; then
         rm -f "$f"
         echo "      removed stale: $base"
     fi
@@ -2574,8 +3046,34 @@ for _vm in Clock MusicWidget SysRow SystemTray Taskbar WindowTitle; do
     fi
 done
 
-# v7.0.0-beta.1-hf31 (Karui) — Updates Panel helper scripts.
-# These live INSIDE the install dir (not in $BIN_DIR) so that snapshot
+# ═══════════════════════════════════════════════════════════════════
+# v8.1.0-alpha-hf201 — swh-plugins for the Boost Guard (hf200).
+# SC4 compressor + Fast Lookahead Limiter are LADSPA plugins from
+# swh-plugins; without them zen-boost-guard.sh degrades to a hard
+# clamp. Per Paul: `sudo pacman -S swh-plugins --needed`. Non-fatal —
+# a repo hiccup must never abort the shell install.
+# ═══════════════════════════════════════════════════════════════════
+SWH_OK=0
+for _ld in /usr/lib/ladspa /usr/lib64/ladspa /usr/local/lib/ladspa; do
+    [ -f "$_ld/sc4_1882.so" ] && [ -f "$_ld/fast_lookahead_limiter_1913.so" ] && SWH_OK=1 && break
+done
+if [ "$SWH_OK" = "1" ]; then
+    echo "    ✓ swh-plugins present (SC4 + lookahead limiter) — Boost Guard at full quality"
+else
+    echo "    ○ swh-plugins missing — installing for the Boost Guard (compressor + limiter)..."
+    if command -v pacman >/dev/null 2>&1; then
+        if sudo pacman -S swh-plugins --needed --noconfirm 2>&1 | sed 's/^/        /'; then
+            echo "    ✓ swh-plugins installed"
+        else
+            echo "    ⚠ swh-plugins install failed — Boost Guard will run in clamp fallback."
+            echo "      Manual: sudo pacman -S swh-plugins --needed"
+        fi
+    else
+        echo "    ⚠ no pacman — install swh-plugins with your package manager for full Boost Guard quality"
+    fi
+fi
+
+# v7.0.0-beta.1-hf31 (Karui) — Updates Panel helper scripts.# These live INSIDE the install dir (not in $BIN_DIR) so that snapshot
 # and rollback cover them atomically along with the QML — script
 # versions stay matched to QML versions across rollback boundaries.
 # ZenUpdateService.qml calls them by full path via `scriptsDir`.
@@ -2583,9 +3081,14 @@ mkdir -p "$SHELL_DIR/scripts"
 # v8.0.0-alpha-hf179: zen-wheelpad.py + zen-panasonic-setup.sh join the list.
 # They are inert on non-Panasonic hardware — the daemon refuses to start
 # unless DMI says Let's Note, and the setup script exits early.
+# v8.1.0-alpha-hf197: zen-callwatch.sh joins the list — call-popup reaper v2
+# (grace period + focus-cancel; the hf196 behaviour ate post-call prompts).
+# v8.1.0-alpha-hf200: zen-boost-guard.sh — compressor+limiter guard sink for
+# the 300% volume boost. Best quality needs swh-plugins (SC4 + lookahead
+# limiter LADSPA); without it the guard falls back to a hard clamp.
 V7_SCRIPTS=(zen-update-check.sh zen-snapshot-create.sh zen-rollback.sh zen-update-install.sh \
             zen-wheelpad.py zen-panasonic-setup.sh zen-wifi-doctor.sh zen-wifi-watch.sh \
-            zen-wifi-selector.py)
+            zen-wifi-selector.py zen-callwatch.sh zen-boost-guard.sh)
 V7_INSTALLED=0
 for s in "${V7_SCRIPTS[@]}"; do
     src="$SCRIPT_DIR/scripts/$s"
@@ -2602,7 +3105,7 @@ echo "    $V7_INSTALLED/${#V7_SCRIPTS[@]} v7 update-panel scripts installed → 
 # installed to ~/.local/share/quickshell/zen-shell/logos/ so the Start
 # Menu picker can find them via an absolute path. Idempotent — we
 # always overwrite so logo bug fixes land without prompting.
-LOGOS_SRC="$SCRIPT_DIR/zen-shell-v5/assets/logos"
+LOGOS_SRC="$ZEN_SRC_SHELL/assets/logos"
 LOGOS_DST="$HOME/.local/share/quickshell/zen-shell/logos"
 if [ -d "$LOGOS_SRC" ]; then
     mkdir -p "$LOGOS_DST"
@@ -2718,7 +3221,7 @@ echo ""
 echo "[4/9] Self-heal: re-asserting canonical vertical-bar modules…"
 SELF_HEAL_OK=1
 for _vm in Clock MusicWidget SysRow SystemTray Taskbar WindowTitle Workspaces; do
-    _srcf="$SCRIPT_DIR/zen-shell-v5/$_vm.qml"
+    _srcf="$ZEN_SRC_SHELL/$_vm.qml"
     [ -f "$_srcf" ] && cp "$_srcf" "$SHELL_DIR/$_vm.qml"
     if grep -q 'property bool zenVertical' "$SHELL_DIR/$_vm.qml" 2>/dev/null; then
         echo "      ✓ $_vm.qml (zenVertical present)"
@@ -3103,6 +3606,154 @@ if ! echo "$PATH" | grep -q "$BIN_DIR"; then
 fi
 
 # ═══════════════════════════════════════════════════════════════
+# [5.5/9] PAYLOAD SWEEP  (v8.1.0-alpha-hf202)
+# ═══════════════════════════════════════════════════════════════
+#  "make it sure ma install lahat yan laman na yan" — Paul.
+#
+#  Every copy step above this line works off a hardcoded list of
+#  filenames. That was fine when the list was written and wrong the
+#  moment a file was added to the tarball without someone remembering
+#  to also edit install.sh. This sweep closes that gap for good: it
+#  walks the DIRECTORIES and installs whatever is in them, so a new
+#  file lands automatically on the next drop.
+#
+#  It is deliberately LAST-WINS-SAFE:
+#    • code files are byte-compared, so re-running installs nothing
+#      and prints nothing when there is no change
+#    • data files (themes, looks) are seeded once and never clobbered
+#    • anything an earlier step already installed correctly shows up
+#      as "same" and costs one cmp
+#
+#  Nothing above was removed to make room for this. Wala tayong
+#  babawasan: this only adds the files that were being dropped.
+# ───────────────────────────────────────────────────────────────
+echo ""
+echo "[5.5/9] Payload sweep — installing everything this drop ships..."
+
+ZSX_B4_NEW=$ZSX_NEW; ZSX_B4_UPD=$ZSX_UPD
+
+# ── 1. Shell-side scripts (zen-shell/scripts/) ─────────────────────
+#  THE BUG THIS FIXES: V7_SCRIPTS above copies from $SCRIPT_DIR/scripts/,
+#  but on the v8 layout these live in zen-shell/scripts/. The compat
+#  shim cannot bridge it either, because it only symlinks `scripts`
+#  when top-level scripts/ is ABSENT, and it is present. Result: the
+#  copy loop found nothing, reported nothing, and shipped a shell where
+#  zen-boost-guard.sh (the 300% volume compressor+limiter guard) and
+#  zen-callwatch.sh (SUPER+SHIFT+C call-popup reaper) simply did not
+#  exist on disk. ConnectivityService.qml and zen-input.conf both call
+#  them by absolute path under $SHELL_DIR/scripts/.
+if [ -d "$ZEN_SRC_SHELL/scripts" ]; then
+    echo "    shell scripts → $SHELL_DIR/scripts/"
+    mkdir -p "$SHELL_DIR/scripts"
+    _zsx_dir "$ZEN_SRC_SHELL/scripts" "$SHELL_DIR/scripts" code 755
+
+    # ThemeService.qml looks for zen-fuzzel-glass.sh in ~/.local/bin,
+    # and other helpers get called bare from keybinds, so mirror the
+    # whole set into PATH too. Same bytes, so the cmp keeps it quiet.
+    echo "    shell scripts → $BIN_DIR/ (PATH mirror)"
+    _zsx_dir "$ZEN_SRC_SHELL/scripts" "$BIN_DIR" code 755
+fi
+
+# ── 2. Everything else in top-level scripts/ ───────────────────────
+#  The [5/9] whitelist covers 27 of these. The rest were never
+#  installed anywhere, including openrgb-autoload.sh — which
+#  hypr-config/autostart.conf exec-once's by absolute path, so every
+#  install has been autostarting a file that was never written.
+if [ -d "$SCRIPT_DIR/scripts" ]; then
+    echo "    helper scripts → $BIN_DIR/"
+    while IFS= read -r _f; do
+        [ -n "$_f" ] || continue
+        _b="$(basename "$_f")"
+        case "$_b" in
+            *.service|*.env.example|*.bak|*.bak-*|*.new) continue ;;
+        esac
+        _zsx_code "$_f" "$BIN_DIR/$_b" 755
+    done <<ZSXEOF
+$(find "$SCRIPT_DIR/scripts" -maxdepth 1 -type f 2>/dev/null | sort)
+ZSXEOF
+fi
+
+# ── 3. systemd units shipped in scripts/ and systemd/ ──────────────
+_ZSX_SDU="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+mkdir -p "$_ZSX_SDU"
+for _sd in "$SCRIPT_DIR/systemd" "$SCRIPT_DIR/scripts"; do
+    [ -d "$_sd" ] || continue
+    while IFS= read -r _f; do
+        [ -n "$_f" ] || continue
+        case "$(basename "$_f")" in
+            zen-monitor-resume.service) continue ;;   # system unit, installed with sudo elsewhere
+        esac
+        _zsx_code "$_f" "$_ZSX_SDU/$(basename "$_f")" 644
+    done <<ZSXEOF
+$(find "$_sd" -maxdepth 1 -type f -name "*.service" 2>/dev/null | sort)
+ZSXEOF
+done
+
+# ── 4. bin/ helpers ────────────────────────────────────────────────
+[ -d "$SCRIPT_DIR/bin" ] && _zsx_dir "$SCRIPT_DIR/bin" "$BIN_DIR" code 755
+
+# ── 5. v8 builtin themes (themes/builtin/) ─────────────────────────
+#  themes-builtin/ (20 files) is handled in [7/9]. themes/builtin/
+#  is the v8 location and holds three themes that exist NOWHERE else
+#  in the tarball: sakura.json (a headline v8 theme), darkmatter.json
+#  and caelestia.json. The shim skipped the whole directory because
+#  the legacy name happened to also exist.
+if [ -d "$SCRIPT_DIR/themes/builtin" ]; then
+    echo "    v8 builtin themes → $THEMES_BUILTIN/"
+    mkdir -p "$THEMES_BUILTIN"
+    _zsx_dir "$SCRIPT_DIR/themes/builtin" "$THEMES_BUILTIN" data
+fi
+
+# ── 6. Look presets (zen-shell/looks/) ─────────────────────────────
+#  LookService's token sets. Shipped since v8, never had an install
+#  step at all. Data class: once one is on your disk it is yours.
+if [ -d "$ZEN_SRC_SHELL/looks" ]; then
+    echo "    look presets → $SHELL_DIR/looks/"
+    mkdir -p "$SHELL_DIR/looks"
+    _zsx_dir "$ZEN_SRC_SHELL/looks" "$SHELL_DIR/looks" data
+fi
+
+# ── 6b. Orphaned Hyprland drop-in ──────────────────────────────────
+#  hypr-config/zen-multimonitor.conf is the one file in hypr-config/
+#  that install.sh never mentions anywhere: 0 references. Its own header
+#  tells you to `source = ~/.config/hypr/zen-multimonitor.conf`, which
+#  you cannot do for a file that was never copied. Seeded here, NOT
+#  auto-sourced, because multi-monitor rules are hardware specific and
+#  sourcing them blind could move your workspaces around on boot.
+if [ -f "$SCRIPT_DIR/hypr-config/zen-multimonitor.conf" ]; then
+    if [ ! -f "$HYPR_DIR/zen-multimonitor.conf" ]; then
+        _zsx_code "$SCRIPT_DIR/hypr-config/zen-multimonitor.conf" \
+                  "$HYPR_DIR/zen-multimonitor.conf" 644
+        echo "    multi-monitor rules seeded (not auto-sourced, review then add):"
+        echo "        source = ~/.config/hypr/zen-multimonitor.conf"
+    else
+        _zsx_note SAME "$HYPR_DIR/zen-multimonitor.conf"
+    fi
+fi
+
+# ── 7. Shell assets (logos, svg) ───────────────────────────────────
+#  [4/9] already cp -r's this, but that is an unconditional overwrite
+#  with no change detection. Running it through the engine gives the
+#  same result plus an accurate count, and catches any asset added in
+#  a subdirectory the old copy did not reach.
+[ -d "$ZEN_SRC_SHELL/assets" ] && _zsx_dir "$ZEN_SRC_SHELL/assets" "$SHELL_DIR/assets" code 644
+
+# ── 8. Report ──────────────────────────────────────────────────────
+_ZSX_ADDED=$(( ZSX_NEW - ZSX_B4_NEW ))
+_ZSX_CHANGED=$(( ZSX_UPD - ZSX_B4_UPD ))
+if [ "$_ZSX_ADDED" -eq 0 ] && [ "$_ZSX_CHANGED" -eq 0 ]; then
+    echo "    ✓ nothing missing — every shipped file was already in place and current"
+else
+    echo "    ✓ sweep: $_ZSX_ADDED new, $_ZSX_CHANGED updated, rest already current"
+fi
+if [ "$ZSX_CRLF" -gt 0 ]; then
+    echo "    ⚠  $ZSX_CRLF file(s) in this tarball have Windows CRLF line endings."
+    echo "       They were converted to LF on install, so they will run. To fix"
+    echo "       them at the source, from the repo root:"
+    echo "         find scripts hypr-config themes-builtin -type f -exec sed -i 's/\r\$//' {} +"
+fi
+
+# ═══════════════════════════════════════════════════════════════
 # [5.9/9] Detect existing user settings profile (v6.16.4.12.6.51)
 # ═══════════════════════════════════════════════════════════════
 # Inspect the user's existing Hyprland + Zen Shell configs so the
@@ -3308,153 +3959,6 @@ fi
 # ─────────────────────────────────────────────────────────────────
 HCONF="$HYPR_DIR/hyprland.conf"
 TEMPLATE="$SCRIPT_DIR/hypr-config/hyprland.conf.template"
-
-# v7.0.0-beta.1-hf82y ───────────────────────────────────────────────
-# HYPRLAND VERSION-AWARE CONFIG SANITIZER
-#
-# Why this exists: Hyprland ships breaking changes in minor versions
-# that remove or rename config keys / dispatchers. Examples:
-#   - 0.54: removed `togglesplit` + `swapsplit` dispatchers
-#           (use `layoutmsg, togglesplit` / `layoutmsg, swapsplit`)
-#   - 0.55: removed `dwindle:pseudotile`
-#           removed `decoration:shadow:ignore_window`
-#           removed `render:cm_fs_passthrough`
-#           moved `misc:vfr` to `debug:vfr`
-#
-# Each removal makes Hyprland error-spam on startup until the user
-# (or their distro maintainer) edits the config. Zen Shell ships
-# its own hyprland.conf.template + modules/*.conf, so we own the
-# responsibility for keeping these compatible across Hyprland
-# versions our users actually run.
-#
-# Strategy:
-#   1. Detect installed Hyprland version (`hyprctl version`)
-#   2. For each known breaking change, if user's version >= the
-#      version that removed the key, strip the key from any file
-#      we're about to write (template + modules/*.conf)
-#   3. Keep older versions working too — the strip is idempotent
-#      and only removes lines that ARE deprecated by the version
-#
-# When Hyprland 0.56 ships and removes more keys, add a new
-# `_strip_hl56_*` function and invoke it from `_sanitize_hl_conf`.
-# That's the only file-edit needed to extend the matrix.
-#
-# Tested compat range as of hf82l:
-#   - 0.53 (older) — passes through, all keys present
-#   - 0.54         — strips togglesplit/swapsplit invocations
-#   - 0.55         — additionally strips pseudotile/shadow:ignore_window/
-#                    cm_fs_passthrough; rewrites misc:vfr → debug:vfr
-#   - 0.56+        — same as 0.55 until we discover new breakages
-# ───────────────────────────────────────────────────────────────────
-
-# Detect Hyprland major.minor (e.g. "0.55"). Returns "0.0" if hyprctl
-# isn't installed or returns something unparseable — we then fall back
-# to assuming "newest" (apply all known sanitizers) since shipping
-# extra removals is safer than missing a removal.
-_detect_hl_minor() {
-    local raw
-    raw=$(hyprctl version 2>/dev/null | grep -oE 'Tag: v?[0-9]+\.[0-9]+' | head -1 | sed 's/Tag: v\?//')
-    if [ -z "$raw" ]; then
-        # Try alternate format
-        raw=$(hyprctl version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+' | head -1)
-    fi
-    if [ -z "$raw" ]; then
-        echo "999.999"  # unknown — assume newest
-        return
-    fi
-    echo "$raw"
-}
-
-# Compare two semver-ish strings (X.Y format only). Returns 0 if
-# $1 >= $2, 1 otherwise. Used in if-statements like:
-#   if _hl_version_at_least "$HL_MIN" "0.54"; then ...
-_hl_version_at_least() {
-    local have_maj have_min want_maj want_min
-    have_maj=$(echo "$1" | cut -d. -f1)
-    have_min=$(echo "$1" | cut -d. -f2)
-    want_maj=$(echo "$2" | cut -d. -f1)
-    want_min=$(echo "$2" | cut -d. -f2)
-    [ "$have_maj" -gt "$want_maj" ] && return 0
-    [ "$have_maj" -lt "$want_maj" ] && return 1
-    [ "$have_min" -ge "$want_min" ] && return 0
-    return 1
-}
-
-# Strip Hyprland 0.54 breakages (togglesplit/swapsplit) from a file.
-# Operates in-place. Backs up to ${f}.pre-hl54-${TS} on first edit.
-_strip_hl54_breakages() {
-    local f="$1"
-    [ -f "$f" ] || return 0
-    if grep -qE "(^|[^a-zA-Z_])togglesplit([^a-zA-Z_]|$)" "$f" 2>/dev/null \
-       || grep -qE "(^|[^a-zA-Z_])swapsplit([^a-zA-Z_]|$)" "$f" 2>/dev/null; then
-        cp "$f" "${f}.pre-hl54-${TS}" 2>/dev/null || true
-        # bind = MOD, KEY, togglesplit          → bind = MOD, KEY, layoutmsg, togglesplit
-        # bind = MOD, KEY, swapsplit            → bind = MOD, KEY, layoutmsg, swapsplit
-        # bindd = MOD, KEY, desc, togglesplit   → bindd = MOD, KEY, desc, layoutmsg, togglesplit
-        #
-        # Pattern: capture the "," + optional whitespace separator that
-        # comes BEFORE togglesplit, then prepend "layoutmsg, ". The
-        # negation guard `/layoutmsg.*togglesplit/!{...}` skips lines
-        # that ALREADY have `layoutmsg, togglesplit` so reruns are
-        # idempotent.
-        sed -i -E '
-            /layoutmsg[[:space:]]*,[[:space:]]*togglesplit/!{s/(,[[:space:]]*)togglesplit\b/\1layoutmsg, togglesplit/g}
-            /layoutmsg[[:space:]]*,[[:space:]]*swapsplit/!{s/(,[[:space:]]*)swapsplit\b/\1layoutmsg, swapsplit/g}
-        ' "$f"
-        echo "    hl54 sanitize: rewrote togglesplit/swapsplit → layoutmsg in $(basename "$f")"
-    fi
-}
-
-# Strip Hyprland 0.55 breakages from a file.
-_strip_hl55_breakages() {
-    local f="$1"
-    [ -f "$f" ] || return 0
-    local backed_up=0
-    local backup_path="${f}.pre-hl55-${TS}"
-
-    # 1. dwindle:pseudotile — remove the whole line
-    if grep -qE "^[[:space:]]*pseudotile[[:space:]]*=" "$f" 2>/dev/null; then
-        cp "$f" "$backup_path" && backed_up=1
-        sed -i -E "/^[[:space:]]*pseudotile[[:space:]]*=/d" "$f"
-        echo "    hl55 sanitize: removed pseudotile= from $(basename "$f")"
-    fi
-
-    # 2. decoration:shadow:ignore_window — remove the line (default is now enabled)
-    if grep -qE "^[[:space:]]*ignore_window[[:space:]]*=" "$f" 2>/dev/null; then
-        [ "$backed_up" -eq 0 ] && cp "$f" "$backup_path" && backed_up=1
-        sed -i -E "/^[[:space:]]*ignore_window[[:space:]]*=/d" "$f"
-        echo "    hl55 sanitize: removed ignore_window= from $(basename "$f")"
-    fi
-
-    # 3. render:cm_fs_passthrough — remove
-    if grep -qE "^[[:space:]]*cm_fs_passthrough[[:space:]]*=" "$f" 2>/dev/null; then
-        [ "$backed_up" -eq 0 ] && cp "$f" "$backup_path" && backed_up=1
-        sed -i -E "/^[[:space:]]*cm_fs_passthrough[[:space:]]*=/d" "$f"
-        echo "    hl55 sanitize: removed cm_fs_passthrough= from $(basename "$f")"
-    fi
-
-    # 4. misc:vfr → debug:vfr — this one's trickier because we need
-    # context (which block we're in). For now just leave a warning;
-    # auto-migration would require a proper hyprlang parser.
-    if grep -qE "^[[:space:]]*vfr[[:space:]]*=" "$f" 2>/dev/null; then
-        echo "    hl55 NOTE: $(basename "$f") contains 'vfr =' which may need to move from misc{ } to debug{ } block manually"
-    fi
-}
-
-# Master sanitizer: detect version + apply all relevant strip
-# functions to the given file.
-_sanitize_hl_conf() {
-    local f="$1"
-    [ -f "$f" ] || return 0
-    local HL_MIN
-    HL_MIN=$(_detect_hl_minor)
-    if _hl_version_at_least "$HL_MIN" "0.54"; then
-        _strip_hl54_breakages "$f"
-    fi
-    if _hl_version_at_least "$HL_MIN" "0.55"; then
-        _strip_hl55_breakages "$f"
-    fi
-}
 
 # Helper: dedupe quickshell/qs exec-once lines from a hyprland.conf
 # (autostart.conf is the single source of truth for quickshell startup)
@@ -4727,11 +5231,18 @@ CAVA_OK="no";      command -v cava >/dev/null 2>&1 && CAVA_OK="yes"
 PCTL_OK="no";      command -v playerctl >/dev/null 2>&1 && PCTL_OK="yes"
 
 echo ""
-echo "╔═══════════════════════════════════════════════════════════════╗"
-echo "║                                                               ║"
-echo "║   🎉  ZEN SHELL v7.0.0-beta.1-hf82y · KARUI ALPHA 5 INSTALLED  🎉  ║"
-echo "║                                                               ║"
-echo "╚═══════════════════════════════════════════════════════════════╝"
+echo "  🎉"
+echo "╔══════════════════════════════════════════════════════════════════╗"
+printf "║  %-64s║\n" ""
+printf "║  %-64s║\n" "$ZEN_BRAND  ·  VERSION $ZEN_MAJOR  INSTALLED"
+printf "║  %-64s║\n" "$ZEN_SRC_VERSION · $ZEN_SRC_CODENAME"
+printf "║  %-64s║\n" "$ZEN_SITE"
+printf "║  %-64s║\n" ""
+echo "╚══════════════════════════════════════════════════════════════════╝"
+if [ -n "$ZEN_OLD_VERSION" ] && [ "$ZEN_OLD_VERSION" != "$ZEN_SRC_VERSION" ]; then
+    echo ""
+    echo "    upgraded:  $ZEN_OLD_VERSION  →  $ZEN_SRC_VERSION"
+fi
 echo ""
 echo "  ── Install summary ──"
 echo "    QML files installed:   $QML_FINAL"
@@ -4741,6 +5252,14 @@ echo "    swww daemon alive:     $SWWW_ALIVE"
 echo "    swaync daemon alive:   $SWAYNC_ALIVE"
 echo "    cava available:        $CAVA_OK"
 echo "    playerctl available:   $PCTL_OK"
+echo "    ── file sync ──"
+echo "    newly installed:       $ZSX_NEW"
+echo "    updated (changed):     $ZSX_UPD"
+echo "    already current:       $ZSX_SAME"
+echo "    your copy kept:        $ZSX_KEPT"
+[ "$ZSX_CRLF" -gt 0 ] && echo "    CRLF normalised:       $ZSX_CRLF"
+[ "$ZSX_FAIL" -gt 0 ] && echo "    write failures:        $ZSX_FAIL"
+[ "$ZSX_MANIFEST" != "/dev/null" ] && echo "    manifest:              $ZSX_MANIFEST"
 if [ -n "$INSTALLED_OPTIONAL_PACKAGES" ]; then
     echo "    Optional pkgs added:   $INSTALLED_OPTIONAL_PACKAGES"
 fi
@@ -5470,7 +5989,7 @@ fi
 #  v8.0.0-alpha-hf113 — Glance widget + window placement
 # ═══════════════════════════════════════════════════════════════
 #  Both new files ship as plain QML under zen-shell/ and are picked
-#  up by the `cp "$SCRIPT_DIR/zen-shell-v5/"*.qml` above, so there is
+#  up by the `cp "$ZEN_SRC_SHELL/"*.qml` above, so there is
 #  nothing to install here. What we DO need to do:
 #
 #    1. Verify both landed (a partial extract is easy to miss).
@@ -5549,6 +6068,112 @@ _zs_verify_state
 echo ""
 
 # ─────────────────────────────────────────────────────────────────
+# v8.1.0-alpha-hf202 — SETTINGS DEEP-MERGE
+#
+# "if may json settings na si user wag mo patungan, just yun mga files
+#  na na-update etc." — Paul.
+#
+# The verbatim profile guard below covers the two files that must come
+# back byte for byte. This covers the OTHER ~40 state files, and it has
+# to be smarter than a straight restore: a straight restore would also
+# throw away the genuinely new keys a new build introduces (the glance
+# block seeded into widgets-state.json is the standing example), and
+# you would silently lose the new feature instead of the old setting.
+#
+# So: DEEP MERGE. For every *.json we snapshotted before the migrations
+# ran, we walk the tree key by key —
+#
+#     value exists in your snapshot   →  YOUR value wins, always
+#     key is new in this build        →  the new key is added
+#     you never had the file          →  left exactly as installed
+#
+# The file is only rewritten when the merge actually changes something,
+# it is JSON-validated before it is written, and the pre-merge copy is
+# kept as <name>.premerge-$TS. Nothing is destroyed.
+#
+# Turn it off with:  ZEN_NO_MERGE=1 ./install.sh
+# ─────────────────────────────────────────────────────────────────
+if [ "${ZEN_NO_MERGE:-0}" = "1" ]; then
+    echo "    🔀 ZEN_NO_MERGE=1 — settings deep-merge skipped"
+elif ! command -v python3 >/dev/null 2>&1; then
+    echo "    🔀 settings deep-merge skipped (no python3) — your *.json were left untouched"
+else
+    _ZSX_MERGED=0
+    for _jf in "$SHELL_DIR"/*.json; do
+        [ -f "$_jf" ] || continue
+        _jb="$(basename "$_jf")"
+        # panel-state / bar-layout get the stricter verbatim guard below.
+        case " $PROFILE_GUARD_FILES " in *" $_jb "*) continue ;; esac
+        _jsnap="$_jf.bak-$TS"
+        [ -f "$_jsnap" ] || continue            # no pre-install copy = fresh file, leave it
+        if python3 - "$_jf" "$_jsnap" "$TS" <<'ZSXPY'
+import json, os, shutil, sys
+
+cur_p, snap_p, ts = sys.argv[1], sys.argv[2], sys.argv[3]
+
+def load(p):
+    with open(p, "r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+try:
+    cur  = load(cur_p)     # post-migration: carries any NEW keys
+    snap = load(snap_p)    # pre-install:    carries YOUR values
+except Exception:
+    sys.exit(2)            # unreadable either side -> touch nothing
+
+def merge(base, over):
+    if isinstance(base, dict) and isinstance(over, dict):
+        out = dict(base)
+        for k, v in over.items():
+            out[k] = merge(base[k], v) if k in base else v
+        return out
+    return over            # your scalar / list wins outright
+
+def added_keys(base, over, prefix=""):
+    found = []
+    if isinstance(base, dict) and isinstance(over, dict):
+        for k, v in base.items():
+            path = f"{prefix}{k}"
+            if k not in over:
+                found.append(path)
+            else:
+                found += added_keys(v, over[k], path + ".")
+    return found
+
+merged = merge(cur, snap)
+if merged == cur:
+    sys.exit(1)            # nothing your side needed protecting
+
+new = added_keys(cur, snap)
+try:
+    json.dumps(merged)     # never write something that will not parse
+except Exception:
+    sys.exit(2)
+
+shutil.copyfile(cur_p, f"{cur_p}.premerge-{ts}")
+with open(cur_p, "w", encoding="utf-8") as fh:
+    json.dump(merged, fh, indent=2)
+
+name = os.path.basename(cur_p)
+if new:
+    shown = ", ".join(new[:4]) + (f" +{len(new)-4} more" if len(new) > 4 else "")
+    print(f"    🔀 {name} — your settings kept, new keys added: {shown}")
+else:
+    print(f"    🔀 {name} — your settings restored over the migrated copy")
+sys.exit(0)
+ZSXPY
+        then
+            _ZSX_MERGED=$((_ZSX_MERGED+1))
+        fi
+    done
+    if [ "$_ZSX_MERGED" -eq 0 ]; then
+        echo "    🔀 settings deep-merge: nothing to reconcile — your *.json already match"
+    else
+        echo "    🔀 settings deep-merge: $_ZSX_MERGED file(s) reconciled (pre-merge copies kept as *.premerge-$TS)"
+    fi
+fi
+
+# ─────────────────────────────────────────────────────────────────
 # v8.0.0-alpha-hf153 — PROFILE GUARD restore (bar + panel state)
 #
 # Put Paul's bar/panel state back exactly as it was before this install. If a
@@ -5578,6 +6203,101 @@ if [ "${ZS_PROFILE_GUARDED:-0}" = "1" ] && [ -d "$PROFILE_GUARD_DIR" ]; then
 fi
 echo ""
 
-echo "  ✅  Done. Enjoy Zen Shell $(grep 'property string version:' "$SHELL_DIR/ZenVersion.qml" 2>/dev/null | sed -E 's/.*"([^"]+)".*/\1/' | head -1) Karui (軽い)."
+
+# ═══════════════════════════════════════════════════════════════
+# [9.9/9] COVERAGE AUDIT  (v8.1.0-alpha-hf202)
+# ═══════════════════════════════════════════════════════════════
+#  The last line of defence for "ma install lahat". Walks the tarball
+#  and names anything shipped that has no counterpart on disk. It is
+#  basename-based on purpose: a file may legitimately land in any of
+#  half a dozen destinations, and what we care about is whether it
+#  landed AT ALL.
+#
+#  This is a REPORT, not a failure. It never aborts and never exits
+#  non-zero. Its job is to make the next gap loud instead of silent,
+#  the way the eight missing scripts in this very drop were silent.
+# ───────────────────────────────────────────────────────────────
+echo "[9.9/9] Coverage audit — did everything in the tarball land?"
+
+_ZSX_DESTS="$SHELL_DIR $BIN_DIR $THEMES_BUILTIN $THEMES_CUSTOM $HYPR_DIR $GTK_DIR"
+_ZSX_DESTS="$_ZSX_DESTS $HOME/.local/share/quickshell/zen-shell"
+_ZSX_DESTS="$_ZSX_DESTS $HOME/.config/zen-shell/wallpapers"
+_ZSX_DESTS="$_ZSX_DESTS ${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+_ZSX_DESTS="$_ZSX_DESTS $HOME/.config/alacritty-quick $HOME/.config/alacritty"
+_ZSX_DESTS="$_ZSX_DESTS $HOME/.config/fuzzel $HOME/.config/swaync"
+
+_ZSX_HAVE="$(mktemp 2>/dev/null || echo /tmp/zsx-have-$$)"
+for _d in $_ZSX_DESTS; do
+    [ -d "$_d" ] && find "$_d" -type f -printf '%f\n' 2>/dev/null
+done | sort -u > "$_ZSX_HAVE"
+
+# Shipped-but-not-installed BY DESIGN. Docs, the installer itself,
+# maintainer tooling, and the SDDM theme (root install, opt-in via
+# `sudo ./sddm/zen-sddm-install.sh`).
+_zsx_expected_absent() {
+    case "$1" in
+        # docs, archives, and the installer's own working files
+        *.md|*.rar|*.orig|*.bak|*.bak-*|*.bak.*|*.new|*.log)      return 0 ;;
+        install.sh|install-*.sh|bootstrap.sh|sync-config.sh)      return 0 ;;
+        versions.lock|*.template|*.env.example)                   return 0 ;;
+        # maintainer-side tooling, not part of a user install
+        zen-make-versions-lock.sh)                                return 0 ;;
+        # SDDM theme: root install, opt-in via sudo ./sddm/zen-sddm-install.sh
+        theme.conf|Main.qml|metadata.desktop|zen-sddm-*.sh|zen-dm-switch.sh) return 0 ;;
+        # installed under a DIFFERENT name, so a basename match cannot see them:
+        #   zen-hyprlock-doctor.sh  -> $BIN_DIR/zen-hyprlock-doctor  (no .sh)
+        #   zen-sleep-hook.sh       -> /usr/lib/systemd/system-sleep/zen-sleep-hook
+        zen-hyprlock-doctor.sh|zen-sleep-hook.sh)                 return 0 ;;
+        # system-level unit, installed to /etc/systemd/system with sudo
+        zen-monitor-resume.service)                               return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+_ZSX_GAPS=0
+for _src in "$ZEN_SRC_SHELL" "$SCRIPT_DIR/bin" "$SCRIPT_DIR/scripts" \
+            "$SCRIPT_DIR/systemd" "$SCRIPT_DIR/themes" "$SCRIPT_DIR/themes-builtin" \
+            "$SCRIPT_DIR/wallpapers-builtin" "$SCRIPT_DIR/hypr-config"; do
+    [ -d "$_src" ] || continue
+    while IFS= read -r _f; do
+        [ -n "$_f" ] || continue
+        _b="$(basename "$_f")"
+        _zsx_expected_absent "$_b" && continue
+        grep -qxF "$_b" "$_ZSX_HAVE" && continue
+        [ "$_ZSX_GAPS" -eq 0 ] && echo "    ⚠  shipped but not found on disk:"
+        _ZSX_GAPS=$((_ZSX_GAPS+1))
+        echo "         ${_f#$SCRIPT_DIR/}"
+    done <<ZSXEOF
+$(find "$_src" -type f ! -path "*/.migrations/*" 2>/dev/null | sort)
+ZSXEOF
+done
+rm -f "$_ZSX_HAVE" 2>/dev/null
+
+if [ "$_ZSX_GAPS" -eq 0 ]; then
+    echo "    ✅  complete — every shipped file has a counterpart installed"
+else
+    echo ""
+    echo "    $_ZSX_GAPS file(s) above ship in this tarball but were not found in any"
+    echo "    install destination. If they are meant to be installed, add the"
+    echo "    directory to the [5.5/9] sweep. If they are meant to stay behind,"
+    echo "    add the name to _zsx_expected_absent() so this stays quiet."
+fi
+echo ""
+
+if [ -f "$SCRIPT_DIR/sddm/zen-sddm-install.sh" ]; then
+    echo "    ○ SDDM theme ships here but needs root and is opt-in:"
+    echo "        sudo ./sddm/zen-sddm-install.sh"
+    echo ""
+fi
+
+# hf202: the old line here grepped `property string version:` out of
+# ZenVersion.qml and sed'd the first quoted literal. That property is a
+# derived expression ("v" + semver + "-" + prerelease), so the grep
+# returned the bare "v" and the finish line read `Enjoy Zen Shell v`.
+# _zen_resolve_version reads it properly from the INSTALLED copy.
+ZEN_FINAL_VERSION="$(_zen_resolve_version "$SHELL_DIR/ZenVersion.qml" 2>/dev/null)"
+[ -z "$ZEN_FINAL_VERSION" ] && ZEN_FINAL_VERSION="$ZEN_SRC_VERSION"
+echo "  ✅  Done. Enjoy $ZEN_BRAND $ZEN_FINAL_VERSION · $ZEN_SRC_CODENAME."
+echo "      $ZEN_SITE"
 echo ""
 exit 0

@@ -362,6 +362,8 @@ ScrollView {
 
                     // 32px preview: the real icon, or the same glyph the desktop draws
                     Rectangle {
+                        // hf199 — the HMRow slot is a RowLayout now, so
+                        // Layout.preferred* is the right sizing here.
                         Layout.preferredWidth: 34
                         Layout.preferredHeight: 34
                         radius: 8

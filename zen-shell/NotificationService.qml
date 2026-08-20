@@ -742,7 +742,14 @@ Singleton {
     // tools). Centralizes the OSD trigger.
     // ─────────────────────────────────────────────────────────────
     function showVolumeOSD(volume01) {
-        root.osdRequested("volume", Math.max(0, Math.min(1, volume01)), "Volume")
+        // hf198 — volume01 is TRUE volume / 100, and since the hf197 boost
+        // it can legitimately be up to 3.0 (300%). The old min(…, 1) clamp
+        // meant any boosted volume showed as a full bar reading "100%".
+        // Clamp to the shell's ceiling instead; OSDPopup owns the mapping
+        // (bar = fraction of max, label = true percent).
+        const maxF = (typeof ConnectivityService !== "undefined")
+                     ? ConnectivityService.maxVolume / 100 : 1
+        root.osdRequested("volume", Math.max(0, Math.min(maxF, volume01)), "Volume")
     }
 
     function showBrightnessOSD(brightness01) {

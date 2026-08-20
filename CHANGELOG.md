@@ -1,9 +1,9 @@
 # CHANGELOG — Zen Shell v8 Complete
 
-_Current build: **v8.0.0-alpha-hf195** · 2026-07-26 · Karui (軽い) · alpha channel_
+_Current build: **v8.1.0-alpha-hf202** · 2026-08-21 · Karui (軽い) · alpha channel_
 _Public stable: Modori (戻り) v6.16.4.12.9.10_
 
-Layout: **STATUS** (what's done, what's next) → **current builds** (hf195, hf194, hf193, hf192, hf191, hf190, hf189, hf188, hf187, hf186, hf185, hf184, hf183, hf182, hf181, hf180, hf179, hf178, hf177, hf176, hf175, hf174, hf173, hf172, hf171, hf170, hf169, hf168, hf167, hf166, hf165, hf164, hf163, hf162, hf161, hf160, hf159, hf158, hf157, hf156, hf155, hf154, hf153, hf152, hf151, hf150, hf149, hf148, hf147, hf146, hf145, hf144, hf143, hf142, hf141, hf140, hf139, hf138, hf137, hf136, hf135, hf134, hf133, hf132, hf131, hf130, hf129)
+Layout: **STATUS** (what's done, what's next) → **current builds** (hf202, hf201, hf200, hf199, hf198, hf197, hf196, hf195, hf194, hf193, hf192, hf191, hf190, hf189, hf188, hf187, hf186, hf185, hf184, hf183, hf182, hf181, hf180, hf179, hf178, hf177, hf176, hf175, hf174, hf173, hf172, hf171, hf170, hf169, hf168, hf167, hf166, hf165, hf164, hf163, hf162, hf161, hf160, hf159, hf158, hf157, hf156, hf155, hf154, hf153, hf152, hf151, hf150, hf149, hf148, hf147, hf146, hf145, hf144, hf143, hf142, hf141, hf140, hf139, hf138, hf137, hf136, hf135, hf134, hf133, hf132, hf131, hf130, hf129)
 → **ARCHIVE** (hf128 back to v7.0.0-beta.1-hf99, verbatim).
 
 ---
@@ -528,6 +528,344 @@ anything. Filed so they don't get rediscovered a fourth time.
   zen-lock.sh, zen-hypridle-sync.sh — needs your current copies)
 
 ---
+
+## v8.1.0-alpha-hf202 — 2026-08-21 · "install lahat, wag patungan"
+
+Installer-only build. No QML changed, no module touched, no feature
+removed. What changed is that the installer now actually installs the
+whole tarball, and stops being able to reset your settings.
+
+**The installer was laying down the v7 tree and calling it v8.**
+- This is the big one, and it took a real end-to-end run to surface. The
+  tarball ships BOTH `zen-shell/` (201 qml, v8.1.0) and the legacy
+  `zen-shell-v5/` (179 qml, v7.0.0). The install body hardcoded
+  `$SCRIPT_DIR/zen-shell-v5/` for the QML copy, the asset copy, the stale
+  prune and the vertical-bar self-heal. The layout-compat shim was meant
+  to redirect that name to the v8 tree, but it only links a legacy name
+  when the legacy directory is ABSENT — and it is very much present.
+- So every install copied 179 v7 modules over the top and finished with a
+  banner claiming v8. **Twenty-one v8-only modules never landed**, among
+  them `LookService.qml` (the entire Look/Glass system), `ZenDashboard.qml`
+  and `UnifiedDashboard.qml` (the Control Center), `ZenGlanceWidget.qml`,
+  `ZenWindowPlacement.qml`, `CursorPage`/`CursorService`, `PanasonicPage`/
+  `PanasonicService`, `ShellLookPage`, `TaskbarPage`, `WavyAnalogClock`,
+  `ZenDashNavRow`, `ZenSlider`, `TimezoneService`, `MprisService`,
+  `IconThemeService`, `DashController`, `DashState`, `DockPowerButton`,
+  `WidgetsState`.
+- The evidence was on screen the whole time: the hf113 self-check has been
+  printing `❌ hf113 files missing from install: ZenGlanceWidget.qml
+  ZenWindowPlacement.qml` at the end of every install, and the finish line
+  read `Enjoy Zen Shell v`. Both were symptoms of this.
+- Every source-tree path now reads `$ZEN_SRC_SHELL`, resolved once at the
+  top by preferring `zen-shell/` and falling back to `zen-shell-v5/` only
+  when there is no v8 tree. `zen-shell-v5/` is untouched and still ships.
+
+**`_sanitize_hl_conf` never ran.**
+- Defined at line 3922, called at 3679, 3685, 3718 and 3722. Bash resolves
+  a function name when the call executes, so all four calls died with
+  `command not found` on every install and the Hyprland 0.54 / 0.55 syntax
+  stripping silently never ran on `binds.conf`, `keybinds-update.conf` or
+  the drop-ins. The five-function cluster is hoisted above first use,
+  moved verbatim.
+
+**Eight scripts were shipping and never landing.**
+- `V7_SCRIPTS` copied from `$SCRIPT_DIR/scripts/`. On the v8 layout
+  those files live in `zen-shell/scripts/`. The loop found nothing,
+  printed nothing, and moved on — so `zen-boost-guard.sh` (the hf200
+  compressor+limiter guard) and `zen-callwatch.sh` (the hf197 call-popup
+  reaper) did not exist on disk after a fresh install, while
+  `ConnectivityService.qml` and `zen-input.conf` called them by absolute
+  path. The Boost Guard toggle did nothing and SUPER+SHIFT+C did
+  nothing, on every clean box, since hf197.
+- Same for `zen-wifi-selector.py`, `zen-wifi-doctor.sh`,
+  `zen-wifi-watch.sh`, `zen-wheelpad.py`, `zen-panasonic-setup.sh`.
+- `zen-fuzzel-glass.sh` was in the `[5/9]` whitelist but read from the
+  same wrong directory, so it printed `⚠ missing` every install.
+  `ThemeService.qml` runs it out of `~/.local/bin`, where it never was:
+  Glass fuzzel theming has never applied from a tarball install.
+
+**Three themes were shipping and never landing.**
+- `themes/builtin/` holds `sakura.json`, `darkmatter.json` and
+  `caelestia.json`. The layout-compat shim only bridges `themes-builtin/`
+  when that legacy directory is ABSENT, and it is present, so the whole
+  v8 theme directory was skipped. Sakura is a headline v8 theme that no
+  installed shell has ever had.
+
+**Also never landing:** the five Look presets in `zen-shell/looks/`
+(no install step existed at all), and `openrgb-autoload.sh`, which
+`autostart.conf` has been `exec-once`ing by absolute path for releases.
+`hypr-config/zen-multimonitor.conf` is referenced nowhere in the whole
+installer; it is seeded now, not auto-sourced, because monitor rules
+are hardware specific.
+
+**[5.5/9] PAYLOAD SWEEP — the reason none of that gets to happen again.**
+- Every copy step above it worked off a hardcoded list of filenames,
+  which is correct exactly until someone adds a file to the tarball and
+  does not also edit install.sh. The sweep walks DIRECTORIES instead.
+  New files land automatically on the next drop.
+
+**[9/9] COVERAGE AUDIT.**
+- Walks the tarball at the end and names anything shipped that has no
+  counterpart on disk. Report only, never aborts. The point is to make
+  the next gap loud instead of silent, the way these eleven were silent.
+
+**Your \*.json is yours — deep merge, not restore.**
+- Every state file is snapshotted before the migrations and merged back
+  after, key by key: your value wins, and only genuinely NEW keys from
+  the build get added. A straight restore would have protected your
+  settings by throwing away new features (the `glance` seed in
+  `widgets-state.json` is the standing example); a straight migration
+  does the reverse. This does neither.
+- `panel-state.json` + `bar-layout.json` keep the stricter hf153
+  verbatim guard on top. Opt out with `ZEN_NO_MERGE=1`.
+
+**Only what changed gets written.**
+- Every file is byte-compared first. Identical file = untouched, no
+  `.bak` spam, no churn. A second `./install.sh` back to back now writes
+  literally nothing.
+
+**CRLF guard.**
+- All 48 files in `scripts/` ship with CRLF, 45 of them with a CRLF
+  shebang, which on Linux means `bad interpreter: /usr/bin/env bash^M`.
+  They are normalised to LF on the way in. Comparing on normalised bytes
+  also stops the four scripts that exist in BOTH `scripts/` and
+  `zen-shell/scripts/` from overwriting each other every run over
+  nothing but line endings.
+
+**Branding and version.**
+- `ZEN_BRAND` / `ZEN_SITE` / `ZEN_MAJOR` are variables at the top now.
+  The version is READ from `zen-shell/ZenVersion.qml` instead of being
+  hardcoded, so the banner cannot drift again: the header still said
+  `v7.0.0-beta.1-hf99` and the finish banner said `v7.0.0-beta.1-hf82y`
+  while the QML said `v8.1.0-alpha-hf201`. Three versions, one file.
+- The final line grepped `property string version:` and sed'd the first
+  quoted literal out of it. That property is a derived expression
+  (`"v" + semver + "-" + prerelease`), so it returned the bare `"v"` and
+  the install finished with `Enjoy Zen Shell v`. Fixed.
+- New `--version` / `-V` flag. Site printed on the finish banner:
+  https://zenithshell.dev/
+
+## v8.1.0-alpha-hf201 — 2026-08-09 · "100% means a full bar"
+
+**OSD bar mapping fixed — the notification finally reads right.**
+- The hf198 mapping (bar = fraction of the 300% ceiling) was
+  mathematically honest and perceptually broken: at everyday 100% the
+  bar sat one-third full and looked like a bug. New model:
+  0–100% fills the bar 0→100 in the normal accent; past 100 the bar
+  STAYS full while the fill walks the yellow→orange→red gradient and
+  the label shows the true percent ("120%", "250%"). The bar is the
+  safe meter, the COLOR is the boost meter.
+
+**Volume keys are the safe range again — capped at 100%.**
+- Per Paul's sync model: Fn+< / Fn+> (XF86 keys and the SUPER+SHIFT
+  comma/period pair) go back to `wpctl -l 1.0` — "shortcut ko din sa
+  volume and up till 100 siya." Boost (100–300, behind the hf200
+  guard) is slider-only. Side effect by design: pressing volume-UP
+  while boosted snaps you back to 100 — the keys always return you to
+  the safe range.
+
+**Installer now installs swh-plugins itself.**
+- `sudo pacman -S swh-plugins --needed --noconfirm` runs during
+  install when SC4 / the lookahead limiter .so files are missing, so
+  the Boost Guard comes up at full quality on a fresh box instead of
+  the clamp fallback. Non-fatal: a repo hiccup logs a manual command
+  and the shell install continues.
+
+## v8.1.0-alpha-hf200 — 2026-08-09 · "loud without the crunch"
+
+**Boost Guard — compressor + limiter behind the 300% boost.**
+- The problem with the raw hf197 boost: wpctl's 3.0x gain is PipeWire's
+  LAST stage before the float→int conversion at the ALSA boundary.
+  Nothing sits after it, so everything past 0 dBFS hard-clipped at the
+  DAC — the harsh distortion at 173%+. Exactly the ask:
+  "Volume: 0-100% · Amplification: 100-300% · Compression: ~80% ·
+  Limiter: ON."
+- Fix: `zen-boost-guard.sh` runs a PipeWire filter-chain GUARD SINK
+  ("Zen Boost 保護") and makes it the default:
+  apps → guard (your 0-300% volume lands here, PRE-chain) →
+  SC4 compressor (~80% intensity: threshold -17.2 dB, ratio 6.6:1,
+  knee 6 dB, +4.8 dB makeup — the makeup is why 300% actually sounds
+  LOUDER now instead of just clipping harder) →
+  fast lookahead limiter (brick wall at -1 dBFS, 150 ms release) →
+  real device sink, pinned at 100%.
+- The shell's whole volume plumbing (hf197-hf199) is UNTOUCHED — the
+  default sink is simply the guard now, and the sink volume on a
+  filter-chain applies on the adapter input, i.e. before the chain.
+- Quality ladder: SC4 + lookahead limiter come from **swh-plugins**
+  (`sudo pacman -S swh-plugins`). Without it the guard falls back to a
+  builtin hard clamp at ±1 — same loudness, more edge, and the
+  Connectivity page says so out loud.
+- Device dropdown while guarded: the default STAYS the guard; picking a
+  device re-TARGETS the guard's output (`set-target`, <1 s relaunch,
+  streams stay parked and resume). The guard sink itself is hidden from
+  the picker — it's not a device. Bar tooltip shows
+  "<device> · boost-guarded".
+- Lifecycle: autostarts with the shell (4 s delay so PipeWire is up),
+  Connectivity → "Boost Guard" toggle turns it off/on (off = raw boost,
+  clipping and all — documented on the toggle). Disabled state persists
+  via a flag file. Tunables: ZEN_BOOST_INTENSITY (0-1, default 0.80),
+  ZEN_BOOST_LIMIT_DB (default -1.0). Logs: ~/.cache/zen-shell/boost-guard.log.
+- Wala tayong babawasan: stop returns the exact pre-hf200 path.
+
+## v8.1.0-alpha-hf199 — 2026-08-09 · "the row that stacked its buttons"
+
+**Desktop Icons page: the right side is readable again.**
+- HMRow's control slot was a plain `Item` — and an Item STACKS children at
+  (0,0). Every page that put ONE control there never noticed; DesktopPage
+  puts THREE (icon preview + Choose + Reset), so they rendered
+  superimposed as one garbled pill. The slot is now a `RowLayout`
+  (spacing 8): multiple controls sit side by side, and it honors the
+  `Layout.preferredWidth` / `fillWidth` props existing single-control
+  pages already use — those are pixel-identical.
+- Related latent bug in ZenButton: a plain Item's width does NOT default
+  to implicitWidth (only Layouts read it), so inside the old positioner
+  slot the button had ZERO geometry — the centered label still painted
+  (no clip), the pill and the click area did not. `width/height` now bind
+  to implicit; explicit sizes and Layouts still override.
+
+**Wallpaper picker: whole folder in one grid.**
+- New "Show all wallpapers" toggle (default ON) renders the entire
+  (search-filtered) folder in one scrolling grid — thumbnails stay
+  asynchronous and sourceSize-capped so a big folder streams in.
+  Toggle OFF restores the classic 16-per-page Prev/Next view; the
+  pagination code is intact (wala tayong babawasan), the buttons just
+  hide while Show-all is on. Persisted in wallpaper-v5.json.
+- For the record: the slideshow was NEVER limited by pagination —
+  `randomWallpaper()` has always drawn from the full folder list. The
+  picker just didn't show that.
+
+**Wallpaper display modes — Fill / Fit / Center / Stretch.**
+- New "Display Mode" dropdown next to Transition Effect. Fill = cover +
+  crop (old behavior, default), Fit = letterbox (whole image, black
+  bars), Center = 1:1 pixels, Stretch = fill both axes ignoring aspect.
+- Mapping: fill/fit/center ride swww's `--resize crop|fit|no` (with
+  black fill); swww has no native stretch, so Stretch pre-resizes the
+  image to the primary monitor's size via ImageMagick (already a shell
+  dependency for luminance detection) into ~/.cache/zen-shell and
+  applies that. No magick / no monitor size → logged fall back to Fill.
+- Old swww builds without `--resize` are detected via `--help` and the
+  args are dropped, so a version gap can't hard-fail the apply.
+- Changing the mode re-applies the current wallpaper immediately.
+
+## v8.1.0-alpha-hf198 — 2026-08-09 · "the OSD learns to count past 100"
+
+**OSD volume computation follows the boost.** (the hf197 gap)
+- `showVolumeOSD` still clamped at 1.0, so any boosted volume rendered a
+  FULL bar reading "100%" — "notification sounds computation natin till
+  100 percent pero till 300 percent na tlga yan." The clamp is now the
+  shell ceiling (`maxVolume/100` = 3.0).
+- OSDPopup now separates the two numbers that were fused: the BAR maps
+  value against the 300% ceiling (250% ≈ 83% full), the LABEL shows the
+  TRUE percent ("250%"). Bar fill and label pick up the boost warning
+  color past 100. Label column widened 40→44px for three digits + %.
+- External `notify-send`-style volume notifications that report >100 now
+  flow through un-mangled too (same D-Bus parse path, new ceiling).
+
+**Boost warning is now a yellow → orange → red gradient.**
+- "kapag malakas na warning siya yellow na yun color, orange till red" —
+  `volumeColor()` no longer steps orange@101/red@201; past 100 it blends
+  ThemeService.yellow → orange (~200) → red (300), so the hue itself says
+  how far past safe you are. One function, every surface shifts together:
+  all seven sliders, the bar module tint, and the OSD.
+
+**Portrait monitors: the middle column stops hiding.**
+- Real cause: `minContentWidth`'s main term was 420, but a SettingRow
+  (label + description + value control) needs ~620 — QML Layouts don't
+  clip, so on a rotated monitor the overflowing controls painted UNDER
+  the right rail and looked amputated, while the fit math insisted
+  everything fit. Main term is now 620 (and the main column's
+  Layout.minimumWidth matches).
+- **Automatic horizontal scroll below the readability floor.** Auto-shrink
+  now stops at fitScale 0.85 — past that, content holds its minimum
+  width, overflows the viewport, and dashFlick's AlwaysOn-when-overflow
+  horizontal scrollbar (hf127) switches on by itself. Mildly tight →
+  gentle shrink (a 1080-wide portrait lands at ~0.88, everything
+  visible); genuinely tight → pan sideways, nothing hidden. Manual zoom
+  below 0.85 still allowed — the floor binds only the automatic fit.
+
+## v8.1.0-alpha-hf197 — 2026-08-09 · "boost, devices, and the popup that ate your prompts"
+
+**v8.1 line opens.** Same Karui major, same alpha channel — semver minor bump
+because hf197 changes behaviour across seven audio surfaces at once.
+
+**Volume boost to 300% (with warning colors).**
+- The sink volume is no longer clamped at 100%. Every volume surface — Quick
+  Settings, bar sound popup, Control Center quick-audio row, the right-rail
+  audio tab, Settings → Connectivity, the unified dashboard — now maps
+  0..300%. PipeWire's software gain handles >1.0 natively (same mechanism as
+  pavucontrol's boost).
+- One color rule, one place: `ConnectivityService.volumeColor()` — ≤100 the
+  usual accent, 101–200 **orange** (boost — soft clipping possible), 201–300
+  **red** (distortion + speaker strain). Fill AND % readout follow it; the bar
+  module's icon tints too, so a boosted volume is visible at a glance.
+- Every boost track carries a tick at the 100% mark (ZenSlider grew a
+  `tickAt` knob; the hand-rolled tracks draw their own) so the safe/boost
+  boundary is always visible.
+- The poll parser's `Math.min(100, …)` clamp is gone — an externally boosted
+  volume (pavucontrol) round-trips instead of snapping the UI back to 100.
+- `zen-input.conf`: RaiseVolume keys were `wpctl -l 1.0` — press volume-UP at
+  250% and wpctl "raises" you DOWN to the limit. Now `-l 3.0`, matching the
+  shell ceiling.
+
+**Output-device dropdown — click the soundbar, pick earphones.**
+- `ConnectivityService.audioSinks` — live device list parsed from
+  `wpctl status` (Sinks block) on the existing poll, zero extra processes.
+  `setDefaultSink(id)` wraps `wpctl set-default`; PipeWire moves ACTIVE
+  streams with the default, so music mid-play jumps devices instantly.
+- Pickers everywhere the volume lives: sink name in the Quick Settings audio
+  row is now a dropdown trigger (chevron when >1 device); the bar sound
+  popup's speaker label unfolds the same list (popup height grows to fit);
+  the Control Center right-rail audio tab got rows; Settings → Connectivity
+  got a proper ComboBox next to the pavucontrol button (which stays — escape
+  hatch, wala tayong babawasan).
+- Radio-dot marks the default; optimistic UI flips the dot before the next
+  poll confirms.
+
+**zen-callwatch v2 — the popup reaper stopped eating your prompts.**
+- The hf196 daemon (shipped out-of-band, see below) closed call windows on
+  ANY title transition. Clicking **End Call** transitions the title → the
+  post-call prompt got closewindow'd before you could touch it. Opening
+  video settings mid-call retitles some clients → the CALL got closed.
+- v2 closes a window only when ALL hold: class matches a call app
+  (Zoom/Teams/Lark/Workvivo), title matched an ENDED pattern (not merely
+  "changed"), a 25s grace fully elapsed, and the window was never focused
+  during the grace — **focus disarms**, because focus means you're clicking
+  that prompt. Still `hyprctl dispatch closewindow`, still reaches frozen
+  render processes via the main process (the hf196 insight that was right).
+- SUPER+SHIFT+C stays: manual instant close of unfocused floating call
+  popups. Tunables via env: ZEN_CALLWATCH_GRACE / _CLASSES / _ENDED.
+- Ships in scripts/, registered in the installer, autostarted via exec-once.
+
+**RAM cleanup — "make it sure gumagana."**
+- The auto-trigger was calling pkexec from a background timer: either a GUI
+  auth prompt materialised out of nowhere, or (no polkit agent) it died
+  silently with an error nothing surfaced. You could not tell if it worked.
+- Escalation ladder now: `sudo -n true` probe first — passwordless sudo →
+  silent, timer-safe cleanup. Manual runs without it fall back to pkexec
+  (interactive prompt is fine when YOU clicked). Auto runs without it never
+  prompt: zombie pass still runs, then a notification tells you to run
+  Free RAM manually (or add a NOPASSWD rule for silent auto-clean).
+- Every completion now posts a notification: "Freed 1.8 GB · 2 zombies
+  reaped", or exactly why it couldn't (auth dismissed / no agent / write
+  failed). Negative freed deltas clamp to 0.
+
+**Control Center fixes.**
+- Footer dark/light toggle is STATEFUL again: glyph flips moon/sun with
+  `DarkModeService.isDark` and the tile gets the same accent highlight the
+  Quick Settings tile has. The old delegate drew the static model glyph and
+  only *called* toggle() — state changed underneath, button never did.
+- Sidebar nav grew a visible scrollbar (AlwaysOn when overflowing, same
+  policy dashFlick has had since hf127). The nav has scrolled since hf126,
+  but on a short screen with no indicator the below-the-fold modules looked
+  like they didn't exist ("hindi makikita pre").
+
+## v8.0.0-alpha-hf196 — 2026-08 · out-of-band (not in the hf195 tarball)
+
+Shipped directly on the dev box between tarball snapshots: zen-callwatch v1
+(closes stuck Lark/Workvivo/Teams call popups on title transition, reads
+socket2, SUPER+SHIFT+C manual dismiss). Its title-transition trigger proved
+too aggressive — superseded by the v2 rewrite in hf197 above. Recorded here
+so the build-tag lineage stays continuous.
 
 ## v8.0.0-alpha-hf195 - the GTK Wi-Fi selector is now part of the shell
 

@@ -51,8 +51,35 @@ Rectangle {
     // STATE
     // ─────────────────────────────────────────────────────────────
     property string kind: "volume"        // "volume" | "brightness"
-    property real   value01: 0.0          // 0.0 - 1.0 (TARGET value)
+    // hf198 — value01 is the TRUE fraction (volume/100). Since the boost
+    // it can exceed 1.0 (up to maxVolume/100 = 3.0 for volume). The BAR
+    // maps it against the ceiling below; the LABEL shows the true percent
+    // — 250% reads "250%" over a ~83%-full bar, not a full bar at "100%".
+    property real   value01: 0.0
     property string label: "Volume"
+
+    // Ceiling for the raw value: 3.0 for volume (boost), 1.0 otherwise.
+    readonly property real _ceil:
+        (kind === "volume" && typeof ConnectivityService !== "undefined")
+        ? ConnectivityService.maxVolume / 100 : 1.0
+    // Bar fraction — hf201: 100% FILLS the bar. The hf198 mapping
+    // (fraction of the 300% ceiling) was mathematically honest and
+    // perceptually broken: at everyday 100% the bar sat one-third full
+    // and read as a bug ("mali padin yun sa notification"). Now:
+    //   0–100%   → bar fills 0→100, normal accent
+    //   past 100 → bar STAYS full; the fill walks the yellow→orange→red
+    //              gradient and the label shows the true percent — the
+    //              COLOR is the boost meter, the bar is the safe meter.
+    readonly property real _barFrac: Math.max(0, Math.min(1, _animatedValue))
+    // True percent for the label + the warning-gradient lookup.
+    readonly property int  _pct: Math.round(_animatedValue * 100)
+    // hf198 — bar/label color: shared boost gradient past 100%
+    // (yellow → orange → red via ConnectivityService.volumeColor).
+    readonly property color _fillColor:
+        (kind === "volume" && typeof ConnectivityService !== "undefined"
+         && _pct > 100)
+        ? ConnectivityService.volumeColor(_pct)
+        : ThemeService.blue
 
     // v7.0.0-beta.1-hf31: smooth interpolated value.
     //
@@ -159,11 +186,11 @@ Rectangle {
                 anchors.left: parent.left
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
-                // v7.0.0-beta.1-hf31: bind to interpolated value so bar
-                // animates smoothly (animation upstream on _animatedValue).
-                width: parent.width * osd._animatedValue
+                // hf201: 100% fills the bar; boosted values keep it full
+                // and the gradient fill + true-percent label carry the rest.
+                width: parent.width * osd._barFrac
                 radius: parent.radius
-                color: ThemeService.blue
+                color: osd._fillColor
                 Behavior on color {
                     ColorAnimation { duration: 200 }
                 }
@@ -176,13 +203,14 @@ Rectangle {
         Text {
             style: LookService.isClear ? Text.Outline : Text.Normal
             styleColor: LookService.clearTextOutline
-            // v7.0.0-beta.1-hf31: ticks up/down smoothly with bar
-            text: Math.round(osd._animatedValue * 100) + "%"
+            // hf198: TRUE percent — reads "250%" while boosted, and the
+            // text picks up the same warning gradient as the bar.
+            text: osd._pct + "%"
             font.family: Theme.fontFamily
             font.pixelSize: 13
             font.weight: Font.DemiBold
-            color: ThemeService.fg
-            Layout.preferredWidth: 40
+            color: osd._pct > 100 ? osd._fillColor : ThemeService.fg
+            Layout.preferredWidth: 44
             horizontalAlignment: Text.AlignRight
             Layout.alignment: Qt.AlignVCenter
         }

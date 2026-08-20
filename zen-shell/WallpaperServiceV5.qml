@@ -87,6 +87,23 @@ Singleton {
     // this by setting wallpapersPerPage from its own column count.
     property int wallpapersPerPage: 16
     property int currentPage: 0
+    // hf199 — "automatically mag load na lahat": when true the picker
+    // renders the WHOLE folder in one scrolling grid (the page already
+    // lives inside dashFlick's vertical scroll) and the Prev/Next
+    // pagination hides. Default ON per Paul. Pagination code stays —
+    // wala tayong babawasan — toggle OFF brings it right back.
+    // NOTE the slideshow was never limited by pagination: randomWallpaper()
+    // has always drawn from activeList (the full folder), not pagedList.
+    property bool showAll: true
+
+    // hf199 — display fit mode for the wallpaper itself:
+    //   fill    → cover the screen, crop overflow   (swww --resize crop)
+    //   fit     → letterbox, whole image visible    (swww --resize fit)
+    //   center  → 1:1 pixels, no scaling            (swww --resize no)
+    //   stretch → fill BOTH axes, ignore aspect     (pre-stretched via
+    //             ImageMagick to the monitor size — swww has no native
+    //             stretch; falls back to fill kung walang magick)
+    property string fitMode: "fill"
 
     // ── Derived ──
     property var activeList: source === "remote" ? remoteWallpapers : localWallpapers
@@ -136,7 +153,9 @@ Singleton {
             slideshowEnabled: slideshowEnabled,
             slideshowInterval: slideshowInterval,
             randomTransition: randomTransition,
-            source: source
+            source: source,
+            showAll: showAll,          // hf199
+            fitMode: fitMode           // hf199
         }
         const json = JSON.stringify(state, null, 2)
         stateSaver.command = ["bash", "-c",
@@ -166,6 +185,8 @@ Singleton {
             if (s.slideshowInterval) slideshowInterval = s.slideshowInterval
             if (typeof s.randomTransition === "boolean") randomTransition = s.randomTransition
             if (s.source) source = s.source
+            if (typeof s.showAll === "boolean") showAll = s.showAll   // hf199
+            if (s.fitMode) fitMode = s.fitMode                        // hf199
 
             // v6.13: Sync timer state from loaded config
             if (slideshowEnabled && activeList.length > 0) {
@@ -556,9 +577,41 @@ Singleton {
             // sessions (and multi-compositor setups) all get the wallpaper.
             "OUTPUTS=$( \"$SWWW_BIN\" query 2>/dev/null | grep -oP '^[^:]+' ); " +
             "echo \"detected outputs: $(echo $OUTPUTS | tr '\\n' ' ')\" >> \"$LOG\"; " +
+
+            // ── hf199: FIT MODE ─────────────────────────────────────
+            // fill    → --resize crop   (old behavior, default)
+            // fit     → --resize fit    (letterbox, black bars)
+            // center  → --resize no     (1:1 pixels, black surround)
+            // stretch → swww has no stretch: pre-stretch the image to the
+            //           primary monitor's logical size with ImageMagick
+            //           (magick/convert — already a shell dependency for
+            //           luminance detection), then apply THAT with crop.
+            //           Walang magick → log + fall back to fill.
+            // Old swww builds without --resize: detected via --help, args
+            // dropped so the apply never hard-fails on a version gap.
+            "SRC='" + path + "'; " +
+            "MODE='" + fitMode + "'; " +
+            "RESIZE_ARGS='--resize crop'; " +
+            "case \"$MODE\" in " +
+            "  fit)    RESIZE_ARGS='--resize fit --fill-color 000000';; " +
+            "  center) RESIZE_ARGS='--resize no --fill-color 000000';; " +
+            "  stretch) " +
+            "    MW=$(hyprctl -j monitors 2>/dev/null | grep -oP '\"width\":\\s*\\K[0-9]+'  | head -1); " +
+            "    MH=$(hyprctl -j monitors 2>/dev/null | grep -oP '\"height\":\\s*\\K[0-9]+' | head -1); " +
+            "    MAGICK=''; for c in magick convert; do command -v $c >/dev/null 2>&1 && { MAGICK=$c; break; }; done; " +
+            "    if [ -n \"$MAGICK\" ] && [ -n \"$MW\" ] && [ -n \"$MH\" ]; then " +
+            "      ST='" + cacheDir + "/stretched-wall.png'; " +
+            "      if $MAGICK \"$SRC\" -resize ${MW}x${MH}! \"$ST\" 2>>\"$LOG\"; then " +
+            "        SRC=\"$ST\"; echo \"stretch: pre-resized to ${MW}x${MH}\" >> \"$LOG\"; " +
+            "      else echo 'stretch: magick resize failed — falling back to fill' >> \"$LOG\"; fi; " +
+            "    else echo 'stretch: magick or monitor size unavailable — falling back to fill' >> \"$LOG\"; fi;; " +
+            "esac; " +
+            "\"$SWWW_BIN\" img --help 2>&1 | grep -q 'resize' || RESIZE_ARGS=''; " +
+            "echo \"fit mode: $MODE ($RESIZE_ARGS)\" >> \"$LOG\"; " +
+
             "APPLY_OK=0; " +
             "for i in 1 2 3; do " +
-            "  \"$SWWW_BIN\" img '" + path + "' " +
+            "  \"$SWWW_BIN\" img \"$SRC\" $RESIZE_ARGS " +
             "    --transition-type " + t + " " +
             "    --transition-duration " + transitionDuration.toFixed(2) + " " +
             "    --transition-fps " + transitionFps + " >> \"$LOG\" 2>&1; " +
@@ -644,6 +697,22 @@ Singleton {
     function setRandomTransition(enabled: bool) {
         randomTransition = enabled
         saveState()
+    }
+
+    // hf199 — picker density toggle
+    function setShowAll(enabled: bool) {
+        showAll = enabled
+        if (enabled) currentPage = 0
+        saveState()
+    }
+
+    // hf199 — display fit mode; changing it re-applies the current
+    // wallpaper so the effect lands immediately, hindi sa susunod pa.
+    function setFitMode(mode: string) {
+        if (["fill", "fit", "center", "stretch"].indexOf(mode) < 0) return
+        fitMode = mode
+        saveState()
+        if (currentWallpaper) applyWallpaper(currentWallpaper)
     }
 
     function setTransitionDuration(sec: real) {

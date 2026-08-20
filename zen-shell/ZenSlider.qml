@@ -56,6 +56,8 @@ Slider {
                            : "#7aa2f7"
     // Handle diameter (kept identical to the audio slider reference).
     property real handleSize: 14
+    // hf197 — value-space position of an optional track tick (-1 = none).
+    property real tickAt: -1
     // Track thickness.
     property real trackHeight: 4
 
@@ -105,6 +107,22 @@ Slider {
             color: control.enabled
                    ? control.accent
                    : control._alpha(control._fg, 0.25)
+        }
+
+        // v8.1.0-alpha-hf197 — optional tick marker. Consumers with a
+        // boost range (volume 0..300) set `tickAt: 100` so the safe/boost
+        // boundary is visible on the track. tickAt < from ⇒ hidden.
+        Rectangle {
+            visible: control.tickAt >= control.from && control.tickAt <= control.to
+            x: (control.to > control.from)
+               ? ((control.tickAt - control.from) / (control.to - control.from)) * parent.width - width / 2
+               : 0
+            y: -3
+            width: 2
+            height: parent.height + 6
+            radius: 1
+            antialiasing: true
+            color: control._alpha(control._fg, 0.45)
         }
     }
 

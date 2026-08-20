@@ -577,11 +577,101 @@ Singleton {
     // ═══════════════════════════════════════════════════════════════
     // AUDIO (PipeWire via wpctl)
     // ═══════════════════════════════════════════════════════════════
-    property int audioVolume: 0          // 0-100 (clamped, no boost)
+    // v8.1.0-alpha-hf197 — VOLUME BOOST. The sink volume is no longer
+    // clamped at 100%: the slider range is 0..maxVolume (300). PipeWire
+    // handles >1.0 natively (software gain past the hardware max — same
+    // thing pavucontrol's 153% and GNOME's "over-amplification" do).
+    // UI CONTRACT: every volume surface colors the fill by zone —
+    //   0..100      normal accent (safe, hardware range)
+    //   past 100    yellow → orange → red gradient (hf198): the hue
+    //               itself says how far past safe you are; solid red
+    //               at 300 = distortion + speaker strain territory.
+    // Use volumeColor(vol) below so all surfaces stay in sync.
+    property int audioVolume: 0          // 0..maxVolume
+    readonly property int maxVolume: 300
+    readonly property bool boostActive: audioVolume > 100
     property bool audioMuted: false
     property string audioSinkName: "Speaker"
     property string audioSinkId: "@DEFAULT_AUDIO_SINK@"
     property string audioIcon: "\uf028"  // nerd:  / /
+
+    // v8.1.0-alpha-hf197 — OUTPUT DEVICE LIST (wpctl status → Sinks block).
+    // [{ id, name, isDefault }] — feeds the sink-picker dropdowns.
+    property var audioSinks: []
+
+    // ═══════════════════════════════════════════════════════════════
+    // BOOST GUARD (hf200) — compressor + limiter behind the 300% boost
+    //
+    // "Use dynamic compression/limiting at around 80% intensity while
+    //  allowing up to 3.0x gain" — zen-boost-guard.sh runs a PipeWire
+    //  filter-chain sink (SC4 compressor → lookahead limiter → device)
+    //  and makes it the DEFAULT sink. The shell's volume plumbing is
+    //  untouched: wpctl @DEFAULT_AUDIO_SINK@ now lands on the guard,
+    //  where the gain is applied PRE-chain, so the limiter catches the
+    //  clipping the hf197 raw boost caused past ~120%.
+    // ═══════════════════════════════════════════════════════════════
+    readonly property string _guardScript:
+        (Quickshell.env("HOME") || "") + "/.config/quickshell/zen-shell/scripts/zen-boost-guard.sh"
+    readonly property string _guardFlagPath:
+        (Quickshell.env("HOME") || "") + "/.config/quickshell/zen-shell/boost-guard.disabled"
+    readonly property string guardSinkNodeName: "zen_boost_sink"
+
+    property bool boostGuardEnabled: true    // user intent (flag file = disabled)
+    property bool boostGuardActive: false    // live, from `status` in the poll
+    property string boostGuardTarget: ""     // node.name of the real device behind the guard
+    property string boostGuardQuality: ""    // "ladspa" (SC4+limiter) | "clamp" (fallback)
+
+    function setBoostGuard(on) {
+        boostGuardEnabled = on
+        _runAction(["bash", "-c",
+            on ? ("rm -f '" + _guardFlagPath + "'; '" + _guardScript + "' start")
+               : ("touch '" + _guardFlagPath + "'; '" + _guardScript + "' stop")])
+        Qt.callLater(function() { refreshTimer.restart() })
+    }
+
+    // Autostart on shell load unless the user disabled it. Delayed a few
+    // seconds so PipeWire and the device sinks are up first.
+    Timer {
+        id: guardBootTimer
+        interval: 4000; repeat: false; running: true
+        onTriggered: {
+            guardBootProc.running = true
+        }
+    }
+    Process {
+        id: guardBootProc
+        running: false
+        command: ["bash", "-c",
+            "if [ -f '" + root._guardFlagPath + "' ]; then echo disabled; " +
+            "else '" + root._guardScript + "' start >/dev/null 2>&1; echo started; fi"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                root.boostGuardEnabled = (text.trim() !== "disabled")
+                console.log("[Connectivity] boost guard boot:", text.trim())
+            }
+        }
+    }
+
+    // One color rule for every volume fill/label across the shell.    // hf198 — "kapag malakas na warning siya yellow na yun color, orange
+    // till red": the boost region is now a smooth GRADIENT instead of two
+    // hard steps. ≤100 keeps the normal accent; from 100 the fill walks
+    // yellow → orange (at ~200) → red (at 300), so "how loud past safe"
+    // reads off the hue itself. Single source of truth — every surface
+    // that calls this (all sliders, bar module, OSD) shifts together.
+    function _mixColor(a, b, t) {
+        t = Math.max(0, Math.min(1, t))
+        return Qt.rgba(a.r + (b.r - a.r) * t,
+                       a.g + (b.g - a.g) * t,
+                       a.b + (b.b - a.b) * t, 1)
+    }
+    function volumeColor(vol) {
+        if (audioMuted) return ThemeService.grey2
+        if (vol <= 100) return ThemeService.blue
+        const t = (vol - 100) / (maxVolume - 100)   // 0..1 across the boost band
+        return t < 0.5
+               ? _mixColor(ThemeService.yellow, ThemeService.orange, t * 2)
+               : _mixColor(ThemeService.orange, ThemeService.red, (t - 0.5) * 2)
+    }
 
     // v7.0.0-beta.1-hf11: track previous volume so we can fire OSD on
     // every external change (e.g. from XF86 media keys via the
@@ -662,7 +752,8 @@ Singleton {
     }
 
     function setVolume(vol) {
-        const clamped = Math.max(0, Math.min(100, vol))
+        // hf197: clamp to maxVolume (300), not 100 — boost range.
+        const clamped = Math.max(0, Math.min(maxVolume, vol))
         _runAction(["bash", "-c", "wpctl set-volume @DEFAULT_AUDIO_SINK@ " + (clamped / 100).toFixed(2)])
         // v8.0.0-alpha-hf145 — play the tick ONLY when the value actually moved.
         // This is the user-initiated path (slider drag, scroll, Quick Settings),
@@ -705,6 +796,39 @@ Singleton {
     function toggleMicMute() {
         _runAction(["bash", "-c", "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"])
         micMuted = !micMuted
+    }
+
+    // v8.1.0-alpha-hf197 — switch the default output device.
+    // `wpctl set-default <id>` moves the default sink; PipeWire's
+    // default-audio-sink metadata also MOVES ACTIVE STREAMS to it,
+    // so music mid-play jumps to the earphones instantly.
+    //
+    // hf200 — while the boost guard is up, the DEFAULT must stay the
+    // guard sink (that's where the protected gain lives). Picking a
+    // device in the dropdown therefore re-TARGETS the guard's output
+    // instead: resolve the picked sink's node.name, hand it to
+    // `zen-boost-guard.sh set-target`, brief <1s relaunch, streams stay
+    // parked on the guard and resume on the new device.
+    function setDefaultSink(id) {
+        if (id === undefined || id === null) return
+        if (boostGuardActive) {
+            _runAction(["bash", "-c",
+                "N=$(wpctl inspect " + parseInt(id) + " 2>/dev/null " +
+                "| grep 'node.name' | head -1 | sed 's/.*= //;s/\"//g'); " +
+                "[ -n \"$N\" ] && '" + _guardScript + "' set-target \"$N\""])
+        } else {
+            _runAction(["bash", "-c", "wpctl set-default " + parseInt(id)])
+        }
+        // Optimistic UI: flip isDefault locally so the dropdown checkmark
+        // moves before the next poll confirms it.
+        const next = []
+        for (let i = 0; i < audioSinks.length; i++) {
+            const s = audioSinks[i]
+            next.push({ id: s.id, name: s.name, isDefault: (s.id === parseInt(id)) })
+            if (s.id === parseInt(id) && !boostGuardActive) audioSinkName = s.name.substring(0, 30)
+        }
+        audioSinks = next
+        Qt.callLater(function() { refreshTimer.restart() })
     }
 
     // v6.16.4.6: Connect Wi-Fi with saved-creds preflight.
@@ -1345,6 +1469,16 @@ Singleton {
             "echo '---AUDIO_SINK_NAME---'; " +
             "wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null | grep 'node.description' | head -1 | sed 's/.*= //;s/\"//g'; " +
 
+            // hf197: every output device. The Sinks block of `wpctl status`
+            // — one line per sink, `*` marks the default:
+            //   |  *   55. Family 17h HD Audio Analog Stereo  [vol: 0.75]
+            "echo '---AUDIO_SINKS---'; " +
+            "wpctl status 2>/dev/null | sed -n '/Sinks:/,/Sources:/p'; " +
+
+            // hf200: guard status (ACTIVE/INACTIVE + TARGET= + QUALITY=)
+            "echo '---BOOST_GUARD---'; " +
+            "'" + _guardScript + "' status 2>/dev/null; " +
+
             "echo '---AUDIO_SOURCE---'; " +
             "wpctl get-volume @DEFAULT_AUDIO_SOURCE@ 2>/dev/null; " +
 
@@ -1372,7 +1506,7 @@ Singleton {
         const sections = text.split("---")
         let wifiRadio = "", wifiStatus = "", wifiSaved = "", wifiActive = "", wifiLink = "", wifiDev = ""
         let btPower = "", btDevs = "", btPaired = "", btNearby = ""
-        let sinkVol = "", sinkName = "", sourceVol = "", sourceName = ""
+        let sinkVol = "", sinkName = "", sinksRaw = "", guardRaw = "", sourceVol = "", sourceName = ""
         let lanLines = "", lanIp = ""
 
         for (let i = 0; i < sections.length; i++) {
@@ -1391,6 +1525,8 @@ Singleton {
                 case "BT_NEARBY":        btNearby = val; break
                 case "AUDIO_SINK":       sinkVol = val; break
                 case "AUDIO_SINK_NAME":  sinkName = val; break
+                case "AUDIO_SINKS":      sinksRaw = val; break
+                case "BOOST_GUARD":      guardRaw = val; break
                 case "AUDIO_SOURCE":     sourceVol = val; break
                 case "AUDIO_SOURCE_NAME": sourceName = val; break
                 case "LAN":             lanLines = val; break
@@ -1709,12 +1845,57 @@ Singleton {
         // ── Audio sink ──
         if (sinkVol) {
             // "Volume: 0.75" or "Volume: 0.75 [MUTED]"
+            // hf197: ceiling is maxVolume (300), not 100 — an externally
+            // boosted volume (pavucontrol, our own boost slider) must round-trip.
             const vm = sinkVol.match(/Volume:\s+([\d.]+)/)
-            if (vm) audioVolume = Math.min(100, Math.round(parseFloat(vm[1]) * 100))
+            if (vm) audioVolume = Math.min(maxVolume, Math.round(parseFloat(vm[1]) * 100))
             audioMuted = sinkVol.indexOf("[MUTED]") >= 0
         }
         if (sinkName) audioSinkName = sinkName.substring(0, 30)
         _updateAudioIcon()
+
+        // ── Boost guard status (hf200) ──
+        if (guardRaw) {
+            boostGuardActive = guardRaw.indexOf("ACTIVE") === 0
+            const tm = guardRaw.match(/TARGET=(.+)/)
+            const qm = guardRaw.match(/QUALITY=(\w+)/)
+            boostGuardTarget = (boostGuardActive && tm) ? tm[1].trim() : ""
+            boostGuardQuality = (boostGuardActive && qm) ? qm[1] : ""
+        } else {
+            boostGuardActive = false
+        }
+
+        // ── Output device list (hf197) ──
+        // Lines look like:  │  *   55. Device Name Here  [vol: 0.75]
+        // `*` = current default. Anything without `NN.` is a header — skip.
+        //
+        // hf200 — while the guard is up, the guard sink IS the default but
+        // it is not a device: hide it from the picker, and mark the sink
+        // the guard TARGETS as the "current" one instead, so the dropdown
+        // still reads as "which device am I on". Matching is by wpctl's
+        // description vs the guard's node.name-based target — wpctl status
+        // shows descriptions, so when none matches (name≠description) the
+        // list simply shows no dot rather than a wrong one.
+        if (sinksRaw) {
+            const sinks = []
+            for (const sLine of sinksRaw.split("\n")) {
+                const sm = sLine.match(/(\*)?\s*(\d+)\.\s+(.+?)\s*\[vol:/)
+                if (!sm) continue
+                const nm = sm[3].trim()
+                if (boostGuardActive && nm.indexOf("Zen Boost") >= 0) continue   // hf200: not a device
+                sinks.push({
+                    id: parseInt(sm[2]),
+                    name: nm,
+                    isDefault: boostGuardActive
+                               ? (boostGuardTarget.length > 0 && nm === boostGuardTarget)
+                               : sLine.indexOf("*") >= 0
+                })
+            }
+            // Only publish on real change — audioSinks feeds Repeaters, and
+            // reassigning identical arrays every 3s poll would rebuild them.
+            if (JSON.stringify(sinks) !== JSON.stringify(audioSinks))
+                audioSinks = sinks
+        }
 
         // ── Audio source (mic) ──
         if (sourceVol) {

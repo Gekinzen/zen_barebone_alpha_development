@@ -78,38 +78,84 @@ Item {
                         label: "Output Device"
                         description: ConnectivityService.audioSinkName
 
-                        Rectangle {
-                            width: 80
-                            height: 28
-                            radius: 6
-                            color: pavuMouse.containsMouse
-                                   ? ThemeService.alpha(ThemeService.blue, 0.15)
-                                   : ThemeService.alpha(ThemeService.blue, 0.08)
+                        RowLayout {
+                            spacing: 8
 
-                            Text {
-                                style: LookService.isClear ? Text.Outline : Text.Normal
-                                styleColor: LookService.clearTextOutline
-                                anchors.centerIn: parent
-                                text: "pavucontrol"
-                                font.family: Theme.fontFamily
-                                font.pixelSize: 10
-                                color: ThemeService.blue
+                            // hf197 — in-shell device dropdown. ComboBox over
+                            // audioSinks; picking one calls setDefaultSink()
+                            // (streams move instantly). pavucontrol stays as
+                            // the power-user escape hatch beside it.
+                            ComboBox {
+                                id: sinkCombo
+                                visible: ConnectivityService.audioSinks.length > 0
+                                implicitWidth: 200
+                                model: ConnectivityService.audioSinks
+                                textRole: "name"
+                                currentIndex: {
+                                    for (let i = 0; i < ConnectivityService.audioSinks.length; i++)
+                                        if (ConnectivityService.audioSinks[i].isDefault) return i
+                                    return 0
+                                }
+                                onActivated: function(index) {
+                                    ConnectivityService.setDefaultSink(
+                                        ConnectivityService.audioSinks[index].id)
+                                }
                             }
 
-                            MouseArea {
-                                id: pavuMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: ConnectivityService.openAudioSettings()
+                            Rectangle {
+                                width: 80
+                                height: 28
+                                radius: 6
+                                color: pavuMouse.containsMouse
+                                       ? ThemeService.alpha(ThemeService.blue, 0.15)
+                                       : ThemeService.alpha(ThemeService.blue, 0.08)
+
+                                Text {
+                                    style: LookService.isClear ? Text.Outline : Text.Normal
+                                    styleColor: LookService.clearTextOutline
+                                    anchors.centerIn: parent
+                                    text: "pavucontrol"
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: 10
+                                    color: ThemeService.blue
+                                }
+
+                                MouseArea {
+                                    id: pavuMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: ConnectivityService.openAudioSettings()
+                                }
                             }
+                        }
+                    }
+
+                    // hf200 — the compressor+limiter behind the 300% boost.
+                    // "Volume: 0-100% · Amplification: 100-300% ·
+                    //  Compression: ~80% · Limiter: ON"
+                    SettingRow {
+                        label: "Boost Guard"
+                        description: {
+                            if (!ConnectivityService.boostGuardEnabled)
+                                return "Off — volume past 100% will clip at the DAC"
+                            if (!ConnectivityService.boostGuardActive)
+                                return "Starting…"
+                            if (ConnectivityService.boostGuardQuality === "ladspa")
+                                return "SC4 compressor (~80%) + lookahead limiter · protecting " +
+                                       (ConnectivityService.boostGuardTarget || "output")
+                            return "Fallback clamp only — install swh-plugins for the real compressor"
+                        }
+
+                        HMSwitch {
+                            checked: ConnectivityService.boostGuardEnabled
+                            onToggled: ConnectivityService.setBoostGuard(checked)
                         }
                     }
 
                     SettingRow {
                         label: "Volume"
                         description: ConnectivityService.audioMuted ? "Muted" : (ConnectivityService.audioVolume + "%")
-
                         RowLayout {
                             spacing: 8
 
@@ -117,7 +163,7 @@ Item {
                                 id: settingsVolSlider
                                 implicitWidth: 180
                                 from: 0
-                                to: 100
+                                to: ConnectivityService.maxVolume   // hf197 — boost to 300%
                                 stepSize: 1
                                 value: ConnectivityService.audioVolume
                                 onMoved: ConnectivityService.setVolume(value)
@@ -136,9 +182,17 @@ Item {
                                         width: settingsVolSlider.visualPosition * parent.width
                                         height: parent.height
                                         radius: 2
-                                        color: ConnectivityService.audioMuted
-                                               ? ThemeService.grey2
-                                               : ThemeService.blue
+                                        // hf197 — zone color (blue / orange / red)
+                                        color: ConnectivityService.volumeColor(ConnectivityService.audioVolume)
+                                        Behavior on color { ColorAnimation { duration: 140 } }
+                                    }
+                                    // hf197 — 100% (hardware max) tick
+                                    Rectangle {
+                                        x: parent.width * (100 / ConnectivityService.maxVolume) - width / 2
+                                        y: -3
+                                        width: 2; height: parent.height + 6; radius: 1
+                                        antialiasing: true
+                                        color: ThemeService.alpha(ThemeService.fg, 0.45)
                                     }
                                 }
 

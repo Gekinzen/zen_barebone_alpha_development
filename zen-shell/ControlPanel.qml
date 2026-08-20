@@ -1228,15 +1228,49 @@ Rectangle {
 
                     RowLayout {
                         Layout.fillWidth: true
-                        Text {
-                            style: LookService.isClear ? Text.Outline : Text.Normal
-                            styleColor: LookService.clearTextOutline
-                            text: ConnectivityService.audioSinkName
-                            font.family: Theme.fontFamily
-                            font.pixelSize: 11
-                            color: ThemeService.grey0
-                            elide: Text.ElideRight
+                        // hf197 — the sink name is now a DROPDOWN TRIGGER.
+                        // Click it → device list unfolds below the slider,
+                        // pick a sink → wpctl set-default moves the stream.
+                        Rectangle {
                             Layout.fillWidth: true
+                            Layout.preferredHeight: 18
+                            radius: 5
+                            color: sinkPickMa.containsMouse
+                                   ? ThemeService.alpha(ThemeService.fg, 0.08)
+                                   : "transparent"
+                            RowLayout {
+                                anchors.fill: parent
+                                spacing: 3
+                                Text {
+                                    style: LookService.isClear ? Text.Outline : Text.Normal
+                                    styleColor: LookService.clearTextOutline
+                                    text: ConnectivityService.audioSinkName
+                                    font.family: Theme.fontFamily
+                                    font.pixelSize: 11
+                                    color: ThemeService.grey0
+                                    elide: Text.ElideRight
+                                    Layout.fillWidth: true
+                                }
+                                Text {
+                                    style: LookService.isClear ? Text.Outline : Text.Normal
+                                    styleColor: LookService.clearTextOutline
+                                    visible: ConnectivityService.audioSinks.length > 1
+                                    text: cpSinkList.expanded ? "\uf077" : "\uf078"   //  chevrons
+                                    font.family: "JetBrainsMono Nerd Font"
+                                    font.pixelSize: 8
+                                    color: ThemeService.grey1
+                                }
+                            }
+                            MouseArea {
+                                id: sinkPickMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                ToolTip.visible: containsMouse && ConnectivityService.audioSinks.length > 1
+                                ToolTip.delay: 500
+                                ToolTip.text: "Choose output device"
+                                onClicked: cpSinkList.expanded = !cpSinkList.expanded
+                            }
                         }
                         Text {
                             style: LookService.isClear ? Text.Outline : Text.Normal
@@ -1245,7 +1279,12 @@ Rectangle {
                             font.family: Theme.fontFamily
                             font.pixelSize: 11
                             font.weight: Font.DemiBold
-                            color: ConnectivityService.audioMuted ? ThemeService.grey2 : ThemeService.fg
+                            // hf197 — boost zone color: >100 orange, >200 red
+                            color: ConnectivityService.audioMuted
+                                   ? ThemeService.grey2
+                                   : (ConnectivityService.audioVolume > 100
+                                      ? ConnectivityService.volumeColor(ConnectivityService.audioVolume)
+                                      : ThemeService.fg)
                         }
                     }
 
@@ -1258,9 +1297,11 @@ Rectangle {
                         id: volSliderTrack
                         Layout.fillWidth: true
                         Layout.preferredHeight: 16
+                        // hf197 — the track now maps 0..maxVolume (300).
+                        // The tick at 1/3 marks the 100% (hardware max) line.
                         readonly property real ratio:
                             Math.max(0, Math.min(1,
-                                ConnectivityService.audioVolume / 100))
+                                ConnectivityService.audioVolume / ConnectivityService.maxVolume))
 
                         // Track background
                         Rectangle {
@@ -1268,15 +1309,21 @@ Rectangle {
                             width: parent.width; height: 4; radius: 2
                             color: ThemeService.alpha(ThemeService.fg, 0.15)
                         }
-                        // Filled portion
+                        // Filled portion — zone-colored (blue / orange / red)
                         Rectangle {
                             anchors.verticalCenter: parent.verticalCenter
                             width: parent.width * volSliderTrack.ratio
                             height: 4; radius: 2
-                            color: ConnectivityService.audioMuted
-                                   ? ThemeService.grey2
-                                   : ThemeService.blue
+                            color: ConnectivityService.volumeColor(ConnectivityService.audioVolume)
                             Behavior on width { NumberAnimation { duration: 80 } }
+                            Behavior on color { ColorAnimation { duration: 140 } }
+                        }
+                        // 100% tick — the safe/boost boundary
+                        Rectangle {
+                            x: parent.width * (100 / ConnectivityService.maxVolume) - width / 2
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 2; height: 10; radius: 1; antialiasing: true
+                            color: ThemeService.alpha(ThemeService.fg, 0.45)
                         }
                         // Knob
                         Rectangle {
@@ -1296,7 +1343,7 @@ Rectangle {
                             preventStealing: true
                             function _set(x) {
                                 const r = Math.max(0, Math.min(1, x / width))
-                                ConnectivityService.setVolume(Math.round(r * 100))
+                                ConnectivityService.setVolume(Math.round(r * ConnectivityService.maxVolume))
                             }
                             onPressed: function(m) { _set(m.x) }
                             onPositionChanged: function(m) {
@@ -1305,10 +1352,71 @@ Rectangle {
                             onWheel: function(w) {
                                 const cur = ConnectivityService.audioVolume
                                 const next = w.angleDelta.y > 0
-                                             ? Math.min(100, cur + 5)
+                                             ? Math.min(ConnectivityService.maxVolume, cur + 5)
                                              : Math.max(0, cur - 5)
                                 ConnectivityService.setVolume(next)
                                 w.accepted = true
+                            }
+                        }
+                    }
+
+                    // ── hf197: OUTPUT DEVICE LIST (collapsed by default) ──
+                    // One row per sink; radio-dot marks the default. Click a
+                    // row → setDefaultSink() → active streams jump devices.
+                    ColumnLayout {
+                        id: cpSinkList
+                        property bool expanded: false
+                        visible: expanded && ConnectivityService.audioSinks.length > 0
+                        Layout.fillWidth: true
+                        spacing: 2
+
+                        Repeater {
+                            model: cpSinkList.expanded ? ConnectivityService.audioSinks : []
+                            delegate: Rectangle {
+                                id: cpSinkRow
+                                required property var modelData
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 26
+                                radius: 7
+                                color: cpSinkRowMa.containsMouse
+                                       ? ThemeService.alpha(ThemeService.blue, 0.12)
+                                       : (cpSinkRow.modelData.isDefault
+                                          ? ThemeService.alpha(ThemeService.blue, 0.08)
+                                          : "transparent")
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 8
+                                    anchors.rightMargin: 8
+                                    spacing: 8
+                                    Text {
+                                        style: LookService.isClear ? Text.Outline : Text.Normal
+                                        styleColor: LookService.clearTextOutline
+                                        text: cpSinkRow.modelData.isDefault ? "\uf192" : "\uf10c"  // dot / circle
+                                        font.family: "JetBrainsMono Nerd Font"
+                                        font.pixelSize: 10
+                                        color: cpSinkRow.modelData.isDefault ? ThemeService.blue : ThemeService.grey2
+                                    }
+                                    Text {
+                                        style: LookService.isClear ? Text.Outline : Text.Normal
+                                        styleColor: LookService.clearTextOutline
+                                        text: cpSinkRow.modelData.name
+                                        font.family: Theme.fontFamily
+                                        font.pixelSize: 10
+                                        color: cpSinkRow.modelData.isDefault ? ThemeService.fg : ThemeService.grey0
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: true
+                                    }
+                                }
+                                MouseArea {
+                                    id: cpSinkRowMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        ConnectivityService.setDefaultSink(cpSinkRow.modelData.id)
+                                        cpSinkList.expanded = false
+                                    }
+                                }
                             }
                         }
                     }

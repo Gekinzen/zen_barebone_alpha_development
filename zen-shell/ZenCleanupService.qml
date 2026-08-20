@@ -151,6 +151,7 @@ Singleton {
         //   ZOMBIES_REAPED=<n>
         //   ERROR=<msg>?
         if (!text) return
+        let freed = -1, err = "", zombies = 0
         const lines = text.trim().split("\n")
         for (var i = 0; i < lines.length; i++) {
             const line = lines[i]
@@ -160,26 +161,81 @@ Singleton {
             const val = line.substring(eq + 1)
             if (key === "FREED_BYTES") {
                 const n = parseInt(val) || 0
+                freed = n
                 root.lastFreedBytes = n
                 root.totalBytesFreed = root.totalBytesFreed + n
+            } else if (key === "ZOMBIES_REAPED") {
+                zombies = parseInt(val) || 0
             } else if (key === "ERROR") {
+                err = val
                 root.lastError = val
             }
+        }
+
+        // hf197 — the run now TELLS you what happened. Before this the
+        // only trace was a console.log nobody reads.
+        if (err === "no_noninteractive_auth") {
+            // Auto-trigger fired but there's no silent-auth path. Don't
+            // prompt from a timer — hand it to the user instead.
+            root._notify("Low memory — RAM cleanup needs you",
+                         "Auto-cleanup can't run without passwordless sudo.\n"
+                         + "Open Settings → General → Free RAM now, or add a\n"
+                         + "sudoers NOPASSWD rule to enable silent auto-clean.",
+                         "critical")
+        } else if (err === "pkexec_denied") {
+            root._notify("RAM cleanup cancelled",
+                         "Authentication was dismissed or no polkit agent is running.",
+                         "normal")
+        } else if (err === "priv_ops_failed") {
+            root._notify("RAM cleanup failed",
+                         "drop_caches / compact_memory write failed — check journal.",
+                         "critical")
+        } else if (freed >= 0) {
+            const z = zombies > 0 ? (" · " + zombies + " zombie" + (zombies === 1 ? "" : "s") + " reaped") : ""
+            root._notify("RAM cleanup done",
+                         "Freed " + formatBytes(freed) + z
+                         + (root._lastRunWasAuto ? " (auto-trigger)" : ""),
+                         "low")
         }
     }
 
     // ─────────────────────────────────────────────────────────────
     // PUBLIC API
     // ─────────────────────────────────────────────────────────────
-    function freeMemoryNow() {
+    // hf197 — "yun ram managements make it sure gumagana":
+    //
+    //   The old path ALWAYS wrapped the privileged ops in pkexec. Fine
+    //   when you click "Free RAM" (auth dialog pops, you type, done) —
+    //   but the AUTO-TRIGGER also went through it, so a background timer
+    //   was spawning a GUI auth prompt out of nowhere, and on a box with
+    //   no polkit agent it just died with ERROR=pkexec_denied that
+    //   nothing ever surfaced. "Gumagana ba?" — walang paraan malaman.
+    //
+    //   Now: the script probes `sudo -n true` first. Passwordless sudo
+    //   available → use it (no prompt, works from timers). Not available:
+    //     - manual run  → fall back to pkexec (interactive, prompt is fine)
+    //     - auto run    → DON'T prompt; do the user-space zombie pass,
+    //                     then notify "Low memory — open General → Free RAM"
+    //   And every completion now posts a notification — freed how much,
+    //   or exactly why it couldn't.
+    property bool _lastRunWasAuto: false
+
+    function freeMemoryNow(auto) {
         if (root.isRunning) return
         root.isRunning = true
         root.lastError = ""
+        root._lastRunWasAuto = (auto === true)
 
-        // Use a single bash pipeline. pkexec wraps the privileged ops;
-        // the user-space ops run before the prompt.
-        cleanupProc.command = ["bash", "-c", _buildCleanupScript()]
+        cleanupProc.command = ["bash", "-c", _buildCleanupScript(auto === true)]
         cleanupProc.running = true
+    }
+
+    function _notify(summary, body, urgency) {
+        if (typeof NotificationService !== "undefined"
+            && NotificationService.postInternal) {
+            NotificationService.postInternal(summary, body, "Zen Cleanup",
+                                             urgency || "normal", "zen-cleanup")
+        }
     }
 
     function dropCachesOnly() {
@@ -218,18 +274,33 @@ Singleton {
         root.sessionSuppressed = true
     }
 
-    function _buildCleanupScript() {
+    function _buildCleanupScript(auto) {
         // Composite script: zombie reap (user-space) → drop caches +
         // compact memory (privileged). Output FREED_BYTES + ZOMBIES_REAPED.
+        //
+        // hf197 escalation ladder (see freeMemoryNow's comment):
+        //   sudo -n works       → sudo -n  (silent, timer-safe)
+        //   manual + no sudo -n → pkexec   (interactive prompt, OK)
+        //   auto   + no sudo -n → skip privileged ops, report why
+        const privOps = "sync && echo 3 > /proc/sys/vm/drop_caches && echo 1 > /proc/sys/vm/compact_memory"
+        const privBlock = auto
+            ? ("if sudo -n true 2>/dev/null; then " +
+               "  sudo -n sh -c '" + privOps + "' || { echo ERROR=priv_ops_failed; exit 1; }; " +
+               "else echo ERROR=no_noninteractive_auth; fi")
+            : ("if sudo -n true 2>/dev/null; then " +
+               "  sudo -n sh -c '" + privOps + "' || { echo ERROR=priv_ops_failed; exit 1; }; " +
+               "else " +
+               "  pkexec sh -c '" + privOps + "' || { echo ERROR=pkexec_denied; exit 1; }; " +
+               "fi")
         return [
-            "set -e",
-            // Zombie pass first
+            // Zombie pass first — user-space, never needs auth
             _buildZombieScript().replace(/\n/g, "; "),
             // Memory pass
             "before=$(grep MemAvailable /proc/meminfo | awk '{print $2}')",
-            "pkexec sh -c 'sync && echo 3 > /proc/sys/vm/drop_caches && echo 1 > /proc/sys/vm/compact_memory' || { echo ERROR=pkexec_denied; exit 1; }",
+            privBlock,
             "after=$(grep MemAvailable /proc/meminfo | awk '{print $2}')",
             "freed=$(( (after - before) * 1024 ))",
+            "[ $freed -lt 0 ] && freed=0",
             "echo FREED_BYTES=$freed"
         ].join(" && ")
     }
@@ -275,7 +346,7 @@ Singleton {
             if (root.isRunning) return
             if (!root.memoryPressure) return
             console.log("ZenCleanup: auto-trigger firing (sustained pressure)")
-            root.freeMemoryNow()
+            root.freeMemoryNow(true)   // hf197 — auto mode: never prompt
         }
     }
 
